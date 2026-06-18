@@ -1,0 +1,1261 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>שמאי סקן</title>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;600;700;900&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" defer></script>
+<style>
+:root{--bg:#0a0c10;--surface:#13161d;--card:#1a1e28;--border:#252a38;--accent:#f59e0b;--blue:#3b82f6;--text:#e8eaf0;--muted:#6b7280;--green:#10b981;--red:#ef4444}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:'Heebo',sans-serif;min-height:100vh}
+header{background:var(--surface);border-bottom:1px solid var(--border);padding:10px 16px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;flex-wrap:wrap;gap:8px}
+.logo{font-size:1.1rem;font-weight:900;color:var(--accent)}.logo span{color:var(--text)}
+.hdr-actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.btn-sm{padding:7px 12px;border-radius:8px;border:none;font-family:'Heebo',sans-serif;font-weight:700;font-size:0.78rem;cursor:pointer}
+@media(max-width:480px){
+  .btn-sm{padding:6px 9px;font-size:0.72rem}
+  header{padding:8px 12px}
+  main{padding:12px 10px 60px}
+  .card{padding:14px 12px;border-radius:12px}
+  input[type=text],input[type=number],select,textarea{padding:11px 12px;font-size:1rem;min-height:44px}
+  .damage-table td input{min-height:40px;font-size:0.9rem;padding:6px 4px}
+  .damage-table td select{min-height:40px;font-size:0.85rem}
+  .damage-table th{font-size:0.65rem;padding:4px 2px}
+  .upload-zone{padding:32px 16px}
+  .upload-icon{font-size:2.8rem}
+  .upload-zone p{font-size:0.92rem}
+  .ai-btn{padding:15px;font-size:1rem}
+  .apikey-row input{min-height:44px;font-size:0.95rem}
+  .url-save-btn{min-height:44px;padding:8px 12px}
+  .add-row-btn{min-height:48px;font-size:0.9rem}
+  .del-row{min-height:40px;min-width:40px;font-size:1.3rem}
+}
+.btn-green{background:var(--green);color:#fff}
+.btn-blue{background:var(--blue);color:#fff}
+.btn-gray{background:var(--surface);color:var(--text);border:1px solid var(--border)}
+main{max-width:520px;margin:0 auto;padding:20px 16px 40px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:18px;margin-bottom:16px}
+.card-title{font-size:0.9rem;font-weight:700;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+.row{display:flex;gap:10px;margin-bottom:10px}
+.field{display:flex;flex-direction:column;flex:1}
+.field label{font-size:0.72rem;color:var(--muted);margin-bottom:4px}
+input[type=text],input[type=number],select,textarea{background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:9px 12px;font-family:'Heebo',sans-serif;font-size:0.88rem;width:100%}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue)}
+/* Office selector */
+.office-card{background:linear-gradient(135deg,#1a2035,#1e2840);border:1px solid var(--accent);border-radius:14px;padding:14px 16px;margin-bottom:16px;display:flex;align-items:center;gap:12px}
+.office-icon{font-size:1.6rem}
+.office-label{font-size:0.72rem;color:var(--muted);margin-bottom:4px}
+.office-select-wrap{flex:1}
+#office-select{background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:9px 12px;font-family:'Heebo',sans-serif;font-size:0.9rem;font-weight:700;width:100%}
+/* Damage table */
+.damage-table{width:100%;border-collapse:collapse;margin-bottom:10px}
+.damage-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.damage-table th{text-align:right;font-size:0.72rem;color:var(--muted);font-weight:600;padding:6px 4px;border-bottom:1px solid var(--border)}
+.damage-table td{padding:4px}
+.damage-table td input{border-radius:6px;padding:7px 8px;font-size:0.82rem}
+.damage-table td input[type=number]{text-align:left}
+.del-row{background:none;border:none;color:var(--muted);cursor:pointer;font-size:1.1rem;padding:4px 8px}
+.del-row:hover{color:var(--red)}
+.add-row-btn{background:none;border:1px dashed var(--border);color:var(--muted);border-radius:8px;padding:8px;font-size:0.82rem;cursor:pointer;width:100%;font-family:'Heebo',sans-serif;margin-bottom:10px}
+.add-row-btn:hover{border-color:var(--blue);color:var(--blue)}
+.totals-row{display:flex;justify-content:space-between;padding:10px 4px;border-top:1px solid var(--border);font-weight:700;font-size:0.9rem}
+.total-num{color:var(--accent);font-size:1.1rem}
+/* Upload */
+.upload-zone{border:2px dashed var(--border);border-radius:12px;padding:24px;text-align:center;cursor:pointer;position:relative;background:var(--surface);transition:border-color .2s}
+.upload-zone:hover{border-color:var(--accent)}
+.upload-zone input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.upload-icon{font-size:2rem;margin-bottom:6px}
+.upload-zone p{font-size:0.82rem;color:var(--muted)}
+.preview-img{width:100%;max-height:200px;object-fit:cover;border-radius:10px;margin-top:10px;display:none}
+.ai-btn{width:100%;background:linear-gradient(135deg,var(--accent),#d97706);color:#000;border:none;border-radius:10px;padding:12px;font-size:0.95rem;font-weight:900;font-family:'Heebo',sans-serif;cursor:pointer;margin-top:10px}
+.ai-btn:disabled{opacity:.4;cursor:not-allowed}
+.spinner-inline{display:inline-block;width:14px;height:14px;border:2px solid rgba(0,0,0,.2);border-top-color:#000;border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle;margin-left:6px}
+@keyframes spin{to{transform:rotate(360deg)}}
+/* Sheets setup */
+.setup-steps{counter-reset:step}
+.step{display:flex;gap:12px;padding:10px 0;border-bottom:1px solid var(--border)}
+.step:last-child{border-bottom:none}
+.step-num{background:var(--blue);color:#fff;font-weight:900;width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:0.78rem;flex-shrink:0}
+.step-body{flex:1;font-size:0.83rem;line-height:1.5;color:var(--text)}
+.step-body small{color:var(--muted)}
+.copy-code-btn{background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:5px 12px;font-size:0.75rem;cursor:pointer;font-family:'Heebo',sans-serif;margin-top:6px}
+.copy-code-btn:hover{border-color:var(--blue);color:var(--blue)}
+.url-input-row{display:flex;gap:8px;margin-top:6px}
+.url-input-row input{flex:1;font-size:0.8rem}
+.url-save-btn{background:var(--green);color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:0.78rem;font-weight:700;cursor:pointer;font-family:'Heebo',sans-serif;white-space:nowrap}
+.status-line{font-size:0.72rem;margin-top:4px}
+/* Records */
+.record-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:flex-start}
+.record-info{flex:1}
+.record-plate{font-weight:900;color:var(--accent);direction:ltr;font-size:0.95rem}
+.record-meta{font-size:0.75rem;color:var(--muted);margin-top:2px}
+.record-total{font-weight:900;color:var(--green);font-size:0.95rem;margin-top:4px}
+.rec-del{background:none;border:none;color:var(--muted);cursor:pointer;font-size:1rem;padding:4px}
+.rec-del:hover{color:var(--red)}
+.empty{text-align:center;padding:24px;color:var(--muted);font-size:0.85rem}
+/* Toast */
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--green);color:#fff;padding:11px 22px;border-radius:99px;font-weight:700;font-size:0.88rem;opacity:0;transition:opacity .3s;z-index:999;white-space:nowrap}
+.toast.show{opacity:1}.toast.err{background:var(--red)}
+/* API key section */
+.apikey-section{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:16px}
+.apikey-section label{font-size:0.78rem;color:var(--muted);display:block;margin-bottom:6px}
+.apikey-row{display:flex;gap:8px}
+.apikey-row input{flex:1;font-size:0.82rem}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">🚗 שמאי<span>סקן</span></div>
+  <div class="hdr-actions">
+    <button class="btn-sm btn-blue" onclick="newInspection()">+ אומדן חדש</button>
+    <button class="btn-sm btn-gray" onclick="exportExcel()">⬇ Excel</button>
+    <button class="btn-sm btn-gray" onclick="exportPDF()">⬇ PDF</button>
+    <button class="btn-sm" style="background:#7c3aed;color:#fff" onclick="showMobileLink()" title="קישור לטלפון">📲</button>
+  </div>
+</header>
+<main>
+
+<!-- OFFICE SELECTOR -->
+<div class="office-card">
+  <div class="office-icon">🏢</div>
+  <div class="office-select-wrap">
+    <div class="office-label">משרד שמאות פעיל</div>
+    <select id="office-select" onchange="saveOfficeChoice()">
+      <option value="">— בחר משרד שמאות —</option>
+      <option value="ר.מ מרציאנו שמאות רכב">ר.מ מרציאנו שמאות רכב</option>
+      <option value="רפי ונציה שמאות וסקרים בע&quot;מ">רפי ונציה שמאות וסקרים בע"מ</option>
+      <option value="שטיבי שמאות רכב">שטיבי שמאות רכב</option>
+    </select>
+  </div>
+</div>
+
+<!-- API KEY -->
+<div class="apikey-section" id="api-key-section">
+  <label>🔑 מפתח AI לניתוח תמונות</label>
+  <div style="font-size:0.72rem;color:var(--muted);margin-bottom:6px;line-height:1.5">
+    ✅ <strong>OpenRouter (מומלץ):</strong> <a href="https://openrouter.ai/keys" target="_blank" style="color:var(--blue)">openrouter.ai/keys</a> → Sign in with Google → Create Key → מפתח מתחיל ב-<code>sk-or-</code> — עובד מיד, $1 קרדיט חינמי
+  </div>
+  <div class="apikey-row">
+    <input type="password" id="ai-key" placeholder="AIza... או sk-or-v1-..." />
+    <button class="btn-sm btn-gray" onclick="toggleKeyVisibility()" id="show-key-btn" title="הצג/הסתר">👁</button>
+    <button class="btn-sm btn-gray" onclick="copyApiKey()" title="העתק">📋</button>
+    <button class="btn-sm btn-blue" onclick="saveKey()">שמור</button>
+  </div>
+  <div id="key-status" style="font-size:0.72rem;margin-top:4px;color:var(--muted)"></div>
+</div>
+
+<!-- FORM -->
+<div class="card" id="form-section">
+  <div class="card-title">📋 פרטי אומדן</div>
+
+  <!-- Vehicle -->
+  <div class="row">
+    <div class="field">
+      <label>מספר רישוי</label>
+      <div style="display:flex;gap:6px">
+        <input type="text" id="f-plate" placeholder="12-345-67" style="direction:ltr;font-size:1rem;font-weight:700;letter-spacing:2px;flex:1" oninput="onPlateInput(this.value)">
+        <button class="btn-sm btn-blue" onclick="lookupPlate()" id="lookup-btn" style="white-space:nowrap;border-radius:8px">🔍 רישוי</button>
+      </div>
+      <div id="lookup-status" style="font-size:0.72rem;margin-top:3px;color:var(--muted)"></div>
+    </div>
+    <div class="field"><label>תאריך</label><input type="text" id="f-date"></div>
+  </div>
+  <div class="row">
+    <div class="field"><label>יצרן</label><input type="text" id="f-make" placeholder="Toyota"></div>
+    <div class="field"><label>דגם</label><input type="text" id="f-model" placeholder="Corolla"></div>
+    <div class="field" style="max-width:80px"><label>שנה</label><input type="text" id="f-year" placeholder="2020" oninput="onYearChange(this.value)"></div>
+    <div class="field" style="max-width:90px"><label>צבע</label><input type="text" id="f-color" placeholder="לבן"></div>
+  </div>
+  <div class="row">
+    <div class="field"><label>שם לקוח</label><input type="text" id="f-client" placeholder="ישראל ישראלי"></div>
+    <div class="field"><label>ק"מ</label><input type="text" id="f-km" placeholder="85,000"></div>
+    <div class="field"><label>מספר סידורי (שלדה)</label><input type="text" id="f-serial" placeholder="WBA12345678901234" style="direction:ltr;font-size:0.82rem"></div>
+    <div class="field"><label>תאריך מקרה</label><input type="text" id="f-incident-date" placeholder="DD/MM/YYYY" inputmode="numeric" maxlength="10" oninput="onIncidentDateChange(this)"></div>
+  </div>
+  <div class="row">
+    <div class="field"><label>חברת ביטוח</label>
+      <select id="f-insurance">
+        <option value="">— בחר חברת ביטוח —</option>
+        <option>הפניקס</option>
+        <option>מגדל</option>
+        <option>כלל ביטוח</option>
+        <option>הראל</option>
+        <option>איילון</option>
+        <option>מנורה מבטחים</option>
+        <option>ביטוח ישיר</option>
+        <option>וישי</option>
+        <option>הדר</option>
+        <option>ציון ביטוח</option>
+        <option>אריה</option>
+        <option>יששכר</option>
+        <option>AIG ישראל</option>
+        <option>לומברד</option>
+        <option>פסגות ביטוח</option>
+        <option>שקמה</option>
+        <option>ביטוח חקלאי</option>
+        <option>אחר</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Parts type -->
+  <div style="margin-top:10px;padding:10px 12px;background:var(--surface);border-radius:10px;border:1px solid var(--border)">
+    <div style="font-size:0.78rem;font-weight:700;color:var(--muted);margin-bottom:8px">🔩 סוג חלפים</div>
+    <div style="display:flex;gap:16px;flex-wrap:wrap">
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:0.88rem;font-weight:600">
+        <input type="checkbox" id="pt-original" style="width:18px;height:18px;cursor:pointer" onchange="calcTotal()"> מקורי
+      </label>
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:0.88rem;font-weight:600">
+        <input type="checkbox" id="pt-used" style="width:18px;height:18px;cursor:pointer" onchange="calcTotal()"> משומש
+      </label>
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:0.88rem;font-weight:600">
+        <input type="checkbox" id="pt-aftermarket" style="width:18px;height:18px;cursor:pointer" onchange="calcTotal()"> תחליפי
+      </label>
+    </div>
+  </div>
+
+  <!-- Damage items -->
+  <div class="card-title" style="margin-top:10px">🔧 פירוט נזקים</div>
+  <div class="damage-scroll">
+  <table class="damage-table">
+    <thead>
+      <tr>
+        <th style="min-width:140px">חלק / אזור</th>
+        <th style="width:100px">סוג נזק</th>
+        <th style="width:100px">עלות חלק ₪</th>
+        <th style="width:30px"></th>
+      </tr>
+    </thead>
+    <tbody id="damage-rows"></tbody>
+  </table>
+  </div>
+  <button class="add-row-btn" onclick="addRow()">+ הוסף שורה</button>
+
+  <!-- Fixed work items -->
+  <div style="margin-top:10px;padding:10px;background:var(--surface);border-radius:10px;border:1px solid var(--border)">
+    <div style="font-size:0.78rem;font-weight:700;color:var(--muted);margin-bottom:8px">🔧 עבודות</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <div class="field" style="min-width:100px">
+        <label>🎨 צבע ₪</label>
+        <input type="number" id="w-paint" value="0" min="0" oninput="calcTotal()">
+      </div>
+      <div class="field" style="min-width:100px">
+        <label>🔨 פחחות/מרכב ₪</label>
+        <input type="number" id="w-body" value="0" min="0" oninput="calcTotal()">
+      </div>
+      <div class="field" style="min-width:100px">
+        <label>⚡ חשמל ₪</label>
+        <input type="number" id="w-electric" value="0" min="0" oninput="calcTotal()">
+      </div>
+    </div>
+  </div>
+
+  <div class="totals-row">
+    <span>סה"כ אומדן:</span>
+    <span class="total-num" id="total-display">₪0</span>
+  </div>
+
+  <!-- Notes -->
+  <div class="field" style="margin-top:10px">
+    <label>הערות שמאי</label>
+    <textarea id="f-notes" rows="2" placeholder="הערות נוספות..."></textarea>
+  </div>
+
+  <button class="btn-sm btn-green" style="width:100%;padding:13px;font-size:0.95rem;border-radius:12px;margin-top:12px" onclick="saveRecord()">✅ שמור אומדן</button>
+</div>
+
+<!-- AI PHOTO -->
+<div class="card">
+  <div class="card-title">🤖 ניתוח נזק עם AI</div>
+  <div style="display:flex;gap:8px;margin-bottom:10px">
+    <label style="flex:1;display:flex;align-items:center;justify-content:center;gap:8px;background:var(--blue);color:#fff;border-radius:10px;padding:14px;font-size:0.95rem;font-weight:700;cursor:pointer">
+      📷 צלם תמונה
+      <input type="file" accept="image/*" capture="environment" onchange="handlePhoto(this)" style="display:none">
+    </label>
+    <label style="flex:1;display:flex;align-items:center;justify-content:center;gap:8px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:10px;padding:14px;font-size:0.95rem;font-weight:700;cursor:pointer">
+      🖼 העלה תמונה
+      <input type="file" accept="image/*" onchange="handlePhoto(this)" style="display:none">
+    </label>
+  </div>
+  <img id="preview-img" class="preview-img" alt="">
+  <button class="ai-btn" id="ai-btn" onclick="analyzePhoto()" disabled>🔍 נתח נזק עם AI</button>
+  <div id="ai-status" style="font-size:0.78rem;color:var(--muted);margin-top:6px;text-align:center"></div>
+</div>
+
+<!-- GOOGLE SHEETS SETUP -->
+<div class="card" id="sheets-card">
+  <div class="card-title">📊 שמירה ל-Google Sheets <span id="sheets-connected-badge" style="display:none;background:var(--green);color:#fff;font-size:0.7rem;border-radius:99px;padding:2px 8px">✓ מחובר</span></div>
+  <div id="sheets-setup">
+    <div style="font-size:0.82rem;color:var(--muted);margin-bottom:12px">הגדרה חד-פעמית (2 דקות):</div>
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-body">
+        פתח <a href="https://script.google.com" target="_blank" style="color:var(--blue);font-weight:700">script.google.com</a> ← צור פרויקט חדש ← מחק הכל<br>
+        <button class="copy-code-btn" onclick="copyScript()">📋 העתק קוד Apps Script</button>
+        <small id="copy-status"></small>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-body">הדבק ← <strong>Deploy → New deployment → Web app</strong><br><small>"Who has access" → <strong>Anyone</strong></small></div>
+    </div>
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-body">
+        העתק את ה-URL ← הדבק כאן:<br>
+        <div class="url-input-row">
+          <input type="text" id="sheets-url" placeholder="https://script.google.com/macros/s/...">
+          <button class="url-save-btn" onclick="connectSheets()">בדוק וחבר</button>
+        </div>
+        <div class="status-line" id="sheets-status"></div>
+      </div>
+    </div>
+    <!-- Sheet picker (shown after connect) -->
+    <div id="sheet-picker" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">
+      <div style="font-size:0.8rem;color:var(--text);margin-bottom:6px;font-weight:600">בחר גיליון לשמירה:</div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <select id="sheet-select" class="api-input" style="flex:1;padding:9px 12px;font-size:0.88rem" onchange="saveSheetChoice()">
+          <option value="">— בחר גיליון —</option>
+        </select>
+        <button class="copy-code-btn" onclick="addNewSheet()" style="white-space:nowrap">+ גיליון חדש</button>
+      </div>
+      <div id="sheet-pick-status" style="font-size:0.72rem;color:var(--muted);margin-top:4px"></div>
+    </div>
+  </div>
+</div>
+
+<!-- RECORDS -->
+<div class="card">
+  <div class="card-title">📋 אומדנים שמורים <span id="rec-count" style="background:var(--accent);color:#000;font-size:0.7rem;border-radius:99px;padding:2px 8px;font-weight:700">0</span></div>
+  <div id="records-list"><div class="empty">עוד אין אומדנים שמורים</div></div>
+</div>
+
+</main>
+<div class="toast" id="toast"></div>
+
+<script>
+// ── Apps Script code (embedded) ──
+const APPS_SCRIPT_CODE = `function doPost(e) {
+  try {
+    var d = JSON.parse(e.postData.contents);
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sheetName = d.sheetName || 'אומדנים';
+    var sheet = ss.getSheetByName(sheetName) || ss.insertSheet(sheetName);
+
+    // Headers
+    var HEADERS = ['תאריך','מספר רישוי','יצרן','דגם','שנה','צבע','ק"מ','לקוח','חלק / אזור','סוג נזק','חלקים ₪','עבודה ₪','צבע ₪','סה"כ פריט ₪','סה"כ אומדן ₪','הערות','מזהה'];
+    if (sheet.getLastRow() === 0) {
+      sheet.appendRow(HEADERS);
+      var hRange = sheet.getRange(1,1,1,HEADERS.length);
+      hRange.setBackground('#1d4ed8').setFontColor('#fff').setFontWeight('bold');
+      sheet.setFrozenRows(1);
+      sheet.setColumnWidths(1, HEADERS.length, 120);
+    }
+
+    var na = 'לא ידוע';
+    var items = d.items && d.items.length > 0 ? d.items : [{}];
+    var id = String(d.id || '');
+
+    // Delete old rows with same id
+    if (id) {
+      var lastRow = sheet.getLastRow();
+      if (lastRow > 1) {
+        var idCol = sheet.getRange(2, 17, lastRow-1, 1).getValues().flat().map(String);
+        for (var i = idCol.length-1; i >= 0; i--) {
+          if (idCol[i] === id) sheet.deleteRow(i+2);
+        }
+      }
+    }
+
+    // Write one row per damage item
+    for (var j = 0; j < items.length; j++) {
+      var it = items[j];
+      var partTotal = (Number(it.parts)||0) + (Number(it.labor)||0) + (Number(it.paint)||0);
+      var row = [
+        d.date   || na,
+        d.plate  || na,
+        d.make   || na,
+        d.model  || na,
+        d.year   || na,
+        d.color  || na,
+        d.km     || na,
+        d.client || na,
+        it.part  || na,
+        it.type  || na,
+        Number(it.parts) || 0,
+        Number(it.labor) || 0,
+        Number(it.paint) || 0,
+        partTotal,
+        j === 0 ? (Number(d.total) || 0) : '',
+        j === 0 ? (d.notes || '') : '',
+        j === 0 ? id : ''
+      ];
+      sheet.appendRow(row);
+      if (sheet.getLastRow() % 2 === 0) {
+        sheet.getRange(sheet.getLastRow(), 1, 1, HEADERS.length).setBackground('#f0f9ff');
+      }
+    }
+
+    // Format number columns
+    var lastR = sheet.getLastRow();
+    var startR = lastR - items.length + 1;
+    sheet.getRange(startR, 11, items.length, 4).setNumberFormat('#,##0 ₪');
+    sheet.getRange(startR, 15, 1, 1).setNumberFormat('#,##0 ₪');
+
+    return ContentService.createTextOutput(JSON.stringify({ok:true})).setMimeType(ContentService.MimeType.JSON);
+  } catch(err) {
+    return ContentService.createTextOutput(JSON.stringify({ok:false,error:err.message})).setMimeType(ContentService.MimeType.JSON);
+  }
+}
+function doGet(e) {
+  var action = e.parameter.action || 'ping';
+  if (action === 'ping') return ContentService.createTextOutput(JSON.stringify({ok:true})).setMimeType(ContentService.MimeType.JSON);
+  if (action === 'list_sheets') {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sheets = ss.getSheets().map(function(s){ return {name:s.getName(), rows:Math.max(0,s.getLastRow()-1)}; });
+    return ContentService.createTextOutput(JSON.stringify({ok:true,sheets:sheets})).setMimeType(ContentService.MimeType.JSON);
+  }
+  return ContentService.createTextOutput(JSON.stringify({ok:false,error:'unknown'})).setMimeType(ContentService.MimeType.JSON);
+}`;
+
+// ── URL Hash persistence (survives WhatsApp / fresh opens) ──
+function encodeSettings() {
+  try {
+    const s = {
+      k:  localStorage.getItem('ai_key')      || '',
+      u:  localStorage.getItem('script_url')  || '',
+      o:  localStorage.getItem('office_name') || '',
+      sh: localStorage.getItem('sheet_name')  || ''
+    };
+    if (!s.k && !s.u && !s.o) return;
+    const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(s))));
+    history.replaceState(null, '', '#s=' + encoded);
+  } catch(e) {}
+}
+
+function loadFromHash() {
+  const hash = window.location.hash;
+  if (!hash || !hash.includes('s=')) return;
+  try {
+    const enc = decodeURIComponent(hash).replace('#s=','').split('&')[0];
+    const s = JSON.parse(decodeURIComponent(escape(atob(enc))));
+    if (s.k)  localStorage.setItem('ai_key',      s.k);
+    if (s.u)  localStorage.setItem('script_url',  s.u);
+    if (s.o)  localStorage.setItem('office_name', s.o);
+    if (s.sh) localStorage.setItem('sheet_name',  s.sh);
+  } catch(e) {}
+}
+
+function showMobileLink() {
+  encodeSettings();
+  const url = window.location.href;
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(url).then(() => {
+      toast('✅ קישור הועתק — פתח בכרום ושמור כסימנייה!');
+    }).catch(() => promptCopy(url));
+  } else {
+    promptCopy(url);
+  }
+}
+function promptCopy(url) {
+  const txt = document.createElement('textarea');
+  txt.value = url;
+  txt.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);width:90vw;height:80px;z-index:9999;font-size:0.75rem;padding:8px;border-radius:8px;background:#13161d;color:#e8eaf0;border:1px solid #3b82f6';
+  document.body.appendChild(txt);
+  txt.select();
+  toast('בחר הכל → העתק → פתח בכרום', false);
+  setTimeout(() => txt.remove(), 10000);
+}
+
+// ── Price Memory (learning engine) ──
+let priceMemory = JSON.parse(localStorage.getItem('shamay_prices') || '{}');
+
+function updatePriceMemory(items) {
+  items.forEach(it => {
+    if (!it.part || it.part.length < 2) return;
+    const key = it.part.trim() + '|' + (it.type || 'תיקון');
+    if (!priceMemory[key]) priceMemory[key] = { parts: [], labor: [], paint: [], count: 0 };
+    const m = priceMemory[key];
+    if (Number(it.parts) > 0) m.parts.push(Number(it.parts));
+    if (Number(it.labor) > 0) m.labor.push(Number(it.labor));
+    if (Number(it.paint) > 0) m.paint.push(Number(it.paint));
+    m.count++;
+    // Rolling average — keep last 15
+    if (m.parts.length > 15) m.parts = m.parts.slice(-15);
+    if (m.labor.length > 15) m.labor = m.labor.slice(-15);
+    if (m.paint.length > 15) m.paint = m.paint.slice(-15);
+  });
+  localStorage.setItem('shamay_prices', JSON.stringify(priceMemory));
+}
+
+function avgArr(arr) {
+  if (!arr || !arr.length) return 0;
+  return Math.round(arr.reduce((a, b) => a + b, 0) / arr.length);
+}
+
+function getSuggestions(query) {
+  if (!query || query.length < 2) return [];
+  const q = query.trim().toLowerCase();
+  return Object.entries(priceMemory)
+    .filter(([key]) => key.toLowerCase().includes(q))
+    .map(([key, m]) => {
+      const [part, type] = key.split('|');
+      return { part, type: type || 'תיקון', parts: avgArr(m.parts), labor: avgArr(m.labor), paint: avgArr(m.paint), count: m.count };
+    })
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 6);
+}
+
+function showSuggestions(inputEl, rowId) {
+  document.querySelectorAll('.price-dropdown').forEach(el => el.remove());
+  const query = inputEl.value.trim();
+  const suggestions = getSuggestions(query);
+  if (!suggestions.length) return;
+
+  const wrap = inputEl.parentNode;
+  wrap.style.position = 'relative';
+  const dd = document.createElement('div');
+  dd.className = 'price-dropdown';
+  dd.style.cssText = 'position:absolute;top:100%;right:0;z-index:600;background:var(--card);border:1px solid var(--blue);border-radius:10px;overflow:hidden;min-width:260px;box-shadow:0 6px 20px rgba(0,0,0,0.4);margin-top:2px';
+  suggestions.forEach(s => {
+    const item = document.createElement('div');
+    item.style.cssText = 'padding:9px 12px;cursor:pointer;border-bottom:1px solid var(--border);font-size:0.82rem;transition:background .15s';
+    item.innerHTML = `<div style="font-weight:700;color:var(--text)">${s.part} <span style="color:var(--muted);font-size:0.7rem;font-weight:400">${s.type}</span></div>
+      <div style="color:var(--muted);font-size:0.72rem;margin-top:2px">
+        חלקים <strong style="color:var(--accent)">${s.parts}₪</strong> · עבודה <strong style="color:var(--accent)">${s.labor}₪</strong> · צבע <strong style="color:var(--accent)">${s.paint}₪</strong>
+        <span style="color:var(--green);margin-right:6px">(${s.count} אומדנים)</span>
+      </div>`;
+    item.onmouseover = () => item.style.background = 'var(--surface)';
+    item.onmouseout  = () => item.style.background = '';
+    const fill = (e) => {
+      e.preventDefault();
+      fillRowFromSuggestion(rowId, s);
+      dd.remove();
+    };
+    item.onmousedown = fill;
+    item.addEventListener('touchstart', fill, { passive: false });
+    dd.appendChild(item);
+  });
+  wrap.appendChild(dd);
+}
+
+function hideSuggestions() {
+  setTimeout(() => document.querySelectorAll('.price-dropdown').forEach(el => el.remove()), 150);
+}
+
+function fillRowFromSuggestion(rowId, s) {
+  const tr = document.getElementById('row-' + rowId);
+  if (!tr) return;
+  const inputs = tr.querySelectorAll('input');
+  const sel = tr.querySelector('select');
+  inputs[0].value = s.part;
+  if (sel) sel.value = s.type;
+  if (s.parts > 0) inputs[1].value = s.parts;
+  if (s.labor > 0) inputs[2].value = s.labor;
+  if (s.paint > 0) inputs[3].value = s.paint;
+  calcTotal();
+}
+
+// ── State ──
+let records = JSON.parse(localStorage.getItem('shamay_records') || '[]');
+let photoBase64 = null, photoMime = null;
+let editingId = null;
+
+function saveOfficeChoice() {
+  const name = document.getElementById('office-select').value;
+  localStorage.setItem('office_name', name);
+  if (name) {
+    localStorage.setItem('sheet_name', name);
+    toast('✅ משרד נבחר: ' + name);
+  }
+  encodeSettings();
+}
+function getOfficeName() { return localStorage.getItem('office_name') || ''; }
+
+window.onload = () => {
+  loadFromHash(); // ← load settings from URL hash first (mobile fix)
+  // Restore office
+  const office = localStorage.getItem('office_name');
+  if (office) {
+    const sel = document.getElementById('office-select');
+    for (let o of sel.options) { if (o.value === office) { o.selected = true; break; } }
+  }
+  const k = localStorage.getItem('ai_key');
+  if (k) {
+    document.getElementById('ai-key').value = k;
+    const provider = k.startsWith('AIza') ? 'Gemini' : k.startsWith('sk-ant-') ? 'Anthropic' : k.startsWith('sk-or-') ? 'OpenRouter' : k.startsWith('sk-') ? 'OpenAI' : null;
+    if (provider) {
+      document.getElementById('key-status').textContent = '✓ ' + provider + ' מחובר';
+      document.getElementById('key-status').style.color = 'var(--green)';
+    }
+  }
+  const u = localStorage.getItem('script_url');
+  if (u) {
+    document.getElementById('sheets-url').value = u;
+    document.getElementById('sheets-connected-badge').style.display = 'inline';
+    loadSheetsList();
+  }
+  document.getElementById('f-date').value = new Date().toLocaleDateString('he-IL');
+  addRow(); addRow(); addRow();
+  renderRecords();
+};
+
+function saveKey() {
+  const k = document.getElementById('ai-key').value.trim();
+  const statusEl = document.getElementById('key-status');
+  if (!k) { toast('הכנס מפתח תחילה', true); return; }
+  localStorage.setItem('ai_key', k);
+  const provider = k.startsWith('AIza') ? 'Gemini' : k.startsWith('sk-ant-') ? 'Anthropic' : k.startsWith('sk-or-') ? 'OpenRouter' : k.startsWith('sk-') ? 'OpenAI' : 'AI';
+  statusEl.textContent = '✓ ' + provider + ' נשמר';
+  statusEl.style.color = 'var(--green)';
+  encodeSettings();
+  toast('✅ מפתח נשמר! לחץ 📲 בכותרת לקישור לטלפון');
+}
+
+function getKey() { return (localStorage.getItem('ai_key') || document.getElementById('ai-key').value || '').trim(); }
+function toggleKeyVisibility() {
+  const el = document.getElementById('ai-key');
+  el.type = el.type === 'password' ? 'text' : 'password';
+}
+function copyApiKey() {
+  const k = document.getElementById('ai-key').value;
+  if (!k) { toast('אין מפתח לשמור', true); return; }
+  navigator.clipboard.writeText(k).then(() => toast('✅ המפתח הועתק ללוח'));
+}
+
+function copyScript() {
+  navigator.clipboard.writeText(APPS_SCRIPT_CODE).then(() => {
+    document.getElementById('copy-status').textContent = ' ✓ הועתק!';
+    document.getElementById('copy-status').style.color = 'var(--green)';
+  });
+}
+
+async function connectSheets() {
+  const u = document.getElementById('sheets-url').value.trim();
+  const statusEl = document.getElementById('sheets-status');
+  if (!u.includes('script.google')) {
+    statusEl.textContent = '⚠️ כתובת לא תקינה';
+    statusEl.style.color = 'var(--red)';
+    return;
+  }
+  localStorage.setItem('script_url', u);
+  statusEl.textContent = '✓ נשמר!';
+  statusEl.style.color = 'var(--green)';
+  document.getElementById('sheets-connected-badge').style.display = 'inline';
+  document.getElementById('sheet-picker').style.display = 'block';
+  encodeSettings();
+  toast('Google Sheets מחובר ✓');
+}
+
+async function loadSheetsList() {
+  const u = localStorage.getItem('script_url'); if (!u) return;
+  try {
+    const res = await fetch(u + '?action=list_sheets');
+    const data = await res.json();
+    if (!data.ok || !data.sheets) return;
+    const sel = document.getElementById('sheet-select');
+    const saved = localStorage.getItem('sheet_name') || '';
+    sel.innerHTML = '<option value="">— בחר גיליון —</option>';
+    data.sheets.forEach(s => {
+      const opt = document.createElement('option');
+      opt.value = s.name;
+      opt.textContent = s.name + (s.rows > 0 ? ' (' + s.rows + ' שורות)' : ' — ריק');
+      if (s.name === saved) opt.selected = true;
+      sel.appendChild(opt);
+    });
+    // Add "create new" placeholder
+    document.getElementById('sheet-picker').style.display = 'block';
+    if (saved) {
+      document.getElementById('sheet-pick-status').textContent = '✓ גיליון נבחר: ' + saved;
+      document.getElementById('sheet-pick-status').style.color = 'var(--green)';
+    }
+  } catch(e) { /* silent */ }
+}
+
+function saveSheetChoice() {
+  const name = document.getElementById('sheet-select').value;
+  if (!name) return;
+  localStorage.setItem('sheet_name', name);
+  document.getElementById('sheet-pick-status').textContent = '✓ יישמר לגיליון: ' + name;
+  document.getElementById('sheet-pick-status').style.color = 'var(--green)';
+  toast('גיליון נבחר: ' + name);
+}
+
+function addNewSheet() {
+  const name = prompt('שם הגיליון החדש:');
+  if (!name) return;
+  localStorage.setItem('sheet_name', name);
+  const sel = document.getElementById('sheet-select');
+  const opt = document.createElement('option');
+  opt.value = name; opt.textContent = name + ' — חדש'; opt.selected = true;
+  sel.appendChild(opt);
+  document.getElementById('sheet-pick-status').textContent = '✓ יוצר גיליון חדש: ' + name;
+  document.getElementById('sheet-pick-status').style.color = 'var(--green)';
+  toast('גיליון חדש יוצר: ' + name);
+}
+
+function getSheetName() { return localStorage.getItem('sheet_name') || 'אומדנים'; }
+
+// ── Damage rows ──
+let rowId = 0;
+function addRow(part='', type='', parts=0, labor=0, paint=0) {
+  const id = ++rowId;
+  const tbody = document.getElementById('damage-rows');
+  const tr = document.createElement('tr');
+  tr.id = 'row-' + id;
+  tr.innerHTML = `
+    <td style="position:relative"><input type="text" value="${part}" placeholder="דלת קדמית שמאל" oninput="calcTotal();showSuggestions(this,${id})" onblur="hideSuggestions()"></td>
+    <td><select onchange="calcTotal()" style="padding:7px 6px;font-size:0.82rem">
+      <option value="תיקון" ${type==='החלפה'?'':'selected'}>תיקון</option>
+      <option value="החלפה" ${type==='החלפה'?'selected':''}>החלפה</option>
+    </select></td>
+    <td><input type="number" value="${parts}" placeholder="0" oninput="calcTotal()" min="0"></td>
+    <td><button class="del-row" onclick="delRow(${id})">✕</button></td>`;
+  tbody.appendChild(tr);
+  calcTotal();
+}
+
+function delRow(id) {
+  const el = document.getElementById('row-' + id);
+  if (el) el.remove();
+  calcTotal();
+}
+
+function getIncidentYear() {
+  const el = document.getElementById('f-incident-date');
+  const raw = (el.dataset.rawDigits || '').trim();
+  // 8 digits: DDMMYYYY → year is last 4
+  if (raw.length === 8) {
+    const y = parseInt(raw.slice(4));
+    if (y > 1980 && y <= 2100) return y;
+  }
+  // 4 digits: user typed only a year
+  if (raw.length === 4) {
+    const y = parseInt(raw);
+    if (y > 1980 && y <= 2100) return y;
+  }
+  // fallback: look for 4-digit year in formatted string
+  const m = el.value.match(/(19|20)\d{2}/);
+  if (m) return parseInt(m[0]);
+  return new Date().getFullYear();
+}
+
+function updatePartsType() {
+  const vehicleYear = parseInt(document.getElementById('f-year').value);
+  if (!vehicleYear || vehicleYear < 1980) return;
+  const incidentYear = getIncidentYear();
+  const age = incidentYear - vehicleYear;
+  const orig  = document.getElementById('pt-original');
+  const used  = document.getElementById('pt-used');
+  const after = document.getElementById('pt-aftermarket');
+  if (age > 2) {
+    orig.checked  = false;
+    used.checked  = true;
+    after.checked = true;
+  } else {
+    orig.checked  = false;
+    used.checked  = false;
+    after.checked = false;
+  }
+}
+
+function onYearChange(val) {
+  updatePartsType();
+}
+
+function onIncidentDateChange(el) {
+  let val = el.value.replace(/\D/g, '');
+  if (val.length > 8) val = val.slice(0, 8);
+  el.dataset.rawDigits = val; // store raw digits for year extraction
+  let formatted = val;
+  if (val.length > 4) formatted = val.slice(0,2) + '/' + val.slice(2,4) + '/' + val.slice(4);
+  else if (val.length > 2) formatted = val.slice(0,2) + '/' + val.slice(2);
+  el.value = formatted;
+  updatePartsType();
+}
+
+function getRows() {
+  return [...document.querySelectorAll('#damage-rows tr')].map(tr => {
+    const inputs = tr.querySelectorAll('input');
+    const sel    = tr.querySelector('select');
+    return {
+      part:  inputs[0].value.trim(),
+      type:  sel ? sel.value : '',
+      parts: parseFloat(inputs[1].value) || 0,
+      labor: 0,
+      paint: 0
+    };
+  }).filter(r => r.part || r.parts);
+}
+
+function getWorkTotals() {
+  return {
+    paint:    parseFloat(document.getElementById('w-paint').value)    || 0,
+    body:     parseFloat(document.getElementById('w-body').value)     || 0,
+    electric: parseFloat(document.getElementById('w-electric').value) || 0,
+  };
+}
+
+function calcTotal() {
+  const itemsTotal = getRows().reduce((s, r) => s + r.parts, 0);
+  const w = getWorkTotals();
+  const total = itemsTotal + w.paint + w.body + w.electric;
+  document.getElementById('total-display').textContent = '₪' + total.toLocaleString('he-IL');
+}
+
+// ── Photo & AI ──
+function handlePhoto(input) {
+  const file = input.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    photoBase64 = e.target.result.split(',')[1];
+    photoMime = e.target.result.split(';')[0].split(':')[1];
+    const img = document.getElementById('preview-img');
+    img.src = e.target.result;
+    img.style.display = 'block';
+    document.getElementById('ai-btn').disabled = false;
+  };
+  reader.readAsDataURL(file);
+}
+
+async function analyzePhoto() {
+  const key = getKey();
+  if (!key) { toast('הכנס מפתח AI תחילה', true); return; }
+
+  const btn = document.getElementById('ai-btn');
+  const status = document.getElementById('ai-status');
+  btn.disabled = true;
+  btn.innerHTML = 'מנתח... <span class="spinner-inline"></span>';
+  status.textContent = '';
+
+  const prompt = `אתה שמאי רכב מקצועי. נתח את התמונה וזהה את כל הנזקים הנראים לעין.
+החזר JSON בלבד בפורמט הזה:
+{
+  "plate": "מספר רישוי אם נראה, אחרת null",
+  "make": "יצרן אם נראה",
+  "model": "דגם אם נראה",
+  "year": "שנה משוערת",
+  "items": [
+    { "part": "שם החלק בעברית", "type": "סוג הנזק", "parts": עלות חלפים בשקלים, "labor": עלות עבודה בשקלים, "paint": עלות צבע בשקלים }
+  ]
+}
+הערכת עלויות לפי שוק ישראלי. אם אין נזק: items = []`;
+
+  try {
+    let text = '';
+    if (key.startsWith('AIza') || key.startsWith('AQ.')) {
+      // Gemini — use official Google AI SDK (handles AQ. key auth correctly)
+      const { GoogleGenerativeAI } = await import('https://esm.run/@google/generative-ai');
+      const genAI = new GoogleGenerativeAI(key);
+      const model = genAI.getGenerativeModel({
+        model: 'gemini-2.5-flash-lite',
+        generationConfig: { responseMimeType: 'application/json' }
+      });
+      const result = await model.generateContent([
+        { text: prompt },
+        { inlineData: { mimeType: photoMime, data: photoBase64 } }
+      ]);
+      text = result.response.text();
+    } else if (key.startsWith('sk-ant-')) {
+      // Anthropic
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: { 'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-calls':'true' },
+        body: JSON.stringify({ model:'claude-opus-4-5', max_tokens:1200, messages:[{ role:'user', content:[
+          { type:'image', source:{ type:'base64', media_type:photoMime, data:photoBase64 } },
+          { type:'text', text:prompt }
+        ]}]})
+      });
+      if (!res.ok) { const t = await res.text(); throw new Error('Anthropic ' + res.status + ': ' + t.slice(0,300)); }
+      const data = await res.json();
+      text = data.content?.[0]?.text || '';
+    } else {
+      // OpenRouter (sk-or-) or OpenAI
+      const model = key.startsWith('sk-or-') ? 'google/gemini-2.5-flash-lite' : 'gpt-4o';
+      const res = await fetch(key.startsWith('sk-or-') ? 'https://openrouter.ai/api/v1/chat/completions' : 'https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: { 'Content-Type':'application/json','Authorization':'Bearer '+key,'HTTP-Referer':'vehicle-inspector','X-Title':'Vehicle Inspector' },
+        body: JSON.stringify({ model, max_tokens:1200, messages:[{ role:'user', content:[
+          { type:'text', text:prompt },
+          { type:'image_url', image_url:{ url:'data:'+photoMime+';base64,'+photoBase64 } }
+        ]}]})
+      });
+      if (!res.ok) { const t = await res.text(); throw new Error(res.status + ': ' + t.slice(0,300)); }
+      const data = await res.json();
+      text = data.choices?.[0]?.message?.content || '';
+    }
+    const m = text.match(/\{[\s\S]*\}/);
+    if (!m) throw new Error('תגובה לא תקינה מ-AI');
+    const result = JSON.parse(m[0]);
+
+    // Fill vehicle fields if empty
+    if (result.plate && !document.getElementById('f-plate').value) document.getElementById('f-plate').value = result.plate;
+    if (result.make  && !document.getElementById('f-make').value)  document.getElementById('f-make').value  = result.make;
+    if (result.model && !document.getElementById('f-model').value) document.getElementById('f-model').value = result.model;
+    if (result.year  && !document.getElementById('f-year').value)  document.getElementById('f-year').value  = result.year;
+    if (result.color && !document.getElementById('f-color').value) document.getElementById('f-color').value = result.color;
+
+    // Add damage rows
+    if (result.items && result.items.length > 0) {
+      result.items.forEach(it => addRow(it.part||'', it.type||'', it.parts||0, it.labor||0, it.paint||0));
+      status.textContent = '✓ זוהו ' + result.items.length + ' נזקים — עדכן לפי הצורך';
+      status.style.color = 'var(--green)';
+      toast('✓ AI הוסיף ' + result.items.length + ' נזקים לטבלה');
+    } else {
+      status.textContent = 'AI לא זיהה נזקים בתמונה';
+      toast('לא זוהו נזקים');
+    }
+  } catch (err) {
+    status.textContent = '❌ ' + err.message;
+    status.style.color = 'var(--red)';
+    toast('שגיאה: ' + err.message.slice(0,60), true);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '🔍 נתח נזק עם AI';
+  }
+}
+
+// ── Save / Sync ──
+function saveRecord() {
+  const items = getRows();
+  const total = items.reduce((s, r) => s + r.parts + r.labor + r.paint, 0);
+  const record = {
+    id:     editingId || Date.now(),
+    date:   document.getElementById('f-date').value,
+    plate:  document.getElementById('f-plate').value.trim(),
+    make:   document.getElementById('f-make').value.trim(),
+    model:  document.getElementById('f-model').value.trim(),
+    year:   document.getElementById('f-year').value.trim(),
+    client: document.getElementById('f-client').value.trim(),
+    km:     document.getElementById('f-km').value.trim(),
+    color:  document.getElementById('f-color').value.trim(),
+    serial: document.getElementById('f-serial').value.trim(),
+    insurance:    document.getElementById('f-insurance').value,
+    incidentDate: document.getElementById('f-incident-date').value.trim(),
+    partsType: {
+      original:    document.getElementById('pt-original').checked,
+      used:        document.getElementById('pt-used').checked,
+      aftermarket: document.getElementById('pt-aftermarket').checked,
+    },
+    works:  getWorkTotals(),
+    notes:  document.getElementById('f-notes').value.trim(),
+    photo:  photoBase64 ? { data: photoBase64, mime: photoMime } : null,
+    items, total,
+    savedAt: new Date().toLocaleString('he-IL')
+  };
+
+  const idx = records.findIndex(r => r.id === record.id);
+  if (idx >= 0) records[idx] = record; else records.unshift(record);
+  localStorage.setItem('shamay_records', JSON.stringify(records));
+  updatePriceMemory(items); // ← learn prices
+  renderRecords();
+  syncToSheets(record);
+  newInspection();
+  toast('✅ אומדן נשמר! המחירים נלמדו 🧠');
+}
+
+async function syncToSheets(record) {
+  const url = localStorage.getItem('script_url');
+  if (!url) return;
+  try {
+    const na = 'לא ידוע';
+    const office = getOfficeName();
+    const sheetName = office || getSheetName();
+    const payload = {
+      sheetName,
+      date:   record.date   || na,
+      plate:  record.plate  || na,
+      serial: record.serial || na,
+      make:   record.make   || na,
+      model:  record.model  || na,
+      year:   record.year   || na,
+      notes:  record.notes  || '',
+      items:  record.items  || [],
+      total:  record.total  || 0,
+    };
+    await fetch(url, { method: 'POST', mode: 'no-cors', headers: {'Content-Type':'application/json'}, body: JSON.stringify(payload) });
+    toast('✅ נשמר ב-Sheets · גיליון: ' + sheetName);
+  } catch (e) { /* silent */ }
+}
+
+// ── Records list ──
+function renderRecords() {
+  const list = document.getElementById('records-list');
+  document.getElementById('rec-count').textContent = records.length;
+  if (!records.length) { list.innerHTML = '<div class="empty">עוד אין אומדנים שמורים</div>'; return; }
+  list.innerHTML = records.map(r => `
+    <div class="record-card">
+      <div class="record-info">
+        <div class="record-plate">${r.plate || '—'}</div>
+        <div class="record-meta">${[r.make, r.model, r.year].filter(Boolean).join(' · ')}${r.client ? ' | ' + r.client : ''} | ${r.date}</div>
+        <div class="record-total">₪${(r.total||0).toLocaleString('he-IL')} • ${(r.items||[]).length} פריטי נזק</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end">
+        <button class="rec-del" onclick="deleteRecord(${r.id})" title="מחק">✕</button>
+        <button class="btn-sm btn-gray" style="font-size:0.7rem;padding:4px 8px" onclick="loadRecord(${r.id})">ערוך</button>
+        <button class="btn-sm btn-gray" style="font-size:0.7rem;padding:4px 8px;color:var(--accent)" onclick="exportSinglePDF(${r.id})">⬇ PDF</button>
+      </div>
+    </div>`).join('');
+}
+
+function deleteRecord(id) {
+  records = records.filter(r => r.id !== id);
+  localStorage.setItem('shamay_records', JSON.stringify(records));
+  renderRecords();
+  toast('נמחק');
+}
+
+function loadRecord(id) {
+  const r = records.find(x => x.id === id); if (!r) return;
+  editingId = r.id;
+  document.getElementById('f-plate').value  = r.plate  || '';
+  document.getElementById('f-make').value   = r.make   || '';
+  document.getElementById('f-model').value  = r.model  || '';
+  document.getElementById('f-year').value   = r.year   || '';
+  document.getElementById('f-color').value  = r.color  || '';
+  document.getElementById('f-client').value = r.client || '';
+  document.getElementById('f-km').value     = r.km     || '';
+  document.getElementById('f-serial').value    = r.serial    || '';
+  document.getElementById('f-insurance').value     = r.insurance    || '';
+  document.getElementById('f-incident-date').value = r.incidentDate || '';
+  if (r.partsType) {
+    document.getElementById('pt-original').checked    = !!r.partsType.original;
+    document.getElementById('pt-used').checked        = !!r.partsType.used;
+    document.getElementById('pt-aftermarket').checked = !!r.partsType.aftermarket;
+  }
+  document.getElementById('w-paint').value    = r.works?.paint    || 0;
+  document.getElementById('w-body').value     = r.works?.body     || 0;
+  document.getElementById('w-electric').value = r.works?.electric || 0;
+  document.getElementById('f-notes').value  = r.notes  || '';
+  document.getElementById('f-date').value   = r.date   || '';
+  document.getElementById('damage-rows').innerHTML = '';
+  rowId = 0;
+  (r.items || []).forEach(it => addRow(it.part, it.type, it.parts, it.labor, it.paint));
+  if (!r.items?.length) { addRow(); addRow(); addRow(); }
+  // Restore photo
+  if (r.photo && r.photo.data) {
+    photoBase64 = r.photo.data;
+    photoMime   = r.photo.mime;
+    const img = document.getElementById('preview-img');
+    img.src = 'data:' + r.photo.mime + ';base64,' + r.photo.data;
+    img.style.display = 'block';
+    document.getElementById('ai-btn').disabled = false;
+  }
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+  toast('אומדן נטען לעריכה');
+}
+
+function newInspection() {
+  editingId = null;
+  document.getElementById('f-plate').value  = '';
+  document.getElementById('f-make').value   = '';
+  document.getElementById('f-model').value  = '';
+  document.getElementById('f-year').value   = '';
+  document.getElementById('f-color').value  = '';
+  document.getElementById('f-client').value = '';
+  document.getElementById('f-km').value     = '';
+  document.getElementById('f-serial').value    = '';
+  document.getElementById('f-insurance').value     = '';
+  document.getElementById('f-incident-date').value = '';
+  document.getElementById('pt-original').checked    = false;
+  document.getElementById('pt-used').checked        = false;
+  document.getElementById('pt-aftermarket').checked = false;
+  document.getElementById('w-paint').value    = 0;
+  document.getElementById('w-body').value     = 0;
+  document.getElementById('w-electric').value = 0;
+  document.getElementById('f-notes').value     = '';
+  document.getElementById('f-date').value   = new Date().toLocaleDateString('he-IL');
+  document.getElementById('damage-rows').innerHTML = '';
+  rowId = 0;
+  addRow(); addRow(); addRow();
+  document.getElementById('preview-img').style.display = 'none';
+  document.getElementById('ai-btn').disabled = true;
+  photoBase64 = null;
+  calcTotal();
+}
+
+// ── Excel export ──
+function exportExcel() {
+  if (!records.length) { toast('אין אומדנים לייצא', true); return; }
+  const na = 'לא ידוע';
+  const wb = XLSX.utils.book_new();
+
+  // Sheet — תאריך + מספר רישוי + מספר סידורי בלבד
+  const HEADERS = ['תאריך','מספר רישוי','מספר סידורי'];
+  const rows = [HEADERS];
+  records.forEach(r => {
+    rows.push([
+      r.date   || na,
+      r.plate  || na,
+      r.serial || na
+    ]);
+  });
+  const ws1 = XLSX.utils.aoa_to_sheet(rows);
+  ws1['!cols'] = [14, 18, 22].map(w=>({wch:w}));
+  ws1['!sheetViews'] = [{ rightToLeft: true }];
+  XLSX.utils.book_append_sheet(wb, ws1, 'אומדנים');
+
+  XLSX.writeFile(wb, 'אומדנים-' + new Date().toLocaleDateString('he-IL').replace(/\//g,'-') + '.xlsx');
+  toast('Excel הורד ✓');
+}
+
+// ── PDF export (print) ──
+function buildPDFHtml(recsArr) {
+  const na = 'לא ידוע';
+  const office = getOfficeName();
+  let html = `<html dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <style>
+    body{font-family:Arial,sans-serif;font-size:11pt;margin:20px;direction:rtl}
+    .header-box{background:#1e3a5f;color:#fff;padding:10px 16px;border-radius:6px;margin-bottom:12px;text-align:center}
+    .header-box h2{margin:0;font-size:14pt}
+    .header-box .office{font-size:10pt;opacity:.85;margin-top:3px}
+    table{width:100%;border-collapse:collapse;font-size:10pt}
+    th{background:#1e3a5f;color:#fff;padding:5px 6px;text-align:right}
+    td{border:1px solid #ccc;padding:4px 6px}
+    tr:nth-child(even) td{background:#f5f8ff}
+    .total-row td{font-weight:bold;background:#e8f0fe}
+    .section{margin-top:18px;page-break-inside:avoid}
+    .vehicle-info{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;font-size:10pt}
+    .vehicle-info span{background:#f0f4ff;padding:3px 10px;border-radius:4px}
+    h3{font-size:11pt;color:#1e3a5f;margin:10px 0 4px}
+    @media print{body{margin:8mm}.header-box{-webkit-print-color-adjust:exact;print-color-adjust:exact}th{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
+  </style></head><body>
+  <div class="header-box">
+    <h2>אומדן נזק</h2>
+    ${office ? `<div class="office">🏢 ${office}</div>` : ''}
+  </div>`;
+
+  recsArr.forEach(rec => {
+    const items = rec.items && rec.items.length ? rec.items : [];
+    html += `<div class="section">
+    <h3>📋 ${rec.date||''} · רישוי ${rec.plate||na}</h3>
+    <div class="vehicle-info">
+      <span>🚗 רישוי: ${rec.plate||na}</span>
+      <span>${rec.make||na} ${rec.model||na} ${rec.year||''}</span>
+      <span>צבע: ${rec.color||na}</span>
+      <span>ק"מ: ${rec.km||na}</span>
+      <span>לקוח: ${rec.client||na}</span>
+      ${rec.insurance ? `<span>ביטוח: ${rec.insurance}</span>` : ''}
+      ${rec.incidentDate ? `<span>תאריך מקרה: ${rec.incidentDate}</span>` : ''}
+      ${rec.partsType ? `<span>סוג חלפים: ${[rec.partsType.original?'מקורי':'', rec.partsType.used?'משומש':'', rec.partsType.aftermarket?'תחליפי':''].filter(Boolean).join(' + ')}</span>` : ''}
+      ${rec.serial ? `<span>שלדה: ${rec.serial}</span>` : ''}
+    </div>
+    <table>
+      <tr><th>חלק / אזור</th><th>סוג נזק</th><th>עלות חלק ₪</th></tr>`;
+    items.forEach(it => {
+      html += `<tr><td>${it.part||''}</td><td>${it.type||''}</td><td>${Number(it.parts)||0}</td></tr>`;
+    });
+    if (rec.works) {
+      if (rec.works.paint    > 0) html += `<tr><td>🎨 עבודות צבע</td><td>עבודה</td><td>${rec.works.paint}</td></tr>`;
+      if (rec.works.body     > 0) html += `<tr><td>🔨 פחחות/מרכב</td><td>עבודה</td><td>${rec.works.body}</td></tr>`;
+      if (rec.works.electric > 0) html += `<tr><td>⚡ חשמל</td><td>עבודה</td><td>${rec.works.electric}</td></tr>`;
+    }
+    html += `<tr class="total-row"><td colspan="2">סה"כ אומדן</td><td>${Number(rec.total)||0} ₪</td></tr>`;
+    if (rec.notes) html += `<tr><td colspan="6">הערות: ${rec.notes}</td></tr>`;
+    html += `</table>`;
+    if (rec.photo && rec.photo.data) {
+      html += `<div style="margin-top:10px"><img src="data:${rec.photo.mime};base64,${rec.photo.data}" style="max-width:100%;max-height:280px;object-fit:contain;border-radius:6px;border:1px solid #ccc" alt="תמונת נזק"></div>`;
+    }
+    html += `</div>`;
+  });
+  html += '</body></html>';
+  return html;
+}
+
+function openPDF(html) {
+  const w = window.open('','_blank','width=900,height=700');
+  w.document.write(html);
+  w.document.close();
+  w.focus();
+  setTimeout(() => w.print(), 400);
+}
+
+function exportSinglePDF(id) {
+  const rec = records.find(r => r.id === id);
+  if (!rec) { toast('אומדן לא נמצא', true); return; }
+  openPDF(buildPDFHtml([rec]));
+}
+
+function exportPDF() {
+  if (!records.length) { toast('אין אומדנים לייצא', true); return; }
+  openPDF(buildPDFHtml(records));
+}
+
+// ── משרד התחבורה lookup ──
+let plateTimer = null;
+function onPlateInput(val) {
+  clearTimeout(plateTimer);
+  const clean = val.replace(/[^0-9]/g,'');
+  if (clean.length >= 7) {
+    plateTimer = setTimeout(() => lookupPlate(), 800);
+  }
+}
+
+async function lookupPlate() {
+  const raw   = document.getElementById('f-plate').value.trim();
+  const plate = raw.replace(/[^0-9]/g,'');
+  if (plate.length < 7) { toast('הכנס מספר רישוי תקין (7-8 ספרות)', true); return; }
+
+  const btn = document.getElementById('lookup-btn');
+  const statusEl = document.getElementById('lookup-status');
+  btn.textContent = '...';
+  btn.disabled = true;
+  statusEl.textContent = 'מחפש במשרד התחבורה...';
+  statusEl.style.color = 'var(--muted)';
+
+  try {
+    // Try main vehicle registry first, then bus registry as fallback
+    const RESOURCES = [
+      '053cea08-09bc-40ec-8f7a-156f0677aff3', // רכב פרטי/כללי
+      'bf9df4e2-d90d-4c0a-a400-19e15af8e95f', // אוטובוסים
+      'cd3acc5c-03c3-4c89-9c54-d40f93c0d790', // רכב מסחרי
+    ];
+    let v = null;
+    for (const rid of RESOURCES) {
+      const url = `https://data.gov.il/api/3/action/datastore_search?resource_id=${rid}&q=${plate}&limit=1`;
+      try {
+        const res  = await fetch(url);
+        const data = await res.json();
+        const recs = data?.result?.records;
+        if (recs && recs.length > 0) { v = recs[0]; break; }
+      } catch(e) { /* try next */ }
+    }
+    if (!v) {
+      statusEl.textContent = '⚠️ לא נמצא מידע עבור מספר זה';
+      statusEl.style.color = 'var(--accent)';
+      return;
+    }
+    // Fill fields
+    const fill = (id, val) => { if (val && val !== 'לא ידוע') document.getElementById(id).value = String(val).trim(); };
+    fill('f-make',  v.tozeret_nm || v.tozeret_cd);
+    fill('f-model', v.kinuy_mishari || v.degem_nm);
+    fill('f-year',  v.shnat_yitzur);
+    fill('f-color', v.tzeva_rechev);
+    // Extra info for notes hint
+    const fuel  = v.sug_delek_nm || '';
+    const owner = v.baalut || '';
+    const test  = v.mivchan_acharon_dt ? v.mivchan_acharon_dt.split('T')[0] : '';
+    const extra = [fuel && 'דלק: '+fuel, owner && 'בעלות: '+owner, test && 'טסט: '+test].filter(Boolean).join(' | ');
+    statusEl.innerHTML = '✓ נמצא: <strong>' + (v.tozeret_nm||'') + ' ' + (v.kinuy_mishari||'') + ' ' + (v.shnat_yitzur||'') + '</strong>' + (extra ? '<br><small>'+extra+'</small>' : '');
+    statusEl.style.color = 'var(--green)';
+    toast('✓ פרטי הרכב הובאו ממשרד התחבורה');
+  } catch(err) {
+    statusEl.textContent = '❌ שגיאה: ' + err.message;
+    statusEl.style.color = 'var(--red)';
+  } finally {
+    btn.textContent = '🔍 רישוי';
+    btn.disabled = false;
+  }
+}
+
+function toast(msg, err=false) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show' + (err ? ' err' : '');
+  setTimeout(() => t.className = 'toast', 2800);
+}
+</script>
+</body>
+</html>
