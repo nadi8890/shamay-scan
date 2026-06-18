@@ -172,6 +172,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue)}
     <div class="field"><label>שם לקוח</label><input type="text" id="f-client" placeholder="ישראל ישראלי"></div>
     <div class="field"><label>ק"מ</label><input type="text" id="f-km" placeholder="85,000"></div>
     <div class="field"><label>מספר סידורי (שלדה)</label><input type="text" id="f-serial" placeholder="WBA12345678901234" style="direction:ltr;font-size:0.82rem"></div>
+    <div class="field"><label>תאריך מקרה</label><input type="text" id="f-incident-date" placeholder="DD/MM/YYYY" inputmode="numeric" maxlength="10" oninput="onIncidentDateChange(this)"></div>
   </div>
   <div class="row">
     <div class="field"><label>חברת ביטוח</label>
@@ -199,17 +200,31 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue)}
     </div>
   </div>
 
+  <!-- Parts type -->
+  <div style="margin-top:10px;padding:10px 12px;background:var(--surface);border-radius:10px;border:1px solid var(--border)">
+    <div style="font-size:0.78rem;font-weight:700;color:var(--muted);margin-bottom:8px">🔩 סוג חלפים</div>
+    <div style="display:flex;gap:16px;flex-wrap:wrap">
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:0.88rem;font-weight:600">
+        <input type="checkbox" id="pt-original" style="width:18px;height:18px;cursor:pointer" onchange="calcTotal()"> מקורי
+      </label>
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:0.88rem;font-weight:600">
+        <input type="checkbox" id="pt-used" style="width:18px;height:18px;cursor:pointer" onchange="calcTotal()"> משומש
+      </label>
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:0.88rem;font-weight:600">
+        <input type="checkbox" id="pt-aftermarket" style="width:18px;height:18px;cursor:pointer" onchange="calcTotal()"> תחליפי
+      </label>
+    </div>
+  </div>
+
   <!-- Damage items -->
-  <div class="card-title" style="margin-top:6px">🔧 פירוט נזקים</div>
+  <div class="card-title" style="margin-top:10px">🔧 פירוט נזקים</div>
   <div class="damage-scroll">
   <table class="damage-table">
     <thead>
       <tr>
-        <th style="min-width:120px">חלק / אזור</th>
-        <th style="width:90px">סוג נזק</th>
-        <th style="width:80px">חלקים ₪</th>
-        <th style="width:70px">עבודה ₪</th>
-        <th style="width:60px">צבע ₪</th>
+        <th style="min-width:140px">חלק / אזור</th>
+        <th style="width:100px">סוג נזק</th>
+        <th style="width:100px">עלות חלק ₪</th>
         <th style="width:30px"></th>
       </tr>
     </thead>
@@ -697,8 +712,6 @@ function addRow(part='', type='', parts=0, labor=0, paint=0) {
       <option value="החלפה" ${type==='החלפה'?'selected':''}>החלפה</option>
     </select></td>
     <td><input type="number" value="${parts}" placeholder="0" oninput="calcTotal()" min="0"></td>
-    <td><input type="number" value="${labor}" placeholder="0" oninput="calcTotal()" min="0"></td>
-    <td><input type="number" value="${paint}" placeholder="0" oninput="calcTotal()" min="0"></td>
     <td><button class="del-row" onclick="delRow(${id})">✕</button></td>`;
   tbody.appendChild(tr);
   calcTotal();
@@ -710,19 +723,57 @@ function delRow(id) {
   calcTotal();
 }
 
-const OLD_VEHICLE_NOTE = '⚠️ יש לבדוק לגבי חלפים משומשים/תחליפיים';
-function onYearChange(val) {
-  const year = parseInt(val);
-  if (!year || year < 1980 || year > new Date().getFullYear()) return;
-  const age = new Date().getFullYear() - year;
-  const notesEl = document.getElementById('f-notes');
-  if (age > 2) {
-    if (!notesEl.value.includes(OLD_VEHICLE_NOTE)) {
-      notesEl.value = (notesEl.value.trim() ? notesEl.value.trim() + '\n' : '') + OLD_VEHICLE_NOTE;
-    }
-  } else {
-    notesEl.value = notesEl.value.replace('\n' + OLD_VEHICLE_NOTE, '').replace(OLD_VEHICLE_NOTE, '').trim();
+function getIncidentYear() {
+  const el = document.getElementById('f-incident-date');
+  const raw = (el.dataset.rawDigits || '').trim();
+  // 8 digits: DDMMYYYY → year is last 4
+  if (raw.length === 8) {
+    const y = parseInt(raw.slice(4));
+    if (y > 1980 && y <= 2100) return y;
   }
+  // 4 digits: user typed only a year
+  if (raw.length === 4) {
+    const y = parseInt(raw);
+    if (y > 1980 && y <= 2100) return y;
+  }
+  // fallback: look for 4-digit year in formatted string
+  const m = el.value.match(/(19|20)\d{2}/);
+  if (m) return parseInt(m[0]);
+  return new Date().getFullYear();
+}
+
+function updatePartsType() {
+  const vehicleYear = parseInt(document.getElementById('f-year').value);
+  if (!vehicleYear || vehicleYear < 1980) return;
+  const incidentYear = getIncidentYear();
+  const age = incidentYear - vehicleYear;
+  const orig  = document.getElementById('pt-original');
+  const used  = document.getElementById('pt-used');
+  const after = document.getElementById('pt-aftermarket');
+  if (age > 2) {
+    orig.checked  = false;
+    used.checked  = true;
+    after.checked = true;
+  } else {
+    orig.checked  = false;
+    used.checked  = false;
+    after.checked = false;
+  }
+}
+
+function onYearChange(val) {
+  updatePartsType();
+}
+
+function onIncidentDateChange(el) {
+  let val = el.value.replace(/\D/g, '');
+  if (val.length > 8) val = val.slice(0, 8);
+  el.dataset.rawDigits = val; // store raw digits for year extraction
+  let formatted = val;
+  if (val.length > 4) formatted = val.slice(0,2) + '/' + val.slice(2,4) + '/' + val.slice(4);
+  else if (val.length > 2) formatted = val.slice(0,2) + '/' + val.slice(2);
+  el.value = formatted;
+  updatePartsType();
 }
 
 function getRows() {
@@ -733,10 +784,10 @@ function getRows() {
       part:  inputs[0].value.trim(),
       type:  sel ? sel.value : '',
       parts: parseFloat(inputs[1].value) || 0,
-      labor: parseFloat(inputs[2].value) || 0,
-      paint: parseFloat(inputs[3].value) || 0
+      labor: 0,
+      paint: 0
     };
-  }).filter(r => r.part || r.parts || r.labor || r.paint);
+  }).filter(r => r.part || r.parts);
 }
 
 function getWorkTotals() {
@@ -748,7 +799,7 @@ function getWorkTotals() {
 }
 
 function calcTotal() {
-  const itemsTotal = getRows().reduce((s, r) => s + r.parts + r.labor + r.paint, 0);
+  const itemsTotal = getRows().reduce((s, r) => s + r.parts, 0);
   const w = getWorkTotals();
   const total = itemsTotal + w.paint + w.body + w.electric;
   document.getElementById('total-display').textContent = '₪' + total.toLocaleString('he-IL');
@@ -881,7 +932,13 @@ function saveRecord() {
     km:     document.getElementById('f-km').value.trim(),
     color:  document.getElementById('f-color').value.trim(),
     serial: document.getElementById('f-serial').value.trim(),
-    insurance: document.getElementById('f-insurance').value,
+    insurance:    document.getElementById('f-insurance').value,
+    incidentDate: document.getElementById('f-incident-date').value.trim(),
+    partsType: {
+      original:    document.getElementById('pt-original').checked,
+      used:        document.getElementById('pt-used').checked,
+      aftermarket: document.getElementById('pt-aftermarket').checked,
+    },
     works:  getWorkTotals(),
     notes:  document.getElementById('f-notes').value.trim(),
     photo:  photoBase64 ? { data: photoBase64, mime: photoMime } : null,
@@ -961,7 +1018,13 @@ function loadRecord(id) {
   document.getElementById('f-client').value = r.client || '';
   document.getElementById('f-km').value     = r.km     || '';
   document.getElementById('f-serial').value    = r.serial    || '';
-  document.getElementById('f-insurance').value = r.insurance || '';
+  document.getElementById('f-insurance').value     = r.insurance    || '';
+  document.getElementById('f-incident-date').value = r.incidentDate || '';
+  if (r.partsType) {
+    document.getElementById('pt-original').checked    = !!r.partsType.original;
+    document.getElementById('pt-used').checked        = !!r.partsType.used;
+    document.getElementById('pt-aftermarket').checked = !!r.partsType.aftermarket;
+  }
   document.getElementById('w-paint').value    = r.works?.paint    || 0;
   document.getElementById('w-body').value     = r.works?.body     || 0;
   document.getElementById('w-electric').value = r.works?.electric || 0;
@@ -994,7 +1057,11 @@ function newInspection() {
   document.getElementById('f-client').value = '';
   document.getElementById('f-km').value     = '';
   document.getElementById('f-serial').value    = '';
-  document.getElementById('f-insurance').value = '';
+  document.getElementById('f-insurance').value     = '';
+  document.getElementById('f-incident-date').value = '';
+  document.getElementById('pt-original').checked    = false;
+  document.getElementById('pt-used').checked        = false;
+  document.getElementById('pt-aftermarket').checked = false;
   document.getElementById('w-paint').value    = 0;
   document.getElementById('w-body').value     = 0;
   document.getElementById('w-electric').value = 0;
@@ -1071,20 +1138,21 @@ function buildPDFHtml(recsArr) {
       <span>ק"מ: ${rec.km||na}</span>
       <span>לקוח: ${rec.client||na}</span>
       ${rec.insurance ? `<span>ביטוח: ${rec.insurance}</span>` : ''}
+      ${rec.incidentDate ? `<span>תאריך מקרה: ${rec.incidentDate}</span>` : ''}
+      ${rec.partsType ? `<span>סוג חלפים: ${[rec.partsType.original?'מקורי':'', rec.partsType.used?'משומש':'', rec.partsType.aftermarket?'תחליפי':''].filter(Boolean).join(' + ')}</span>` : ''}
       ${rec.serial ? `<span>שלדה: ${rec.serial}</span>` : ''}
     </div>
     <table>
-      <tr><th>חלק / אזור</th><th>סוג נזק</th><th>חלקים ₪</th><th>עבודה ₪</th><th>צבע ₪</th><th>סה"כ פריט ₪</th></tr>`;
+      <tr><th>חלק / אזור</th><th>סוג נזק</th><th>עלות חלק ₪</th></tr>`;
     items.forEach(it => {
-      const t = (Number(it.parts)||0)+(Number(it.labor)||0)+(Number(it.paint)||0);
-      html += `<tr><td>${it.part||''}</td><td>${it.type||''}</td><td>${Number(it.parts)||0}</td><td>${Number(it.labor)||0}</td><td>${Number(it.paint)||0}</td><td>${t}</td></tr>`;
+      html += `<tr><td>${it.part||''}</td><td>${it.type||''}</td><td>${Number(it.parts)||0}</td></tr>`;
     });
     if (rec.works) {
-      if (rec.works.paint    > 0) html += `<tr><td>עבודות צבע</td><td>עבודה</td><td>0</td><td>${rec.works.paint}</td><td>0</td><td>${rec.works.paint}</td></tr>`;
-      if (rec.works.body     > 0) html += `<tr><td>פחחות/מרכב</td><td>עבודה</td><td>0</td><td>${rec.works.body}</td><td>0</td><td>${rec.works.body}</td></tr>`;
-      if (rec.works.electric > 0) html += `<tr><td>חשמל</td><td>עבודה</td><td>0</td><td>${rec.works.electric}</td><td>0</td><td>${rec.works.electric}</td></tr>`;
+      if (rec.works.paint    > 0) html += `<tr><td>🎨 עבודות צבע</td><td>עבודה</td><td>${rec.works.paint}</td></tr>`;
+      if (rec.works.body     > 0) html += `<tr><td>🔨 פחחות/מרכב</td><td>עבודה</td><td>${rec.works.body}</td></tr>`;
+      if (rec.works.electric > 0) html += `<tr><td>⚡ חשמל</td><td>עבודה</td><td>${rec.works.electric}</td></tr>`;
     }
-    html += `<tr class="total-row"><td colspan="5">סה"כ אומדן</td><td>${Number(rec.total)||0} ₪</td></tr>`;
+    html += `<tr class="total-row"><td colspan="2">סה"כ אומדן</td><td>${Number(rec.total)||0} ₪</td></tr>`;
     if (rec.notes) html += `<tr><td colspan="6">הערות: ${rec.notes}</td></tr>`;
     html += `</table>`;
     if (rec.photo && rec.photo.data) {
