@@ -6,6 +6,8 @@
 <title>שמאי סקן</title>
 <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;600;700;900&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" defer></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" defer></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" defer></script>
 <style>
 :root{--bg:#0a0c10;--surface:#13161d;--card:#1a1e28;--border:#252a38;--accent:#f59e0b;--blue:#3b82f6;--text:#e8eaf0;--muted:#6b7280;--green:#10b981;--red:#ef4444}
 *{box-sizing:border-box;margin:0;padding:0}
@@ -348,7 +350,8 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue)}
   <div style="position:sticky;top:0;background:#1e3a5f;color:#fff;display:flex;justify-content:space-between;align-items:center;padding:10px 16px;z-index:1;gap:8px;flex-wrap:wrap">
     <span style="font-size:0.9rem;font-weight:700">👁 תצוגה מקדימה</span>
     <div style="display:flex;gap:8px">
-      <button onclick="window.print()" style="background:#10b981;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:0.9rem;font-weight:700;cursor:pointer;font-family:Heebo,sans-serif">🖨️ הדפס / שמור PDF</button>
+      <button id="share-pdf-btn" onclick="sharePDF()" style="background:#25d366;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:0.9rem;font-weight:700;cursor:pointer;font-family:Heebo,sans-serif">📤 שתף PDF</button>
+      <button onclick="window.print()" style="background:#10b981;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:0.9rem;font-weight:700;cursor:pointer;font-family:Heebo,sans-serif">🖨️ הדפס</button>
       <button onclick="closePDF()" style="background:rgba(255,255,255,0.15);color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:0.9rem;cursor:pointer">✕ סגור</button>
     </div>
   </div>
@@ -1183,6 +1186,57 @@ function openPDF(content) {
 function closePDF() {
   document.getElementById('pdf-overlay').style.display = 'none';
   document.body.style.overflow = '';
+}
+
+async function sharePDF() {
+  const btn = document.getElementById('share-pdf-btn');
+  const origText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = '⏳ מכין...';
+  try {
+    // Clone content off-screen for full-height capture
+    const src = document.getElementById('pdf-content');
+    const clone = src.cloneNode(true);
+    clone.style.cssText = 'position:fixed;left:-9999px;top:0;width:680px;background:#fff;padding:20px;direction:rtl;font-family:Arial,sans-serif;font-size:11pt;color:#000;box-sizing:border-box;z-index:-1';
+    document.body.appendChild(clone);
+    await document.fonts.ready;
+    const canvas = await html2canvas(clone, {
+      scale: 2, useCORS: true, allowTaint: true,
+      backgroundColor: '#ffffff', logging: false
+    });
+    document.body.removeChild(clone);
+
+    const imgData = canvas.toDataURL('image/jpeg', 0.92);
+    const { jsPDF } = window.jspdf;
+    const pageW = 210; // A4 width mm
+    const pageH = Math.min((canvas.height / canvas.width) * pageW, 420); // max ~A3
+    const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: [pageW, (canvas.height / canvas.width) * pageW] });
+    pdf.addImage(imgData, 'JPEG', 0, 0, pageW, (canvas.height / canvas.width) * pageW);
+
+    const blob = pdf.output('blob');
+    // Try to get plate from content for filename
+    const plateEl = clone ? null : src.querySelector('.record-plate');
+    const filename = 'אומדן-' + new Date().toLocaleDateString('he-IL').replace(/\//g,'-') + '.pdf';
+    const file = new File([blob], filename, { type: 'application/pdf' });
+
+    if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({ title: 'אומדן נזק', files: [file] });
+    } else {
+      // Desktop fallback: direct download
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = filename;
+      document.body.appendChild(a); a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+      toast('PDF הורד ✓');
+    }
+  } catch(e) {
+    if (e.name !== 'AbortError') toast('שגיאה: ' + e.message.slice(0,60), true);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = origText;
+  }
 }
 
 function exportSinglePDF(id) {
