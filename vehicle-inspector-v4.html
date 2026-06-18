@@ -98,6 +98,12 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue)}
 /* Toast */
 .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--green);color:#fff;padding:11px 22px;border-radius:99px;font-weight:700;font-size:0.88rem;opacity:0;transition:opacity .3s;z-index:999;white-space:nowrap}
 .toast.show{opacity:1}.toast.err{background:var(--red)}
+/* Print: show only PDF overlay */
+@media print{
+  body>*:not(#pdf-overlay){display:none!important}
+  #pdf-overlay{display:block!important;position:static!important;overflow:visible!important}
+  #pdf-overlay>div:first-child{display:none!important}
+}
 /* API key section */
 .apikey-section{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:16px}
 .apikey-section label{font-size:0.78rem;color:var(--muted);display:block;margin-bottom:6px}
@@ -111,7 +117,6 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue)}
   <div class="hdr-actions">
     <button class="btn-sm btn-blue" onclick="newInspection()">+ אומדן חדש</button>
     <button class="btn-sm btn-gray" onclick="exportExcel()">⬇ Excel</button>
-    <button class="btn-sm btn-gray" onclick="exportPDF()">⬇ PDF</button>
     <button class="btn-sm" style="background:#7c3aed;color:#fff" onclick="showMobileLink()" title="קישור לטלפון">📲</button>
   </div>
 </header>
@@ -335,6 +340,18 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue)}
 </main>
 <div class="toast" id="toast"></div>
 
+<!-- PDF OVERLAY -->
+<div id="pdf-overlay" style="display:none;position:fixed;inset:0;background:#fff;z-index:9000;overflow-y:auto;-webkit-overflow-scrolling:touch">
+  <div style="position:sticky;top:0;background:#1e3a5f;color:#fff;display:flex;justify-content:space-between;align-items:center;padding:10px 16px;z-index:1;gap:8px;flex-wrap:wrap">
+    <span style="font-size:0.9rem;font-weight:700">👁 תצוגה מקדימה</span>
+    <div style="display:flex;gap:8px">
+      <button onclick="window.print()" style="background:#10b981;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:0.9rem;font-weight:700;cursor:pointer;font-family:Heebo,sans-serif">🖨️ הדפס / שמור PDF</button>
+      <button onclick="closePDF()" style="background:rgba(255,255,255,0.15);color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:0.9rem;cursor:pointer">✕ סגור</button>
+    </div>
+  </div>
+  <div id="pdf-content" style="padding:16px;direction:rtl;font-family:Arial,sans-serif;font-size:11pt;color:#000"></div>
+</div>
+
 <script>
 // ── Apps Script code (embedded) ──
 const APPS_SCRIPT_CODE = `function doPost(e) {
@@ -553,8 +570,6 @@ function fillRowFromSuggestion(rowId, s) {
   inputs[0].value = s.part;
   if (sel) sel.value = s.type;
   if (s.parts > 0) inputs[1].value = s.parts;
-  if (s.labor > 0) inputs[2].value = s.labor;
-  if (s.paint > 0) inputs[3].value = s.paint;
   calcTotal();
 }
 
@@ -920,7 +935,8 @@ async function analyzePhoto() {
 // ── Save / Sync ──
 function saveRecord() {
   const items = getRows();
-  const total = items.reduce((s, r) => s + r.parts + r.labor + r.paint, 0);
+  const w = getWorkTotals();
+  const total = items.reduce((s, r) => s + r.parts, 0) + w.paint + w.body + w.electric;
   const record = {
     id:     editingId || Date.now(),
     date:   document.getElementById('f-date').value,
@@ -939,7 +955,7 @@ function saveRecord() {
       used:        document.getElementById('pt-used').checked,
       aftermarket: document.getElementById('pt-aftermarket').checked,
     },
-    works:  getWorkTotals(),
+    works:  w,
     notes:  document.getElementById('f-notes').value.trim(),
     photo:  photoBase64 ? { data: photoBase64, mime: photoMime } : null,
     items, total,
@@ -1101,86 +1117,80 @@ function exportExcel() {
   toast('Excel הורד ✓');
 }
 
-// ── PDF export (print) ──
-function buildPDFHtml(recsArr) {
+// ── PDF export (in-page overlay, no popup) ──
+function buildPDFContent(recsArr) {
   const na = 'לא ידוע';
   const office = getOfficeName();
-  let html = `<html dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-  <style>
-    body{font-family:Arial,sans-serif;font-size:11pt;margin:20px;direction:rtl}
-    .header-box{background:#1e3a5f;color:#fff;padding:10px 16px;border-radius:6px;margin-bottom:12px;text-align:center}
-    .header-box h2{margin:0;font-size:14pt}
-    .header-box .office{font-size:10pt;opacity:.85;margin-top:3px}
-    table{width:100%;border-collapse:collapse;font-size:10pt}
-    th{background:#1e3a5f;color:#fff;padding:5px 6px;text-align:right}
-    td{border:1px solid #ccc;padding:4px 6px}
-    tr:nth-child(even) td{background:#f5f8ff}
-    .total-row td{font-weight:bold;background:#e8f0fe}
-    .section{margin-top:18px;page-break-inside:avoid}
-    .vehicle-info{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;font-size:10pt}
-    .vehicle-info span{background:#f0f4ff;padding:3px 10px;border-radius:4px}
-    h3{font-size:11pt;color:#1e3a5f;margin:10px 0 4px}
-    @media print{body{margin:8mm}.header-box{-webkit-print-color-adjust:exact;print-color-adjust:exact}th{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
-  </style></head><body>
-  <div class="header-box">
-    <h2>אומדן נזק</h2>
-    ${office ? `<div class="office">🏢 ${office}</div>` : ''}
+  let html = `<div style="background:#1e3a5f;color:#fff;padding:10px 16px;border-radius:6px;margin-bottom:12px;text-align:center;-webkit-print-color-adjust:exact;print-color-adjust:exact">
+    <div style="font-size:14pt;font-weight:bold;margin:0">אומדן נזק</div>
+    ${office ? `<div style="font-size:10pt;opacity:.85;margin-top:3px">🏢 ${office}</div>` : ''}
   </div>`;
 
-  recsArr.forEach(rec => {
+  const tblStyle = 'width:100%;border-collapse:collapse;font-size:10pt;margin-bottom:8px';
+  const thStyle  = 'background:#1e3a5f;color:#fff;padding:5px 6px;text-align:right;-webkit-print-color-adjust:exact;print-color-adjust:exact';
+  const tdStyle  = 'border:1px solid #ccc;padding:4px 6px';
+  const tdAlt    = 'border:1px solid #ccc;padding:4px 6px;background:#f5f8ff';
+
+  recsArr.forEach((rec, ri) => {
     const items = rec.items && rec.items.length ? rec.items : [];
-    html += `<div class="section">
-    <h3>📋 ${rec.date||''} · רישוי ${rec.plate||na}</h3>
-    <div class="vehicle-info">
-      <span>🚗 רישוי: ${rec.plate||na}</span>
-      <span>${rec.make||na} ${rec.model||na} ${rec.year||''}</span>
-      <span>צבע: ${rec.color||na}</span>
-      <span>ק"מ: ${rec.km||na}</span>
-      <span>לקוח: ${rec.client||na}</span>
-      ${rec.insurance ? `<span>ביטוח: ${rec.insurance}</span>` : ''}
-      ${rec.incidentDate ? `<span>תאריך מקרה: ${rec.incidentDate}</span>` : ''}
-      ${rec.partsType ? `<span>סוג חלפים: ${[rec.partsType.original?'מקורי':'', rec.partsType.used?'משומש':'', rec.partsType.aftermarket?'תחליפי':''].filter(Boolean).join(' + ')}</span>` : ''}
-      ${rec.serial ? `<span>שלדה: ${rec.serial}</span>` : ''}
+    html += `<div style="margin-top:${ri>0?'24px':'0'};page-break-inside:avoid">
+    <div style="font-size:11pt;color:#1e3a5f;font-weight:bold;margin:0 0 6px">📋 ${rec.date||''} · רישוי ${rec.plate||na}</div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;font-size:10pt">
+      ${[
+        `🚗 רישוי: ${rec.plate||na}`,
+        `${rec.make||na} ${rec.model||na} ${rec.year||''}`,
+        `צבע: ${rec.color||na}`,
+        `ק"מ: ${rec.km||na}`,
+        `לקוח: ${rec.client||na}`,
+        rec.insurance ? `ביטוח: ${rec.insurance}` : '',
+        rec.incidentDate ? `תאריך מקרה: ${rec.incidentDate}` : '',
+        rec.partsType ? `חלפים: ${[rec.partsType.original?'מקורי':'',rec.partsType.used?'משומש':'',rec.partsType.aftermarket?'תחליפי':''].filter(Boolean).join('+')||'—'}` : '',
+        rec.serial ? `שלדה: ${rec.serial}` : ''
+      ].filter(Boolean).map(t=>`<span style="background:#f0f4ff;padding:2px 8px;border-radius:4px;display:inline-block">${t}</span>`).join('')}
     </div>
-    <table>
-      <tr><th>חלק / אזור</th><th>סוג נזק</th><th>עלות חלק ₪</th></tr>`;
-    items.forEach(it => {
-      html += `<tr><td>${it.part||''}</td><td>${it.type||''}</td><td>${Number(it.parts)||0}</td></tr>`;
+    <table style="${tblStyle}">
+      <tr><th style="${thStyle}">חלק / אזור</th><th style="${thStyle}">סוג נזק</th><th style="${thStyle}">עלות חלק ₪</th></tr>`;
+    items.forEach((it, i) => {
+      html += `<tr><td style="${i%2===1?tdAlt:tdStyle}">${it.part||''}</td><td style="${i%2===1?tdAlt:tdStyle}">${it.type||''}</td><td style="${i%2===1?tdAlt:tdStyle}">${Number(it.parts)||0}</td></tr>`;
     });
     if (rec.works) {
-      if (rec.works.paint    > 0) html += `<tr><td>🎨 עבודות צבע</td><td>עבודה</td><td>${rec.works.paint}</td></tr>`;
-      if (rec.works.body     > 0) html += `<tr><td>🔨 פחחות/מרכב</td><td>עבודה</td><td>${rec.works.body}</td></tr>`;
-      if (rec.works.electric > 0) html += `<tr><td>⚡ חשמל</td><td>עבודה</td><td>${rec.works.electric}</td></tr>`;
+      if (rec.works.paint    > 0) html += `<tr><td style="${tdStyle}">🎨 עבודות צבע</td><td style="${tdStyle}">עבודה</td><td style="${tdStyle}">${rec.works.paint}</td></tr>`;
+      if (rec.works.body     > 0) html += `<tr><td style="${tdStyle}">🔨 פחחות/מרכב</td><td style="${tdStyle}">עבודה</td><td style="${tdStyle}">${rec.works.body}</td></tr>`;
+      if (rec.works.electric > 0) html += `<tr><td style="${tdStyle}">⚡ חשמל</td><td style="${tdStyle}">עבודה</td><td style="${tdStyle}">${rec.works.electric}</td></tr>`;
     }
-    html += `<tr class="total-row"><td colspan="2">סה"כ אומדן</td><td>${Number(rec.total)||0} ₪</td></tr>`;
-    if (rec.notes) html += `<tr><td colspan="6">הערות: ${rec.notes}</td></tr>`;
+    html += `<tr><td colspan="2" style="border:1px solid #ccc;padding:4px 6px;font-weight:bold;background:#e8f0fe">סה"כ אומדן</td><td style="border:1px solid #ccc;padding:4px 6px;font-weight:bold;background:#e8f0fe">${Number(rec.total)||0} ₪</td></tr>`;
+    if (rec.notes) html += `<tr><td colspan="3" style="${tdStyle}">הערות: ${rec.notes}</td></tr>`;
     html += `</table>`;
     if (rec.photo && rec.photo.data) {
-      html += `<div style="margin-top:10px"><img src="data:${rec.photo.mime};base64,${rec.photo.data}" style="max-width:100%;max-height:280px;object-fit:contain;border-radius:6px;border:1px solid #ccc" alt="תמונת נזק"></div>`;
+      html += `<div style="margin-top:8px"><img src="data:${rec.photo.mime};base64,${rec.photo.data}" style="max-width:100%;max-height:280px;object-fit:contain;border-radius:6px;border:1px solid #ccc" alt="תמונת נזק"></div>`;
     }
     html += `</div>`;
   });
-  html += '</body></html>';
   return html;
 }
 
-function openPDF(html) {
-  const w = window.open('','_blank','width=900,height=700');
-  w.document.write(html);
-  w.document.close();
-  w.focus();
-  setTimeout(() => w.print(), 400);
+function openPDF(content) {
+  document.getElementById('pdf-content').innerHTML = content;
+  const overlay = document.getElementById('pdf-overlay');
+  overlay.style.display = 'block';
+  document.body.style.overflow = 'hidden';
+  overlay.scrollTop = 0;
+}
+
+function closePDF() {
+  document.getElementById('pdf-overlay').style.display = 'none';
+  document.body.style.overflow = '';
 }
 
 function exportSinglePDF(id) {
   const rec = records.find(r => r.id === id);
   if (!rec) { toast('אומדן לא נמצא', true); return; }
-  openPDF(buildPDFHtml([rec]));
+  openPDF(buildPDFContent([rec]));
 }
 
 function exportPDF() {
   if (!records.length) { toast('אין אומדנים לייצא', true); return; }
-  openPDF(buildPDFHtml(records));
+  openPDF(buildPDFContent(records));
 }
 
 // ── משרד התחבורה lookup ──
