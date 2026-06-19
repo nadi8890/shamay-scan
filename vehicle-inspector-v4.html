@@ -102,11 +102,11 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue)}
 .toast.show{opacity:1}.toast.err{background:var(--red)}
 /* Print: show only PDF overlay */
 @media print{
-  @page{size:auto;margin:8mm}
+  @page{margin:5mm}
   body>*:not(#pdf-overlay){display:none!important}
   #pdf-overlay{display:block!important;position:static!important;overflow:visible!important;height:auto!important}
   #pdf-overlay>div:first-child{display:none!important}
-  #pdf-content{page-break-inside:avoid!important;break-inside:avoid!important;page-break-after:avoid!important}
+  #pdf-content{zoom:0.72;page-break-inside:avoid!important;break-inside:avoid!important;page-break-after:avoid!important}
 }
 /* API key section */
 .apikey-section{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:16px}
@@ -1206,8 +1206,9 @@ async function sharePDF() {
     await document.fonts.ready;
 
     const canvas = await html2canvas(el, {
-      scale: 2, useCORS: true, allowTaint: true,
-      backgroundColor: '#ffffff', logging: false
+      scale: 2, useCORS: true, allowTaint: false,
+      backgroundColor: '#ffffff', logging: false,
+      imageTimeout: 0
     });
 
     const imgData = canvas.toDataURL('image/jpeg', 0.92);
