@@ -102,9 +102,11 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue)}
 .toast.show{opacity:1}.toast.err{background:var(--red)}
 /* Print: show only PDF overlay */
 @media print{
+  @page{size:auto;margin:8mm}
   body>*:not(#pdf-overlay){display:none!important}
-  #pdf-overlay{display:block!important;position:static!important;overflow:visible!important}
+  #pdf-overlay{display:block!important;position:static!important;overflow:visible!important;height:auto!important}
   #pdf-overlay>div:first-child{display:none!important}
+  #pdf-content{page-break-inside:avoid!important;break-inside:avoid!important;page-break-after:avoid!important}
 }
 /* API key section */
 .apikey-section{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:16px}
@@ -1192,35 +1194,26 @@ async function sharePDF() {
   const btn = document.getElementById('share-pdf-btn');
   const origText = btn.textContent;
   btn.disabled = true;
-  btn.textContent = '⏳ מכין PDF...';
+  btn.textContent = '⏳ מכין...';
   try {
-    if (!window.html2canvas) { toast('ספרייה לא נטענה — נסה שוב עוד שנייה', true); return; }
-    if (!window.jspdf)       { toast('ספרייה לא נטענה — נסה שוב עוד שנייה', true); return; }
+    if (!window.html2canvas || !window.jspdf) {
+      alert('ספריות PDF לא נטענו — רענן את הדף ונסה שוב');
+      return;
+    }
 
-    // Temporarily lift overflow:hidden so off-screen clone is visible to html2canvas
-    const prevOverflow = document.body.style.overflow;
-    document.body.style.overflow = '';
-
-    const src = document.getElementById('pdf-content');
-    const clone = src.cloneNode(true);
-    clone.style.cssText = 'position:absolute;left:-9999px;top:0;width:700px;background:#fff;padding:20px;direction:rtl;font-family:Arial,sans-serif;font-size:11pt;color:#000;box-sizing:border-box';
-    document.body.appendChild(clone);
+    // Capture #pdf-content directly — it is already visible on screen inside the overlay
+    const el = document.getElementById('pdf-content');
     await document.fonts.ready;
-    await new Promise(r => setTimeout(r, 200)); // allow browser to paint clone
 
-    const canvas = await html2canvas(clone, {
+    const canvas = await html2canvas(el, {
       scale: 2, useCORS: true, allowTaint: true,
-      backgroundColor: '#ffffff', logging: false,
-      width: clone.scrollWidth, height: clone.scrollHeight,
-      scrollX: 0, scrollY: 0
+      backgroundColor: '#ffffff', logging: false
     });
-    document.body.removeChild(clone);
-    document.body.style.overflow = prevOverflow; // restore
 
     const imgData = canvas.toDataURL('image/jpeg', 0.92);
     const { jsPDF } = window.jspdf;
 
-    // Custom page = exact image ratio → single page guaranteed, no blank overflow
+    // Custom page size = exact content ratio → single page, no overflow
     const pageW = 210;
     const pageH = +(((canvas.height / canvas.width) * pageW).toFixed(2));
     const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: [pageW, pageH] });
@@ -1230,18 +1223,15 @@ async function sharePDF() {
     const filename = 'אומדן-' + new Date().toLocaleDateString('he-IL').replace(/\//g,'-') + '.pdf';
     const file = new File([blob], filename, { type: 'application/pdf' });
 
-    let shared = false;
     if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
       try {
         await navigator.share({ title: 'אומדן נזק', files: [file] });
-        shared = true;
       } catch(e) {
         if (e.name !== 'AbortError') throw e;
-        shared = true; // user cancelled — that's fine
+        // user cancelled share — ok
       }
-    }
-    if (!shared) {
-      // Desktop / unsupported browser: direct download
+    } else {
+      // Desktop / browser without file share: download directly
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url; a.download = filename;
@@ -1252,7 +1242,7 @@ async function sharePDF() {
     }
   } catch(e) {
     console.error('sharePDF:', e);
-    if (e.name !== 'AbortError') toast('שגיאה: ' + e.message.slice(0,60), true);
+    if (e.name !== 'AbortError') alert('שגיאה: ' + e.message);
   } finally {
     btn.disabled = false;
     btn.textContent = origText;
