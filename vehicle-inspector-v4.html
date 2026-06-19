@@ -106,7 +106,11 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue)}
   body>*:not(#pdf-overlay){display:none!important}
   #pdf-overlay{display:block!important;position:static!important;overflow:visible!important;height:auto!important}
   #pdf-overlay>div:first-child{display:none!important}
-  #pdf-content{zoom:0.72;page-break-inside:avoid!important;break-inside:avoid!important;page-break-after:avoid!important}
+  #pdf-content{
+    transform:scale(0.72);transform-origin:top right;
+    width:139%!important;
+    page-break-inside:avoid!important;break-inside:avoid!important;page-break-after:avoid!important
+  }
 }
 /* API key section */
 .apikey-section{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:16px}
@@ -1205,11 +1209,21 @@ async function sharePDF() {
     const el = document.getElementById('pdf-content');
     await document.fonts.ready;
 
-    const canvas = await html2canvas(el, {
-      scale: 2, useCORS: true, allowTaint: false,
-      backgroundColor: '#ffffff', logging: false,
-      imageTimeout: 0
-    });
+    // Override font to system font before capture — avoids Google Fonts CORS errors on mobile
+    const prevFont = el.style.fontFamily;
+    el.style.fontFamily = 'Arial, sans-serif';
+    await new Promise(r => setTimeout(r, 80));
+
+    let canvas;
+    try {
+      canvas = await html2canvas(el, {
+        scale: 1.5, useCORS: false, allowTaint: false,
+        backgroundColor: '#ffffff', logging: false,
+        imageTimeout: 0
+      });
+    } finally {
+      el.style.fontFamily = prevFont; // always restore font
+    }
 
     const imgData = canvas.toDataURL('image/jpeg', 0.92);
     const { jsPDF } = window.jspdf;
