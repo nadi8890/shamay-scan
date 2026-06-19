@@ -1192,46 +1192,61 @@ async function sharePDF() {
   const btn = document.getElementById('share-pdf-btn');
   const origText = btn.textContent;
   btn.disabled = true;
-  btn.textContent = '⏳ מכין...';
+  btn.textContent = '⏳ מכין PDF...';
   try {
-    // Clone content off-screen for full-height capture
+    if (!window.html2canvas) { toast('ספרייה לא נטענה — נסה שוב עוד שנייה', true); return; }
+    if (!window.jspdf)       { toast('ספרייה לא נטענה — נסה שוב עוד שנייה', true); return; }
+
+    // Clone off-screen with position:absolute (not fixed + z-index:-1) so html2canvas renders it correctly
     const src = document.getElementById('pdf-content');
     const clone = src.cloneNode(true);
-    clone.style.cssText = 'position:fixed;left:-9999px;top:0;width:680px;background:#fff;padding:20px;direction:rtl;font-family:Arial,sans-serif;font-size:11pt;color:#000;box-sizing:border-box;z-index:-1';
+    clone.style.cssText = 'position:absolute;left:-9999px;top:0;width:700px;background:#fff;padding:20px;direction:rtl;font-family:Arial,sans-serif;font-size:11pt;color:#000;box-sizing:border-box';
     document.body.appendChild(clone);
     await document.fonts.ready;
+    await new Promise(r => setTimeout(r, 120)); // allow browser to paint clone
+
     const canvas = await html2canvas(clone, {
       scale: 2, useCORS: true, allowTaint: true,
-      backgroundColor: '#ffffff', logging: false
+      backgroundColor: '#ffffff', logging: false,
+      width: clone.scrollWidth, height: clone.scrollHeight
     });
     document.body.removeChild(clone);
 
     const imgData = canvas.toDataURL('image/jpeg', 0.92);
     const { jsPDF } = window.jspdf;
-    const pageW = 210; // A4 width mm
-    const pageH = Math.min((canvas.height / canvas.width) * pageW, 420); // max ~A3
-    const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: [pageW, (canvas.height / canvas.width) * pageW] });
-    pdf.addImage(imgData, 'JPEG', 0, 0, pageW, (canvas.height / canvas.width) * pageW);
+
+    // Custom page = exact image ratio → single page guaranteed, no blank overflow
+    const pageW = 210;
+    const pageH = +(((canvas.height / canvas.width) * pageW).toFixed(2));
+    const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: [pageW, pageH] });
+    pdf.addImage(imgData, 'JPEG', 0, 0, pageW, pageH);
 
     const blob = pdf.output('blob');
-    // Try to get plate from content for filename
-    const plateEl = clone ? null : src.querySelector('.record-plate');
     const filename = 'אומדן-' + new Date().toLocaleDateString('he-IL').replace(/\//g,'-') + '.pdf';
     const file = new File([blob], filename, { type: 'application/pdf' });
 
+    let shared = false;
     if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-      await navigator.share({ title: 'אומדן נזק', files: [file] });
-    } else {
-      // Desktop fallback: direct download
+      try {
+        await navigator.share({ title: 'אומדן נזק', files: [file] });
+        shared = true;
+      } catch(e) {
+        if (e.name !== 'AbortError') throw e;
+        shared = true; // user cancelled — that's fine
+      }
+    }
+    if (!shared) {
+      // Desktop / unsupported browser: direct download
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url; a.download = filename;
       document.body.appendChild(a); a.click();
       document.body.removeChild(a);
-      setTimeout(() => URL.revokeObjectURL(url), 2000);
+      setTimeout(() => URL.revokeObjectURL(url), 3000);
       toast('PDF הורד ✓');
     }
   } catch(e) {
+    console.error('sharePDF:', e);
     if (e.name !== 'AbortError') toast('שגיאה: ' + e.message.slice(0,60), true);
   } finally {
     btn.disabled = false;
