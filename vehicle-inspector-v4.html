@@ -1197,20 +1197,25 @@ async function sharePDF() {
     if (!window.html2canvas) { toast('ספרייה לא נטענה — נסה שוב עוד שנייה', true); return; }
     if (!window.jspdf)       { toast('ספרייה לא נטענה — נסה שוב עוד שנייה', true); return; }
 
-    // Clone off-screen with position:absolute (not fixed + z-index:-1) so html2canvas renders it correctly
+    // Temporarily lift overflow:hidden so off-screen clone is visible to html2canvas
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = '';
+
     const src = document.getElementById('pdf-content');
     const clone = src.cloneNode(true);
     clone.style.cssText = 'position:absolute;left:-9999px;top:0;width:700px;background:#fff;padding:20px;direction:rtl;font-family:Arial,sans-serif;font-size:11pt;color:#000;box-sizing:border-box';
     document.body.appendChild(clone);
     await document.fonts.ready;
-    await new Promise(r => setTimeout(r, 120)); // allow browser to paint clone
+    await new Promise(r => setTimeout(r, 200)); // allow browser to paint clone
 
     const canvas = await html2canvas(clone, {
       scale: 2, useCORS: true, allowTaint: true,
       backgroundColor: '#ffffff', logging: false,
-      width: clone.scrollWidth, height: clone.scrollHeight
+      width: clone.scrollWidth, height: clone.scrollHeight,
+      scrollX: 0, scrollY: 0
     });
     document.body.removeChild(clone);
+    document.body.style.overflow = prevOverflow; // restore
 
     const imgData = canvas.toDataURL('image/jpeg', 0.92);
     const { jsPDF } = window.jspdf;
