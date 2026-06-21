@@ -100,17 +100,17 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue)}
 /* Toast */
 .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--green);color:#fff;padding:11px 22px;border-radius:99px;font-weight:700;font-size:0.88rem;opacity:0;transition:opacity .3s;z-index:999;white-space:nowrap}
 .toast.show{opacity:1}.toast.err{background:var(--red)}
-/* Print: show only PDF overlay */
+/* Print: show only PDF overlay, compact to fit A4 */
 @media print{
-  @page{margin:5mm}
+  @page{size:A4 portrait;margin:6mm}
   body>*:not(#pdf-overlay){display:none!important}
   #pdf-overlay{display:block!important;position:static!important;overflow:visible!important;height:auto!important}
   #pdf-overlay>div:first-child{display:none!important}
-  #pdf-content{
-    transform:scale(0.72);transform-origin:top right;
-    width:139%!important;
-    page-break-inside:avoid!important;break-inside:avoid!important;page-break-after:avoid!important
-  }
+  #pdf-content{padding:4px!important;font-size:8pt!important}
+  #pdf-content div,#pdf-content span,#pdf-content p{font-size:8pt!important}
+  #pdf-content table{font-size:8pt!important;margin-bottom:4px!important}
+  #pdf-content table td,#pdf-content table th{padding:2px 4px!important;font-size:8pt!important}
+  #pdf-content img{max-height:120px!important;max-width:100%!important}
 }
 /* API key section */
 .apikey-section{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:16px}
@@ -357,7 +357,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue)}
     <span style="font-size:0.9rem;font-weight:700">👁 תצוגה מקדימה</span>
     <div style="display:flex;gap:8px">
       <button id="share-pdf-btn" onclick="sharePDF()" style="background:#25d366;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:0.9rem;font-weight:700;cursor:pointer;font-family:Heebo,sans-serif">📤 שתף PDF</button>
-      <button onclick="window.print()" style="background:#10b981;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:0.9rem;font-weight:700;cursor:pointer;font-family:Heebo,sans-serif">🖨️ הדפס</button>
+      <button onclick="mobilePrint()" style="background:#10b981;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:0.9rem;font-weight:700;cursor:pointer;font-family:Heebo,sans-serif">🖨️ הדפס</button>
       <button onclick="closePDF()" style="background:rgba(255,255,255,0.15);color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:0.9rem;cursor:pointer">✕ סגור</button>
     </div>
   </div>
@@ -1194,70 +1194,86 @@ function closePDF() {
   document.body.style.overflow = '';
 }
 
+// Compact all elements in pdf-content → print → restore (works on mobile)
+async function mobilePrint() {
+  const el = document.getElementById('pdf-content');
+  const els = Array.from(el.querySelectorAll('*'));
+  // Save existing inline styles
+  const saved = els.map(e => ({
+    fs: e.style.fontSize, pad: e.style.padding, mh: e.style.maxHeight, lh: e.style.lineHeight
+  }));
+  const savedPad = el.style.padding;
+  // Apply compact styles with JS (overrides inline styles)
+  els.forEach(e => {
+    e.style.setProperty('font-size', '8pt', 'important');
+    e.style.setProperty('line-height', '1.3', 'important');
+    if (['TD','TH'].includes(e.tagName)) e.style.setProperty('padding', '2px 4px', 'important');
+    if (e.tagName === 'IMG') e.style.setProperty('max-height', '110px', 'important');
+  });
+  el.style.setProperty('padding', '4px', 'important');
+  await new Promise(r => setTimeout(r, 80));
+  window.print();
+  // Restore after print dialog opens
+  setTimeout(() => {
+    els.forEach((e, i) => {
+      e.style.fontSize = saved[i].fs;
+      e.style.padding = saved[i].pad;
+      e.style.maxHeight = saved[i].mh;
+      e.style.lineHeight = saved[i].lh;
+    });
+    el.style.padding = savedPad;
+  }, 1500);
+}
+
 async function sharePDF() {
   const btn = document.getElementById('share-pdf-btn');
   const origText = btn.textContent;
+
+  // On mobile: compact + print (Android → Save as PDF → Share)
+  const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  if (isMobile) {
+    toast('בחר "שמור כ-PDF" ואז שתף 📤');
+    await mobilePrint();
+    return;
+  }
+
+  // Desktop: html2canvas + jsPDF → download
   btn.disabled = true;
   btn.textContent = '⏳ מכין...';
   try {
     if (!window.html2canvas || !window.jspdf) {
-      alert('ספריות PDF לא נטענו — רענן את הדף ונסה שוב');
-      return;
+      toast('ספריות לא נטענו — רענן ונסה שוב', true); return;
     }
-
-    // Capture #pdf-content directly — it is already visible on screen inside the overlay
     const el = document.getElementById('pdf-content');
     await document.fonts.ready;
-
-    // Override font to system font before capture — avoids Google Fonts CORS errors on mobile
     const prevFont = el.style.fontFamily;
     el.style.fontFamily = 'Arial, sans-serif';
     await new Promise(r => setTimeout(r, 80));
-
     let canvas;
     try {
       canvas = await html2canvas(el, {
         scale: 1.5, useCORS: false, allowTaint: false,
-        backgroundColor: '#ffffff', logging: false,
-        imageTimeout: 0
+        backgroundColor: '#ffffff', logging: false, imageTimeout: 0
       });
     } finally {
-      el.style.fontFamily = prevFont; // always restore font
+      el.style.fontFamily = prevFont;
     }
-
     const imgData = canvas.toDataURL('image/jpeg', 0.92);
     const { jsPDF } = window.jspdf;
-
-    // Custom page size = exact content ratio → single page, no overflow
     const pageW = 210;
     const pageH = +(((canvas.height / canvas.width) * pageW).toFixed(2));
     const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: [pageW, pageH] });
     pdf.addImage(imgData, 'JPEG', 0, 0, pageW, pageH);
-
     const blob = pdf.output('blob');
     const filename = 'אומדן-' + new Date().toLocaleDateString('he-IL').replace(/\//g,'-') + '.pdf';
-    const file = new File([blob], filename, { type: 'application/pdf' });
-
-    if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-      try {
-        await navigator.share({ title: 'אומדן נזק', files: [file] });
-      } catch(e) {
-        if (e.name !== 'AbortError') throw e;
-        // user cancelled share — ok
-      }
-    } else {
-      // Desktop / browser without file share: download directly
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url; a.download = filename;
-      document.body.appendChild(a); a.click();
-      document.body.removeChild(a);
-      setTimeout(() => URL.revokeObjectURL(url), 3000);
-      toast('PDF הורד ✓');
-    }
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 3000);
+    toast('PDF הורד ✓');
   } catch(e) {
     console.error('sharePDF:', e);
-    if (e.name !== 'AbortError') alert('שגיאה: ' + e.message);
+    if (e.name !== 'AbortError') toast('שגיאה: ' + e.message.slice(0,50), true);
   } finally {
     btn.disabled = false;
     btn.textContent = origText;
