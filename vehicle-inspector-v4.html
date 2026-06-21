@@ -100,17 +100,19 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue)}
 /* Toast */
 .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--green);color:#fff;padding:11px 22px;border-radius:99px;font-weight:700;font-size:0.88rem;opacity:0;transition:opacity .3s;z-index:999;white-space:nowrap}
 .toast.show{opacity:1}.toast.err{background:var(--red)}
-/* Print: show only PDF overlay, compact to fit A4 */
+/* Print: show only PDF overlay, compact to fit A4 single page */
 @media print{
-  @page{size:A4 portrait;margin:6mm}
+  @page{size:A4 portrait;margin:7mm}
   body>*:not(#pdf-overlay){display:none!important}
   #pdf-overlay{display:block!important;position:static!important;overflow:visible!important;height:auto!important}
   #pdf-overlay>div:first-child{display:none!important}
-  #pdf-content{padding:4px!important;font-size:8pt!important}
-  #pdf-content div,#pdf-content span,#pdf-content p{font-size:8pt!important}
-  #pdf-content table{font-size:8pt!important;margin-bottom:4px!important}
-  #pdf-content table td,#pdf-content table th{padding:2px 4px!important;font-size:8pt!important}
-  #pdf-content img{max-height:120px!important;max-width:100%!important}
+  #pdf-content{padding:0!important;font-size:7pt!important}
+  #pdf-content *{font-size:7pt!important;line-height:1.2!important}
+  #pdf-content div{margin-top:2px!important;margin-bottom:2px!important;padding-top:3px!important;padding-bottom:3px!important;padding-right:6px!important;padding-left:6px!important}
+  #pdf-content table{width:100%!important;border-collapse:collapse!important;margin:0 0 3px 0!important}
+  #pdf-content table td,#pdf-content table th{padding:1px 3px!important;font-size:7pt!important}
+  #pdf-content span{padding:1px 4px!important;margin:0 1px!important}
+  #pdf-content img{max-height:70px!important;max-width:100%!important}
 }
 /* API key section */
 .apikey-section{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:16px}
@@ -1229,11 +1231,41 @@ async function sharePDF() {
   const btn = document.getElementById('share-pdf-btn');
   const origText = btn.textContent;
 
-  // On mobile: compact + print (Android → Save as PDF → Share)
+  // On mobile: share as text via native share dialog (WhatsApp/SMS/email)
   const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
   if (isMobile) {
-    toast('בחר "שמור כ-PDF" ואז שתף 📤');
-    await mobilePrint();
+    const na = 'לא ידוע';
+    const rec = records.find(r => r.id === _currentShareRecId) || records[records.length - 1];
+    if (!rec) { toast('לא נמצא אומדן', true); return; }
+    const items = (rec.items || []).filter(it => it.part);
+    let rows = items.map(it => `• ${it.part} | ${it.type || ''} | ${Number(it.parts)||0} ₪`).join('\n');
+    if (rec.works) {
+      if (rec.works.paint  > 0) rows += `\n• 🎨 עבודות צבע | עבודה | ${rec.works.paint} ₪`;
+      if (rec.works.body   > 0) rows += `\n• 🔨 פחחות/מרכב | עבודה | ${rec.works.body} ₪`;
+      if (rec.works.electric > 0) rows += `\n• ⚡ חשמל | עבודה | ${rec.works.electric} ₪`;
+    }
+    const office = getOfficeName();
+    const text = [
+      office ? `🏢 ${office}` : '',
+      `🚗 *אומדן נזק*`,
+      `📋 רישוי ${rec.plate||na} | ${rec.date||''}`,
+      `${rec.make||''} ${rec.model||''} ${rec.year||''} | צבע: ${rec.color||na}`,
+      rec.client ? `לקוח: ${rec.client}` : '',
+      rec.insurance ? `ביטוח: ${rec.insurance}` : '',
+      ``,
+      rows,
+      ``,
+      `*סה"כ אומדן: ${Number(rec.total)||0} ₪*`,
+      rec.notes ? `הערות: ${rec.notes}` : ''
+    ].filter(l => l !== undefined && l !== null && !(l === '' && !rows)).join('\n').trim();
+
+    if (navigator.share) {
+      try { await navigator.share({ title: 'אומדן נזק', text }); }
+      catch(e) { if (e.name !== 'AbortError') toast('שגיאה: ' + e.message, true); }
+    } else {
+      await navigator.clipboard.writeText(text);
+      toast('הטקסט הועתק — הדבק בוואטסאפ ✓');
+    }
     return;
   }
 
@@ -1280,7 +1312,9 @@ async function sharePDF() {
   }
 }
 
+let _currentShareRecId = null;
 function exportSinglePDF(id) {
+  _currentShareRecId = id;
   const rec = records.find(r => r.id === id);
   if (!rec) { toast('אומדן לא נמצא', true); return; }
   openPDF(buildPDFContent([rec]));
