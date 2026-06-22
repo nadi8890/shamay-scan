@@ -1201,6 +1201,18 @@ function closePDF() {
   document.body.style.overflow = '';
 }
 
+// Lazy-load jsPDF if not yet available
+function ensureJsPDF() {
+  if (window.jspdf) return Promise.resolve();
+  return new Promise((res, rej) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+    s.onload = () => setTimeout(res, 100); // small delay for init
+    s.onerror = () => rej(new Error('לא ניתן לטעון ספריית PDF'));
+    document.head.appendChild(s);
+  });
+}
+
 // Build PDF by drawing directly on Canvas (no html2canvas → no CORS issues on Android)
 async function buildCanvasPDF(rec) {
   const na = 'לא ידוע';
@@ -1222,20 +1234,44 @@ async function buildCanvasPDF(rec) {
   const RH = F(5.5); // row height
 
   // ── Header ──
-  c.fillStyle = '#1e3a5f'; c.fillRect(M, y, CW, F(11));
+  c.fillStyle = '#1e3a5f'; c.fillRect(M, y, CW, F(13));
   c.fillStyle = '#fff'; c.textAlign = 'center';
-  c.font = `bold ${F(5)}px Arial`; c.fillText('אומדן נזק', W/2, y + F(7.5));
+  c.font = `bold ${F(5.5)}px Arial`; c.fillText('אומדן נזק', W/2, y + F(8.5));
   const office = getOfficeName();
-  if (office) { c.font = `${F(3.2)}px Arial`; c.fillText(office, W/2, y + F(10.5)); }
-  y += F(13);
+  if (office) { c.font = `${F(3.2)}px Arial`; c.fillText(office, W/2, y + F(12)); }
+  y += F(17);
 
-  // ── Vehicle info ──
-  c.fillStyle = '#1e3a5f'; c.font = `bold ${F(3.5)}px Arial`; c.textAlign = 'right';
-  c.fillText(`📋 ${rec.date||''} · רישוי ${rec.plate||na}`, W - M, y); y += F(5);
-  c.fillStyle = '#333'; c.font = `${F(3)}px Arial`;
-  const info = [`${rec.make||''} ${rec.model||''} ${rec.year||''}`.trim(), rec.color?`צבע: ${rec.color}`:'', rec.client?`לקוח: ${rec.client}`:'', rec.insurance?`ביטוח: ${rec.insurance}`:''].filter(Boolean).join('  |  ');
-  c.fillText(info, W - M, y); y += F(5);
-  if (rec.location) { c.fillStyle = '#555'; c.font = `${F(3)}px Arial`; c.fillText(`📍 מקום בדיקה: ${rec.location}`, W - M, y); y += F(5); } else { y += F(2); }
+  // ── Vehicle info block ──
+  // Draw light background for info block
+  const infoStartY = y;
+  c.fillStyle = '#f0f4ff'; c.fillRect(M, y - F(1), CW, F(28));
+  c.strokeStyle = '#c0cce8'; c.lineWidth = 0.7; c.strokeRect(M, y - F(1), CW, F(28));
+
+  c.fillStyle = '#1e3a5f'; c.font = `bold ${F(4)}px Arial`; c.textAlign = 'right';
+  c.fillText(`רישוי: ${rec.plate||na}`, W - M - F(2), y + F(4));
+  c.font = `bold ${F(3.2)}px Arial`;
+  c.fillStyle = '#444';
+  c.fillText(`תאריך: ${rec.date||''}`, M + F(2) + CW*0.5, y + F(4));
+  y += F(7);
+
+  c.fillStyle = '#222'; c.font = `${F(3)}px Arial`;
+  const carLine = [`${rec.make||''} ${rec.model||''} ${rec.year||''}`.trim(), rec.color?`צבע: ${rec.color}`:''].filter(Boolean).join('   |   ');
+  c.fillText(carLine, W - M - F(2), y); y += F(5);
+
+  const clientLine = [rec.client?`לקוח: ${rec.client}`:'', rec.km?`ק"מ: ${rec.km}`:'', rec.insurance?`ביטוח: ${rec.insurance}`:''].filter(Boolean).join('   |   ');
+  if (clientLine) { c.fillText(clientLine, W - M - F(2), y); y += F(5); }
+
+  // Parts type
+  const ptArr = [];
+  if (rec.partsType?.original) ptArr.push('מקורי');
+  if (rec.partsType?.used) ptArr.push('משומש');
+  if (rec.partsType?.aftermarket) ptArr.push('תחליפי');
+  if (ptArr.length) { c.fillStyle = '#1e3a5f'; c.font = `bold ${F(3)}px Arial`; c.fillText(`סוג חלפים: ${ptArr.join(' + ')}`, W - M - F(2), y); y += F(5); }
+
+  if (rec.incidentDate) { c.fillStyle = '#555'; c.font = `${F(3)}px Arial`; c.fillText(`תאריך מקרה: ${rec.incidentDate}`, W - M - F(2), y); y += F(5); }
+  if (rec.location) { c.fillStyle = '#555'; c.font = `${F(3)}px Arial`; c.fillText(`📍 מקום בדיקה: ${rec.location}`, W - M - F(2), y); y += F(5); }
+  if (rec.serial) { c.fillStyle = '#777'; c.font = `${F(2.8)}px Arial`; c.fillText(`מספר שלדה: ${rec.serial}`, W - M - F(2), y); y += F(5); }
+  y = Math.max(y, infoStartY + F(27)) + F(3);
 
   // ── Table header ──
   const C1 = CW * 0.5, C2 = CW * 0.25, C3 = CW * 0.25;
@@ -1303,10 +1339,10 @@ async function buildCanvasPDF(rec) {
 async function mobilePrint() {
   const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
   if (isMobile) {
-    if (!window.jspdf) { toast('ספרייה לא נטענה — רענן ונסה שוב', true); return; }
     const btn = document.querySelector('#pdf-overlay button[onclick="mobilePrint()"]');
     if (btn) { btn.disabled = true; btn.textContent = '⏳ מכין...'; }
     try {
+      await ensureJsPDF();
       const rec = records.find(r => r.id === _currentShareRecId) || records[records.length-1];
       if (!rec) { toast('לא נמצא אומדן', true); return; }
       const blob = await buildCanvasPDF(rec);
@@ -1350,7 +1386,7 @@ async function sharePDF() {
     btn.disabled = true;
     btn.textContent = '⏳ מכין PDF...';
     try {
-      if (!window.jspdf) { toast('ספרייה לא נטענה — רענן ונסה שוב', true); return; }
+      await ensureJsPDF();
       const rec = records.find(r => r.id === _currentShareRecId) || records[records.length-1];
       if (!rec) { toast('לא נמצא אומדן', true); return; }
       const blob = await buildCanvasPDF(rec);
