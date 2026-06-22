@@ -188,6 +188,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue)}
     <div class="field"><label>ק"מ</label><input type="text" id="f-km" placeholder="85,000"></div>
     <div class="field"><label>מספר סידורי (שלדה)</label><input type="text" id="f-serial" placeholder="WBA12345678901234" style="direction:ltr;font-size:0.82rem"></div>
     <div class="field"><label>תאריך מקרה</label><input type="text" id="f-incident-date" placeholder="DD/MM/YYYY" inputmode="numeric" maxlength="10" oninput="onIncidentDateChange(this)"></div>
+    <div class="field"><label>מקום בדיקה</label><input type="text" id="f-location" placeholder="למשל: גראז׳ מרכז, תל אביב"></div>
   </div>
   <div class="row">
     <div class="field"><label>חברת ביטוח</label>
@@ -964,6 +965,7 @@ function saveRecord() {
     serial: document.getElementById('f-serial').value.trim(),
     insurance:    document.getElementById('f-insurance').value,
     incidentDate: document.getElementById('f-incident-date').value.trim(),
+    location: document.getElementById('f-location').value.trim(),
     partsType: {
       original:    document.getElementById('pt-original').checked,
       used:        document.getElementById('pt-used').checked,
@@ -1050,6 +1052,7 @@ function loadRecord(id) {
   document.getElementById('f-serial').value    = r.serial    || '';
   document.getElementById('f-insurance').value     = r.insurance    || '';
   document.getElementById('f-incident-date').value = r.incidentDate || '';
+  document.getElementById('f-location').value = r.location || '';
   if (r.partsType) {
     document.getElementById('pt-original').checked    = !!r.partsType.original;
     document.getElementById('pt-used').checked        = !!r.partsType.used;
@@ -1089,6 +1092,7 @@ function newInspection() {
   document.getElementById('f-serial').value    = '';
   document.getElementById('f-insurance').value     = '';
   document.getElementById('f-incident-date').value = '';
+  document.getElementById('f-location').value = '';
   document.getElementById('pt-original').checked    = false;
   document.getElementById('pt-used').checked        = false;
   document.getElementById('pt-aftermarket').checked = false;
@@ -1158,6 +1162,7 @@ function buildPDFContent(recsArr) {
         `לקוח: ${rec.client||na}`,
         rec.insurance ? `ביטוח: ${rec.insurance}` : '',
         rec.incidentDate ? `תאריך מקרה: ${rec.incidentDate}` : '',
+        rec.location ? `📍 מקום בדיקה: ${rec.location}` : '',
         rec.partsType ? `חלפים: ${[rec.partsType.original?'מקורי':'',rec.partsType.used?'משומש':'',rec.partsType.aftermarket?'תחליפי':''].filter(Boolean).join('+')||'—'}` : '',
         rec.serial ? `שלדה: ${rec.serial}` : ''
       ].filter(Boolean).map(t=>`<span style="background:#f0f4ff;padding:2px 8px;border-radius:4px;display:inline-block">${t}</span>`).join('')}
@@ -1196,75 +1201,175 @@ function closePDF() {
   document.body.style.overflow = '';
 }
 
-// Compact all elements in pdf-content → print → restore (works on mobile)
-async function mobilePrint() {
-  const el = document.getElementById('pdf-content');
-  const els = Array.from(el.querySelectorAll('*'));
-  // Save existing inline styles
-  const saved = els.map(e => ({
-    fs: e.style.fontSize, pad: e.style.padding, mh: e.style.maxHeight, lh: e.style.lineHeight
-  }));
-  const savedPad = el.style.padding;
-  // Apply compact styles with JS (overrides inline styles)
-  els.forEach(e => {
-    e.style.setProperty('font-size', '8pt', 'important');
-    e.style.setProperty('line-height', '1.3', 'important');
-    if (['TD','TH'].includes(e.tagName)) e.style.setProperty('padding', '2px 4px', 'important');
-    if (e.tagName === 'IMG') e.style.setProperty('max-height', '110px', 'important');
+// Build PDF by drawing directly on Canvas (no html2canvas → no CORS issues on Android)
+async function buildCanvasPDF(rec) {
+  const na = 'לא ידוע';
+  const S = 2; // scale for quality
+  const PX = 3.7795; // px per mm at 96dpi
+  const W = Math.round(210 * PX), H = Math.round(297 * PX);
+  const cv = document.createElement('canvas');
+  cv.width = W * S; cv.height = H * S;
+  const c = cv.getContext('2d');
+  c.scale(S, S);
+
+  const M = 10 * PX; // margin
+  const CW = W - M * 2;
+  c.fillStyle = '#fff'; c.fillRect(0, 0, W, H);
+  c.direction = 'rtl';
+
+  let y = M;
+  const F = n => n * PX; // mm to px helper
+  const RH = F(5.5); // row height
+
+  // ── Header ──
+  c.fillStyle = '#1e3a5f'; c.fillRect(M, y, CW, F(11));
+  c.fillStyle = '#fff'; c.textAlign = 'center';
+  c.font = `bold ${F(5)}px Arial`; c.fillText('אומדן נזק', W/2, y + F(7.5));
+  const office = getOfficeName();
+  if (office) { c.font = `${F(3.2)}px Arial`; c.fillText(office, W/2, y + F(10.5)); }
+  y += F(13);
+
+  // ── Vehicle info ──
+  c.fillStyle = '#1e3a5f'; c.font = `bold ${F(3.5)}px Arial`; c.textAlign = 'right';
+  c.fillText(`📋 ${rec.date||''} · רישוי ${rec.plate||na}`, W - M, y); y += F(5);
+  c.fillStyle = '#333'; c.font = `${F(3)}px Arial`;
+  const info = [`${rec.make||''} ${rec.model||''} ${rec.year||''}`.trim(), rec.color?`צבע: ${rec.color}`:'', rec.client?`לקוח: ${rec.client}`:'', rec.insurance?`ביטוח: ${rec.insurance}`:''].filter(Boolean).join('  |  ');
+  c.fillText(info, W - M, y); y += F(5);
+  if (rec.location) { c.fillStyle = '#555'; c.font = `${F(3)}px Arial`; c.fillText(`📍 מקום בדיקה: ${rec.location}`, W - M, y); y += F(5); } else { y += F(2); }
+
+  // ── Table header ──
+  const C1 = CW * 0.5, C2 = CW * 0.25, C3 = CW * 0.25;
+  c.fillStyle = '#1e3a5f'; c.fillRect(M, y, CW, RH);
+  c.fillStyle = '#fff'; c.font = `bold ${F(3)}px Arial`;
+  c.textAlign = 'right'; c.fillText('חלק / אזור', W - M - F(1), y + F(3.7));
+  c.textAlign = 'center'; c.fillText('סוג נזק', W - M - C1 - C2/2, y + F(3.7));
+  c.fillText('עלות ₪', M + C3/2, y + F(3.7));
+  y += RH;
+
+  // ── Table rows ──
+  const items = (rec.items||[]).filter(it=>it.part);
+  const wks = rec.works||{};
+  const allRows = [...items,
+    ...(wks.paint>0?[{part:'🎨 עבודות צבע',type:'עבודה',parts:wks.paint}]:[]),
+    ...(wks.body>0?[{part:'🔨 פחחות/מרכב',type:'עבודה',parts:wks.body}]:[]),
+    ...(wks.electric>0?[{part:'⚡ חשמל',type:'עבודה',parts:wks.electric}]:[])
+  ];
+  c.font = `${F(3)}px Arial`;
+  allRows.forEach((it, i) => {
+    c.fillStyle = i%2===0?'#fff':'#f5f8ff'; c.fillRect(M, y, CW, RH);
+    c.strokeStyle = '#ddd'; c.lineWidth = 0.5; c.strokeRect(M, y, CW, RH);
+    c.fillStyle = '#000';
+    c.textAlign = 'right'; c.fillText(it.part||'', W-M-F(1), y+F(3.7));
+    c.textAlign = 'center'; c.fillText(it.type||'', W-M-C1-C2/2, y+F(3.7));
+    c.fillText(String(Number(it.parts)||0), M+C3/2, y+F(3.7));
+    y += RH;
   });
-  el.style.setProperty('padding', '4px', 'important');
-  await new Promise(r => setTimeout(r, 80));
-  window.print();
-  // Restore after print dialog opens
-  setTimeout(() => {
-    els.forEach((e, i) => {
-      e.style.fontSize = saved[i].fs;
-      e.style.padding = saved[i].pad;
-      e.style.maxHeight = saved[i].mh;
-      e.style.lineHeight = saved[i].lh;
+
+  // ── Total ──
+  c.fillStyle = '#e8f0fe'; c.fillRect(M, y, CW, RH+F(1));
+  c.strokeStyle = '#aac'; c.lineWidth = 1; c.strokeRect(M, y, CW, RH+F(1));
+  c.fillStyle = '#000'; c.font = `bold ${F(3.5)}px Arial`;
+  c.textAlign = 'right'; c.fillText('סה"כ אומדן', W-M-F(1), y+F(4));
+  c.textAlign = 'center'; c.fillText(`${Number(rec.total)||0} ₪`, M+C3/2, y+F(4));
+  y += RH + F(4);
+
+  if (rec.notes) {
+    c.fillStyle = '#333'; c.font = `${F(3)}px Arial`; c.textAlign = 'right';
+    c.fillText('הערות: ' + rec.notes, W-M, y); y += F(5);
+  }
+
+  // ── Photo ──
+  if (rec.photo?.data) {
+    try {
+      const img = new Image();
+      img.src = `data:${rec.photo.mime};base64,${rec.photo.data}`;
+      await new Promise((res,rej) => { img.onload=res; img.onerror=rej; setTimeout(rej,4000); });
+      const maxH = Math.min(F(55), H - y - M);
+      const iw = Math.min(CW, maxH / (img.height/img.width));
+      const ih = iw * (img.height/img.width);
+      c.drawImage(img, W - M - iw, y, iw, ih);
+    } catch(e) { /* skip */ }
+  }
+
+  // ── Export to PDF ──
+  const imgData = cv.toDataURL('image/jpeg', 0.92);
+  const { jsPDF } = window.jspdf;
+  const pdf = new jsPDF({ orientation:'p', unit:'mm', format:'a4' });
+  pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297);
+  return pdf.output('blob');
+}
+
+// Print: mobile → canvas PDF opened in viewer (1 exact page); desktop → native print CSS
+async function mobilePrint() {
+  const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  if (isMobile) {
+    if (!window.jspdf) { toast('ספרייה לא נטענה — רענן ונסה שוב', true); return; }
+    const btn = document.querySelector('#pdf-overlay button[onclick="mobilePrint()"]');
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ מכין...'; }
+    try {
+      const rec = records.find(r => r.id === _currentShareRecId) || records[records.length-1];
+      if (!rec) { toast('לא נמצא אומדן', true); return; }
+      const blob = await buildCanvasPDF(rec);
+      const url = URL.createObjectURL(blob);
+      window.open(url, '_blank');
+      setTimeout(() => URL.revokeObjectURL(url), 30000);
+    } catch(e) {
+      toast('שגיאה: ' + e.message.slice(0,50), true);
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = '🖨️ הדפס'; }
+    }
+  } else {
+    // Desktop: apply compact inline styles → CSS print → restore
+    const el = document.getElementById('pdf-content');
+    const els = Array.from(el.querySelectorAll('*'));
+    const saved = els.map(e => ({ fs: e.style.fontSize, pad: e.style.padding, mh: e.style.maxHeight, lh: e.style.lineHeight }));
+    const savedPad = el.style.padding;
+    els.forEach(e => {
+      e.style.setProperty('font-size', '8pt', 'important');
+      e.style.setProperty('line-height', '1.3', 'important');
+      if (['TD','TH'].includes(e.tagName)) e.style.setProperty('padding', '2px 4px', 'important');
+      if (e.tagName === 'IMG') e.style.setProperty('max-height', '110px', 'important');
     });
-    el.style.padding = savedPad;
-  }, 1500);
+    el.style.setProperty('padding', '4px', 'important');
+    await new Promise(r => setTimeout(r, 80));
+    window.print();
+    setTimeout(() => {
+      els.forEach((e, i) => { e.style.fontSize = saved[i].fs; e.style.padding = saved[i].pad; e.style.maxHeight = saved[i].mh; e.style.lineHeight = saved[i].lh; });
+      el.style.padding = savedPad;
+    }, 1500);
+  }
 }
 
 async function sharePDF() {
   const btn = document.getElementById('share-pdf-btn');
   const origText = btn.textContent;
 
-  // On mobile: share as text via native share dialog (WhatsApp/SMS/email)
+  // On mobile: draw PDF on canvas (no external libs) → share as PDF file
   const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
   if (isMobile) {
-    const na = 'לא ידוע';
-    const rec = records.find(r => r.id === _currentShareRecId) || records[records.length - 1];
-    if (!rec) { toast('לא נמצא אומדן', true); return; }
-    const items = (rec.items || []).filter(it => it.part);
-    let rows = items.map(it => `• ${it.part} | ${it.type || ''} | ${Number(it.parts)||0} ₪`).join('\n');
-    if (rec.works) {
-      if (rec.works.paint  > 0) rows += `\n• 🎨 עבודות צבע | עבודה | ${rec.works.paint} ₪`;
-      if (rec.works.body   > 0) rows += `\n• 🔨 פחחות/מרכב | עבודה | ${rec.works.body} ₪`;
-      if (rec.works.electric > 0) rows += `\n• ⚡ חשמל | עבודה | ${rec.works.electric} ₪`;
-    }
-    const office = getOfficeName();
-    const text = [
-      office ? `🏢 ${office}` : '',
-      `🚗 *אומדן נזק*`,
-      `📋 רישוי ${rec.plate||na} | ${rec.date||''}`,
-      `${rec.make||''} ${rec.model||''} ${rec.year||''} | צבע: ${rec.color||na}`,
-      rec.client ? `לקוח: ${rec.client}` : '',
-      rec.insurance ? `ביטוח: ${rec.insurance}` : '',
-      ``,
-      rows,
-      ``,
-      `*סה"כ אומדן: ${Number(rec.total)||0} ₪*`,
-      rec.notes ? `הערות: ${rec.notes}` : ''
-    ].filter(l => l !== undefined && l !== null && !(l === '' && !rows)).join('\n').trim();
-
-    if (navigator.share) {
-      try { await navigator.share({ title: 'אומדן נזק', text }); }
-      catch(e) { if (e.name !== 'AbortError') toast('שגיאה: ' + e.message, true); }
-    } else {
-      await navigator.clipboard.writeText(text);
-      toast('הטקסט הועתק — הדבק בוואטסאפ ✓');
+    btn.disabled = true;
+    btn.textContent = '⏳ מכין PDF...';
+    try {
+      if (!window.jspdf) { toast('ספרייה לא נטענה — רענן ונסה שוב', true); return; }
+      const rec = records.find(r => r.id === _currentShareRecId) || records[records.length-1];
+      if (!rec) { toast('לא נמצא אומדן', true); return; }
+      const blob = await buildCanvasPDF(rec);
+      const filename = 'אומדן-' + new Date().toLocaleDateString('he-IL').replace(/\//g,'-') + '.pdf';
+      const file = new File([blob], filename, { type: 'application/pdf' });
+      if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({ title: 'אומדן נזק', files: [file] });
+      } else {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href = url; a.download = filename;
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 3000);
+        toast('PDF הורד ✓');
+      }
+    } catch(e) {
+      if (e.name !== 'AbortError') toast('שגיאה: ' + e.message.slice(0,50), true);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = origText;
     }
     return;
   }
