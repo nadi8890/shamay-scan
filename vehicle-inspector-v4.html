@@ -269,6 +269,9 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue)}
         <input type="number" id="w-electric" value="0" min="0" oninput="calcTotal()">
       </div>
     </div>
+    <!-- Custom work rows -->
+    <div id="custom-works-rows" style="margin-top:6px;display:flex;flex-direction:column;gap:5px"></div>
+    <button type="button" onclick="addCustomWork()" style="margin-top:8px;background:none;border:1px dashed var(--border);color:var(--muted);border-radius:8px;padding:5px 12px;font-size:0.8rem;cursor:pointer;font-family:Heebo,sans-serif;width:100%">+ הוסף עבודה נוספת</button>
   </div>
 
   <div class="totals-row">
@@ -828,10 +831,32 @@ function getWorkTotals() {
   };
 }
 
+let customWorkId = 0;
+function addCustomWork(desc='', cost=0) {
+  const id = ++customWorkId;
+  const div = document.createElement('div');
+  div.id = 'cw-' + id;
+  div.style.cssText = 'display:flex;gap:6px;align-items:center';
+  div.innerHTML = `
+    <input type="text" placeholder="תיאור עבודה..." value="${desc}" oninput="calcTotal()" style="flex:1;border:1px solid var(--border);border-radius:6px;padding:6px 8px;background:var(--surface);color:var(--text);font-family:Heebo,sans-serif;font-size:0.85rem" class="cw-desc">
+    <input type="number" value="${cost}" min="0" oninput="calcTotal()" style="width:90px;border:1px solid var(--border);border-radius:6px;padding:6px 8px;background:var(--surface);color:var(--text);font-family:Heebo,sans-serif;font-size:0.85rem;text-align:left" class="cw-cost" placeholder="₪">
+    <button type="button" onclick="document.getElementById('cw-${id}').remove();calcTotal()" style="background:none;border:none;color:var(--muted);font-size:1.1rem;cursor:pointer;padding:0 4px" title="הסר">✕</button>`;
+  document.getElementById('custom-works-rows').appendChild(div);
+  calcTotal();
+}
+
+function getCustomWorks() {
+  return Array.from(document.querySelectorAll('#custom-works-rows > div')).map(div => ({
+    desc: div.querySelector('.cw-desc')?.value?.trim() || '',
+    cost: parseFloat(div.querySelector('.cw-cost')?.value) || 0
+  })).filter(r => r.desc || r.cost > 0);
+}
+
 function calcTotal() {
   const itemsTotal = getRows().reduce((s, r) => s + r.parts, 0);
   const w = getWorkTotals();
-  const total = itemsTotal + w.paint + w.body + w.electric;
+  const cwTotal = getCustomWorks().reduce((s, r) => s + r.cost, 0);
+  const total = itemsTotal + w.paint + w.body + w.electric + cwTotal;
   document.getElementById('total-display').textContent = '₪' + total.toLocaleString('he-IL');
 }
 
@@ -951,7 +976,8 @@ async function analyzePhoto() {
 function saveRecord() {
   const items = getRows();
   const w = getWorkTotals();
-  const total = items.reduce((s, r) => s + r.parts, 0) + w.paint + w.body + w.electric;
+  const cw = getCustomWorks();
+  const total = items.reduce((s, r) => s + r.parts, 0) + w.paint + w.body + w.electric + cw.reduce((s,r)=>s+r.cost,0);
   const record = {
     id:     editingId || Date.now(),
     date:   document.getElementById('f-date').value,
@@ -972,6 +998,7 @@ function saveRecord() {
       aftermarket: document.getElementById('pt-aftermarket').checked,
     },
     works:  w,
+    customWorks: cw,
     notes:  document.getElementById('f-notes').value.trim(),
     photo:  photoBase64 ? { data: photoBase64, mime: photoMime } : null,
     items, total,
@@ -1061,6 +1088,8 @@ function loadRecord(id) {
   document.getElementById('w-paint').value    = r.works?.paint    || 0;
   document.getElementById('w-body').value     = r.works?.body     || 0;
   document.getElementById('w-electric').value = r.works?.electric || 0;
+  document.getElementById('custom-works-rows').innerHTML = ''; customWorkId = 0;
+  (r.customWorks || []).forEach(cw => addCustomWork(cw.desc, cw.cost));
   document.getElementById('f-notes').value  = r.notes  || '';
   document.getElementById('f-date').value   = r.date   || '';
   document.getElementById('damage-rows').innerHTML = '';
@@ -1099,6 +1128,7 @@ function newInspection() {
   document.getElementById('w-paint').value    = 0;
   document.getElementById('w-body').value     = 0;
   document.getElementById('w-electric').value = 0;
+  document.getElementById('custom-works-rows').innerHTML = ''; customWorkId = 0;
   document.getElementById('f-notes').value     = '';
   document.getElementById('f-date').value   = new Date().toLocaleDateString('he-IL');
   document.getElementById('damage-rows').innerHTML = '';
@@ -1177,6 +1207,9 @@ function buildPDFContent(recsArr) {
       if (rec.works.body     > 0) html += `<tr><td style="${tdStyle}">🔨 פחחות/מרכב</td><td style="${tdStyle}">עבודה</td><td style="${tdStyle}">${rec.works.body}</td></tr>`;
       if (rec.works.electric > 0) html += `<tr><td style="${tdStyle}">⚡ חשמל</td><td style="${tdStyle}">עבודה</td><td style="${tdStyle}">${rec.works.electric}</td></tr>`;
     }
+    (rec.customWorks||[]).filter(cw=>cw.desc||cw.cost>0).forEach(cw => {
+      html += `<tr><td style="${tdStyle}">${cw.desc||'עבודה נוספת'}</td><td style="${tdStyle}">עבודה</td><td style="${tdStyle}">${cw.cost}</td></tr>`;
+    });
     html += `<tr><td colspan="2" style="border:1px solid #ccc;padding:4px 6px;font-weight:bold;background:#e8f0fe">סה"כ אומדן</td><td style="border:1px solid #ccc;padding:4px 6px;font-weight:bold;background:#e8f0fe">${Number(rec.total)||0} ₪</td></tr>`;
     if (rec.notes) html += `<tr><td colspan="3" style="${tdStyle}">הערות: ${rec.notes}</td></tr>`;
     html += `</table>`;
@@ -1203,12 +1236,20 @@ function closePDF() {
 
 // Lazy-load jsPDF if not yet available
 function ensureJsPDF() {
-  if (window.jspdf) return Promise.resolve();
+  if (window.jspdf?.jsPDF) return Promise.resolve();
+  // If a script tag already exists, wait for it to finish
+  const existing = document.querySelector('script[src*="jspdf"]');
+  if (existing) {
+    return new Promise((res, rej) => {
+      const t = setInterval(() => { if (window.jspdf?.jsPDF) { clearInterval(t); res(); } }, 150);
+      setTimeout(() => { clearInterval(t); rej(new Error('jsPDF לא נטען')); }, 12000);
+    });
+  }
   return new Promise((res, rej) => {
     const s = document.createElement('script');
     s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
-    s.onload = () => setTimeout(res, 100); // small delay for init
-    s.onerror = () => rej(new Error('לא ניתן לטעון ספריית PDF'));
+    s.onload = () => { const t = setInterval(() => { if (window.jspdf?.jsPDF) { clearInterval(t); res(); } }, 100); setTimeout(() => { clearInterval(t); res(); }, 3000); };
+    s.onerror = () => rej(new Error('לא ניתן לטעון ספריית PDF — בדוק חיבור'));
     document.head.appendChild(s);
   });
 }
@@ -1288,7 +1329,8 @@ async function buildCanvasPDF(rec) {
   const allRows = [...items,
     ...(wks.paint>0?[{part:'🎨 עבודות צבע',type:'עבודה',parts:wks.paint}]:[]),
     ...(wks.body>0?[{part:'🔨 פחחות/מרכב',type:'עבודה',parts:wks.body}]:[]),
-    ...(wks.electric>0?[{part:'⚡ חשמל',type:'עבודה',parts:wks.electric}]:[])
+    ...(wks.electric>0?[{part:'⚡ חשמל',type:'עבודה',parts:wks.electric}]:[]),
+    ...(rec.customWorks||[]).filter(cw=>cw.desc||cw.cost>0).map(cw=>({part:cw.desc||'עבודה נוספת',type:'עבודה',parts:cw.cost}))
   ];
   c.font = `${F(3)}px Arial`;
   allRows.forEach((it, i) => {
@@ -1329,8 +1371,9 @@ async function buildCanvasPDF(rec) {
 
   // ── Export to PDF ──
   const imgData = cv.toDataURL('image/jpeg', 0.92);
-  const { jsPDF } = window.jspdf;
-  const pdf = new jsPDF({ orientation:'p', unit:'mm', format:'a4' });
+  const jsPDFClass = window.jspdf?.jsPDF || window.jsPDF;
+  if (!jsPDFClass) throw new Error('jsPDF לא נטען — רענן ונסה שוב');
+  const pdf = new jsPDFClass({ orientation:'p', unit:'mm', format:'a4' });
   pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297);
   return pdf.output('blob');
 }
