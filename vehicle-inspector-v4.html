@@ -1749,7 +1749,15 @@ function exportSinglePDF(id) {
   _currentShareRecId = id;
   const rec = records.find(r => r.id === id);
   if (!rec) { toast('אומדן לא נמצא', true); return; }
-  openPDF(buildPDFContent([rec]));
+  const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  document.getElementById('pdf-content').innerHTML = buildPDFContent([rec]);
+  document.getElementById('pdf-overlay').style.display = 'block';
+  document.body.style.overflow = 'hidden';
+  document.getElementById('pdf-overlay').scrollTop = 0;
+  if (isMobile) {
+    // בנייד: פותח ישירות את תפריט שמירה כ-PDF של הדפדפן
+    setTimeout(() => window.print(), 400);
+  }
 }
 
 function exportPDF() {
