@@ -1282,7 +1282,8 @@ function renderRecords() {
       <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end">
         <button class="rec-del" onclick="deleteRecord(${r.id})" title="מחק">✕</button>
         <button class="btn-sm btn-gray" style="font-size:0.7rem;padding:4px 8px" onclick="loadRecord(${r.id})">ערוך</button>
-        <button class="btn-sm btn-gray" style="font-size:0.7rem;padding:4px 8px;color:var(--accent)" onclick="exportSinglePDF(${r.id},this)">📤 שתף</button>
+        <button class="btn-sm btn-gray" style="font-size:0.7rem;padding:4px 8px;color:var(--accent)" onclick="exportSinglePDF(${r.id},this)">📤 תמונה</button>
+        <button class="btn-sm btn-gray" style="font-size:0.7rem;padding:4px 8px;color:var(--green)" onclick="exportSinglePDFFile(${r.id},this)">📄 PDF</button>
       </div>
     </div>`).join('');
 }
@@ -1790,6 +1791,37 @@ function exportSinglePDF(id, btn) {
     exportMobileImage(rec, btn);
   } else {
     openPDF(buildPDFContent([rec]));
+  }
+}
+
+async function exportSinglePDFFile(id, btn) {
+  _currentShareRecId = id;
+  const rec = records.find(r => r.id === id);
+  if (!rec) { toast('אומדן לא נמצא', true); return; }
+  const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  if (!isMobile) { openPDF(buildPDFContent([rec])); return; }
+
+  if (btn) { btn.disabled = true; btn.textContent = '⏳'; }
+  try {
+    await ensureJsPDF();
+    const blob = await buildCanvasPDF(rec);
+    const plate = (rec.plate || 'אומדן').replace(/[^א-תa-zA-Z0-9]/g, '-');
+    const filename = `אומדן-${plate}.pdf`;
+    const file = new File([blob], filename, { type: 'application/pdf' });
+    if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({ title: 'אומדן נזק', files: [file] });
+    } else {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = filename;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+      toast('PDF הורד ✓');
+    }
+  } catch(e) {
+    if (e.name !== 'AbortError') toast('שגיאה: ' + e.message.slice(0, 60), true);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '📄 PDF'; }
   }
 }
 
