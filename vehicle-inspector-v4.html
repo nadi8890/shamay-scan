@@ -1282,7 +1282,7 @@ function renderRecords() {
       <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end">
         <button class="rec-del" onclick="deleteRecord(${r.id})" title="מחק">✕</button>
         <button class="btn-sm btn-gray" style="font-size:0.7rem;padding:4px 8px" onclick="loadRecord(${r.id})">ערוך</button>
-        <button class="btn-sm btn-gray" style="font-size:0.7rem;padding:4px 8px;color:var(--accent)" onclick="exportSinglePDF(${r.id})">⬇ PDF</button>
+        <button class="btn-sm btn-gray" style="font-size:0.7rem;padding:4px 8px;color:var(--accent)" onclick="exportSinglePDF(${r.id},this)">📤 שתף</button>
       </div>
     </div>`).join('');
 }
@@ -1487,8 +1487,8 @@ function ensureJsPDF() {
   });
 }
 
-// Build PDF by drawing directly on Canvas (no html2canvas → no CORS issues on Android)
-async function buildCanvasPDF(rec) {
+// ציור האומדן על Canvas — משותף ל-PDF וליצוא תמונה
+async function buildCanvas(rec) {
   const na = 'לא ידוע';
   const S = 2; // scale for quality
   const PX = 3.7795; // px per mm at 96dpi
@@ -1617,13 +1617,49 @@ async function buildCanvasPDF(rec) {
     }
   }
 
-  // ── Export to PDF ──
+  return cv;
+}
+
+// יצוא Canvas → blob תמונה (ללא jsPDF)
+async function buildCanvasImageBlob(rec) {
+  const cv = await buildCanvas(rec);
+  return new Promise(res => cv.toBlob(res, 'image/jpeg', 0.92));
+}
+
+// יצוא Canvas → PDF blob
+async function buildCanvasPDF(rec) {
+  const cv = await buildCanvas(rec);
   const imgData = cv.toDataURL('image/jpeg', 0.92);
   const jsPDFClass = window.jspdf?.jsPDF || window.jsPDF;
   if (!jsPDFClass) throw new Error('jsPDF לא נטען — רענן ונסה שוב');
   const pdf = new jsPDFClass({ orientation:'p', unit:'mm', format:'a4' });
   pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297);
   return pdf.output('blob');
+}
+
+// ייצוא נייד: תמונה → שתף / פתח בטאב חדש
+async function exportMobileImage(rec, btn) {
+  if (btn) { btn.disabled = true; btn.textContent = '⏳'; }
+  try {
+    const blob = await buildCanvasImageBlob(rec);
+    const plate = (rec.plate || 'אומדן').replace(/[^א-תa-zA-Z0-9]/g, '-');
+    const filename = `אומדן-${plate}.jpg`;
+    const file = new File([blob], filename, { type: 'image/jpeg' });
+    if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({ title: 'אומדן נזק', files: [file] });
+    } else {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = filename;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+      toast('תמונה הורדה ✓');
+    }
+  } catch(e) {
+    if (e.name !== 'AbortError') toast('שגיאה: ' + e.message.slice(0, 50), true);
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '📤 שתף'; }
+  }
 }
 
 // Print: mobile → canvas PDF opened in viewer (1 exact page); desktop → native print CSS
@@ -1745,18 +1781,15 @@ async function sharePDF() {
 }
 
 let _currentShareRecId = null;
-function exportSinglePDF(id) {
+function exportSinglePDF(id, btn) {
   _currentShareRecId = id;
   const rec = records.find(r => r.id === id);
   if (!rec) { toast('אומדן לא נמצא', true); return; }
   const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-  document.getElementById('pdf-content').innerHTML = buildPDFContent([rec]);
-  document.getElementById('pdf-overlay').style.display = 'block';
-  document.body.style.overflow = 'hidden';
-  document.getElementById('pdf-overlay').scrollTop = 0;
   if (isMobile) {
-    // בנייד: פותח ישירות את תפריט שמירה כ-PDF של הדפדפן
-    setTimeout(() => window.print(), 400);
+    exportMobileImage(rec, btn);
+  } else {
+    openPDF(buildPDFContent([rec]));
   }
 }
 
