@@ -1794,17 +1794,11 @@ function exportSinglePDF(id, btn) {
   }
 }
 
-function exportSinglePDFFile(id, btn) {
+function exportSinglePDFFile(id) {
   _currentShareRecId = id;
   const rec = records.find(r => r.id === id);
   if (!rec) { toast('אומדן לא נמצא', true); return; }
-  // בנייד ובדסקטופ: פותח overlay ואז print — הדפדפן מציע "שמור כ-PDF"
-  document.getElementById('pdf-content').innerHTML = buildPDFContent([rec]);
-  const overlay = document.getElementById('pdf-overlay');
-  overlay.style.display = 'block';
-  document.body.style.overflow = 'hidden';
-  overlay.scrollTop = 0;
-  setTimeout(() => window.print(), 350);
+  openPDF(buildPDFContent([rec]));
 }
 
 function exportPDF() {
