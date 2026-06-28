@@ -9,302 +9,114 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" defer></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js" defer></script>
 <style>
-/* ── Palette ── */
-:root{
-  --bg:#0d1117;
-  --surface:#131929;
-  --card:#18203a;
-  --card-inner:#1e2847;
-  --border:#263052;
-  --border-hover:#3d5080;
-  --accent:#818cf8;
-  --accent-dim:rgba(129,140,248,.12);
-  --accent-dark:#6366f1;
-  --blue:#60a5fa;
-  --blue-dim:rgba(96,165,250,.12);
-  --text:#e8ecf5;
-  --text-sec:#a0aec0;
-  --muted:#5a6882;
-  --green:#34d399;
-  --green-dim:rgba(52,211,153,.12);
-  --red:#f87171;
-  --gold:#fbbf24;
-  --shadow:0 4px 24px rgba(0,0,0,.4);
-  --shadow-sm:0 2px 10px rgba(0,0,0,.3);
-}
+:root{--bg:#0a0c10;--surface:#13161d;--card:#1a1e28;--border:#252a38;--accent:#f59e0b;--blue:#3b82f6;--text:#e8eaf0;--muted:#6b7280;--green:#10b981;--red:#ef4444}
 *{box-sizing:border-box;margin:0;padding:0}
-body{
-  background:var(--bg);
-  background-image:radial-gradient(ellipse 80% 50% at 50% -10%, rgba(99,102,241,.12), transparent),
-                   radial-gradient(ellipse 60% 40% at 90% 80%, rgba(96,165,250,.06), transparent);
-  color:var(--text);font-family:'Heebo',sans-serif;min-height:100vh;-webkit-font-smoothing:antialiased;
-}
-
-/* ── Header ── */
-header{
-  background:rgba(13,17,23,.85);
-  backdrop-filter:blur(16px);
-  -webkit-backdrop-filter:blur(16px);
-  border-bottom:1px solid var(--border);
-  padding:10px 18px;
-  display:flex;align-items:center;justify-content:space-between;
-  position:sticky;top:0;z-index:100;flex-wrap:wrap;gap:8px;
-}
-.logo{font-size:1.15rem;font-weight:900;background:linear-gradient(135deg,#818cf8,#60a5fa);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
-.logo span{background:linear-gradient(135deg,#e8ecf5,#a0aec0);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+body{background:var(--bg);color:var(--text);font-family:'Heebo',sans-serif;min-height:100vh}
+header{background:var(--surface);border-bottom:1px solid var(--border);padding:10px 16px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;flex-wrap:wrap;gap:8px}
+.logo{font-size:1.1rem;font-weight:900;color:var(--accent)}.logo span{color:var(--text)}
 .hdr-actions{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
-
-/* ── Buttons ── */
-.btn-sm{
-  padding:7px 14px;border-radius:10px;border:none;
-  font-family:'Heebo',sans-serif;font-weight:700;font-size:0.78rem;
-  cursor:pointer;transition:all .18s ease;letter-spacing:.01em;
-}
-.btn-sm:active{transform:scale(.96)}
-.btn-green{background:linear-gradient(135deg,#34d399,#10b981);color:#fff;box-shadow:0 2px 12px rgba(52,211,153,.25)}
-.btn-green:hover{box-shadow:0 4px 18px rgba(52,211,153,.4);filter:brightness(1.08)}
-.btn-blue{background:linear-gradient(135deg,#60a5fa,#3b82f6);color:#fff;box-shadow:0 2px 12px rgba(96,165,250,.25)}
-.btn-blue:hover{box-shadow:0 4px 18px rgba(96,165,250,.4);filter:brightness(1.08)}
-.btn-gray{background:var(--card);color:var(--text-sec);border:1px solid var(--border)}
-.btn-gray:hover{border-color:var(--border-hover);color:var(--text);background:var(--card-inner)}
-
-/* ── Layout ── */
-main{max-width:540px;margin:0 auto;padding:22px 16px 48px}
-
-/* ── Cards ── */
-.card{
-  background:var(--card);
-  border:1px solid var(--border);
-  border-radius:20px;
-  padding:20px;
-  margin-bottom:14px;
-  box-shadow:var(--shadow-sm);
-  transition:box-shadow .2s;
-}
-.card:hover{box-shadow:var(--shadow)}
-.card-title{
-  font-size:0.88rem;font-weight:700;margin-bottom:16px;
-  display:flex;align-items:center;gap:8px;
-  color:var(--text-sec);letter-spacing:.03em;text-transform:uppercase;font-size:0.76rem;
-}
-
-/* ── Form rows ── */
-.row{display:flex;gap:10px;margin-bottom:10px}
-.field{display:flex;flex-direction:column;flex:1}
-.field label{font-size:0.72rem;color:var(--muted);margin-bottom:5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase}
-
-/* ── Inputs ── */
-input[type=text],input[type=number],select,textarea{
-  background:var(--surface);
-  border:1.5px solid var(--border);
-  color:var(--text);
-  border-radius:10px;
-  padding:10px 13px;
-  font-family:'Heebo',sans-serif;
-  font-size:0.88rem;
-  width:100%;
-  transition:border-color .18s,box-shadow .18s,background .18s;
-}
-input:focus,select:focus,textarea:focus{
-  outline:none;
-  border-color:var(--accent);
-  background:var(--card);
-  box-shadow:0 0 0 3px var(--accent-dim);
-}
-input::placeholder,textarea::placeholder{color:var(--muted)}
-select option{background:var(--card)}
-
-/* ── Office selector ── */
-.office-card{
-  background:linear-gradient(135deg,rgba(99,102,241,.12),rgba(96,165,250,.08));
-  border:1.5px solid rgba(129,140,248,.35);
-  border-radius:16px;padding:14px 16px;margin-bottom:14px;
-  display:flex;align-items:center;gap:12px;
-  box-shadow:0 2px 16px rgba(99,102,241,.1);
-}
-.office-icon{font-size:1.8rem;filter:drop-shadow(0 2px 6px rgba(129,140,248,.4))}
-.office-label{font-size:0.7rem;color:var(--accent);margin-bottom:4px;font-weight:700;letter-spacing:.06em;text-transform:uppercase}
-.office-select-wrap{flex:1}
-#office-select{background:rgba(13,17,23,.6);border:1.5px solid var(--border);color:var(--text);border-radius:10px;padding:9px 12px;font-family:'Heebo',sans-serif;font-size:0.9rem;font-weight:700;width:100%}
-#office-select:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-dim);outline:none}
-
-/* ── Damage table ── */
-.damage-table{width:100%;border-collapse:collapse;margin-bottom:10px}
-.damage-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;border-radius:10px;border:1px solid var(--border)}
-.damage-table th{
-  text-align:right;font-size:0.68rem;color:var(--muted);font-weight:700;
-  padding:8px 8px;background:rgba(255,255,255,.02);
-  letter-spacing:.05em;text-transform:uppercase;
-}
-.damage-table th:first-child{border-radius:0 10px 0 0}
-.damage-table th:last-child{border-radius:10px 0 0 0}
-.damage-table td{padding:4px 4px}
-.damage-table tr:not(:last-child) td{border-bottom:1px solid rgba(38,48,82,.6)}
-.damage-table td input{border-radius:8px;padding:8px 8px;font-size:0.83rem}
-.damage-table td input[type=number]{text-align:left}
-.del-row{
-  background:none;border:none;color:var(--muted);cursor:pointer;
-  font-size:1rem;padding:4px 8px;border-radius:6px;transition:all .15s;
-}
-.del-row:hover{color:var(--red);background:rgba(248,113,113,.1)}
-.add-row-btn{
-  background:none;border:1.5px dashed var(--border);color:var(--muted);
-  border-radius:10px;padding:10px;font-size:0.82rem;cursor:pointer;
-  width:100%;font-family:'Heebo',sans-serif;margin-bottom:10px;
-  transition:all .18s;
-}
-.add-row-btn:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-dim)}
-.totals-row{
-  display:flex;justify-content:space-between;
-  padding:12px 6px;border-top:1.5px solid var(--border);
-  font-weight:700;font-size:0.92rem;align-items:center;
-}
-.total-num{
-  color:var(--gold);font-size:1.25rem;font-weight:900;
-  text-shadow:0 0 20px rgba(251,191,36,.3);
-}
-
-/* ── Photo upload ── */
-.upload-photo-btns{display:flex;gap:8px;margin-bottom:10px}
-.upload-photo-btns label{
-  flex:1;display:flex;align-items:center;justify-content:center;gap:8px;
-  border-radius:12px;padding:14px;font-size:0.92rem;font-weight:700;cursor:pointer;
-  transition:all .18s;border:1.5px solid transparent;
-}
-.upload-photo-btns label:active{transform:scale(.97)}
-.photos-preview{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
-.photo-thumb{position:relative;display:inline-block}
-.photo-thumb img{
-  width:88px;height:68px;object-fit:cover;border-radius:10px;
-  border:1.5px solid var(--border);display:block;
-  transition:border-color .15s;
-}
-.photo-thumb:hover img{border-color:var(--accent)}
-.photo-thumb .del-photo{
-  position:absolute;top:-7px;right:-7px;background:var(--red);color:#fff;
-  border:none;border-radius:50%;width:22px;height:22px;font-size:0.7rem;
-  cursor:pointer;display:flex;align-items:center;justify-content:center;
-  padding:0;line-height:1;box-shadow:0 2px 6px rgba(0,0,0,.4);
-  transition:transform .15s;
-}
-.photo-thumb .del-photo:hover{transform:scale(1.15)}
-
-/* ── AI button ── */
-.ai-btn{
-  width:100%;
-  background:linear-gradient(135deg,var(--accent-dark),#4f46e5);
-  color:#fff;border:none;border-radius:12px;
-  padding:13px;font-size:0.95rem;font-weight:900;
-  font-family:'Heebo',sans-serif;cursor:pointer;margin-top:10px;
-  box-shadow:0 4px 20px rgba(99,102,241,.35);
-  transition:all .18s;letter-spacing:.02em;
-}
-.ai-btn:hover{box-shadow:0 6px 28px rgba(99,102,241,.5);filter:brightness(1.1)}
-.ai-btn:active{transform:scale(.98)}
-.ai-btn:disabled{opacity:.38;cursor:not-allowed;box-shadow:none;filter:none}
-.spinner-inline{
-  display:inline-block;width:14px;height:14px;
-  border:2px solid rgba(255,255,255,.25);border-top-color:#fff;
-  border-radius:50%;animation:spin .7s linear infinite;
-  vertical-align:middle;margin-left:6px;
-}
-@keyframes spin{to{transform:rotate(360deg)}}
-
-/* ── Google Sheets setup ── */
-.step{display:flex;gap:12px;padding:11px 0;border-bottom:1px solid var(--border)}
-.step:last-child{border-bottom:none}
-.step-num{
-  background:linear-gradient(135deg,var(--blue),var(--accent-dark));
-  color:#fff;font-weight:900;width:26px;height:26px;
-  border-radius:50%;display:flex;align-items:center;justify-content:center;
-  font-size:0.78rem;flex-shrink:0;box-shadow:0 2px 8px rgba(96,165,250,.3);
-}
-.step-body{flex:1;font-size:0.83rem;line-height:1.55;color:var(--text-sec)}
-.step-body small{color:var(--muted)}
-.copy-code-btn{
-  background:var(--card-inner);border:1px solid var(--border);
-  color:var(--text-sec);border-radius:8px;padding:5px 12px;
-  font-size:0.75rem;cursor:pointer;font-family:'Heebo',sans-serif;margin-top:6px;
-  transition:all .15s;
-}
-.copy-code-btn:hover{border-color:var(--blue);color:var(--blue)}
-.url-input-row{display:flex;gap:8px;margin-top:6px}
-.url-input-row input{flex:1;font-size:0.8rem}
-.url-save-btn{
-  background:linear-gradient(135deg,var(--green),#10b981);
-  color:#fff;border:none;border-radius:10px;padding:8px 14px;
-  font-size:0.78rem;font-weight:700;cursor:pointer;font-family:'Heebo',sans-serif;
-  white-space:nowrap;box-shadow:0 2px 10px rgba(52,211,153,.25);transition:all .15s;
-}
-.url-save-btn:hover{box-shadow:0 4px 16px rgba(52,211,153,.4)}
-.status-line{font-size:0.72rem;margin-top:4px}
-
-/* ── Records ── */
-.record-card{
-  background:var(--surface);
-  border:1px solid var(--border);
-  border-radius:14px;padding:13px 14px;margin-bottom:8px;
-  display:flex;justify-content:space-between;align-items:flex-start;
-  transition:all .18s;
-}
-.record-card:hover{border-color:var(--border-hover);box-shadow:var(--shadow-sm)}
-.record-info{flex:1}
-.record-plate{font-weight:900;color:var(--accent);direction:ltr;font-size:1rem;letter-spacing:.04em}
-.record-meta{font-size:0.74rem;color:var(--muted);margin-top:3px;line-height:1.4}
-.record-total{font-weight:900;color:var(--green);font-size:0.95rem;margin-top:5px}
-.rec-del{background:none;border:none;color:var(--muted);cursor:pointer;font-size:1rem;padding:5px;border-radius:6px;transition:all .15s}
-.rec-del:hover{color:var(--red);background:rgba(248,113,113,.1)}
-.empty{text-align:center;padding:28px;color:var(--muted);font-size:0.85rem}
-
-/* ── Toast ── */
-.toast{
-  position:fixed;bottom:26px;left:50%;transform:translateX(-50%) translateY(10px);
-  background:var(--card-inner);color:var(--text);
-  border:1px solid var(--border-hover);
-  padding:11px 24px;border-radius:99px;font-weight:700;font-size:0.86rem;
-  opacity:0;transition:opacity .25s,transform .25s;z-index:999;white-space:nowrap;
-  box-shadow:0 8px 32px rgba(0,0,0,.5);backdrop-filter:blur(8px);
-}
-.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
-.toast.err{background:rgba(248,113,113,.15);border-color:var(--red);color:var(--red)}
-
-/* ── API key section ── */
-.apikey-section{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:16px;margin-bottom:14px}
-.apikey-section label{font-size:0.72rem;color:var(--muted);display:block;margin-bottom:6px;font-weight:700;letter-spacing:.04em;text-transform:uppercase}
-.apikey-row{display:flex;gap:8px}
-.apikey-row input{flex:1;font-size:0.82rem}
-
-/* ── Mobile ── */
+.btn-sm{padding:7px 12px;border-radius:8px;border:none;font-family:'Heebo',sans-serif;font-weight:700;font-size:0.78rem;cursor:pointer}
 @media(max-width:480px){
-  .btn-sm{padding:6px 10px;font-size:0.72rem}
+  .btn-sm{padding:6px 9px;font-size:0.72rem}
   header{padding:8px 12px}
   main{padding:12px 10px 60px}
-  .card{padding:15px 13px;border-radius:16px}
-  input[type=text],input[type=number],select,textarea{padding:11px 12px;font-size:1rem;min-height:44px}
+  .card{padding:14px 12px;border-radius:12px}
+  input[type=text],input[type=number],select,textarea{padding:12px 14px;font-size:1rem;min-height:48px}
   .damage-table td input{min-height:40px;font-size:0.9rem;padding:6px 4px}
   .damage-table td select{min-height:40px;font-size:0.85rem}
-  .damage-table th{font-size:0.62rem;padding:6px 3px}
+  .damage-table th{font-size:0.65rem;padding:4px 2px}
+  .upload-zone{padding:32px 16px}
+  .upload-icon{font-size:2.8rem}
+  .upload-zone p{font-size:0.92rem}
   .ai-btn{padding:15px;font-size:1rem}
   .apikey-row input{min-height:44px;font-size:0.95rem}
   .url-save-btn{min-height:44px;padding:8px 12px}
   .add-row-btn{min-height:48px;font-size:0.9rem}
   .del-row{min-height:40px;min-width:40px;font-size:1.3rem}
 }
-
-/* ── Print ── */
+.btn-green{background:var(--green);color:#fff}
+.btn-blue{background:var(--blue);color:#fff}
+.btn-gray{background:var(--surface);color:var(--text);border:1px solid var(--border)}
+main{max-width:520px;margin:0 auto;padding:20px 16px 40px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:18px;margin-bottom:16px}
+.card-title{font-size:0.9rem;font-weight:700;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+.row{display:flex;gap:10px;margin-bottom:10px}
+.field{display:flex;flex-direction:column;flex:1}
+.field label{font-size:0.72rem;color:var(--muted);margin-bottom:4px}
+input[type=text],input[type=number],select,textarea{background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:12px 14px;font-family:'Heebo',sans-serif;font-size:1rem;min-height:48px;width:100%}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue)}
+/* Office selector */
+.office-card{background:linear-gradient(135deg,#1a2035,#1e2840);border:1px solid var(--accent);border-radius:14px;padding:14px 16px;margin-bottom:16px;display:flex;align-items:center;gap:12px}
+.office-icon{font-size:1.6rem}
+.office-label{font-size:0.72rem;color:var(--muted);margin-bottom:4px}
+.office-select-wrap{flex:1}
+#office-select{background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:9px 12px;font-family:'Heebo',sans-serif;font-size:0.9rem;font-weight:700;width:100%}
+/* Damage table */
+.damage-table{width:100%;border-collapse:collapse;margin-bottom:10px}
+.damage-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.damage-table th{text-align:right;font-size:0.72rem;color:var(--muted);font-weight:600;padding:6px 4px;border-bottom:1px solid var(--border)}
+.damage-table td{padding:4px}
+.damage-table td input{border-radius:6px;padding:7px 8px;font-size:0.82rem}
+.damage-table td input[type=number]{text-align:left}
+.del-row{background:none;border:none;color:var(--muted);cursor:pointer;font-size:1.1rem;padding:4px 8px}
+.del-row:hover{color:var(--red)}
+.add-row-btn{background:none;border:1px dashed var(--border);color:var(--muted);border-radius:8px;padding:8px;font-size:0.82rem;cursor:pointer;width:100%;font-family:'Heebo',sans-serif;margin-bottom:10px}
+.add-row-btn:hover{border-color:var(--blue);color:var(--blue)}
+.totals-row{display:flex;justify-content:space-between;padding:10px 4px;border-top:1px solid var(--border);font-weight:700;font-size:0.9rem}
+.total-num{color:var(--accent);font-size:1.1rem}
+/* Upload */
+.upload-zone{border:2px dashed var(--border);border-radius:12px;padding:24px;text-align:center;cursor:pointer;position:relative;background:var(--surface);transition:border-color .2s}
+.upload-zone:hover{border-color:var(--accent)}
+.upload-zone input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.upload-icon{font-size:2rem;margin-bottom:6px}
+.upload-zone p{font-size:0.82rem;color:var(--muted)}
+.preview-img{width:100%;max-height:200px;object-fit:cover;border-radius:10px;margin-top:10px;display:none}
+.ai-btn{width:100%;background:linear-gradient(135deg,var(--accent),#d97706);color:#000;border:none;border-radius:10px;padding:12px;font-size:0.95rem;font-weight:900;font-family:'Heebo',sans-serif;cursor:pointer;margin-top:10px}
+.ai-btn:disabled{opacity:.4;cursor:not-allowed}
+.spinner-inline{display:inline-block;width:14px;height:14px;border:2px solid rgba(0,0,0,.2);border-top-color:#000;border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle;margin-left:6px}
+@keyframes spin{to{transform:rotate(360deg)}}
+/* Sheets setup */
+.setup-steps{counter-reset:step}
+.step{display:flex;gap:12px;padding:10px 0;border-bottom:1px solid var(--border)}
+.step:last-child{border-bottom:none}
+.step-num{background:var(--blue);color:#fff;font-weight:900;width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:0.78rem;flex-shrink:0}
+.step-body{flex:1;font-size:0.83rem;line-height:1.5;color:var(--text)}
+.step-body small{color:var(--muted)}
+.copy-code-btn{background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:6px;padding:5px 12px;font-size:0.75rem;cursor:pointer;font-family:'Heebo',sans-serif;margin-top:6px}
+.copy-code-btn:hover{border-color:var(--blue);color:var(--blue)}
+.url-input-row{display:flex;gap:8px;margin-top:6px}
+.url-input-row input{flex:1;font-size:0.8rem}
+.url-save-btn{background:var(--green);color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:0.78rem;font-weight:700;cursor:pointer;font-family:'Heebo',sans-serif;white-space:nowrap}
+.status-line{font-size:0.72rem;margin-top:4px}
+/* Records */
+.record-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:flex-start}
+.record-info{flex:1}
+.record-plate{font-weight:900;color:var(--accent);direction:ltr;font-size:0.95rem}
+.record-meta{font-size:0.75rem;color:var(--muted);margin-top:2px}
+.record-total{font-weight:900;color:var(--green);font-size:0.95rem;margin-top:4px}
+.rec-del{background:none;border:none;color:var(--muted);cursor:pointer;font-size:1rem;padding:4px}
+.rec-del:hover{color:var(--red)}
+.empty{text-align:center;padding:24px;color:var(--muted);font-size:0.85rem}
+/* Toast */
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--green);color:#fff;padding:11px 22px;border-radius:99px;font-weight:700;font-size:0.88rem;opacity:0;transition:opacity .3s;z-index:999;white-space:nowrap}
+.toast.show{opacity:1}.toast.err{background:var(--red)}
+/* Print: show only PDF overlay */
 @media print{
-  @page{size:A4 portrait;margin:7mm}
+  @page{margin:5mm}
   body>*:not(#pdf-overlay){display:none!important}
   #pdf-overlay{display:block!important;position:static!important;overflow:visible!important;height:auto!important}
   #pdf-overlay>div:first-child{display:none!important}
-  #pdf-content{padding:0!important;font-size:7pt!important}
-  #pdf-content *{font-size:7pt!important;line-height:1.2!important}
-  #pdf-content div{margin-top:2px!important;margin-bottom:2px!important;padding-top:3px!important;padding-bottom:3px!important;padding-right:6px!important;padding-left:6px!important}
-  #pdf-content table{width:100%!important;border-collapse:collapse!important;margin:0 0 3px 0!important}
-  #pdf-content table td,#pdf-content table th{padding:1px 3px!important;font-size:7pt!important}
-  #pdf-content span{padding:1px 4px!important;margin:0 1px!important}
-  #pdf-content img{max-height:70px!important;max-width:100%!important}
+  #pdf-content{
+    transform:scale(0.72);transform-origin:top right;
+    width:139%!important;
+    page-break-inside:avoid!important;break-inside:avoid!important;page-break-after:avoid!important
+  }
 }
+/* API key section */
+.apikey-section{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:16px}
+.apikey-section label{font-size:0.78rem;color:var(--muted);display:block;margin-bottom:6px}
+.apikey-row{display:flex;gap:8px}
+.apikey-row input{flex:1;font-size:0.82rem}
 </style>
 </head>
 <body>
@@ -313,7 +125,7 @@ select option{background:var(--card)}
   <div class="hdr-actions">
     <button class="btn-sm btn-blue" onclick="newInspection()">+ אומדן חדש</button>
     <button class="btn-sm btn-gray" onclick="exportExcel()">⬇ Excel</button>
-    <button class="btn-sm" style="background:linear-gradient(135deg,#7c3aed,#6366f1);color:#fff;box-shadow:0 2px 10px rgba(124,58,237,.3)" onclick="showMobileLink()" title="קישור לטלפון">📲</button>
+    <button class="btn-sm" style="background:#7c3aed;color:#fff" onclick="showMobileLink()" title="קישור לטלפון">📲</button>
   </div>
 </header>
 <main>
@@ -366,15 +178,18 @@ select option{background:var(--card)}
   <div class="row">
     <div class="field"><label>יצרן</label><input type="text" id="f-make" placeholder="Toyota"></div>
     <div class="field"><label>דגם</label><input type="text" id="f-model" placeholder="Corolla"></div>
-    <div class="field" style="max-width:80px"><label>שנה</label><input type="text" id="f-year" placeholder="2020" oninput="onYearChange(this.value)"></div>
-    <div class="field" style="max-width:90px"><label>צבע</label><input type="text" id="f-color" placeholder="לבן"></div>
+  </div>
+  <div class="row">
+    <div class="field"><label>שנה</label><input type="text" id="f-year" placeholder="2020" oninput="onYearChange(this.value)"></div>
+    <div class="field"><label>צבע</label><input type="text" id="f-color" placeholder="לבן"></div>
   </div>
   <div class="row">
     <div class="field"><label>שם לקוח</label><input type="text" id="f-client" placeholder="ישראל ישראלי"></div>
     <div class="field"><label>ק"מ</label><input type="text" id="f-km" placeholder="85,000"></div>
-    <div class="field"><label>מספר סידורי (שלדה)</label><input type="text" id="f-serial" placeholder="WBA12345678901234" style="direction:ltr;font-size:0.82rem"></div>
+  </div>
+  <div class="row">
     <div class="field"><label>תאריך מקרה</label><input type="text" id="f-incident-date" placeholder="DD/MM/YYYY" inputmode="numeric" maxlength="10" oninput="onIncidentDateChange(this)"></div>
-    <div class="field"><label>מקום בדיקה</label><input type="text" id="f-location" placeholder="למשל: גראז׳ מרכז, תל אביב"></div>
+    <div class="field"><label>מספר סידורי (שלדה)</label><input type="text" id="f-serial" placeholder="WBA12345678901234" style="direction:ltr;font-size:0.95rem"></div>
   </div>
   <div class="row">
     <div class="field"><label>חברת ביטוח</label>
@@ -406,17 +221,17 @@ select option{background:var(--card)}
   </div>
 
   <!-- Parts type -->
-  <div style="margin-top:12px;padding:12px 14px;background:var(--card-inner);border-radius:12px;border:1px solid var(--border)">
-    <div style="font-size:0.7rem;font-weight:700;color:var(--muted);margin-bottom:10px;letter-spacing:.05em;text-transform:uppercase">🔩 סוג חלפים</div>
-    <div style="display:flex;gap:10px;flex-wrap:wrap">
-      <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:0.86rem;font-weight:600;background:var(--surface);padding:7px 14px;border-radius:8px;border:1.5px solid var(--border);transition:all .15s" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">
-        <input type="checkbox" id="pt-original" style="width:16px;height:16px;cursor:pointer;accent-color:var(--accent)" onchange="calcTotal()"> מקורי
+  <div style="margin-top:10px;padding:10px 12px;background:var(--surface);border-radius:10px;border:1px solid var(--border)">
+    <div style="font-size:0.78rem;font-weight:700;color:var(--muted);margin-bottom:8px">🔩 סוג חלפים</div>
+    <div style="display:flex;gap:16px;flex-wrap:wrap">
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:0.88rem;font-weight:600">
+        <input type="checkbox" id="pt-original" style="width:18px;height:18px;cursor:pointer" onchange="calcTotal()"> מקורי
       </label>
-      <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:0.86rem;font-weight:600;background:var(--surface);padding:7px 14px;border-radius:8px;border:1.5px solid var(--border);transition:all .15s" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">
-        <input type="checkbox" id="pt-used" style="width:16px;height:16px;cursor:pointer;accent-color:var(--accent)" onchange="calcTotal()"> משומש
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:0.88rem;font-weight:600">
+        <input type="checkbox" id="pt-used" style="width:18px;height:18px;cursor:pointer" onchange="calcTotal()"> משומש
       </label>
-      <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:0.86rem;font-weight:600;background:var(--surface);padding:7px 14px;border-radius:8px;border:1.5px solid var(--border);transition:all .15s" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'">
-        <input type="checkbox" id="pt-aftermarket" style="width:16px;height:16px;cursor:pointer;accent-color:var(--accent)" onchange="calcTotal()"> תחליפי
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:0.88rem;font-weight:600">
+        <input type="checkbox" id="pt-aftermarket" style="width:18px;height:18px;cursor:pointer" onchange="calcTotal()"> תחליפי
       </label>
     </div>
   </div>
@@ -439,8 +254,8 @@ select option{background:var(--card)}
   <button class="add-row-btn" onclick="addRow()">+ הוסף שורה</button>
 
   <!-- Fixed work items -->
-  <div style="margin-top:12px;padding:14px;background:var(--card-inner);border-radius:12px;border:1px solid var(--border)">
-    <div style="font-size:0.7rem;font-weight:700;color:var(--muted);margin-bottom:10px;letter-spacing:.05em;text-transform:uppercase">🔧 עבודות</div>
+  <div style="margin-top:10px;padding:10px;background:var(--surface);border-radius:10px;border:1px solid var(--border)">
+    <div style="font-size:0.78rem;font-weight:700;color:var(--muted);margin-bottom:8px">🔧 עבודות</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       <div class="field" style="min-width:100px">
         <label>🎨 צבע ₪</label>
@@ -455,8 +270,6 @@ select option{background:var(--card)}
         <input type="number" id="w-electric" value="0" min="0" oninput="calcTotal()">
       </div>
     </div>
-    <div id="custom-works-rows" style="margin-top:8px;display:flex;flex-direction:column;gap:6px"></div>
-    <button type="button" onclick="addCustomWork()" style="margin-top:8px;background:none;border:1.5px dashed var(--border);color:var(--muted);border-radius:10px;padding:7px 12px;font-size:0.8rem;cursor:pointer;font-family:Heebo,sans-serif;width:100%;transition:all .15s" onmouseover="this.style.borderColor='var(--accent)';this.style.color='var(--accent)'" onmouseout="this.style.borderColor='var(--border)';this.style.color='var(--muted)'">+ הוסף עבודה נוספת</button>
   </div>
 
   <div class="totals-row">
@@ -470,30 +283,30 @@ select option{background:var(--card)}
     <textarea id="f-notes" rows="2" placeholder="הערות נוספות..."></textarea>
   </div>
 
-  <button class="btn-sm btn-green" style="width:100%;padding:14px;font-size:0.95rem;border-radius:12px;margin-top:14px;letter-spacing:.02em" onclick="saveRecord()">✅ שמור אומדן</button>
+  <button class="btn-sm btn-green" style="width:100%;padding:13px;font-size:0.95rem;border-radius:12px;margin-top:12px" onclick="saveRecord()">✅ שמור אומדן</button>
 </div>
 
 <!-- AI PHOTO -->
 <div class="card">
   <div class="card-title">🤖 ניתוח נזק עם AI</div>
-  <div class="upload-photo-btns">
-    <label style="background:linear-gradient(135deg,var(--blue),#3b82f6);color:#fff;box-shadow:0 2px 14px rgba(96,165,250,.25)">
+  <div style="display:flex;gap:8px;margin-bottom:10px">
+    <label style="flex:1;display:flex;align-items:center;justify-content:center;gap:8px;background:var(--blue);color:#fff;border-radius:10px;padding:14px;font-size:0.95rem;font-weight:700;cursor:pointer">
       📷 צלם תמונה
       <input type="file" accept="image/*" capture="environment" onchange="handlePhoto(this)" style="display:none">
     </label>
-    <label style="background:var(--card-inner);color:var(--text-sec);border:1.5px solid var(--border)">
+    <label style="flex:1;display:flex;align-items:center;justify-content:center;gap:8px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:10px;padding:14px;font-size:0.95rem;font-weight:700;cursor:pointer">
       🖼 העלה תמונה
       <input type="file" accept="image/*" onchange="handlePhoto(this)" style="display:none">
     </label>
   </div>
-  <div id="photos-preview" class="photos-preview"></div>
+  <img id="preview-img" class="preview-img" alt="">
   <button class="ai-btn" id="ai-btn" onclick="analyzePhoto()" disabled>🔍 נתח נזק עם AI</button>
   <div id="ai-status" style="font-size:0.78rem;color:var(--muted);margin-top:6px;text-align:center"></div>
 </div>
 
 <!-- GOOGLE SHEETS SETUP -->
 <div class="card" id="sheets-card">
-  <div class="card-title">📊 שמירה ל-Google Sheets <span id="sheets-connected-badge" style="display:none;background:var(--green-dim);color:var(--green);font-size:0.68rem;border-radius:99px;padding:3px 10px;border:1px solid var(--green);font-weight:700;text-transform:none;letter-spacing:0">✓ מחובר</span></div>
+  <div class="card-title">📊 שמירה ל-Google Sheets <span id="sheets-connected-badge" style="display:none;background:var(--green);color:#fff;font-size:0.7rem;border-radius:99px;padding:2px 8px">✓ מחובר</span></div>
   <div id="sheets-setup">
     <div style="font-size:0.82rem;color:var(--muted);margin-bottom:12px">הגדרה חד-פעמית (2 דקות):</div>
     <div class="step">
@@ -535,7 +348,7 @@ select option{background:var(--card)}
 
 <!-- RECORDS -->
 <div class="card">
-  <div class="card-title">📋 אומדנים שמורים <span id="rec-count" style="background:var(--accent-dim);color:var(--accent);font-size:0.68rem;border-radius:99px;padding:3px 10px;border:1px solid rgba(129,140,248,.35);font-weight:700;text-transform:none;letter-spacing:0">0</span></div>
+  <div class="card-title">📋 אומדנים שמורים <span id="rec-count" style="background:var(--accent);color:#000;font-size:0.7rem;border-radius:99px;padding:2px 8px;font-weight:700">0</span></div>
   <div id="records-list"><div class="empty">עוד אין אומדנים שמורים</div></div>
 </div>
 
@@ -544,10 +357,11 @@ select option{background:var(--card)}
 
 <!-- PDF OVERLAY -->
 <div id="pdf-overlay" style="display:none;position:fixed;inset:0;background:#fff;z-index:9000;overflow-y:auto;-webkit-overflow-scrolling:touch">
-  <div style="position:sticky;top:0;background:rgba(18,25,41,.95);backdrop-filter:blur(12px);border-bottom:1px solid var(--border);color:#fff;display:flex;justify-content:space-between;align-items:center;padding:10px 16px;z-index:1;gap:8px;flex-wrap:wrap">
+  <div style="position:sticky;top:0;background:#1e3a5f;color:#fff;display:flex;justify-content:space-between;align-items:center;padding:10px 16px;z-index:1;gap:8px;flex-wrap:wrap">
     <span style="font-size:0.9rem;font-weight:700">👁 תצוגה מקדימה</span>
     <div style="display:flex;gap:8px">
-<button onclick="mobilePrint()" style="background:#10b981;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:0.9rem;font-weight:700;cursor:pointer;font-family:Heebo,sans-serif">🖨️ הדפס</button>
+      <button id="share-pdf-btn" onclick="sharePDF()" style="background:#25d366;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:0.9rem;font-weight:700;cursor:pointer;font-family:Heebo,sans-serif">📤 שתף PDF</button>
+      <button onclick="window.print()" style="background:#10b981;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:0.9rem;font-weight:700;cursor:pointer;font-family:Heebo,sans-serif">🖨️ הדפס</button>
       <button onclick="closePDF()" style="background:rgba(255,255,255,0.15);color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:0.9rem;cursor:pointer">✕ סגור</button>
     </div>
   </div>
@@ -777,7 +591,7 @@ function fillRowFromSuggestion(rowId, s) {
 
 // ── State ──
 let records = JSON.parse(localStorage.getItem('shamay_records') || '[]');
-let photos = []; // array of {data, mime}
+let photoBase64 = null, photoMime = null;
 let editingId = null;
 
 function saveOfficeChoice() {
@@ -972,9 +786,9 @@ function updatePartsType() {
     used.checked  = true;
     after.checked = true;
   } else {
-    orig.checked  = true;
+    orig.checked  = false;
     used.checked  = false;
-    after.checked = true;
+    after.checked = false;
   }
 }
 
@@ -1015,83 +829,45 @@ function getWorkTotals() {
   };
 }
 
-let customWorkId = 0;
-function addCustomWork(desc='', cost=0) {
-  const id = ++customWorkId;
-  const div = document.createElement('div');
-  div.id = 'cw-' + id;
-  div.style.cssText = 'display:flex;gap:6px;align-items:center';
-  div.innerHTML = `
-    <input type="text" placeholder="תיאור עבודה..." value="${desc}" oninput="calcTotal()" style="flex:1;border:1px solid var(--border);border-radius:6px;padding:6px 8px;background:var(--surface);color:var(--text);font-family:Heebo,sans-serif;font-size:0.85rem" class="cw-desc">
-    <input type="number" value="${cost}" min="0" oninput="calcTotal()" style="width:90px;border:1px solid var(--border);border-radius:6px;padding:6px 8px;background:var(--surface);color:var(--text);font-family:Heebo,sans-serif;font-size:0.85rem;text-align:left" class="cw-cost" placeholder="₪">
-    <button type="button" onclick="document.getElementById('cw-${id}').remove();calcTotal()" style="background:none;border:none;color:var(--muted);font-size:1.1rem;cursor:pointer;padding:0 4px" title="הסר">✕</button>`;
-  document.getElementById('custom-works-rows').appendChild(div);
-  calcTotal();
-}
-
-function getCustomWorks() {
-  return Array.from(document.querySelectorAll('#custom-works-rows > div')).map(div => ({
-    desc: div.querySelector('.cw-desc')?.value?.trim() || '',
-    cost: parseFloat(div.querySelector('.cw-cost')?.value) || 0
-  })).filter(r => r.desc || r.cost > 0);
-}
-
 function calcTotal() {
   const itemsTotal = getRows().reduce((s, r) => s + r.parts, 0);
   const w = getWorkTotals();
-  const cwTotal = getCustomWorks().reduce((s, r) => s + r.cost, 0);
-  const total = itemsTotal + w.paint + w.body + w.electric + cwTotal;
+  const total = itemsTotal + w.paint + w.body + w.electric;
   document.getElementById('total-display').textContent = '₪' + total.toLocaleString('he-IL');
 }
 
 // ── Photo & AI ──
 function handlePhoto(input) {
   const file = input.files[0]; if (!file) return;
-  input.value = '';
   const reader = new FileReader();
   reader.onload = e => {
+    const original = e.target.result;
     const tmpImg = new Image();
     tmpImg.onload = () => {
       const MAX = 1200;
       let w = tmpImg.width, h = tmpImg.height;
       if (w > MAX || h > MAX) {
         if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
-        else       { w = Math.round(w * MAX / h); h = MAX; }
+        else        { w = Math.round(w * MAX / h); h = MAX; }
       }
       const cv = document.createElement('canvas');
       cv.width = w; cv.height = h;
       cv.getContext('2d').drawImage(tmpImg, 0, 0, w, h);
       const compressed = cv.toDataURL('image/jpeg', 0.72);
-      photos.push({ data: compressed.split(',')[1], mime: 'image/jpeg' });
-      renderPhotoPreviews();
+      photoBase64 = compressed.split(',')[1];
+      photoMime   = 'image/jpeg';
+      const img = document.getElementById('preview-img');
+      img.src = compressed; img.style.display = 'block';
       document.getElementById('ai-btn').disabled = false;
     };
-    tmpImg.src = e.target.result;
+    tmpImg.src = original;
   };
   reader.readAsDataURL(file);
-}
-
-function renderPhotoPreviews() {
-  const container = document.getElementById('photos-preview');
-  container.innerHTML = photos.map((p, i) => `
-    <div class="photo-thumb">
-      <img src="data:${p.mime};base64,${p.data}" alt="תמונה ${i+1}">
-      <button class="del-photo" onclick="removePhoto(${i})" title="הסר תמונה">✕</button>
-    </div>`).join('');
-}
-
-function removePhoto(idx) {
-  photos.splice(idx, 1);
-  renderPhotoPreviews();
-  if (!photos.length) document.getElementById('ai-btn').disabled = true;
 }
 
 async function analyzePhoto() {
   const key = getKey();
   if (!key) { toast('הכנס מפתח AI תחילה', true); return; }
-  if (!photos.length) { toast('העלה תמונה תחילה', true); return; }
-  const photoBase64 = photos[0].data;
-  const photoMime   = photos[0].mime;
 
   const btn = document.getElementById('ai-btn');
   const status = document.getElementById('ai-status');
@@ -1190,8 +966,7 @@ async function analyzePhoto() {
 function saveRecord() {
   const items = getRows();
   const w = getWorkTotals();
-  const cw = getCustomWorks();
-  const total = items.reduce((s, r) => s + r.parts, 0) + w.paint + w.body + w.electric + cw.reduce((s,r)=>s+r.cost,0);
+  const total = items.reduce((s, r) => s + r.parts, 0) + w.paint + w.body + w.electric;
   const record = {
     id:     editingId || Date.now(),
     date:   document.getElementById('f-date').value,
@@ -1205,16 +980,14 @@ function saveRecord() {
     serial: document.getElementById('f-serial').value.trim(),
     insurance:    document.getElementById('f-insurance').value,
     incidentDate: document.getElementById('f-incident-date').value.trim(),
-    location: document.getElementById('f-location').value.trim(),
     partsType: {
       original:    document.getElementById('pt-original').checked,
       used:        document.getElementById('pt-used').checked,
       aftermarket: document.getElementById('pt-aftermarket').checked,
     },
     works:  w,
-    customWorks: cw,
     notes:  document.getElementById('f-notes').value.trim(),
-    photos: photos.length ? [...photos] : [],
+    photo:  photoBase64 ? { data: photoBase64, mime: photoMime } : null,
     items, total,
     savedAt: new Date().toLocaleString('he-IL')
   };
@@ -1224,18 +997,18 @@ function saveRecord() {
   try {
     localStorage.setItem('shamay_records', JSON.stringify(records));
   } catch(e) {
-    // Storage quota exceeded — save without photos and warn
-    const recNoPhoto = { ...record, photos: [] };
+    // quota exceeded — retry without photo
+    const recNoPhoto = { ...record, photo: null };
     if (idx >= 0) records[idx] = recNoPhoto; else records[0] = recNoPhoto;
     try {
       localStorage.setItem('shamay_records', JSON.stringify(records));
-      toast('⚠️ אומדן נשמר ללא תמונה (נפח אחסון מלא)', true);
+      toast('⚠️ נשמר ללא תמונה (אחסון מלא)', true);
     } catch(e2) {
-      toast('❌ שגיאת שמירה — מחק אומדנים ישנים ונסה שוב', true);
+      toast('❌ שגיאת שמירה — מחק אומדנים ישנים', true);
       return;
     }
   }
-  updatePriceMemory(items);
+  updatePriceMemory(items); // ← learn prices
   renderRecords();
   syncToSheets(record);
   newInspection();
@@ -1281,8 +1054,7 @@ function renderRecords() {
       <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end">
         <button class="rec-del" onclick="deleteRecord(${r.id})" title="מחק">✕</button>
         <button class="btn-sm btn-gray" style="font-size:0.7rem;padding:4px 8px" onclick="loadRecord(${r.id})">ערוך</button>
-        <button class="btn-sm btn-gray" style="font-size:0.7rem;padding:4px 8px;color:var(--accent)" onclick="exportSinglePDF(${r.id},this)">📤 תמונה</button>
-        <button class="btn-sm btn-gray" style="font-size:0.7rem;padding:4px 8px;color:var(--green)" onclick="exportSinglePDFFile(${r.id},this)">📄 PDF</button>
+        <button class="btn-sm btn-gray" style="font-size:0.7rem;padding:4px 8px;color:var(--accent)" onclick="exportSinglePDF(${r.id})">⬇ PDF</button>
       </div>
     </div>`).join('');
 }
@@ -1307,7 +1079,6 @@ function loadRecord(id) {
   document.getElementById('f-serial').value    = r.serial    || '';
   document.getElementById('f-insurance').value     = r.insurance    || '';
   document.getElementById('f-incident-date').value = r.incidentDate || '';
-  document.getElementById('f-location').value = r.location || '';
   if (r.partsType) {
     document.getElementById('pt-original').checked    = !!r.partsType.original;
     document.getElementById('pt-used').checked        = !!r.partsType.used;
@@ -1316,24 +1087,21 @@ function loadRecord(id) {
   document.getElementById('w-paint').value    = r.works?.paint    || 0;
   document.getElementById('w-body').value     = r.works?.body     || 0;
   document.getElementById('w-electric').value = r.works?.electric || 0;
-  document.getElementById('custom-works-rows').innerHTML = ''; customWorkId = 0;
-  (r.customWorks || []).forEach(cw => addCustomWork(cw.desc, cw.cost));
   document.getElementById('f-notes').value  = r.notes  || '';
   document.getElementById('f-date').value   = r.date   || '';
   document.getElementById('damage-rows').innerHTML = '';
   rowId = 0;
   (r.items || []).forEach(it => addRow(it.part, it.type, it.parts, it.labor, it.paint));
   if (!r.items?.length) { addRow(); addRow(); addRow(); }
-  // Restore photos (support old single-photo records)
-  if (r.photos && r.photos.length) {
-    photos = [...r.photos];
-  } else if (r.photo && r.photo.data) {
-    photos = [r.photo];
-  } else {
-    photos = [];
+  // Restore photo
+  if (r.photo && r.photo.data) {
+    photoBase64 = r.photo.data;
+    photoMime   = r.photo.mime;
+    const img = document.getElementById('preview-img');
+    img.src = 'data:' + r.photo.mime + ';base64,' + r.photo.data;
+    img.style.display = 'block';
+    document.getElementById('ai-btn').disabled = false;
   }
-  renderPhotoPreviews();
-  document.getElementById('ai-btn').disabled = !photos.length;
   window.scrollTo({ top: 0, behavior: 'smooth' });
   toast('אומדן נטען לעריכה');
 }
@@ -1350,22 +1118,20 @@ function newInspection() {
   document.getElementById('f-serial').value    = '';
   document.getElementById('f-insurance').value     = '';
   document.getElementById('f-incident-date').value = '';
-  document.getElementById('f-location').value = '';
   document.getElementById('pt-original').checked    = false;
   document.getElementById('pt-used').checked        = false;
   document.getElementById('pt-aftermarket').checked = false;
   document.getElementById('w-paint').value    = 0;
   document.getElementById('w-body').value     = 0;
   document.getElementById('w-electric').value = 0;
-  document.getElementById('custom-works-rows').innerHTML = ''; customWorkId = 0;
   document.getElementById('f-notes').value     = '';
   document.getElementById('f-date').value   = new Date().toLocaleDateString('he-IL');
   document.getElementById('damage-rows').innerHTML = '';
   rowId = 0;
   addRow(); addRow(); addRow();
-  photos = [];
-  document.getElementById('photos-preview').innerHTML = '';
+  document.getElementById('preview-img').style.display = 'none';
   document.getElementById('ai-btn').disabled = true;
+  photoBase64 = null;
   calcTotal();
 }
 
@@ -1421,7 +1187,6 @@ function buildPDFContent(recsArr) {
         `לקוח: ${rec.client||na}`,
         rec.insurance ? `ביטוח: ${rec.insurance}` : '',
         rec.incidentDate ? `תאריך מקרה: ${rec.incidentDate}` : '',
-        rec.location ? `📍 מקום בדיקה: ${rec.location}` : '',
         rec.partsType ? `חלפים: ${[rec.partsType.original?'מקורי':'',rec.partsType.used?'משומש':'',rec.partsType.aftermarket?'תחליפי':''].filter(Boolean).join('+')||'—'}` : '',
         rec.serial ? `שלדה: ${rec.serial}` : ''
       ].filter(Boolean).map(t=>`<span style="background:#f0f4ff;padding:2px 8px;border-radius:4px;display:inline-block">${t}</span>`).join('')}
@@ -1436,18 +1201,11 @@ function buildPDFContent(recsArr) {
       if (rec.works.body     > 0) html += `<tr><td style="${tdStyle}">🔨 פחחות/מרכב</td><td style="${tdStyle}">עבודה</td><td style="${tdStyle}">${rec.works.body}</td></tr>`;
       if (rec.works.electric > 0) html += `<tr><td style="${tdStyle}">⚡ חשמל</td><td style="${tdStyle}">עבודה</td><td style="${tdStyle}">${rec.works.electric}</td></tr>`;
     }
-    (rec.customWorks||[]).filter(cw=>cw.desc||cw.cost>0).forEach(cw => {
-      html += `<tr><td style="${tdStyle}">${cw.desc||'עבודה נוספת'}</td><td style="${tdStyle}">עבודה</td><td style="${tdStyle}">${cw.cost}</td></tr>`;
-    });
     html += `<tr><td colspan="2" style="border:1px solid #ccc;padding:4px 6px;font-weight:bold;background:#e8f0fe">סה"כ אומדן</td><td style="border:1px solid #ccc;padding:4px 6px;font-weight:bold;background:#e8f0fe">${Number(rec.total)||0} ₪</td></tr>`;
     if (rec.notes) html += `<tr><td colspan="3" style="${tdStyle}">הערות: ${rec.notes}</td></tr>`;
     html += `</table>`;
-    const allPhotos = rec.photos?.length ? rec.photos : (rec.photo?.data ? [rec.photo] : []);
-    if (allPhotos.length) {
-      const w = allPhotos.length === 1 ? '100%' : '48%';
-      html += `<div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:8px">` +
-        allPhotos.map(p => `<img src="data:${p.mime};base64,${p.data}" style="max-width:${w};max-height:240px;object-fit:contain;border-radius:6px;border:1px solid #ccc" alt="תמונת נזק">`).join('') +
-        `</div>`;
+    if (rec.photo && rec.photo.data) {
+      html += `<div style="margin-top:8px"><img src="data:${rec.photo.mime};base64,${rec.photo.data}" style="max-width:100%;max-height:280px;object-fit:contain;border-radius:6px;border:1px solid #ccc" alt="תמונת נזק"></div>`;
     }
     html += `</div>`;
   });
@@ -1467,334 +1225,77 @@ function closePDF() {
   document.body.style.overflow = '';
 }
 
-// Lazy-load jsPDF if not yet available
-function ensureJsPDF() {
-  if (window.jspdf?.jsPDF) return Promise.resolve();
-  // If a script tag already exists, wait for it to finish
-  const existing = document.querySelector('script[src*="jspdf"]');
-  if (existing) {
-    return new Promise((res, rej) => {
-      const t = setInterval(() => { if (window.jspdf?.jsPDF) { clearInterval(t); res(); } }, 150);
-      setTimeout(() => { clearInterval(t); rej(new Error('jsPDF לא נטען')); }, 12000);
-    });
-  }
-  return new Promise((res, rej) => {
-    const s = document.createElement('script');
-    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
-    s.onload = () => { const t = setInterval(() => { if (window.jspdf?.jsPDF) { clearInterval(t); res(); } }, 100); setTimeout(() => { clearInterval(t); res(); }, 3000); };
-    s.onerror = () => rej(new Error('לא ניתן לטעון ספריית PDF — בדוק חיבור'));
-    document.head.appendChild(s);
-  });
-}
-
-// ציור האומדן על Canvas — משותף ל-PDF וליצוא תמונה
-async function buildCanvas(rec) {
-  const na = 'לא ידוע';
-  const S = 2; // scale for quality
-  const PX = 3.7795; // px per mm at 96dpi
-  const W = Math.round(210 * PX), H = Math.round(297 * PX);
-  const cv = document.createElement('canvas');
-  cv.width = W * S; cv.height = H * S;
-  const c = cv.getContext('2d');
-  c.scale(S, S);
-
-  const M = 10 * PX; // margin
-  const CW = W - M * 2;
-  c.fillStyle = '#fff'; c.fillRect(0, 0, W, H);
-  c.direction = 'rtl';
-
-  let y = M;
-  const F = n => n * PX; // mm to px helper
-  const RH = F(5.5); // row height
-
-  // ── Header ──
-  c.fillStyle = '#1e3a5f'; c.fillRect(M, y, CW, F(13));
-  c.fillStyle = '#fff'; c.textAlign = 'center';
-  c.font = `bold ${F(5.5)}px Arial`; c.fillText('אומדן נזק', W/2, y + F(8.5));
-  const office = getOfficeName();
-  if (office) { c.font = `${F(3.2)}px Arial`; c.fillText(office, W/2, y + F(12)); }
-  y += F(17);
-
-  // ── Vehicle info block ──
-  // Draw light background for info block
-  const infoStartY = y;
-  c.fillStyle = '#f0f4ff'; c.fillRect(M, y - F(1), CW, F(28));
-  c.strokeStyle = '#c0cce8'; c.lineWidth = 0.7; c.strokeRect(M, y - F(1), CW, F(28));
-
-  c.fillStyle = '#1e3a5f'; c.font = `bold ${F(4)}px Arial`; c.textAlign = 'right';
-  c.fillText(`רישוי: ${rec.plate||na}`, W - M - F(2), y + F(4));
-  c.font = `bold ${F(3.2)}px Arial`;
-  c.fillStyle = '#444';
-  c.fillText(`תאריך: ${rec.date||''}`, M + F(2) + CW*0.5, y + F(4));
-  y += F(7);
-
-  c.fillStyle = '#222'; c.font = `${F(3)}px Arial`;
-  const carLine = [`${rec.make||''} ${rec.model||''} ${rec.year||''}`.trim(), rec.color?`צבע: ${rec.color}`:''].filter(Boolean).join('   |   ');
-  c.fillText(carLine, W - M - F(2), y); y += F(5);
-
-  const clientLine = [rec.client?`לקוח: ${rec.client}`:'', rec.km?`ק"מ: ${rec.km}`:'', rec.insurance?`ביטוח: ${rec.insurance}`:''].filter(Boolean).join('   |   ');
-  if (clientLine) { c.fillText(clientLine, W - M - F(2), y); y += F(5); }
-
-  // Parts type
-  const ptArr = [];
-  if (rec.partsType?.original) ptArr.push('מקורי');
-  if (rec.partsType?.used) ptArr.push('משומש');
-  if (rec.partsType?.aftermarket) ptArr.push('תחליפי');
-  if (ptArr.length) { c.fillStyle = '#1e3a5f'; c.font = `bold ${F(3)}px Arial`; c.fillText(`סוג חלפים: ${ptArr.join(' + ')}`, W - M - F(2), y); y += F(5); }
-
-  if (rec.incidentDate) { c.fillStyle = '#555'; c.font = `${F(3)}px Arial`; c.fillText(`תאריך מקרה: ${rec.incidentDate}`, W - M - F(2), y); y += F(5); }
-  if (rec.location) { c.fillStyle = '#555'; c.font = `${F(3)}px Arial`; c.fillText(`📍 מקום בדיקה: ${rec.location}`, W - M - F(2), y); y += F(5); }
-  if (rec.serial) { c.fillStyle = '#777'; c.font = `${F(2.8)}px Arial`; c.fillText(`מספר שלדה: ${rec.serial}`, W - M - F(2), y); y += F(5); }
-  y = Math.max(y, infoStartY + F(27)) + F(3);
-
-  // ── Table header ──
-  const C1 = CW * 0.5, C2 = CW * 0.25, C3 = CW * 0.25;
-  c.fillStyle = '#1e3a5f'; c.fillRect(M, y, CW, RH);
-  c.fillStyle = '#fff'; c.font = `bold ${F(3)}px Arial`;
-  c.textAlign = 'right'; c.fillText('חלק / אזור', W - M - F(1), y + F(3.7));
-  c.textAlign = 'center'; c.fillText('סוג נזק', W - M - C1 - C2/2, y + F(3.7));
-  c.fillText('עלות ₪', M + C3/2, y + F(3.7));
-  y += RH;
-
-  // ── Table rows ──
-  const items = (rec.items||[]).filter(it=>it.part);
-  const wks = rec.works||{};
-  const allRows = [...items,
-    ...(wks.paint>0?[{part:'🎨 עבודות צבע',type:'עבודה',parts:wks.paint}]:[]),
-    ...(wks.body>0?[{part:'🔨 פחחות/מרכב',type:'עבודה',parts:wks.body}]:[]),
-    ...(wks.electric>0?[{part:'⚡ חשמל',type:'עבודה',parts:wks.electric}]:[]),
-    ...(rec.customWorks||[]).filter(cw=>cw.desc||cw.cost>0).map(cw=>({part:cw.desc||'עבודה נוספת',type:'עבודה',parts:cw.cost}))
-  ];
-  c.font = `${F(3)}px Arial`;
-  allRows.forEach((it, i) => {
-    c.fillStyle = i%2===0?'#fff':'#f5f8ff'; c.fillRect(M, y, CW, RH);
-    c.strokeStyle = '#ddd'; c.lineWidth = 0.5; c.strokeRect(M, y, CW, RH);
-    c.fillStyle = '#000';
-    c.textAlign = 'right'; c.fillText(it.part||'', W-M-F(1), y+F(3.7));
-    c.textAlign = 'center'; c.fillText(it.type||'', W-M-C1-C2/2, y+F(3.7));
-    c.fillText(String(Number(it.parts)||0), M+C3/2, y+F(3.7));
-    y += RH;
-  });
-
-  // ── Total ──
-  c.fillStyle = '#e8f0fe'; c.fillRect(M, y, CW, RH+F(1));
-  c.strokeStyle = '#aac'; c.lineWidth = 1; c.strokeRect(M, y, CW, RH+F(1));
-  c.fillStyle = '#000'; c.font = `bold ${F(3.5)}px Arial`;
-  c.textAlign = 'right'; c.fillText('סה"כ אומדן', W-M-F(1), y+F(4));
-  c.textAlign = 'center'; c.fillText(`${Number(rec.total)||0} ₪`, M+C3/2, y+F(4));
-  y += RH + F(4);
-
-  if (rec.notes) {
-    c.fillStyle = '#333'; c.font = `${F(3)}px Arial`; c.textAlign = 'right';
-    c.fillText('הערות: ' + rec.notes, W-M, y); y += F(5);
-  }
-
-  // ── Photos ──
-  const allPhotos = rec.photos?.length ? rec.photos : (rec.photo?.data ? [rec.photo] : []);
-  if (allPhotos.length) {
-    const loaded = await Promise.all(allPhotos.map(p => new Promise(res => {
-      const img = new Image();
-      img.onload = () => res(img);
-      img.onerror = () => res(null);
-      setTimeout(() => res(null), 4000);
-      img.src = `data:${p.mime};base64,${p.data}`;
-    })));
-    const imgs = loaded.filter(Boolean);
-    if (imgs.length) {
-      const cols = imgs.length === 1 ? 1 : 2;
-      const gap = F(3);
-      const imgW = (CW - (cols - 1) * gap) / cols;
-      const maxRowH = Math.min(F(45), (H - y - M - gap) / Math.ceil(imgs.length / cols));
-      imgs.forEach((img, i) => {
-        const col = i % cols;
-        const row = Math.floor(i / cols);
-        const ratio = img.height / img.width;
-        const iw = Math.min(imgW, maxRowH / ratio);
-        const ih = iw * ratio;
-        const x = W - M - col * (imgW + gap) - iw;
-        c.drawImage(img, x, y + row * (maxRowH + gap), iw, ih);
-      });
-    }
-  }
-
-  return cv;
-}
-
-// יצוא Canvas → blob תמונה (ללא jsPDF)
-async function buildCanvasImageBlob(rec) {
-  const cv = await buildCanvas(rec);
-  return new Promise(res => cv.toBlob(res, 'image/jpeg', 0.92));
-}
-
-// יצוא Canvas → PDF blob
-async function buildCanvasPDF(rec) {
-  const cv = await buildCanvas(rec);
-  const imgData = cv.toDataURL('image/jpeg', 0.92);
-  const jsPDFClass = window.jspdf?.jsPDF || window.jsPDF;
-  if (!jsPDFClass) throw new Error('jsPDF לא נטען — רענן ונסה שוב');
-  const pdf = new jsPDFClass({ orientation:'p', unit:'mm', format:'a4' });
-  pdf.addImage(imgData, 'JPEG', 0, 0, 210, 297);
-  return pdf.output('blob');
-}
-
-// ייצוא נייד: תמונה → שתף / פתח בטאב חדש
-async function exportMobileImage(rec, btn) {
-  if (btn) { btn.disabled = true; btn.textContent = '⏳'; }
-  try {
-    const blob = await buildCanvasImageBlob(rec);
-    const plate = (rec.plate || 'אומדן').replace(/[^א-תa-zA-Z0-9]/g, '-');
-    const filename = `אומדן-${plate}.jpg`;
-    const file = new File([blob], filename, { type: 'image/jpeg' });
-    if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-      await navigator.share({ title: 'אומדן נזק', files: [file] });
-    } else {
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url; a.download = filename;
-      document.body.appendChild(a); a.click(); document.body.removeChild(a);
-      setTimeout(() => URL.revokeObjectURL(url), 5000);
-      toast('תמונה הורדה ✓');
-    }
-  } catch(e) {
-    if (e.name !== 'AbortError') toast('שגיאה: ' + e.message.slice(0, 50), true);
-  } finally {
-    if (btn) { btn.disabled = false; btn.textContent = '📤 שתף'; }
-  }
-}
-
-// Print: mobile → canvas PDF opened in viewer (1 exact page); desktop → native print CSS
-async function mobilePrint() {
-  const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-  if (isMobile) {
-    const btn = document.querySelector('#pdf-overlay button[onclick="mobilePrint()"]');
-    if (btn) { btn.disabled = true; btn.textContent = '⏳ מכין...'; }
-    try {
-      await ensureJsPDF();
-      const rec = records.find(r => r.id === _currentShareRecId) || records[records.length-1];
-      if (!rec) { toast('לא נמצא אומדן', true); return; }
-      const blob = await buildCanvasPDF(rec);
-      const url = URL.createObjectURL(blob);
-      window.open(url, '_blank');
-      setTimeout(() => URL.revokeObjectURL(url), 30000);
-    } catch(e) {
-      toast('שגיאה: ' + e.message.slice(0,50), true);
-    } finally {
-      if (btn) { btn.disabled = false; btn.textContent = '🖨️ הדפס'; }
-    }
-  } else {
-    // Desktop: apply compact inline styles → CSS print → restore
-    const el = document.getElementById('pdf-content');
-    const els = Array.from(el.querySelectorAll('*'));
-    const saved = els.map(e => ({ fs: e.style.fontSize, pad: e.style.padding, mh: e.style.maxHeight, lh: e.style.lineHeight }));
-    const savedPad = el.style.padding;
-    els.forEach(e => {
-      e.style.setProperty('font-size', '8pt', 'important');
-      e.style.setProperty('line-height', '1.3', 'important');
-      if (['TD','TH'].includes(e.tagName)) e.style.setProperty('padding', '2px 4px', 'important');
-      if (e.tagName === 'IMG') e.style.setProperty('max-height', '110px', 'important');
-    });
-    el.style.setProperty('padding', '4px', 'important');
-    await new Promise(r => setTimeout(r, 80));
-    window.print();
-    setTimeout(() => {
-      els.forEach((e, i) => { e.style.fontSize = saved[i].fs; e.style.padding = saved[i].pad; e.style.maxHeight = saved[i].mh; e.style.lineHeight = saved[i].lh; });
-      el.style.padding = savedPad;
-    }, 1500);
-  }
-}
-
 async function sharePDF() {
   const btn = document.getElementById('share-pdf-btn');
   const origText = btn.textContent;
-
-  // On mobile: draw PDF on canvas (no external libs) → share as PDF file
-  const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-  if (isMobile) {
-    btn.disabled = true;
-    btn.textContent = '⏳ מכין PDF...';
-    try {
-      await ensureJsPDF();
-      const rec = records.find(r => r.id === _currentShareRecId) || records[records.length-1];
-      if (!rec) { toast('לא נמצא אומדן', true); return; }
-      const blob = await buildCanvasPDF(rec);
-      const filename = 'אומדן-' + new Date().toLocaleDateString('he-IL').replace(/\//g,'-') + '.pdf';
-      const file = new File([blob], filename, { type: 'application/pdf' });
-      if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-        await navigator.share({ title: 'אומדן נזק', files: [file] });
-      } else {
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a'); a.href = url; a.download = filename;
-        document.body.appendChild(a); a.click(); document.body.removeChild(a);
-        setTimeout(() => URL.revokeObjectURL(url), 3000);
-        toast('PDF הורד ✓');
-      }
-    } catch(e) {
-      if (e.name !== 'AbortError') toast('שגיאה: ' + e.message.slice(0,50), true);
-    } finally {
-      btn.disabled = false;
-      btn.textContent = origText;
-    }
-    return;
-  }
-
-  // Desktop: html2canvas + jsPDF → download
   btn.disabled = true;
   btn.textContent = '⏳ מכין...';
   try {
     if (!window.html2canvas || !window.jspdf) {
-      toast('ספריות לא נטענו — רענן ונסה שוב', true); return;
+      alert('ספריות PDF לא נטענו — רענן את הדף ונסה שוב');
+      return;
     }
+
+    // Capture #pdf-content directly — it is already visible on screen inside the overlay
     const el = document.getElementById('pdf-content');
     await document.fonts.ready;
+
+    // Override font to system font before capture — avoids Google Fonts CORS errors on mobile
     const prevFont = el.style.fontFamily;
     el.style.fontFamily = 'Arial, sans-serif';
     await new Promise(r => setTimeout(r, 80));
+
     let canvas;
     try {
       canvas = await html2canvas(el, {
-        scale: 1.5, useCORS: false, allowTaint: false,
-        backgroundColor: '#ffffff', logging: false, imageTimeout: 0
+        scale: 1.5, useCORS: false, allowTaint: true,
+        backgroundColor: '#ffffff', logging: false,
+        imageTimeout: 0
       });
     } finally {
-      el.style.fontFamily = prevFont;
+      el.style.fontFamily = prevFont; // always restore font
     }
+
     const imgData = canvas.toDataURL('image/jpeg', 0.92);
     const { jsPDF } = window.jspdf;
+
+    // Custom page size = exact content ratio → single page, no overflow
     const pageW = 210;
     const pageH = +(((canvas.height / canvas.width) * pageW).toFixed(2));
     const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: [pageW, pageH] });
     pdf.addImage(imgData, 'JPEG', 0, 0, pageW, pageH);
+
     const blob = pdf.output('blob');
     const filename = 'אומדן-' + new Date().toLocaleDateString('he-IL').replace(/\//g,'-') + '.pdf';
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a'); a.href = url; a.download = filename;
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    setTimeout(() => URL.revokeObjectURL(url), 3000);
-    toast('PDF הורד ✓');
+    const file = new File([blob], filename, { type: 'application/pdf' });
+
+    if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+      try {
+        await navigator.share({ title: 'אומדן נזק', files: [file] });
+      } catch(e) {
+        if (e.name !== 'AbortError') throw e;
+        // user cancelled share — ok
+      }
+    } else {
+      // Desktop / browser without file share: download directly
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = filename;
+      document.body.appendChild(a); a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 3000);
+      toast('PDF הורד ✓');
+    }
   } catch(e) {
     console.error('sharePDF:', e);
-    if (e.name !== 'AbortError') toast('שגיאה: ' + e.message.slice(0,50), true);
+    if (e.name !== 'AbortError') alert('שגיאה: ' + e.message);
   } finally {
     btn.disabled = false;
     btn.textContent = origText;
   }
 }
 
-let _currentShareRecId = null;
-function exportSinglePDF(id, btn) {
-  _currentShareRecId = id;
-  const rec = records.find(r => r.id === id);
-  if (!rec) { toast('אומדן לא נמצא', true); return; }
-  const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
-  if (isMobile) {
-    exportMobileImage(rec, btn);
-  } else {
-    openPDF(buildPDFContent([rec]));
-  }
-}
-
-function exportSinglePDFFile(id) {
-  _currentShareRecId = id;
+function exportSinglePDF(id) {
   const rec = records.find(r => r.id === id);
   if (!rec) { toast('אומדן לא נמצא', true); return; }
   openPDF(buildPDFContent([rec]));
