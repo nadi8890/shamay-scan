@@ -220,7 +220,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue)}
     </div>
   </div>
 
-  <!-- Parts type -->
+  <!-- Parts type + Report type -->
   <div style="margin-top:10px;padding:10px 12px;background:var(--surface);border-radius:10px;border:1px solid var(--border)">
     <div style="font-size:0.78rem;font-weight:700;color:var(--muted);margin-bottom:8px">🔩 סוג חלפים</div>
     <div style="display:flex;gap:16px;flex-wrap:wrap">
@@ -232,6 +232,20 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue)}
       </label>
       <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:0.88rem;font-weight:600">
         <input type="checkbox" id="pt-aftermarket" style="width:18px;height:18px;cursor:pointer" onchange="calcTotal()"> תחליפי
+      </label>
+    </div>
+  </div>
+  <div style="margin-top:8px;padding:10px 12px;background:var(--surface);border-radius:10px;border:1px solid var(--border)">
+    <div style="font-size:0.78rem;font-weight:700;color:var(--muted);margin-bottom:8px">📄 סוג דוח</div>
+    <div style="display:flex;gap:16px;flex-wrap:wrap">
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:0.88rem;font-weight:600">
+        <input type="radio" name="report-type" id="rt-private" value="פרטי" style="width:18px;height:18px;cursor:pointer"> פרטי
+      </label>
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:0.88rem;font-weight:600">
+        <input type="radio" name="report-type" id="rt-policy" value="פוליסה" style="width:18px;height:18px;cursor:pointer"> פוליסה
+      </label>
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:0.88rem;font-weight:600">
+        <input type="radio" name="report-type" id="rt-other" value="אחר" style="width:18px;height:18px;cursor:pointer"> אחר
       </label>
     </div>
   </div>
@@ -980,6 +994,7 @@ function saveRecord() {
     serial: document.getElementById('f-serial').value.trim(),
     insurance:    document.getElementById('f-insurance').value,
     incidentDate: document.getElementById('f-incident-date').value.trim(),
+    reportType: (document.querySelector('input[name="report-type"]:checked') || {}).value || '',
     partsType: {
       original:    document.getElementById('pt-original').checked,
       used:        document.getElementById('pt-used').checked,
@@ -1079,6 +1094,7 @@ function loadRecord(id) {
   document.getElementById('f-serial').value    = r.serial    || '';
   document.getElementById('f-insurance').value     = r.insurance    || '';
   document.getElementById('f-incident-date').value = r.incidentDate || '';
+  document.querySelectorAll('input[name="report-type"]').forEach(el => { el.checked = el.value === (r.reportType || ''); });
   if (r.partsType) {
     document.getElementById('pt-original').checked    = !!r.partsType.original;
     document.getElementById('pt-used').checked        = !!r.partsType.used;
@@ -1121,6 +1137,7 @@ function newInspection() {
   document.getElementById('pt-original').checked    = false;
   document.getElementById('pt-used').checked        = false;
   document.getElementById('pt-aftermarket').checked = false;
+  document.querySelectorAll('input[name="report-type"]').forEach(el => el.checked = false);
   document.getElementById('w-paint').value    = 0;
   document.getElementById('w-body').value     = 0;
   document.getElementById('w-electric').value = 0;
@@ -1187,6 +1204,7 @@ function buildPDFContent(recsArr) {
         `לקוח: ${rec.client||na}`,
         rec.insurance ? `ביטוח: ${rec.insurance}` : '',
         rec.incidentDate ? `תאריך מקרה: ${rec.incidentDate}` : '',
+        rec.reportType ? `סוג דוח: ${rec.reportType}` : '',
         rec.partsType ? `חלפים: ${[rec.partsType.original?'מקורי':'',rec.partsType.used?'משומש':'',rec.partsType.aftermarket?'תחליפי':''].filter(Boolean).join('+')||'—'}` : '',
         rec.serial ? `שלדה: ${rec.serial}` : ''
       ].filter(Boolean).map(t=>`<span style="background:#f0f4ff;padding:2px 8px;border-radius:4px;display:inline-block">${t}</span>`).join('')}
