@@ -97,6 +97,45 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
 .toast{position:fixed;bottom:78px;left:50%;transform:translateX(-50%);background:#059669;color:#fff;padding:10px 22px;border-radius:99px;font-weight:700;font-size:0.85rem;opacity:0;transition:opacity .3s;z-index:999;white-space:nowrap;pointer-events:none;box-shadow:0 4px 12px rgba(0,0,0,.15)}
 .toast.show{opacity:1}
 .toast.err{background:#dc2626}
+/* AI Agent */
+.agent-fab{position:fixed;left:16px;bottom:80px;width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#6366f1,#2563eb);color:#fff;font-size:1.5rem;border:none;cursor:pointer;box-shadow:0 4px 18px rgba(99,102,241,.45);z-index:200;display:flex;align-items:center;justify-content:center;transition:transform .2s,box-shadow .2s}
+.agent-fab:hover{transform:scale(1.08);box-shadow:0 6px 24px rgba(99,102,241,.55)}
+.agent-fab .agent-badge{position:absolute;top:-3px;right:-3px;width:14px;height:14px;background:#ef4444;border-radius:50%;border:2px solid #fff}
+.agent-panel{position:fixed;left:0;bottom:0;width:100%;max-width:420px;height:72vh;background:#fff;border-radius:20px 20px 0 0;box-shadow:0 -8px 40px rgba(0,0,0,.18);z-index:300;display:flex;flex-direction:column;transform:translateY(100%);transition:transform .35s cubic-bezier(.4,0,.2,1)}
+.agent-panel.open{transform:translateY(0)}
+.agent-header{background:linear-gradient(135deg,#4f46e5,#2563eb);color:#fff;padding:14px 16px 12px;border-radius:20px 20px 0 0;display:flex;align-items:center;gap:10px;flex-shrink:0}
+.agent-avatar{width:36px;height:36px;background:rgba(255,255,255,.2);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:1.3rem;flex-shrink:0}
+.agent-title{flex:1}
+.agent-title strong{display:block;font-size:0.92rem;font-weight:800}
+.agent-title span{font-size:0.7rem;opacity:.8}
+.agent-close{background:none;border:none;color:#fff;font-size:1.3rem;cursor:pointer;padding:4px;opacity:.8;line-height:1}
+.agent-close:hover{opacity:1}
+.agent-msgs{flex:1;overflow-y:auto;padding:14px 14px 8px;display:flex;flex-direction:column;gap:10px;scroll-behavior:smooth}
+.msg{display:flex;gap:8px;align-items:flex-end;max-width:88%}
+.msg.user{flex-direction:row-reverse;margin-right:auto;margin-left:0;max-width:88%;align-self:flex-start}
+.msg.assistant{align-self:flex-start}
+.msg-bubble{padding:9px 13px;border-radius:16px;font-size:0.82rem;line-height:1.5;word-break:break-word}
+.msg.user .msg-bubble{background:#2563eb;color:#fff;border-radius:16px 16px 4px 16px}
+.msg.assistant .msg-bubble{background:#f1f5f9;color:#1e293b;border-radius:16px 16px 16px 4px}
+.msg-avatar{width:28px;height:28px;border-radius:50%;background:linear-gradient(135deg,#6366f1,#2563eb);color:#fff;display:flex;align-items:center;justify-content:center;font-size:0.85rem;flex-shrink:0}
+.agent-input-row{display:flex;gap:8px;padding:10px 12px;border-top:1px solid #e2e8f0;flex-shrink:0;background:#fff;border-radius:0}
+.agent-input{flex:1;border:1.5px solid #e2e8f0;border-radius:24px;padding:9px 14px;font-family:'Heebo',sans-serif;font-size:0.85rem;outline:none;direction:rtl;background:#f8fafc;transition:border-color .2s}
+.agent-input:focus{border-color:#6366f1;background:#fff}
+.agent-send{width:40px;height:40px;border-radius:50%;background:#2563eb;color:#fff;border:none;cursor:pointer;font-size:1.1rem;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:background .2s}
+.agent-send:hover{background:#1d4ed8}
+.agent-send:disabled{background:#cbd5e1;cursor:not-allowed}
+.agent-key-wrap{padding:14px;border-top:1px solid #e2e8f0;background:#fafafa;border-radius:0}
+.agent-key-wrap label{font-size:0.72rem;color:var(--muted);font-weight:600;display:block;margin-bottom:6px}
+.agent-key-row{display:flex;gap:7px}
+.agent-key-input{flex:1;border:1.5px solid #e2e8f0;border-radius:8px;padding:7px 10px;font-size:0.78rem;font-family:monospace;outline:none;direction:ltr}
+.agent-key-input:focus{border-color:#6366f1}
+.agent-key-save{padding:7px 14px;border-radius:8px;background:#2563eb;color:#fff;border:none;font-family:'Heebo',sans-serif;font-size:0.78rem;font-weight:700;cursor:pointer}
+.typing-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:#94a3b8;animation:typingBounce .9s infinite ease-in-out}
+.typing-dot:nth-child(2){animation-delay:.15s}
+.typing-dot:nth-child(3){animation-delay:.3s}
+@keyframes typingBounce{0%,80%,100%{transform:scale(.7);opacity:.5}40%{transform:scale(1);opacity:1}}
+.action-chip{display:inline-block;background:#eff6ff;color:#2563eb;border:1px solid #bfdbfe;border-radius:8px;padding:3px 9px;font-size:0.7rem;font-weight:700;margin:3px 2px;cursor:pointer;transition:background .15s}
+.action-chip:hover{background:#dbeafe}
 /* Section header */
 .section-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
 .section-title{font-size:0.95rem;font-weight:700;color:var(--text)}
@@ -293,6 +332,35 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
   <button class="nav-btn" onclick="showTab('tasks',this)"><span class="icon">✅</span>משימות</button>
   <button class="nav-btn" onclick="showTab('damage',this)"><span class="icon">📋</span>אומדן</button>
 </nav>
+
+<!-- AI Agent FAB -->
+<button class="agent-fab" onclick="toggleAgent()" id="agent-fab" title="סוכן AI">
+  🤖
+</button>
+
+<!-- AI Agent Panel -->
+<div class="agent-panel" id="agent-panel">
+  <div class="agent-header">
+    <div class="agent-avatar">🤖</div>
+    <div class="agent-title">
+      <strong>סוכן ניהול ציי רכב</strong>
+      <span id="agent-status">מוכן לסייע</span>
+    </div>
+    <button class="agent-close" onclick="toggleAgent()">✕</button>
+  </div>
+  <div class="agent-msgs" id="agent-msgs"></div>
+  <div class="agent-input-row">
+    <button class="agent-send" id="agent-send-btn" onclick="agentSend()" title="שלח">➤</button>
+    <input class="agent-input" id="agent-input" placeholder="שאל אותי כל דבר על הציי..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();agentSend()}" dir="rtl">
+  </div>
+  <div class="agent-key-wrap" id="agent-key-wrap">
+    <label>🔑 מפתח API של Anthropic (נשמר בדפדפן בלבד)</label>
+    <div class="agent-key-row">
+      <input class="agent-key-input" id="agent-key-input" type="password" placeholder="sk-ant-api03-...">
+      <button class="agent-key-save" onclick="saveApiKey()">שמור</button>
+    </div>
+  </div>
+</div>
 
 <!-- Add/Edit Vehicle Modal -->
 <div class="modal-overlay" id="vehicle-modal">
@@ -781,7 +849,183 @@ window.onload = () => {
   renderIncidents();
   renderViolations();
   renderInvoices();
+  agentInit();
 };
+
+// ══════════════════════════════════════
+// ── AI AGENT ──
+// ══════════════════════════════════════
+let agentOpen = false;
+let agentMessages = [];
+let agentTyping = false;
+let agentApiKey = localStorage.getItem('nofar_agent_key') || '';
+
+function agentInit() {
+  if (agentApiKey) {
+    document.getElementById('agent-key-wrap').style.display = 'none';
+    document.getElementById('agent-key-input').value = agentApiKey;
+  }
+  // Welcome message
+  agentMessages = [{
+    role: 'assistant',
+    content: 'שלום! אני הסוכן החכם של נופר אנרגי 👋\n\nאני יכול לעזור לך:\n• לחפש רכב לפי מספר או נהג\n• להציג התראות ומועדים קרובים\n• לנווט לכל קטגוריה במערכת\n• להוסיף משימות\n• לייצא נתונים לאקסל\n\nמה תרצה לדעת?'
+  }];
+  renderAgentMsgs();
+}
+
+function toggleAgent() {
+  agentOpen = !agentOpen;
+  document.getElementById('agent-panel').classList.toggle('open', agentOpen);
+  if (agentOpen) setTimeout(() => document.getElementById('agent-input').focus(), 350);
+}
+
+function saveApiKey() {
+  const key = document.getElementById('agent-key-input').value.trim();
+  if (!key.startsWith('sk-ant-')) { toast('מפתח לא תקין — חייב להתחיל ב-sk-ant-', true); return; }
+  agentApiKey = key;
+  localStorage.setItem('nofar_agent_key', key);
+  document.getElementById('agent-key-wrap').style.display = 'none';
+  toast('מפתח API נשמר ✓');
+}
+
+function buildSystemPrompt() {
+  const expiredAlerts = ALERTS_DATA.filter(a => (a.daysLeft !== null && a.daysLeft < 0) || (a.daysLeft === null && a.kmDiff > a.kmAlert));
+  const soonAlerts   = ALERTS_DATA.filter(a => a.daysLeft !== null && a.daysLeft >= 0 && a.daysLeft <= 7);
+
+  return `אתה סוכן AI מקצועי לניהול ציי רכב של חברת נופר אנרגי. אתה עוזר לקציני רכב ופקידים לנהל את הצי ביעילות.
+תמיד ענה בעברית, בצורה תמציתית ומקצועית.
+
+═══ נתוני הצי (עדכני) ═══
+סה"כ רכבים: ${VEHICLES.length}
+אירועי נזק: ${INCIDENTS.length}
+דוחות תנועה: ${VIOLATIONS.length}
+התראות תקפות: ${ALERTS_DATA.length} (${expiredAlerts.length} באיחור, ${soonAlerts.length} דחופות)
+
+רשימת רכבים:
+${VEHICLES.map(v=>`• ${v.plate} | ${v.make} ${v.model} ${v.year||''} | נהג: ${v.driverName} | ${v.company} | רישוי: ${v.registrationExpiry} | ביטוח: ${v.insuranceExpiry}`).join('\n')}
+
+התראות קריטיות (באיחור):
+${expiredAlerts.map(a=>`• ${a.plate} | ${a.driver} | ${a.type} | ${a.daysLeft<0?'באיחור '+Math.abs(a.daysLeft)+' ימים':'חריג '+((a.kmDiff-a.kmAlert)).toLocaleString()+' ק"מ'}`).join('\n')||'אין'}
+
+התראות דחופות (עד שבוע):
+${soonAlerts.map(a=>`• ${a.plate} | ${a.driver} | ${a.type} | בעוד ${a.daysLeft} ימים (${a.dueDate})`).join('\n')||'אין'}
+
+═══ פעולות שאתה יכול לבצע ═══
+כאשר המשתמש מבקש לנווט, לחפש, או לבצע פעולה — הוסף תג ACTION בסוף תגובתך בפורמט:
+[[ACTION:tab:fleet]] — מעבר לציי רכב
+[[ACTION:tab:alerts]] — מעבר לטאב התראות
+[[ACTION:tab:incidents]] — מעבר לאירועים
+[[ACTION:tab:violations]] — מעבר לדוחות תנועה
+[[ACTION:tab:invoices]] — מעבר לחשבוניות מוסכים
+[[ACTION:tab:tasks]] — מעבר למשימות
+[[ACTION:tab:dashboard]] — מעבר ללוח בקרה
+[[ACTION:search:טקסט]] — חיפוש ברשימת הרכבים
+[[ACTION:addTask:טקסט המשימה]] — הוספת משימה חדשה
+[[ACTION:export:fleet]] — ייצוא ציי רכב לאקסל
+[[ACTION:export:alerts]] — ייצוא התראות לאקסל
+
+השתמש בפעולות באופן פרואקטיבי — אם המשתמש שואל על רכב מסוים, חפש אותו אוטומטית.`;
+}
+
+async function agentSend() {
+  if (agentTyping) return;
+  const input = document.getElementById('agent-input');
+  const msg = input.value.trim();
+  if (!msg) return;
+
+  if (!agentApiKey) {
+    document.getElementById('agent-key-wrap').style.display = 'block';
+    toast('הכנס מפתח API תחילה', true);
+    return;
+  }
+
+  input.value = '';
+  agentMessages.push({ role: 'user', content: msg });
+  agentTyping = true;
+  document.getElementById('agent-send-btn').disabled = true;
+  document.getElementById('agent-status').textContent = 'מעבד...';
+  renderAgentMsgs(true);
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': agentApiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 1024,
+        system: buildSystemPrompt(),
+        messages: agentMessages.filter(m => m.role !== 'welcome')
+      })
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(()=>({error:{message:'שגיאת רשת'}}));
+      throw new Error(err.error?.message || `שגיאה ${res.status}`);
+    }
+
+    const data = await res.json();
+    const reply = data.content[0].text;
+    agentMessages.push({ role: 'assistant', content: reply });
+
+    // Execute embedded actions
+    const actions = [...reply.matchAll(/\[\[ACTION:([^:]+):([^\]]*)\]\]/g)];
+    actions.forEach(([, action, param]) => agentExecAction(action, param.trim()));
+
+  } catch (e) {
+    agentMessages.push({ role: 'assistant', content: `⚠️ שגיאה: ${e.message}` });
+  }
+
+  agentTyping = false;
+  document.getElementById('agent-send-btn').disabled = false;
+  document.getElementById('agent-status').textContent = 'מוכן לסייע';
+  renderAgentMsgs();
+}
+
+function agentExecAction(action, param) {
+  if (action === 'tab') {
+    const btn = document.querySelector(`.nav-btn[onclick*="'${param}'"]`);
+    if (btn) { showTab(param, btn); }
+  } else if (action === 'search') {
+    const fleetSearch = document.getElementById('fleet-search');
+    if (fleetSearch) {
+      fleetSearch.value = param;
+      renderFleet();
+      const btn = document.querySelector(".nav-btn[onclick*=\"'fleet'\"]");
+      if (btn) showTab('fleet', btn);
+    }
+  } else if (action === 'addTask') {
+    const newId = Date.now();
+    TASKS.unshift({ id: newId, text: param, done: false });
+    toast('✓ משימה נוספה');
+  } else if (action === 'export') {
+    exportSection(param);
+  }
+}
+
+function renderAgentMsgs(showTyping = false) {
+  const container = document.getElementById('agent-msgs');
+  const html = agentMessages.map(m => {
+    if (m.role === 'user') {
+      return `<div class="msg user"><div class="msg-bubble">${esc(m.content).replace(/\n/g,'<br>')}</div></div>`;
+    }
+    // Clean ACTION tags from display
+    const clean = esc(m.content)
+      .replace(/\[\[ACTION:[^\]]+\]\]/g, '')
+      .replace(/\n/g, '<br>')
+      .trim();
+    return `<div class="msg assistant"><div class="msg-avatar">🤖</div><div class="msg-bubble">${clean}</div></div>`;
+  }).join('');
+
+  const typing = showTyping ? `<div class="msg assistant"><div class="msg-avatar">🤖</div><div class="msg-bubble"><span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span></div></div>` : '';
+
+  container.innerHTML = html + typing;
+  container.scrollTop = container.scrollHeight;
+}
 </script>
 </body>
 </html>
