@@ -715,8 +715,8 @@ function renderAlerts() {
 function exportSection(section) {
   let headers = [], rows = [];
   if (section === 'fleet') {
-    headers = ['מס׳ רישוי','יצרן','דגם','שנה','נהג','חברה','תוקף רישוי','תוקף ביטוח','רישיון נהג','ק"מ נוכחי','ק"מ טיפול הבא','ביקורת בטיחות'];
-    rows = VEHICLES.map(v => [v.plate,v.make,v.model,v.year,v.driverName,v.company,v.registrationExpiry,v.insuranceExpiry,v.licenseExpiry,v.currentKm,v.nextServiceKm,v.inspection]);
+    headers = ['מס׳ רישוי','יצרן','דגם','שנה','נהג','ת.ז נהג','חברה','קוד רכב','תוקף רישוי','תוקף ביטוח','רישיון נהג','ק"מ נוכחי','ק"מ טיפול הבא','ביקורת בטיחות','ילדים','רכב מתאריך','רישום תנועה','נהלים'];
+    rows = VEHICLES.map(v => [v.plate,v.make,v.model,v.year,v.driverName,v.driverId||'',v.company,v.code||'',v.registrationExpiry,v.insuranceExpiry,v.licenseExpiry,v.currentKm,v.nextServiceKm,v.inspection,v.children||'',v.vehicleFrom||'',v.trafficRecord||'',v.procedures||'']);
   } else if (section === 'incidents') {
     headers = ['#','מס׳ רישוי','נהג','תאריך','ביטוח/בעלות','מס׳ ארוע','סכום נזק','השתתפות עצמית','הערות'];
     rows = INCIDENTS.map(i => [i.id,i.plate,i.driver,i.date,i.insurance,i.reportNum,i.damage,i.deductible,i.notes]);
