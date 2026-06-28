@@ -130,6 +130,15 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
 .agent-key-input{flex:1;border:1.5px solid #e2e8f0;border-radius:8px;padding:7px 10px;font-size:0.78rem;font-family:monospace;outline:none;direction:ltr}
 .agent-key-input:focus{border-color:#6366f1}
 .agent-key-save{padding:7px 14px;border-radius:8px;background:#2563eb;color:#fff;border:none;font-family:'Heebo',sans-serif;font-size:0.78rem;font-weight:700;cursor:pointer}
+.agent-cam{width:38px;height:38px;border-radius:50%;background:#f1f5f9;color:#64748b;border:1.5px solid #e2e8f0;cursor:pointer;font-size:1.1rem;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .15s}
+.agent-cam:hover{background:#eff6ff;border-color:#6366f1;color:#6366f1}
+.agent-img-preview{display:none;padding:6px 12px 0;position:relative}
+.agent-img-preview img{max-height:72px;border-radius:8px;border:1.5px solid #e2e8f0;object-fit:cover}
+.agent-img-remove{position:absolute;top:0;right:6px;width:20px;height:20px;background:#ef4444;color:#fff;border:none;border-radius:50%;font-size:0.7rem;cursor:pointer;line-height:1;font-weight:700}
+.msg-img{max-width:200px;max-height:140px;border-radius:10px;margin-top:6px;display:block;object-fit:cover;border:1px solid rgba(255,255,255,.3)}
+.update-card{background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:8px 12px;font-size:0.78rem;margin-top:6px}
+.update-card strong{color:#15803d;display:block;margin-bottom:3px;font-size:0.82rem}
+.update-card span{color:#166534}
 .typing-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:#94a3b8;animation:typingBounce .9s infinite ease-in-out}
 .typing-dot:nth-child(2){animation-delay:.15s}
 .typing-dot:nth-child(3){animation-delay:.3s}
@@ -349,9 +358,15 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
     <button class="agent-close" onclick="toggleAgent()">✕</button>
   </div>
   <div class="agent-msgs" id="agent-msgs"></div>
+  <div class="agent-img-preview" id="agent-img-preview">
+    <img id="agent-img-thumb" src="" alt="">
+    <button class="agent-img-remove" onclick="clearAgentImage()" title="הסר תמונה">✕</button>
+  </div>
   <div class="agent-input-row">
     <button class="agent-send" id="agent-send-btn" onclick="agentSend()" title="שלח">➤</button>
     <input class="agent-input" id="agent-input" placeholder="שאל אותי כל דבר על הציי..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();agentSend()}" dir="rtl">
+    <input type="file" id="agent-img-input" accept="image/*" capture="environment" style="display:none" onchange="handleAgentImage(this)">
+    <button class="agent-cam" onclick="document.getElementById('agent-img-input').click()" title="צרף תמונה / מסמך">📷</button>
   </div>
   <div class="agent-key-wrap" id="agent-key-wrap">
     <label>🔑 מפתח API של Anthropic (נשמר בדפדפן בלבד)</label>
@@ -855,6 +870,7 @@ let agentOpen = false;
 let agentMessages = [];
 let agentTyping = false;
 let agentApiKey = localStorage.getItem('nofar_agent_key') || '';
+let agentPendingImage = null; // {data, mime, dataUrl}
 
 function agentInit() {
   if (agentApiKey) {
@@ -886,7 +902,7 @@ function saveApiKey() {
 
 function buildSystemPrompt() {
   const expiredAlerts = ALERTS_DATA.filter(a => (a.daysLeft !== null && a.daysLeft < 0) || (a.daysLeft === null && a.kmDiff > a.kmAlert));
-  const soonAlerts   = ALERTS_DATA.filter(a => a.daysLeft !== null && a.daysLeft >= 0 && a.daysLeft <= 7);
+  const soonAlerts   = ALERTS_DATA.filter(a => a.daysLeft !== null && a.daysLeft >= 0 && a.daysLeft <= 14);
 
   return `אתה סוכן AI מקצועי לניהול ציי רכב של חברת נופר אנרגי. אתה עוזר לקציני רכב ופקידים לנהל את הצי ביעילות.
 תמיד ענה בעברית, בצורה תמציתית ומקצועית.
@@ -897,37 +913,83 @@ function buildSystemPrompt() {
 דוחות תנועה: ${VIOLATIONS.length}
 התראות תקפות: ${ALERTS_DATA.length} (${expiredAlerts.length} באיחור, ${soonAlerts.length} דחופות)
 
-רשימת רכבים:
-${VEHICLES.map(v=>`• ${v.plate} | ${v.make} ${v.model} ${v.year||''} | נהג: ${v.driverName} | ${v.company} | רישוי: ${v.registrationExpiry} | ביטוח: ${v.insuranceExpiry}`).join('\n')}
+רשימת רכבים מלאה:
+${VEHICLES.map(v=>`• ${v.plate} | ${v.make} ${v.model} ${v.year||''} | נהג: ${v.driverName} | ${v.company} | רישוי: ${v.registrationExpiry} | ביטוח: ${v.insuranceExpiry} | רישיון נהג: ${v.licenseExpiry||'—'} | ביקורת: ${v.inspection||'—'} | ק"מ: ${v.currentKm||'—'}`).join('\n')}
 
-התראות קריטיות (באיחור):
-${expiredAlerts.map(a=>`• ${a.plate} | ${a.driver} | ${a.type} | ${a.daysLeft<0?'באיחור '+Math.abs(a.daysLeft)+' ימים':'חריג '+((a.kmDiff-a.kmAlert)).toLocaleString()+' ק"מ'}`).join('\n')||'אין'}
+התראות באיחור: ${expiredAlerts.map(a=>`${a.plate}/${a.driver}/${a.type}`).join(', ')||'אין'}
+התראות דחופות: ${soonAlerts.map(a=>`${a.plate}/${a.driver}/${a.daysLeft} ימים`).join(', ')||'אין'}
 
-התראות דחופות (עד שבוע):
-${soonAlerts.map(a=>`• ${a.plate} | ${a.driver} | ${a.type} | בעוד ${a.daysLeft} ימים (${a.dueDate})`).join('\n')||'אין'}
+═══ פעולות זמינות ═══
+הוסף תגי ACTION בתגובה (ניתן מספר):
 
-═══ פעולות שאתה יכול לבצע ═══
-כאשר המשתמש מבקש לנווט, לחפש, או לבצע פעולה — הוסף תג ACTION בסוף תגובתך בפורמט:
-[[ACTION:tab:fleet]] — מעבר לציי רכב
-[[ACTION:tab:alerts]] — מעבר לטאב התראות
-[[ACTION:tab:incidents]] — מעבר לאירועים
-[[ACTION:tab:violations]] — מעבר לדוחות תנועה
-[[ACTION:tab:invoices]] — מעבר לחשבוניות מוסכים
-[[ACTION:tab:tasks]] — מעבר למשימות
-[[ACTION:tab:dashboard]] — מעבר ללוח בקרה
-[[ACTION:search:טקסט]] — חיפוש ברשימת הרכבים
-[[ACTION:addTask:טקסט המשימה]] — הוספת משימה חדשה
-[[ACTION:export:fleet]] — ייצוא ציי רכב לאקסל
-[[ACTION:export:alerts]] — ייצוא התראות לאקסל
+ניווט:
+[[ACTION:tab:fleet]] [[ACTION:tab:alerts]] [[ACTION:tab:incidents]]
+[[ACTION:tab:violations]] [[ACTION:tab:invoices]] [[ACTION:tab:tasks]] [[ACTION:tab:dashboard]]
 
-השתמש בפעולות באופן פרואקטיבי — אם המשתמש שואל על רכב מסוים, חפש אותו אוטומטית.`;
+חיפוש ועדכון:
+[[ACTION:search:טקסט]] — חיפוש בציי רכב
+[[ACTION:addTask:טקסט]] — הוספת משימה
+[[ACTION:export:fleet]] / [[ACTION:export:alerts]] — ייצוא Excel
+
+עדכון נתוני רכב (חשוב!):
+[[ACTION:updateVehicle:מס_רישוי|שדה|ערך]]
+
+שדות לעדכון:
+  registrationExpiry — תוקף רישוי (פורמט: DD/MM/YYYY)
+  insuranceExpiry    — תוקף ביטוח (פורמט: DD/MM/YYYY)
+  licenseExpiry      — רישיון נהג (פורמט: DD/MM/YYYY)
+  inspection         — ביקורת בטיחות (פורמט: DD/MM/YYYY)
+  currentKm          — קילומטראז' נוכחי (מספר בלבד)
+  nextServiceKm      — ק"מ לטיפול הבא (מספר בלבד)
+  driverName         — שם נהג
+
+דוגמאות עדכון:
+[[ACTION:updateVehicle:83945203|registrationExpiry|17/11/2027]]
+[[ACTION:updateVehicle:65178203|currentKm|95000]]
+[[ACTION:updateVehicle:41608004|insuranceExpiry|31/12/2027]]
+
+═══ ניתוח תמונות ═══
+כאשר מקבל תמונה של מסמך רכב:
+1. זהה מספר רישוי מתוך המסמך
+2. זהה את סוג המסמך (רישוי רכב / ביטוח / ת.ט / מד מרחק)
+3. חלץ תאריך תפוגה או נתון מספרי
+4. בצע [[ACTION:updateVehicle:...]] אוטומטית
+5. דווח בדיוק מה עדכנת
+
+אם המסמך לא ברור — שאל לאיזה רכב (לפי מספר רישוי) לשייך את הנתון.
+השתמש בפעולות פרואקטיבית — אל תמתין לאישור, בצע ועדכן.`;
+}
+
+function handleAgentImage(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const dataUrl = e.target.result;
+    const [header, b64] = dataUrl.split(',');
+    const mime = header.match(/:(.*?);/)[1];
+    agentPendingImage = { data: b64, mime, dataUrl };
+    document.getElementById('agent-img-thumb').src = dataUrl;
+    document.getElementById('agent-img-preview').style.display = 'block';
+    document.getElementById('agent-input').placeholder = 'תאר מה לעדכן, או לחץ שלח לניתוח אוטומטי...';
+    document.getElementById('agent-input').focus();
+  };
+  reader.readAsDataURL(file);
+  input.value = '';
+}
+
+function clearAgentImage() {
+  agentPendingImage = null;
+  document.getElementById('agent-img-preview').style.display = 'none';
+  document.getElementById('agent-img-thumb').src = '';
+  document.getElementById('agent-input').placeholder = 'שאל אותי כל דבר על הציי...';
 }
 
 async function agentSend() {
   if (agentTyping) return;
   const input = document.getElementById('agent-input');
   const msg = input.value.trim();
-  if (!msg) return;
+  if (!msg && !agentPendingImage) return;
 
   if (!agentApiKey) {
     document.getElementById('agent-key-wrap').style.display = 'block';
@@ -936,13 +998,41 @@ async function agentSend() {
   }
 
   input.value = '';
-  agentMessages.push({ role: 'user', content: msg });
+  const hasImage = !!agentPendingImage;
+  const imgDataUrl = agentPendingImage?.dataUrl;
+  const imgData    = agentPendingImage?.data;
+  const imgMime    = agentPendingImage?.mime;
+
+  // Store in history for display
+  agentMessages.push({ role: 'user', content: msg || '📷 נתח תמונה זו', imageDataUrl: imgDataUrl });
+
+  // Build API content for THIS message
+  let currentContent;
+  if (hasImage) {
+    currentContent = [
+      { type: 'image', source: { type: 'base64', media_type: imgMime, data: imgData } },
+      { type: 'text',  text: msg || 'נתח את המסמך בתמונה. זהה מספר רישוי, סוג מסמך ותאריך תפוגה, ועדכן את הנתונים המתאימים.' }
+    ];
+    clearAgentImage();
+  } else {
+    currentContent = msg;
+  }
+
   agentTyping = true;
   document.getElementById('agent-send-btn').disabled = true;
-  document.getElementById('agent-status').textContent = 'מעבד...';
+  document.getElementById('agent-status').textContent = hasImage ? 'מנתח תמונה...' : 'מעבד...';
   renderAgentMsgs(true);
 
   try {
+    // Build messages for API — images only in current message (not history)
+    const apiMessages = agentMessages.slice(0, -1).map(m => ({
+      role: m.role,
+      content: m.role === 'user'
+        ? (m.imageDataUrl ? `[תמונה צורפה] ${m.content}` : m.content)
+        : m.content
+    }));
+    apiMessages.push({ role: 'user', content: currentContent });
+
     const res = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -955,7 +1045,7 @@ async function agentSend() {
         model: 'claude-haiku-4-5-20251001',
         max_tokens: 1024,
         system: buildSystemPrompt(),
-        messages: agentMessages.filter(m => m.role !== 'welcome')
+        messages: apiMessages
       })
     });
 
@@ -968,9 +1058,14 @@ async function agentSend() {
     const reply = data.content[0].text;
     agentMessages.push({ role: 'assistant', content: reply });
 
-    // Execute embedded actions
+    // Execute all embedded actions
     const actions = [...reply.matchAll(/\[\[ACTION:([^:]+):([^\]]*)\]\]/g)];
-    actions.forEach(([, action, param]) => agentExecAction(action, param.trim()));
+    const updates = [];
+    actions.forEach(([, action, param]) => {
+      const result = agentExecAction(action, param.trim());
+      if (result) updates.push(result);
+    });
+    if (updates.length) agentMessages[agentMessages.length-1]._updates = updates;
 
   } catch (e) {
     agentMessages.push({ role: 'assistant', content: `⚠️ שגיאה: ${e.message}` });
@@ -985,43 +1080,70 @@ async function agentSend() {
 function agentExecAction(action, param) {
   if (action === 'tab') {
     const btn = document.querySelector(`.nav-btn[onclick*="'${param}'"]`);
-    if (btn) { showTab(param, btn); }
+    if (btn) showTab(param, btn);
   } else if (action === 'search') {
-    const fleetSearch = document.getElementById('fleet-search');
-    if (fleetSearch) {
-      fleetSearch.value = param;
-      renderFleet();
-      const btn = document.querySelector(".nav-btn[onclick*=\"'fleet'\"]");
-      if (btn) showTab('fleet', btn);
-    }
+    const s = document.getElementById('fleet-search');
+    if (s) { s.value = param; renderFleet(); const b = document.querySelector(".nav-btn[onclick*=\"'fleet'\"]"); if(b) showTab('fleet',b); }
   } else if (action === 'addTask') {
-    const newId = Date.now();
-    TASKS.unshift({ id: newId, text: param, done: false });
+    TASKS.unshift({ id: Date.now(), text: param, done: false });
     toast('✓ משימה נוספה');
   } else if (action === 'export') {
     exportSection(param);
+  } else if (action === 'updateVehicle') {
+    const parts = param.split('|');
+    if (parts.length < 3) return null;
+    const [plate, field, value] = parts.map(s => s.trim());
+    const vehicle = VEHICLES.find(v => v.plate === plate);
+    if (!vehicle) return `רכב ${plate} לא נמצא`;
+    const fieldLabels = {
+      registrationExpiry:'תוקף רישוי', insuranceExpiry:'תוקף ביטוח',
+      licenseExpiry:'רישיון נהג', inspection:'ביקורת בטיחות',
+      currentKm:'ק"מ נוכחי', nextServiceKm:'ק"מ לטיפול', driverName:'שם נהג'
+    };
+    const oldVal = vehicle[field];
+    vehicle[field] = value;
+    localStorage.setItem('nofar_vehicles', JSON.stringify(VEHICLES));
+    renderFleet(); renderDashboard();
+    toast(`✓ ${plate} עודכן`);
+    return { plate, field, label: fieldLabels[field]||field, oldVal, newVal: value };
   }
+  return null;
 }
 
 function renderAgentMsgs(showTyping = false) {
   const container = document.getElementById('agent-msgs');
   const html = agentMessages.map(m => {
     if (m.role === 'user') {
-      return `<div class="msg user"><div class="msg-bubble">${esc(m.content).replace(/\n/g,'<br>')}</div></div>`;
+      const imgHtml = m.imageDataUrl
+        ? `<img src="${m.imageDataUrl}" class="msg-img" alt="תמונה מצורפת">`
+        : '';
+      const txt = m.content ? `<span>${esc(m.content).replace(/\n/g,'<br>')}</span>` : '';
+      return `<div class="msg user"><div class="msg-bubble">${txt}${imgHtml}</div></div>`;
     }
-    // Clean ACTION tags from display
-    const clean = esc(m.content)
+    // Clean ACTION tags, render update cards
+    let clean = m.content
       .replace(/\[\[ACTION:[^\]]+\]\]/g, '')
-      .replace(/\n/g, '<br>')
       .trim();
-    return `<div class="msg assistant"><div class="msg-avatar">🤖</div><div class="msg-bubble">${clean}</div></div>`;
+    clean = esc(clean).replace(/\n/g,'<br>');
+    let updateCards = '';
+    if (m._updates && m._updates.length) {
+      updateCards = m._updates.map(u => u && u.plate ? `
+        <div class="update-card">
+          <strong>✅ עודכן — רכב ${esc(u.plate)}</strong>
+          <span>${esc(u.label)}: ${esc(u.oldVal||'—')} → <strong>${esc(u.newVal)}</strong></span>
+        </div>` : '').join('');
+    }
+    return `<div class="msg assistant"><div class="msg-avatar">🤖</div><div class="msg-bubble">${clean}${updateCards}</div></div>`;
   }).join('');
 
-  const typing = showTyping ? `<div class="msg assistant"><div class="msg-avatar">🤖</div><div class="msg-bubble"><span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span></div></div>` : '';
+  const typing = showTyping
+    ? `<div class="msg assistant"><div class="msg-avatar">🤖</div><div class="msg-bubble"><span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span></div></div>`
+    : '';
 
   container.innerHTML = html + typing;
   container.scrollTop = container.scrollHeight;
 }
+
 </script>
 </body>
 </html>
