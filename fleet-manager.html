@@ -1064,20 +1064,20 @@ async function sendAgentMsg() {
   if(!text) return;
   input.value = '';
 
-  if(!agentApiKey) {
-    document.getElementById('agent-key-bar').style.display = 'flex';
-    addAgentMsg('agent err', '⚠️ נדרש מפתח API. הכנס אותו למעלה.');
-    return;
-  }
-
   addAgentMsg('user', text);
   agentHistory.push({role:'user', content: text});
 
-  // Quick responses for simple questions — offline
+  // Quick responses for simple questions — offline (no API key needed)
   const quick = handleQuickQuery(text);
   if(quick) {
     agentHistory.push({role:'assistant', content: quick});
     addAgentMsg('agent', quick);
+    return;
+  }
+
+  if(!agentApiKey) {
+    document.getElementById('agent-key-bar').style.display = 'flex';
+    addAgentMsg('agent', '⚠️ לשאלות מורכבות נדרש מפתח API. הכנס אותו למעלה.');
     return;
   }
 
