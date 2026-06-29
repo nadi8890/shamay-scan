@@ -376,25 +376,25 @@ function exportTasks() {
 <!-- AGENT PANEL -->
 <div class="agent-panel" id="agent-panel">
   <div class="agent-header">
-    <div><h4>🤖 סוכן ניהול ציי רכב</h4><span>מופעל על ידי AI</span></div>
+    <div><h4>🤖 סוכן ניהול ציי רכב</h4><span id="agent-status">מופעל על ידי AI</span></div>
     <button class="agent-close" onclick="toggleAgent()">✕</button>
   </div>
-  <div class="agent-key-bar">
+  <div class="agent-key-bar" id="agent-key-bar">
     <span>🔑</span>
-    <input type="password" id="agent-key" placeholder="OpenAI / Anthropic API key..." onchange="saveAgentKey(this.value)">
-    <button onclick="saveAgentKey(document.getElementById('agent-key').value)">שמור</button>
+    <input type="password" id="agent-key-input" placeholder="OpenAI / Anthropic API key...">
+    <button onclick="saveAgentKey()">שמור</button>
   </div>
   <div class="agent-quick">
-    <button onclick="quickQ('כמה רכבים יש לי?')">🚗 סה"כ רכבים</button>
-    <button onclick="quickQ('אילו רכבים עם התראות דחופות?')">🚨 התראות דחופות</button>
-    <button onclick="quickQ('אילו טיפולים קרובים?')">🔧 טיפולים קרובים</button>
-    <button onclick="quickQ('סכם לי את מצב הציי')">📊 סיכום ציי</button>
+    <button onclick="agentAsk('כמה רכבים יש לי?')">🚗 סה"כ רכבים</button>
+    <button onclick="agentAsk('אילו רכבים עם התראות דחופות?')">🚨 התראות דחופות</button>
+    <button onclick="agentAsk('אילו טיפולים קרובים?')">🔧 טיפולים קרובים</button>
+    <button onclick="agentAsk('סכם לי את מצב הציי')">📊 סיכום ציי</button>
   </div>
   <div class="agent-msgs" id="agent-msgs">
     <div class="msg-agent">שלום! אני הסוכן החכם שלך לניהול ציי הרכב. שאל אותי כל שאלה על הרכבים, ההתראות והמשימות.</div>
   </div>
   <div class="agent-footer">
-    <input class="agent-input" id="agent-input" placeholder="שאל משהו..." onkeydown="if(event.key==='Enter')sendAgentMsg()">
+    <input class="agent-input" id="agent-msg-input" placeholder="שאל משהו..." onkeydown="if(event.key==='Enter')sendAgentMsg()">
     <button class="agent-send" onclick="sendAgentMsg()">➤</button>
   </div>
 </div>
