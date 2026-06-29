@@ -123,8 +123,8 @@ tr.row-yellow td{background:#fffef0!important}
 /* ── AGENT ── */
 .agent-btn{position:fixed;left:16px;bottom:80px;width:50px;height:50px;border-radius:50%;background:linear-gradient(135deg,#6366f1,#4f46e5);color:#fff;border:none;font-size:1.4rem;cursor:pointer;box-shadow:0 4px 16px rgba(99,102,241,.45);z-index:200;display:flex;align-items:center;justify-content:center;transition:transform .2s}
 .agent-btn:hover{transform:scale(1.08)}
-.agent-panel{position:fixed;left:0;bottom:72px;width:340px;max-width:100vw;height:520px;background:#fff;border:1px solid var(--border);border-radius:0 16px 0 0;box-shadow:4px -4px 24px rgba(0,0,0,.12);z-index:300;display:flex;flex-direction:column;transform:translateX(-105%);transition:transform .28s cubic-bezier(.4,0,.2,1)}
-.agent-panel.open{transform:translateX(0)}
+.agent-panel{position:fixed;left:0;bottom:72px;width:340px;max-width:100vw;height:520px;background:#fff;border:1px solid var(--border);border-radius:0 16px 0 0;box-shadow:4px -4px 24px rgba(0,0,0,.12);z-index:300;display:none;flex-direction:column}
+.agent-panel.open{display:flex}
 .agent-header{background:linear-gradient(135deg,#6366f1,#4f46e5);color:#fff;padding:11px 14px;display:flex;align-items:center;justify-content:space-between;border-radius:0 16px 0 0;flex-shrink:0}
 .agent-header h4{font-size:0.9rem;font-weight:800;margin:0}
 .agent-header span{font-size:0.68rem;opacity:.8}
@@ -968,13 +968,17 @@ let agentApiKey = localStorage.getItem('fleet_agent_key') || '';
 let agentHistory = [];
 
 function toggleAgent() {
+  const panel = document.getElementById('agent-panel');
+  if (!panel) return;
   agentOpen = !agentOpen;
-  document.getElementById('agent-panel').classList.toggle('open', agentOpen);
-  const keyBar = document.getElementById('agent-key-bar');
-  keyBar.style.display = agentApiKey ? 'none' : 'flex';
-  if(agentOpen) {
-    document.getElementById('agent-msg-input').focus();
-    document.getElementById('agent-status').textContent = agentApiKey ? 'מחובר ✓' : 'נדרש מפתח API';
+  panel.style.display = agentOpen ? 'flex' : 'none';
+  if (agentOpen) {
+    const keyBar = document.getElementById('agent-key-bar');
+    if (keyBar) keyBar.style.display = agentApiKey ? 'none' : 'flex';
+    const status = document.getElementById('agent-status');
+    if (status) status.textContent = agentApiKey ? 'מחובר ✓' : 'נדרש מפתח API';
+    const inp = document.getElementById('agent-msg-input');
+    if (inp) inp.focus();
   }
 }
 
