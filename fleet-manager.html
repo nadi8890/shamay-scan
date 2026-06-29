@@ -347,22 +347,21 @@ function exportTasks() {
 #tab-estimate .btn-sm {padding:7px 12px;border-radius:8px;border:none;font-family:'Heebo',sans-serif;font-weight:700;font-size:0.78rem;cursor:pointer}
 
 @media(max-width:480px){
-  .btn-sm{padding:6px 9px;font-size:0.72rem}
-  header{padding:8px 12px}
-  main{padding:12px 10px 60px}
-  .card{padding:14px 12px;border-radius:12px}
-  input[type=text],input[type=number],select,textarea{padding:11px 12px;font-size:1rem;min-height:44px}
-  .damage-table td input{min-height:40px;font-size:0.9rem;padding:6px 4px}
-  .damage-table td select{min-height:40px;font-size:0.85rem}
-  .damage-table th{font-size:0.65rem;padding:4px 2px}
-  .upload-zone{padding:32px 16px}
-  .upload-icon{font-size:2.8rem}
-  .upload-zone p{font-size:0.92rem}
-  .ai-btn{padding:15px;font-size:1rem}
-  .apikey-row input{min-height:44px;font-size:0.95rem}
-  .url-save-btn{min-height:44px;padding:8px 12px}
-  .add-row-btn{min-height:48px;font-size:0.9rem}
-  .del-row{min-height:40px;min-width:40px;font-size:1.3rem}
+  #tab-estimate .btn-sm{padding:6px 9px;font-size:0.72rem}
+  #tab-estimate main{padding:12px 10px 60px}
+  #tab-estimate .card{padding:14px 12px;border-radius:12px}
+  #tab-estimate input[type=text],#tab-estimate input[type=number],#tab-estimate select,#tab-estimate textarea{padding:11px 12px;font-size:1rem;min-height:44px}
+  #tab-estimate .damage-table td input{min-height:40px;font-size:0.9rem;padding:6px 4px}
+  #tab-estimate .damage-table td select{min-height:40px;font-size:0.85rem}
+  #tab-estimate .damage-table th{font-size:0.65rem;padding:4px 2px}
+  #tab-estimate .upload-zone{padding:32px 16px}
+  #tab-estimate .upload-icon{font-size:2.8rem}
+  #tab-estimate .upload-zone p{font-size:0.92rem}
+  #tab-estimate .ai-btn{padding:15px;font-size:1rem}
+  #tab-estimate .apikey-row input{min-height:44px;font-size:0.95rem}
+  #tab-estimate .url-save-btn{min-height:44px;padding:8px 12px}
+  #tab-estimate .add-row-btn{min-height:48px;font-size:0.9rem}
+  #tab-estimate .del-row{min-height:40px;min-width:40px;font-size:1.3rem}
 }
 #tab-estimate .btn-green {background:var(--green);color:#fff}
 #tab-estimate .btn-blue {background:var(--blue);color:#fff}
@@ -375,14 +374,12 @@ function exportTasks() {
 #tab-estimate .field label {font-size:0.72rem;color:var(--muted);margin-bottom:4px}
 #tab-estimate input[type=text], #tab-estimate input[type=number], #tab-estimate select, #tab-estimate textarea {background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:9px 12px;font-family:'Heebo',sans-serif;font-size:0.88rem;width:100%}
 #tab-estimate input:focus, #tab-estimate select:focus, #tab-estimate textarea:focus {outline:none;border-color:var(--blue)}
-#tab-estimate /* Office selector */
-.office-card {background:linear-gradient(135deg,#1a2035,#1e2840);border:1px solid var(--accent);border-radius:14px;padding:14px 16px;margin-bottom:16px;display:flex;align-items:center;gap:12px}
+#tab-estimate .office-card {background:linear-gradient(135deg,#1a2035,#1e2840);border:1px solid var(--accent);border-radius:14px;padding:14px 16px;margin-bottom:16px;display:flex;align-items:center;gap:12px}
 #tab-estimate .office-icon {font-size:1.6rem}
 #tab-estimate .office-label {font-size:0.72rem;color:var(--muted);margin-bottom:4px}
 #tab-estimate .office-select-wrap {flex:1}
 #tab-estimate #office-select {background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:9px 12px;font-family:'Heebo',sans-serif;font-size:0.9rem;font-weight:700;width:100%}
-#tab-estimate /* Damage table */
-.damage-table {width:100%;border-collapse:collapse;margin-bottom:10px}
+#tab-estimate .damage-table {width:100%;border-collapse:collapse;margin-bottom:10px}
 #tab-estimate .damage-scroll {overflow-x:auto;-webkit-overflow-scrolling:touch}
 #tab-estimate .damage-table th {text-align:right;font-size:0.72rem;color:var(--muted);font-weight:600;padding:6px 4px;border-bottom:1px solid var(--border)}
 #tab-estimate .damage-table td {padding:4px}
@@ -394,8 +391,7 @@ function exportTasks() {
 #tab-estimate .add-row-btn:hover {border-color:var(--blue);color:var(--blue)}
 #tab-estimate .totals-row {display:flex;justify-content:space-between;padding:10px 4px;border-top:1px solid var(--border);font-weight:700;font-size:0.9rem}
 #tab-estimate .total-num {color:var(--accent);font-size:1.1rem}
-#tab-estimate /* Upload */
-.upload-zone {border:2px dashed var(--border);border-radius:12px;padding:24px;text-align:center;cursor:pointer;position:relative;background:var(--surface);transition:border-color .2s}
+#tab-estimate .upload-zone {border:2px dashed var(--border);border-radius:12px;padding:24px;text-align:center;cursor:pointer;position:relative;background:var(--surface);transition:border-color .2s}
 #tab-estimate .upload-zone:hover {border-color:var(--accent)}
 #tab-estimate .upload-zone input {position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
 #tab-estimate .upload-icon {font-size:2rem;margin-bottom:6px}
@@ -406,8 +402,7 @@ function exportTasks() {
 #tab-estimate .spinner-inline {display:inline-block;width:14px;height:14px;border:2px solid rgba(0,0,0,.2);border-top-color:#000;border-radius:50%;animation:spin .7s linear infinite;vertical-align:middle;margin-left:6px}
 
 @keyframes spin{to{transform:rotate(360deg)}}
-#tab-estimate /* Sheets setup */
-.setup-steps {counter-reset:step}
+#tab-estimate .setup-steps {counter-reset:step}
 #tab-estimate .step {display:flex;gap:12px;padding:10px 0;border-bottom:1px solid var(--border)}
 #tab-estimate .step:last-child {border-bottom:none}
 #tab-estimate .step-num {background:var(--blue);color:#fff;font-weight:900;width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:0.78rem;flex-shrink:0}
@@ -419,8 +414,7 @@ function exportTasks() {
 #tab-estimate .url-input-row input {flex:1;font-size:0.8rem}
 #tab-estimate .url-save-btn {background:var(--green);color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:0.78rem;font-weight:700;cursor:pointer;font-family:'Heebo',sans-serif;white-space:nowrap}
 #tab-estimate .status-line {font-size:0.72rem;margin-top:4px}
-#tab-estimate /* Records */
-.record-card {background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:flex-start}
+#tab-estimate .record-card {background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:flex-start}
 #tab-estimate .record-info {flex:1}
 #tab-estimate .record-plate {font-weight:900;color:var(--accent);direction:ltr;font-size:0.95rem}
 #tab-estimate .record-meta {font-size:0.75rem;color:var(--muted);margin-top:2px}
@@ -428,11 +422,9 @@ function exportTasks() {
 #tab-estimate .rec-del {background:none;border:none;color:var(--muted);cursor:pointer;font-size:1rem;padding:4px}
 #tab-estimate .rec-del:hover {color:var(--red)}
 #tab-estimate .empty {text-align:center;padding:24px;color:var(--muted);font-size:0.85rem}
-#tab-estimate /* Toast */
-.toast {position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--green);color:#fff;padding:11px 22px;border-radius:99px;font-weight:700;font-size:0.88rem;opacity:0;transition:opacity .3s;z-index:999;white-space:nowrap}
+#tab-estimate .toast {position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--green);color:#fff;padding:11px 22px;border-radius:99px;font-weight:700;font-size:0.88rem;opacity:0;transition:opacity .3s;z-index:999;white-space:nowrap}
 #tab-estimate .toast.show {opacity:1}
 #tab-estimate .toast.err {background:var(--red)}
-#tab-estimate /* Print: show only PDF overlay */
 @media print {
   @page{margin:5mm}
   body>*:not(#pdf-overlay){display:none!important}
@@ -444,14 +436,12 @@ function exportTasks() {
     page-break-inside:avoid!important;break-inside:avoid!important;page-break-after:avoid!important
   }
 }
-#tab-estimate /* API key section */
-.apikey-section {background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:16px}
+#tab-estimate .apikey-section {background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:16px}
 #tab-estimate .apikey-section label {font-size:0.78rem;color:var(--muted);display:block;margin-bottom:6px}
 #tab-estimate .apikey-row {display:flex;gap:8px}
 #tab-estimate .apikey-row input {flex:1;font-size:0.82rem}
 
 
-#tab-estimate { all: initial; display: block; background: #0a0c10; min-height: calc(100vh - 130px); }
 </style>
 <main>
 
