@@ -40,9 +40,9 @@ header{background:#1e40af;padding:11px 16px;display:flex;align-items:center;just
 .a-sub{color:#6b7280;font-size:0.71rem;margin-top:1px}
 .a-icon{font-size:1.05rem;flex-shrink:0;margin-top:1px}
 /* Table */
-.tbl-wrap{overflow-x:hidden;border-radius:10px;border:1px solid var(--border)}
+.tbl-wrap{overflow-x:hidden;overflow-y:auto;max-height:calc(100vh - 200px);border-radius:10px;border:1px solid var(--border)}
 table{width:100%;border-collapse:collapse;font-size:0.72rem;background:#fff;table-layout:fixed}
-th{text-align:right;padding:6px 5px;color:#475569;font-weight:700;background:#f8fafc;border-bottom:2px solid var(--border);white-space:nowrap;font-size:0.65rem;overflow:hidden}
+th{text-align:right;padding:6px 5px;color:#475569;font-weight:700;background:#f8fafc;border-bottom:2px solid var(--border);white-space:nowrap;font-size:0.65rem;overflow:hidden;position:sticky;top:0;z-index:2}
 td{padding:5px 5px;border-bottom:1px solid #f1f5f9;vertical-align:middle;color:var(--text);overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 tr:nth-child(even) td{background:#fafbff}
 tr:hover td{background:#eff6ff!important}
@@ -119,7 +119,108 @@ tr.row-yellow td{background:#fffef0!important}
   .detail-grid{grid-template-columns:repeat(2,1fr)}
   .mgrid{grid-template-columns:1fr}
 }
+
+/* ── AGENT ── */
+.agent-btn{position:fixed;left:16px;bottom:80px;width:50px;height:50px;border-radius:50%;background:linear-gradient(135deg,#6366f1,#4f46e5);color:#fff;border:none;font-size:1.4rem;cursor:pointer;box-shadow:0 4px 16px rgba(99,102,241,.45);z-index:200;display:flex;align-items:center;justify-content:center;transition:transform .2s}
+.agent-btn:hover{transform:scale(1.08)}
+.agent-panel{position:fixed;left:0;bottom:72px;width:340px;max-width:100vw;height:520px;background:#fff;border:1px solid var(--border);border-radius:0 16px 0 0;box-shadow:4px -4px 24px rgba(0,0,0,.12);z-index:300;display:flex;flex-direction:column;transform:translateX(-105%);transition:transform .28s cubic-bezier(.4,0,.2,1)}
+.agent-panel.open{transform:translateX(0)}
+.agent-header{background:linear-gradient(135deg,#6366f1,#4f46e5);color:#fff;padding:11px 14px;display:flex;align-items:center;justify-content:space-between;border-radius:0 16px 0 0;flex-shrink:0}
+.agent-header h4{font-size:0.9rem;font-weight:800;margin:0}
+.agent-header span{font-size:0.68rem;opacity:.8}
+.agent-close{background:none;border:none;color:#fff;font-size:1.1rem;cursor:pointer;padding:2px 6px;opacity:.8}
+.agent-msgs{flex:1;overflow-y:auto;padding:10px 12px;display:flex;flex-direction:column;gap:8px}
+.msg-user{align-self:flex-end;background:#6366f1;color:#fff;padding:8px 11px;border-radius:14px 14px 2px 14px;font-size:0.8rem;max-width:85%;line-height:1.4}
+.msg-agent{align-self:flex-start;background:#f1f5f9;color:var(--text);padding:8px 11px;border-radius:14px 14px 14px 2px;font-size:0.8rem;max-width:90%;line-height:1.4}
+.msg-agent.err{background:#fef2f2;color:#dc2626}
+.msg-typing{align-self:flex-start;padding:10px 14px;background:#f1f5f9;border-radius:14px;font-size:0.75rem;color:var(--muted)}
+.agent-footer{padding:8px 10px;border-top:1px solid var(--border);display:flex;gap:6px;flex-shrink:0}
+.agent-input{flex:1;background:#f8fafc;border:1px solid var(--border);border-radius:20px;padding:8px 13px;font-family:'Heebo',sans-serif;font-size:0.82rem;color:var(--text);outline:none}
+.agent-input:focus{border-color:#6366f1}
+.agent-send{background:#6366f1;color:#fff;border:none;border-radius:50%;width:34px;height:34px;font-size:1rem;cursor:pointer;flex-shrink:0}
+.agent-key-bar{background:#fefce8;border-top:1px solid #fde68a;padding:7px 10px;font-size:0.72rem;display:flex;align-items:center;gap:6px;flex-shrink:0}
+.agent-key-bar input{flex:1;border:1px solid #fde68a;border-radius:6px;padding:4px 8px;font-size:0.72rem;font-family:'Heebo',sans-serif;background:#fff}
+.agent-key-bar button{background:#6366f1;color:#fff;border:none;border-radius:6px;padding:4px 9px;font-size:0.72rem;cursor:pointer;font-family:'Heebo',sans-serif}
+.agent-quick{padding:0 10px 6px;display:flex;gap:5px;flex-wrap:wrap;flex-shrink:0}
+.agent-quick button{background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe;border-radius:99px;padding:3px 9px;font-size:0.65rem;cursor:pointer;font-family:'Heebo',sans-serif;white-space:nowrap}
+.agent-quick button:hover{background:#dbeafe}
+
 </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js">
+// ══ EXCEL EXPORT ══
+function xlsxDownload(rows, headers, filename) {
+  const wb = XLSX.utils.book_new();
+  const wsData = [headers, ...rows];
+  const ws = XLSX.utils.aoa_to_sheet(wsData);
+  // column widths
+  ws['!cols'] = headers.map(h => ({wch: Math.max(h.length+2, 14)}));
+  XLSX.utils.book_append_sheet(wb, ws, 'נתונים');
+  XLSX.writeFile(wb, filename);
+}
+
+function exportFleet() {
+  const q = (document.getElementById('fleet-search').value||'').toLowerCase();
+  const co = document.getElementById('fleet-company').value;
+  const alertF = document.getElementById('fleet-alert').value;
+  const rows = VEHICLES.filter(v => {
+    if(q && !`${v.plate} ${v.driver} ${v.maker} ${v.model}`.toLowerCase().includes(q)) return false;
+    if(co && !v.company.includes(co)) return false;
+    if(alertF) { const sev=worstSeverity(v); if(alertF==='red'&&sev!=='red') return false; if(alertF==='orange'&&sev!=='orange'&&sev!=='red') return false; if(alertF==='yellow'&&sev==='ok') return false; }
+    return true;
+  });
+
+  const calcDue = (v) => {
+    const inspBase = parseDate(v.lastInspection)||parseDate(v.vehicleFrom);
+    const inspDue = inspBase ? addMonths(inspBase,6) : null;
+    const trafficDue = parseDate(v.trafficCheck) ? addYears(parseDate(v.trafficCheck),3) : null;
+    const regsDue = parseDate(v.regulations) ? addYears(parseDate(v.regulations),5) : null;
+    return {inspDue, trafficDue, regsDue};
+  };
+
+  const headers = ['מס׳ רישוי','יצרן','דגם','נהג','חברה','תוקף רישוי','ביטוח חובה','רישיון נהג','ביקורת (הבאה)','עבר תעבורתי (פקיעה)','נהלים (פקיעה)','ק"מ נוכחי','טיפול הבא','סטטוס'];
+  const data = rows.map(v => {
+    const {inspDue, trafficDue, regsDue} = calcDue(v);
+    const sev = worstSeverity(v);
+    const sevLabel = sev==='red'?'🔴 פג תוקף':sev==='orange'?'🟠 עד 7 ימים':sev==='yellow'?'🟡 עד 14 ימים':'✅ תקין';
+    return [
+      v.plate||'', v.maker||'', v.model||'', v.driver||'', v.company||'',
+      v.regExp||'', v.insExp||'', v.licenseExp||'',
+      fmtDate(inspDue)||'', fmtDate(trafficDue)||'', fmtDate(regsDue)||'',
+      v.currentKm||'', v.nextService||'', sevLabel
+    ];
+  });
+  xlsxDownload(data, headers, 'ציי_רכב.xlsx');
+  showToast('קובץ אקסל הורד ✓');
+}
+
+function exportAlerts() {
+  const allAlerts = [];
+  VEHICLES.forEach(v => {
+    getVehicleAlerts(v).forEach(a => {
+      allAlerts.push({...a, plate: v.plate, driver: v.driver, company: v.company});
+    });
+  });
+  allAlerts.sort((a,b) => a.days - b.days);
+
+  const headers = ['מס׳ רישוי','נהג','חברה','סוג התראה','תאריך פקיעה','ימים שנותרו/עברו','דחיפות'];
+  const data = allAlerts.map(a => [
+    a.plate||'', (a.driver||'').split('-')[0], a.company||'',
+    a.label, fmtDate(a.due),
+    a.days<=0 ? `פג לפני ${Math.abs(a.days)} ימים` : `עוד ${a.days} ימים`,
+    a.type==='red'?'קריטי':a.type==='orange'?'דחוף':'מתקרב'
+  ]);
+  xlsxDownload(data, headers, 'התראות_ציי_רכב.xlsx');
+  showToast('קובץ אקסל הורד ✓');
+}
+
+function exportTasks() {
+  const headers = ['מס׳','משימה','סטטוס'];
+  const data = TASKS.map((t,i) => [i+1, t.text, t.done?'בוצע':'פתוח']);
+  xlsxDownload(data, headers, 'משימות.xlsx');
+  showToast('קובץ אקסל הורד ✓');
+}
+
+</script>
 </head>
 <body>
 
@@ -132,7 +233,10 @@ tr.row-yellow td{background:#fffef0!important}
 <div class="tab-content active" id="tab-dashboard">
   <div class="stats-row" id="stats-row"></div>
   <div class="card">
-    <div class="card-title">🚨 התראות ומועדים קרובים</div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <div class="card-title" style="margin:0">🚨 התראות ומועדים קרובים</div>
+      <button class="btn btn-sm btn-gray" onclick="exportAlerts()">📥 ייצוא לאקסל</button>
+    </div>
     <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
       <button class="btn btn-sm btn-gray" onclick="filterAlerts('all')" id="al-all">הכל</button>
       <button class="btn btn-sm btn-gray" onclick="filterAlerts('red')" id="al-red">פג תוקף</button>
@@ -157,6 +261,7 @@ tr.row-yellow td{background:#fffef0!important}
       <option>שלמה סיקסט</option>
       <option>הרץ</option>
     </select>
+    <button class="btn btn-sm btn-gray" onclick="exportFleet()" style="white-space:nowrap">📥 ייצוא לאקסל</button>
     <select class="filter-sel" id="fleet-alert" onchange="renderFleet()">
       <option value="">כל הסטטוסים</option>
       <option value="red">פג תוקף 🔴</option>
@@ -220,7 +325,7 @@ tr.row-yellow td{background:#fffef0!important}
   <div class="card">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
       <div class="card-title" style="margin:0">📋 משימות</div>
-      <button class="btn btn-primary btn-sm" onclick="addTask()">+ הוסף</button>
+<div style="display:flex;gap:6px"><button class="btn btn-sm btn-gray" onclick="exportTasks()">📥 ייצוא</button><button class="btn btn-primary btn-sm" onclick="addTask()">+ הוסף</button></div>
     </div>
     <div id="tasks-list"></div>
   </div>
@@ -250,13 +355,13 @@ tr.row-yellow td{background:#fffef0!important}
       <div class="mrow"><label>דגם</label><input id="av-model" placeholder="דגם"></div>
       <div class="mrow"><label>שנתון</label><input id="av-year" placeholder="שנתון"></div>
       <div class="mrow"><label>שם נהג</label><input id="av-driver" placeholder="שם נהג"></div>
-      <div class="mrow"><label>תוקף רישוי רכב</label><input id="av-regExp" placeholder="DD/MM/YYYY"></div>
-      <div class="mrow"><label>תוקף ביטוח חובה</label><input id="av-insExp" placeholder="DD/MM/YYYY"></div>
-      <div class="mrow"><label>תוקף רישיון נהיגה</label><input id="av-licenseExp" placeholder="DD/MM/YYYY"></div>
-      <div class="mrow"><label>רכב מתאריך</label><input id="av-vehicleFrom" placeholder="DD/MM/YYYY"></div>
-      <div class="mrow"><label>ביקורת אחרונה</label><input id="av-lastInspection" placeholder="DD/MM/YYYY"></div>
-      <div class="mrow"><label>עבר תעבורתי</label><input id="av-trafficCheck" placeholder="DD/MM/YYYY"></div>
-      <div class="mrow"><label>נהלים</label><input id="av-regulations" placeholder="DD/MM/YYYY"></div>
+      <div class="mrow"><label>תוקף רישוי רכב</label><input id="av-regExp" type="date"></div>
+      <div class="mrow"><label>תוקף ביטוח חובה</label><input id="av-insExp" type="date"></div>
+      <div class="mrow"><label>תוקף רישיון נהיגה</label><input id="av-licenseExp" type="date"></div>
+      <div class="mrow"><label>רכב מתאריך</label><input id="av-vehicleFrom" type="date"></div>
+      <div class="mrow"><label>ביקורת אחרונה</label><input id="av-lastInspection" type="date"></div>
+      <div class="mrow"><label>עבר תעבורתי</label><input id="av-trafficCheck" type="date"></div>
+      <div class="mrow"><label>נהלים</label><input id="av-regulations" type="date"></div>
       <div class="mrow"><label>טיפול הבא (ק"מ)</label><input id="av-nextService" type="number" placeholder="ק״מ"></div>
       <div class="mrow"><label>ק"מ נוכחי</label><input id="av-currentKm" type="number" placeholder="ק״מ נוכחי"></div>
     </div>
@@ -282,6 +387,39 @@ tr.row-yellow td{background:#fffef0!important}
     <span class="nav-icon">🔧</span>אומדן
   </button>
 </nav>
+
+
+<!-- AGENT BUTTON -->
+<button class="agent-btn" onclick="toggleAgent()" title="סוכן AI">🤖</button>
+
+<!-- AGENT PANEL -->
+<div class="agent-panel" id="agent-panel">
+  <div class="agent-header">
+    <div>
+      <h4>🤖 סוכן ציי רכב</h4>
+      <span id="agent-status">מופעל עם Claude</span>
+    </div>
+    <button class="agent-close" onclick="toggleAgent()">✕</button>
+  </div>
+  <div id="agent-key-bar" class="agent-key-bar" style="display:none">
+    <span>🔑 מפתח API:</span>
+    <input type="password" id="agent-key-input" placeholder="sk-ant-...">
+    <button onclick="saveAgentKey()">שמור</button>
+  </div>
+  <div class="agent-msgs" id="agent-msgs">
+    <div class="msg-agent">שלום! אני הסוכן שלך לניהול ציי הרכב 🚗<br>תוכל לשאול אותי על רכבים, התראות, משימות — ואני גם יכול לבצע עדכונים.</div>
+  </div>
+  <div class="agent-quick" id="agent-quick">
+    <button onclick="agentAsk('אילו רכבים פג תוקף הרישוי שלהם?')">רישוי פג?</button>
+    <button onclick="agentAsk('כמה רכבים בכל חברה?')">סטטיסטיקה</button>
+    <button onclick="agentAsk('אילו רכבים צריכים טיפול בקרוב?')">טיפול קרוב</button>
+    <button onclick="agentAsk('מה ההתראות הדחופות ביותר?')">התראות</button>
+  </div>
+  <div class="agent-footer">
+    <input class="agent-input" id="agent-msg-input" placeholder="שאל אותי משהו..." onkeydown="if(event.key==='Enter')sendAgentMsg()">
+    <button class="agent-send" onclick="sendAgentMsg()">➤</button>
+  </div>
+</div>
 
 <div class="toast" id="toast"></div>
 
@@ -366,8 +504,8 @@ function getVehicleAlerts(v) {
     if(!dueDate) return;
     const d = daysDiff(dueDate);
     if(d <= 0) alerts.push({type:'red', label, days:d, due:dueDate});
-    else if(d <= 14) alerts.push({type:'orange', label, days:d, due:dueDate});
-    else if(d <= 30) alerts.push({type:'yellow', label, days:d, due:dueDate});
+    else if(d <= 7) alerts.push({type:'orange', label, days:d, due:dueDate});
+    else if(d <= 14) alerts.push({type:'yellow', label, days:d, due:dueDate});
   };
 
   // 1. תוקף רישוי רכב — by date
@@ -426,8 +564,8 @@ function dateBadge(dateStr, dueDate) {
   if(!dueDate) return `<span class="badge b-gray">${dateStr||'—'}</span>`;
   const d = daysDiff(dueDate);
   if(d <= 0) return `<span class="badge b-red">⚠️ ${dateStr||'פג'}</span>`;
-  if(d <= 14) return `<span class="badge b-orange">🟠 ${dateStr||''} (${d}י׳)</span>`;
-  if(d <= 30) return `<span class="badge b-yellow">🟡 ${dateStr||''} (${d}י׳)</span>`;
+  if(d <= 7) return `<span class="badge b-orange">🟠 ${dateStr||''} (${d}י׳)</span>`;
+  if(d <= 14) return `<span class="badge b-yellow">🟡 ${dateStr||''} (${d}י׳)</span>`;
   return `<span class="badge b-green">${dateStr||''}</span>`;
 }
 
@@ -437,8 +575,8 @@ function dc(dateStr, dueDate) {
   const d = daysDiff(dueDate);
   const short = dateStr ? dateStr.replace(/\d{4}$/,s=>s.slice(2)) : '—'; // shorten year to 2 digits
   if(d <= 0) return `<span class="dc dc-red">⚠ ${short}</span>`;
-  if(d <= 14) return `<span class="dc dc-orange">● ${short}</span>`;
-  if(d <= 30) return `<span class="dc dc-yellow">● ${short}</span>`;
+  if(d <= 7) return `<span class="dc dc-orange">● ${short}</span>`;
+  if(d <= 14) return `<span class="dc dc-yellow">● ${short}</span>`;
   return `<span class="dc dc-green">${short}</span>`;
 }
 
@@ -499,16 +637,37 @@ function renderDashboard() {
   if(!filtered.length) {
     alList.innerHTML = '<div style="color:var(--muted);font-size:0.85rem;text-align:center;padding:20px">✅ אין התראות</div>';
   } else {
-    alList.innerHTML = filtered.slice(0,40).map(a => {
-      const cls = `alert-${a.type}`;
-      const icon = a.type==='red' ? '🔴' : a.type==='orange' ? '🟠' : '🟡';
-      const daysText = a.days<=0 ? `פג לפני ${Math.abs(a.days)} יום` : `עוד ${a.days} יום (${fmtDate(a.due)})`;
-      return `<div class="alert-item ${cls}">
-        <span class="a-icon">${icon}</span>
-        <div>
-          <div class="a-title">${a.label} — ${a.plate||'ללא רישוי'}</div>
-          <div class="a-sub">${a.driver||''} · ${daysText}</div>
+    // Group by vehicle (vid)
+    const byVehicle = {};
+    filtered.forEach(a => {
+      const key = a.vid;
+      if(!byVehicle[key]) byVehicle[key] = {vid:a.vid, plate:a.plate, driver:a.driver, alerts:[], worstType:'yellow'};
+      byVehicle[key].alerts.push(a);
+      // track worst severity
+      if(a.type==='red') byVehicle[key].worstType='red';
+      else if(a.type==='orange' && byVehicle[key].worstType!=='red') byVehicle[key].worstType='orange';
+    });
+
+    alList.innerHTML = Object.values(byVehicle).slice(0,40).map(g => {
+      const cls = `alert-${g.worstType}`;
+      const icon = g.worstType==='red' ? '🔴' : g.worstType==='orange' ? '🟠' : '🟡';
+      const driverName = (g.driver||'').split('-')[0].trim();
+      const tags = g.alerts.map(a => {
+        const tagColor = a.type==='red' ? '#fecaca' : a.type==='orange' ? '#fed7aa' : '#fde68a';
+        const tagText = a.type==='red' ? '#991b1b' : a.type==='orange' ? '#9a3412' : '#713f12';
+        const daysText = a.days<=0 ? `פג ${Math.abs(a.days)}י` : `${a.days}י`;
+        return `<span style="display:inline-block;background:${tagColor};color:${tagText};border-radius:5px;padding:1px 6px;font-size:0.63rem;font-weight:700;white-space:nowrap">${a.label} · ${daysText}</span>`;
+      }).join(' ');
+
+      return `<div class="alert-item ${cls}" style="justify-content:space-between;align-items:center;gap:8px">
+        <div style="display:flex;gap:8px;align-items:flex-start;flex:1;min-width:0">
+          <span class="a-icon" style="flex-shrink:0">${icon}</span>
+          <div style="min-width:0">
+            <div class="a-title">${g.plate||'ללא רישוי'} — ${driverName}</div>
+            <div style="margin-top:4px;display:flex;flex-wrap:wrap;gap:4px">${tags}</div>
+          </div>
         </div>
+        <button onclick="openEditVehicle(${g.vid})" style="flex-shrink:0;background:rgba(255,255,255,.75);border:1px solid rgba(0,0,0,.12);border-radius:7px;padding:3px 9px;font-size:0.7rem;font-family:'Heebo',sans-serif;cursor:pointer;font-weight:700;color:#1e293b">✏️ ערוך</button>
       </div>`;
     }).join('');
   }
@@ -670,28 +829,48 @@ function openAddVehicle() {
   openModal('add-vehicle-modal');
 }
 
+// Convert various date formats to YYYY-MM-DD for <input type="date">
+function toInputDate(s) {
+  if(!s) return '';
+  const d = parseDate(s);
+  if(!d || isNaN(d)) return '';
+  const y = d.getFullYear();
+  const m = String(d.getMonth()+1).padStart(2,'0');
+  const day = String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${day}`;
+}
+// Convert YYYY-MM-DD back to DD/MM/YYYY for storage
+function fromInputDate(s) {
+  if(!s) return '';
+  const [y,m,d] = s.split('-');
+  if(!y||!m||!d) return s;
+  return `${d}/${m}/${y}`;
+}
+
 function openEditVehicle(id) {
   const v = VEHICLES.find(x=>x.id==id);
   if(!v) return;
   editingId = id;
   document.getElementById('av-title').textContent = `ערוך רכב — ${v.plate||''}`;
-  ['plate','maker','model','year','driver','regExp','insExp','licenseExp','vehicleFrom','lastInspection','trafficCheck','regulations','nextService','currentKm']
+  // Text fields
+  ['plate','maker','model','year','driver','nextService','currentKm']
     .forEach(f => { const el=document.getElementById('av-'+f); if(el) el.value=v[f]||''; });
+  // Date fields — convert to YYYY-MM-DD
+  ['regExp','insExp','licenseExp','vehicleFrom','lastInspection','trafficCheck','regulations']
+    .forEach(f => { const el=document.getElementById('av-'+f); if(el) el.value=toInputDate(v[f]); });
   document.getElementById('av-company').value = v.company||'נופר אנרגי';
   openModal('add-vehicle-modal');
 }
 
 function saveVehicle() {
-  const fields = ['plate','company','maker','model','year','driver','regExp','insExp','licenseExp','vehicleFrom','lastInspection','trafficCheck','regulations','nextService','currentKm'];
+  const textFields = ['plate','company','maker','model','year','driver','nextService','currentKm'];
+  const dateFields = ['regExp','insExp','licenseExp','vehicleFrom','lastInspection','trafficCheck','regulations'];
   const data = {};
-  fields.forEach(f => {
-    const el = document.getElementById('av-'+f);
-    data[f] = el ? el.value.trim() : '';
-  });
-  if(['nextService','currentKm'].includes('nextService')) {
-    data.nextService = data.nextService ? parseInt(data.nextService) : null;
-    data.currentKm = data.currentKm ? parseInt(data.currentKm) : null;
-  }
+  textFields.forEach(f => { const el=document.getElementById('av-'+f); data[f]=el?el.value.trim():''; });
+  dateFields.forEach(f => { const el=document.getElementById('av-'+f); data[f]=el?fromInputDate(el.value):''; });
+  data.nextService = data.nextService ? parseInt(data.nextService) : null;
+  data.currentKm = data.currentKm ? parseInt(data.currentKm) : null;
+  {
 
   if(editingId) {
     const idx = VEHICLES.findIndex(v=>v.id==editingId);
@@ -716,16 +895,49 @@ function saveOverrides() {
 
 // ── TASKS ──
 function renderTasks() {
-  document.getElementById('tasks-list').innerHTML = TASKS.map(t=>`
-    <div class="task-item ${t.done?'task-done':''}">
+  const open = TASKS.filter(t=>!t.done);
+  const done = TASKS.filter(t=>t.done);
+  const renderOpen = t => `
+    <div class="task-item" id="task-${t.id}">
       <input type="checkbox" class="task-check" ${t.done?'checked':''} onchange="toggleTask(${t.id},this)">
-      <span class="task-txt">${t.text}</span>
-    </div>`).join('');
+      <span class="task-txt" style="flex:1">${t.text}</span>
+      <button onclick="markDoneTask(${t.id})" title="העבר לבוצעו" style="background:#f0fdf4;border:1px solid #bbf7d0;color:#15803d;cursor:pointer;font-size:0.75rem;padding:3px 7px;border-radius:6px;flex-shrink:0;font-family:'Heebo',sans-serif;font-weight:700">✓ בוצע</button>
+    </div>`;
+  const renderDoneItem = t => `
+    <div class="task-item task-done" id="task-${t.id}">
+      <input type="checkbox" class="task-check" checked onchange="toggleTask(${t.id},this)">
+      <span class="task-txt" style="flex:1">${t.text}</span>
+      <button onclick="deleteTask(${t.id})" title="מחק" style="background:#fef2f2;border:1px solid #fecaca;color:#ef4444;cursor:pointer;font-size:0.75rem;padding:3px 7px;border-radius:6px;flex-shrink:0;font-family:'Heebo',sans-serif;font-weight:700">🗑</button>
+    </div>`;
+  let out = open.map(renderOpen).join('');
+  if(done.length) {
+    out += `<div style="margin:12px 0 6px;font-size:0.72rem;color:var(--muted);font-weight:700;display:flex;align-items:center;gap:8px">
+      <span>✅ בוצעו (${done.length})</span>
+      <button onclick="clearDone()" style="background:none;border:1px solid var(--border);border-radius:5px;padding:2px 8px;font-size:0.68rem;cursor:pointer;color:var(--muted);font-family:'Heebo',sans-serif">מחק הכל</button>
+    </div>`;
+    out += done.map(renderDoneItem).join('');
+  }
+  document.getElementById('tasks-list').innerHTML = out;
 }
 
 function toggleTask(id, el) {
   const t = TASKS.find(x=>x.id==id);
-  if(t) { t.done = el.checked; saveTasks(); renderDashboard(); }
+  if(t) { t.done = el.checked; saveTasks(); renderTasks(); renderDashboard(); }
+}
+
+function markDoneTask(id) {
+  const t = TASKS.find(x=>x.id==id);
+  if(t) { t.done = true; saveTasks(); renderTasks(); renderDashboard(); }
+}
+
+function deleteTask(id) {
+  TASKS = TASKS.filter(t=>t.id!=id);
+  saveTasks(); renderTasks(); renderDashboard();
+}
+
+function clearDone() {
+  TASKS = TASKS.filter(t=>!t.done);
+  saveTasks(); renderTasks(); renderDashboard();
 }
 
 function addTask() {
@@ -745,7 +957,7 @@ function saveTasks() {
 // ── MODAL ──
 function openModal(id) { document.getElementById(id).classList.add('open'); }
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
-document.querySelectorAll('.modal-overlay').forEach(m => m.addEventListener('click', e=>{ if(e.target===m) m.classList.remove('open'); }));
+// Modal closes only via explicit close buttons
 
 // ── TOAST ──
 function showToast(msg, err=false) {
@@ -759,6 +971,218 @@ function showToast(msg, err=false) {
 filterAlerts('all');
 renderFleet();
 renderTasks();
+
+// ══════════════════════════════
+// AGENT
+// ══════════════════════════════
+let agentOpen = false;
+let agentApiKey = localStorage.getItem('fleet_agent_key') || '';
+let agentHistory = [];
+
+function toggleAgent() {
+  agentOpen = !agentOpen;
+  document.getElementById('agent-panel').classList.toggle('open', agentOpen);
+  const keyBar = document.getElementById('agent-key-bar');
+  keyBar.style.display = agentApiKey ? 'none' : 'flex';
+  if(agentOpen) {
+    document.getElementById('agent-msg-input').focus();
+    document.getElementById('agent-status').textContent = agentApiKey ? 'מחובר ✓' : 'נדרש מפתח API';
+  }
+}
+
+function saveAgentKey() {
+  const k = document.getElementById('agent-key-input').value.trim();
+  if(!k) return;
+  agentApiKey = k;
+  localStorage.setItem('fleet_agent_key', k);
+  document.getElementById('agent-key-bar').style.display = 'none';
+  document.getElementById('agent-status').textContent = 'מחובר ✓';
+  addAgentMsg('agent', '✅ מפתח נשמר! עכשיו אני מוכן לעבוד.');
+}
+
+function agentAsk(q) {
+  document.getElementById('agent-msg-input').value = q;
+  sendAgentMsg();
+}
+
+function addAgentMsg(role, text) {
+  const div = document.createElement('div');
+  div.className = role === 'user' ? 'msg-user' : 'msg-agent';
+  div.innerHTML = text.replace(/\n/g,'<br>');
+  const msgs = document.getElementById('agent-msgs');
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+  return div;
+}
+
+function buildSystemPrompt() {
+  // Compute key stats for the agent
+  const total = VEHICLES.length;
+  const companies = {};
+  VEHICLES.forEach(v => { companies[v.company] = (companies[v.company]||0)+1; });
+
+  // Get alerts summary
+  const alertsRed = [], alertsOrange = [];
+  VEHICLES.forEach(v => {
+    getVehicleAlerts(v).forEach(a => {
+      const entry = `${v.plate} (${v.driver?.split('-')[0]||''}): ${a.label} — ${a.days<=0?'פג לפני '+Math.abs(a.days)+' ימים':'עוד '+a.days+' ימים'}`;
+      if(a.type==='red') alertsRed.push(entry);
+      else if(a.type==='orange') alertsOrange.push(entry);
+    });
+  });
+
+  return `אתה סוכן AI לניהול ציי רכב של חברת נופר אנרגי.
+יש לך גישה למידע הבא:
+
+## נתוני ציי רכב (${total} רכבים):
+${JSON.stringify(VEHICLES.map(v=>({
+  id:v.id, plate:v.plate, maker:v.maker, model:v.model,
+  company:v.company, driver:v.driver?.split('-')[0]||'',
+  regExp:v.regExp, insExp:v.insExp, licenseExp:v.licenseExp,
+  nextService:v.nextService, currentKm:v.currentKm,
+  lastInspection:v.lastInspection, trafficCheck:v.trafficCheck,
+  regulations:v.regulations, vehicleFrom:v.vehicleFrom
+})), null, 0)}
+
+## חברות: ${Object.entries(companies).map(([c,n])=>`${c}: ${n}`).join(', ')}
+
+## התראות קריטיות (אדום):
+${alertsRed.slice(0,20).join('\n') || 'אין'}
+
+## התראות כתום (עד 14 יום):
+${alertsOrange.slice(0,20).join('\n') || 'אין'}
+
+## משימות פתוחות:
+${TASKS.filter(t=>!t.done).map(t=>t.text).join('\n') || 'אין'}
+
+## כללי ההתראות:
+- נהלי רכב: 5 שנים מהתאריך
+- עבר תעבורתי: 3 שנים מהתאריך
+- ביקורת: חצי שנה מהביקורת האחרונה
+- תוקף רישוי/ביטוח/רישיון: לפי התאריך
+- התראה 14 יום לפני
+
+## פעולות שאתה יכול לבצע:
+ניתן לבצע פעולות על ידי כתיבת JSON בסוף התשובה בין תגיות <ACTION> ו-</ACTION>:
+- עדכון רכב: {"type":"updateVehicle","id":X,"fields":{...}}
+- הוספת משימה: {"type":"addTask","text":"..."}
+
+ענה בעברית, בצורה ידידותית וקצרה. אל תחזור על כל נתוני ה-JSON — תסכם בצורה ברורה.`;
+}
+
+async function sendAgentMsg() {
+  const input = document.getElementById('agent-msg-input');
+  const text = input.value.trim();
+  if(!text) return;
+  input.value = '';
+
+  if(!agentApiKey) {
+    document.getElementById('agent-key-bar').style.display = 'flex';
+    addAgentMsg('agent err', '⚠️ נדרש מפתח API. הכנס אותו למעלה.');
+    return;
+  }
+
+  addAgentMsg('user', text);
+  agentHistory.push({role:'user', content: text});
+
+  // Quick responses for simple questions — offline
+  const quick = handleQuickQuery(text);
+  if(quick) {
+    agentHistory.push({role:'assistant', content: quick});
+    addAgentMsg('agent', quick);
+    return;
+  }
+
+  // Show typing indicator
+  const typing = addAgentMsg('agent', '⏳ חושב...');
+  document.getElementById('agent-quick').style.display = 'none';
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': agentApiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 1024,
+        system: buildSystemPrompt(),
+        messages: agentHistory.slice(-8)
+      })
+    });
+
+    typing.remove();
+
+    if(!res.ok) {
+      const err = await res.json().catch(()=>({error:{message:'שגיאה'}}));
+      addAgentMsg('agent err', '❌ ' + (err.error?.message || 'שגיאת API'));
+      return;
+    }
+
+    const data = await res.json();
+    let reply = data.content?.[0]?.text || '…';
+
+    // Parse and execute ACTION if present
+    const actionMatch = reply.match(/<ACTION>([\s\S]*?)<\/ACTION>/);
+    if(actionMatch) {
+      reply = reply.replace(/<ACTION>[\s\S]*?<\/ACTION>/, '').trim();
+      try {
+        const action = JSON.parse(actionMatch[1].trim());
+        executeAgentAction(action);
+      } catch(e) {}
+    }
+
+    agentHistory.push({role:'assistant', content: reply});
+    addAgentMsg('agent', reply);
+
+  } catch(e) {
+    typing.remove();
+    addAgentMsg('agent err', '❌ שגיאת חיבור: ' + e.message);
+  }
+
+  document.getElementById('agent-quick').style.display = 'flex';
+}
+
+function handleQuickQuery(q) {
+  const ql = q.toLowerCase();
+
+  if(ql.includes('כמה רכבים')) {
+    const companies = {};
+    VEHICLES.forEach(v => { const c = v.company?.trim()||'אחר'; companies[c] = (companies[c]||0)+1; });
+    return `סה"כ ${VEHICLES.length} רכבים:\n` + Object.entries(companies).map(([c,n])=>`• ${c}: ${n}`).join('\n');
+  }
+
+  if(ql.includes('התראות הדחופות') || ql.includes('קריטי') || ql.includes('אדום')) {
+    const reds = [];
+    VEHICLES.forEach(v => getVehicleAlerts(v).filter(a=>a.type==='red').forEach(a=>
+      reds.push(`🔴 ${v.plate} — ${a.label} (פג לפני ${Math.abs(a.days)} ימים)`)
+    ));
+    return reds.length ? reds.slice(0,10).join('\n') : '✅ אין התראות אדומות';
+  }
+
+  return null;
+}
+
+function executeAgentAction(action) {
+  if(action.type === 'updateVehicle') {
+    const idx = VEHICLES.findIndex(v=>v.id==action.id);
+    if(idx>=0) {
+      VEHICLES[idx] = {...VEHICLES[idx], ...action.fields};
+      saveOverrides();
+      renderFleet();
+      addAgentMsg('agent', `✅ רכב ${VEHICLES[idx].plate} עודכן בהצלחה.`);
+    }
+  } else if(action.type === 'addTask') {
+    const newId = Math.max(0,...TASKS.map(t=>t.id||0))+1;
+    TASKS.push({id:newId, text:action.text, done:false});
+    saveTasks();
+    addAgentMsg('agent', `✅ משימה נוספה: "${action.text}"`);
+  }
+}
+
 </script>
 </body>
 </html>
