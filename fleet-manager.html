@@ -40,15 +40,22 @@ header{background:#1e40af;padding:11px 16px;display:flex;align-items:center;just
 .a-sub{color:#6b7280;font-size:0.71rem;margin-top:1px}
 .a-icon{font-size:1.05rem;flex-shrink:0;margin-top:1px}
 /* Table */
-.tbl-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;border-radius:10px;border:1px solid var(--border)}
-table{width:100%;border-collapse:collapse;font-size:0.78rem;background:#fff}
-th{text-align:right;padding:8px 9px;color:#475569;font-weight:700;background:#f8fafc;border-bottom:2px solid var(--border);white-space:nowrap;font-size:0.7rem}
-td{padding:7px 9px;border-bottom:1px solid #f1f5f9;vertical-align:middle;color:var(--text)}
+.tbl-wrap{overflow-x:hidden;border-radius:10px;border:1px solid var(--border)}
+table{width:100%;border-collapse:collapse;font-size:0.72rem;background:#fff;table-layout:fixed}
+th{text-align:right;padding:6px 5px;color:#475569;font-weight:700;background:#f8fafc;border-bottom:2px solid var(--border);white-space:nowrap;font-size:0.65rem;overflow:hidden}
+td{padding:5px 5px;border-bottom:1px solid #f1f5f9;vertical-align:middle;color:var(--text);overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 tr:nth-child(even) td{background:#fafbff}
 tr:hover td{background:#eff6ff!important}
 tr.row-red td{background:#fff5f5!important}
 tr.row-orange td{background:#fff8f1!important}
 tr.row-yellow td{background:#fffef0!important}
+/* compact date cell */
+.dc{display:inline-block;padding:2px 5px;border-radius:5px;font-size:0.63rem;font-weight:700;white-space:nowrap}
+.dc-red{background:#fef2f2;color:#dc2626}
+.dc-orange{background:#fff7ed;color:#c2410c}
+.dc-yellow{background:#fefce8;color:#92400e}
+.dc-green{background:#f0fdf4;color:#15803d}
+.dc-gray{color:#94a3b8;font-size:0.63rem}
 /* Badges */
 .badge{display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:99px;font-size:0.63rem;font-weight:700;white-space:nowrap}
 .b-red{background:#fef2f2;color:#dc2626;border:1px solid #fecaca}
@@ -162,9 +169,19 @@ tr.row-yellow td{background:#fffef0!important}
     <table>
       <thead>
         <tr>
-          <th>מס׳ רישוי</th><th>יצרן / דגם</th><th>נהג</th><th>חברה</th>
-          <th>תוקף רישוי</th><th>ביטוח חובה</th><th>רישיון נהג</th>
-          <th>ביקורת</th><th>עבר תעבורתי</th><th>נהלים</th><th>ק"מ נוכחי</th><th>טיפול הבא</th><th></th>
+          <th style="width:80px">רישוי</th>
+          <th style="width:110px">יצרן/דגם</th>
+          <th style="width:110px">נהג</th>
+          <th style="width:60px">חברה</th>
+          <th style="width:72px">רישוי רכב</th>
+          <th style="width:72px">ביטוח</th>
+          <th style="width:72px">רישיון נהג</th>
+          <th style="width:68px">ביקורת</th>
+          <th style="width:68px">עבר תעב׳</th>
+          <th style="width:68px">נהלים</th>
+          <th style="width:65px">ק"מ נוכחי</th>
+          <th style="width:72px">טיפול הבא</th>
+          <th style="width:50px"></th>
         </tr>
       </thead>
       <tbody id="fleet-body"></tbody>
@@ -414,6 +431,17 @@ function dateBadge(dateStr, dueDate) {
   return `<span class="badge b-green">${dateStr||''}</span>`;
 }
 
+function dc(dateStr, dueDate) {
+  // compact cell — just colored text, no box
+  if(!dueDate) return `<span class="dc dc-gray">${dateStr||'—'}</span>`;
+  const d = daysDiff(dueDate);
+  const short = dateStr ? dateStr.replace(/\d{4}$/,s=>s.slice(2)) : '—'; // shorten year to 2 digits
+  if(d <= 0) return `<span class="dc dc-red">⚠ ${short}</span>`;
+  if(d <= 14) return `<span class="dc dc-orange">● ${short}</span>`;
+  if(d <= 30) return `<span class="dc dc-yellow">● ${short}</span>`;
+  return `<span class="dc dc-green">${short}</span>`;
+}
+
 function calcBadge(v, label, dueDate) {
   return dateBadge(fmtDate(dueDate), dueDate);
 }
@@ -562,20 +590,29 @@ function renderFleet() {
       kmBadge = `<span class="badge b-gray">${auto.toLocaleString('he-IL')} *</span>`;
     }
 
+    // short company label
+    const coShort = v.company.includes('נופר')?'נופר':v.company.includes('ליסקאר')?'ליס׳':v.company.includes('שלמה')?'שלמה':v.company.includes('הרץ')?'הרץ':v.company.slice(0,5);
+    const coCls = v.company.includes('נופר')?'co-nofar':v.company.includes('ליסקאר')?'co-liscar':v.company.includes('שלמה')?'co-shlomo':v.company.includes('הרץ')?'co-hertz':'co-other';
+
+    // compact km
+    const kmNext = (typeof v.nextService==='number') ? v.nextService.toLocaleString('he-IL') : (v.nextService||'—');
+    const kmNextCls = (typeof v.nextService==='number' && v.currentKm) ?
+      ((v.nextService - v.currentKm)<=0 ? 'dc-red' : (v.nextService - v.currentKm)<=1000 ? 'dc-orange' : (v.nextService - v.currentKm)<=3000 ? 'dc-yellow' : 'dc-green') : 'dc-gray';
+
     return `<tr class="${rowCls}">
-      <td><strong>${v.plate||'—'}</strong></td>
-      <td>${v.maker||''} ${v.model||''}</td>
-      <td style="max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${v.driver||''}">${v.driver||'—'}</td>
-      <td>${companyBadge(v.company)}</td>
-      <td>${dateBadge(v.regExp, regDue)}</td>
-      <td>${dateBadge(v.insExp, insDue)}</td>
-      <td>${dateBadge(v.licenseExp, licDue)}</td>
-      <td>${dateBadge(inspDue?fmtDate(inspDue):null, inspDue)}</td>
-      <td>${dateBadge(trafficDue?fmtDate(trafficDue):null, trafficDue)}</td>
-      <td>${dateBadge(regsDue?fmtDate(regsDue):null, regsDue)}</td>
-      <td style="white-space:nowrap">${curKmDisplay}</td>
-      <td style="white-space:nowrap">${kmBadge}</td>
-      <td><button class="btn btn-sm btn-gray" onclick="openDetail(${v.id})">פרטים</button></td>
+      <td><strong style="font-size:0.72rem">${v.plate||'—'}</strong></td>
+      <td title="${(v.maker||'')+' '+(v.model||'')}"><span style="font-size:0.7rem">${v.maker||''} ${v.model||''}</span></td>
+      <td title="${v.driver||''}" style="font-size:0.7rem">${(v.driver||'—').split('-')[0].trim()}</td>
+      <td><span class="co ${coCls}" style="font-size:0.6rem;padding:1px 4px">${coShort}</span></td>
+      <td>${dc(v.regExp, regDue)}</td>
+      <td>${dc(v.insExp, insDue)}</td>
+      <td>${dc(v.licenseExp, licDue)}</td>
+      <td>${dc(inspDue?fmtDate(inspDue):null, inspDue)}</td>
+      <td>${dc(trafficDue?fmtDate(trafficDue):null, trafficDue)}</td>
+      <td>${dc(regsDue?fmtDate(regsDue):null, regsDue)}</td>
+      <td style="font-size:0.7rem;color:var(--muted)">${curKmDisplay}</td>
+      <td><span class="dc ${kmNextCls}">${kmNext}</span></td>
+      <td><button class="btn btn-sm btn-gray" style="padding:3px 7px;font-size:0.68rem" onclick="openDetail(${v.id})">פרטים</button></td>
     </tr>`;
   }).join('');
 }
