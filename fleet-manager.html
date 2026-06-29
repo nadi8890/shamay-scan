@@ -164,7 +164,7 @@ tr.row-yellow td{background:#fffef0!important}
         <tr>
           <th>מס׳ רישוי</th><th>יצרן / דגם</th><th>נהג</th><th>חברה</th>
           <th>תוקף רישוי</th><th>ביטוח חובה</th><th>רישיון נהג</th>
-          <th>ביקורת</th><th>עבר תעבורתי</th><th>נהלים</th><th>טיפול הבא</th><th></th>
+          <th>ביקורת</th><th>עבר תעבורתי</th><th>נהלים</th><th>ק"מ נוכחי</th><th>טיפול הבא</th><th></th>
         </tr>
       </thead>
       <tbody id="fleet-body"></tbody>
@@ -544,19 +544,22 @@ function renderFleet() {
     const regBase = parseDate(v.regulations);
     const regsDue = regBase ? addYears(regBase,5) : null;
 
-    // KM badge
+    // KM columns
+    const curKmDisplay = v.currentKm ? v.currentKm.toLocaleString('he-IL') : '—';
     let kmBadge = '—';
-    if(v.nextService) {
+    if(v.nextService && typeof v.nextService === 'number') {
       const next = v.nextService;
       const cur = v.currentKm || 0;
       const diff = next - cur;
-      if(diff<=0) kmBadge = `<span class="badge b-red">⚠️ ${next.toLocaleString('he-IL')} ק"מ</span>`;
-      else if(diff<=1000) kmBadge = `<span class="badge b-orange">🟠 ${next.toLocaleString('he-IL')} (${diff.toLocaleString()})</span>`;
-      else if(diff<=3000) kmBadge = `<span class="badge b-yellow">🟡 ${next.toLocaleString('he-IL')} (${diff.toLocaleString()})</span>`;
-      else kmBadge = `<span class="badge b-gray">${next.toLocaleString('he-IL')} ק"מ</span>`;
+      if(diff<=0) kmBadge = `<span class="badge b-red">⚠️ ${next.toLocaleString('he-IL')}</span>`;
+      else if(diff<=1000) kmBadge = `<span class="badge b-orange">🟠 ${next.toLocaleString('he-IL')}<br><small>נותר ${diff.toLocaleString()}</small></span>`;
+      else if(diff<=3000) kmBadge = `<span class="badge b-yellow">🟡 ${next.toLocaleString('he-IL')}<br><small>נותר ${diff.toLocaleString()}</small></span>`;
+      else kmBadge = `<span class="badge b-green">${next.toLocaleString('he-IL')}</span>`;
+    } else if(v.nextService) {
+      kmBadge = `<span class="badge b-gray">${v.nextService}</span>`;
     } else if(v.currentKm) {
       const auto = v.currentKm + 15000;
-      kmBadge = `<span class="badge b-gray">${auto.toLocaleString('he-IL')} ק"מ *</span>`;
+      kmBadge = `<span class="badge b-gray">${auto.toLocaleString('he-IL')} *</span>`;
     }
 
     return `<tr class="${rowCls}">
@@ -570,7 +573,8 @@ function renderFleet() {
       <td>${dateBadge(inspDue?fmtDate(inspDue):null, inspDue)}</td>
       <td>${dateBadge(trafficDue?fmtDate(trafficDue):null, trafficDue)}</td>
       <td>${dateBadge(regsDue?fmtDate(regsDue):null, regsDue)}</td>
-      <td>${kmBadge}</td>
+      <td style="white-space:nowrap">${curKmDisplay}</td>
+      <td style="white-space:nowrap">${kmBadge}</td>
       <td><button class="btn btn-sm btn-gray" onclick="openDetail(${v.id})">פרטים</button></td>
     </tr>`;
   }).join('');
