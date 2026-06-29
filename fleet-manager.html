@@ -1135,7 +1135,7 @@ async function sendAgentMsg() {
 }
 
 function handleQuickQuery(q) {
-  const ql = q.toLowerCase();
+  const ql = q;
 
   if(ql.includes('כמה רכבים')) {
     const companies = {};
@@ -1143,12 +1143,42 @@ function handleQuickQuery(q) {
     return `סה"כ ${VEHICLES.length} רכבים:\n` + Object.entries(companies).map(([c,n])=>`• ${c}: ${n}`).join('\n');
   }
 
-  if(ql.includes('התראות הדחופות') || ql.includes('קריטי') || ql.includes('אדום')) {
-    const reds = [];
-    VEHICLES.forEach(v => getVehicleAlerts(v).filter(a=>a.type==='red').forEach(a=>
-      reds.push(`🔴 ${v.plate} — ${a.label} (פג לפני ${Math.abs(a.days)} ימים)`)
-    ));
-    return reds.length ? reds.slice(0,10).join('\n') : '✅ אין התראות אדומות';
+  if(ql.includes('התראות') || ql.includes('קריטי') || ql.includes('אדום') || ql.includes('דחוקות') || ql.includes('דחופות')) {
+    const reds = [], oranges = [];
+    VEHICLES.forEach(v => {
+      getVehicleAlerts(v).forEach(a => {
+        const entry = `${v.plate} (${v.driver?.split('-')[0]||''}) — ${a.label}`;
+        if(a.type==='red') reds.push(`🔴 ${entry} (פג לפני ${Math.abs(a.days)} ימים)`);
+        else if(a.type==='orange') oranges.push(`🟠 ${entry} (עוד ${a.days} ימים)`);
+      });
+    });
+    let out = '';
+    if(reds.length) out += `**${reds.length} התראות קריטיות:**\n` + reds.slice(0,8).join('\n');
+    if(oranges.length) out += `\n\n**${oranges.length} התראות כתומות:**\n` + oranges.slice(0,6).join('\n');
+    return out || '✅ אין התראות פעילות';
+  }
+
+  if(ql.includes('טיפול') || ql.includes('שירות') || ql.includes('תחזוקה')) {
+    const today = new Date();
+    const soon = [];
+    VEHICLES.forEach(v => {
+      if(v.nextService) {
+        const d = new Date(v.nextService.split('/').reverse().join('-'));
+        const days = Math.round((d - today) / 86400000);
+        if(days <= 30) soon.push(`🔧 ${v.plate} (${v.driver?.split('-')[0]||''}) — ${v.nextService} (${days < 0 ? 'פג לפני '+Math.abs(days) : 'עוד '+days} ימים)`);
+      }
+    });
+    return soon.length ? soon.sort().join('\n') : '✅ אין טיפולים קרובים ב-30 הימים הקרובים';
+  }
+
+  if(ql.includes('סכם') || ql.includes('סיכום') || ql.includes('מצב הציי') || ql.includes('מצב ציי')) {
+    const total = VEHICLES.length;
+    const companies = {};
+    VEHICLES.forEach(v => { const c = v.company?.trim()||'אחר'; companies[c] = (companies[c]||0)+1; });
+    let reds = 0, oranges = 0;
+    VEHICLES.forEach(v => getVehicleAlerts(v).forEach(a => { if(a.type==='red') reds++; else if(a.type==='orange') oranges++; }));
+    const openTasks = TASKS.filter(t => !t.done).length;
+    return `📊 **סיכום ציי הרכב:**\n\n🚗 סה"כ רכבים: ${total}\n${Object.entries(companies).map(([c,n])=>`  • ${c}: ${n}`).join('\n')}\n\n🔴 התראות קריטיות: ${reds}\n🟠 התראות כתומות: ${oranges}\n✅ משימות פתוחות: ${openTasks}`;
   }
 
   return null;
