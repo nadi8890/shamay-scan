@@ -348,6 +348,27 @@ function exportTasks() {
 </div>
 </main>
 
+<!-- BOTTOM NAV -->
+<nav class="bottom-nav">
+  <button class="nav-btn active" onclick="showTab('dashboard',this)">
+    <span class="nav-icon">🏠</span>דשבורד
+  </button>
+  <button class="nav-btn" onclick="showTab('fleet',this)">
+    <span class="nav-icon">🚗</span>ציי רכב
+  </button>
+  <button class="nav-btn" onclick="showTab('events',this)">
+    <span class="nav-icon">📅</span>אירועים
+  </button>
+  <button class="nav-btn" onclick="showTab('reports',this)">
+    <span class="nav-icon">📊</span>דוחות
+  </button>
+  <button class="nav-btn" onclick="showTab('tasks',this)">
+    <span class="nav-icon">✅</span>משימות
+  </button>
+  <button class="nav-btn" onclick="showTab('estimate',this)">
+    <span class="nav-icon">🔧</span>אומדן
+  </button>
+</nav>
 
 <!-- PDF OVERLAY -->
 <div id="pdf-overlay" style="display:none;position:fixed;inset:0;background:#fff;z-index:9000;overflow-y:auto;-webkit-overflow-scrolling:touch">
