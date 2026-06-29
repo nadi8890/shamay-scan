@@ -1106,7 +1106,7 @@ async function sendAgentMsg() {
 
     if(!res.ok) {
       const err = await res.json().catch(()=>({error:{message:'שגיאה'}}));
-      addAgentMsg('agent err', '❌ ' + (err.error?.message || 'שגיאת API'));
+      addAgentMsg('agent', '❌ ' + (err.error?.message || 'שגיאת API'));
       return;
     }
 
@@ -1128,22 +1128,19 @@ async function sendAgentMsg() {
 
   } catch(e) {
     typing.remove();
-    addAgentMsg('agent err', '❌ שגיאת חיבור: ' + e.message);
+    addAgentMsg('agent', '❌ שגיאת חיבור: ' + e.message);
   }
 
   document.getElementById('agent-quick').style.display = 'flex';
 }
 
 function handleQuickQuery(q) {
-  const ql = q;
-
-  if(ql.includes('כמה רכבים')) {
+  if(q.includes('כמה רכבים')) {
     const companies = {};
     VEHICLES.forEach(v => { const c = v.company?.trim()||'אחר'; companies[c] = (companies[c]||0)+1; });
     return `סה"כ ${VEHICLES.length} רכבים:\n` + Object.entries(companies).map(([c,n])=>`• ${c}: ${n}`).join('\n');
   }
-
-  if(ql.includes('התראות') || ql.includes('קריטי') || ql.includes('אדום') || ql.includes('דחוקות') || ql.includes('דחופות')) {
+  if(q.includes('התראות') || q.includes('דחופות') || q.includes('קריטי') || q.includes('אדום')) {
     const reds = [], oranges = [];
     VEHICLES.forEach(v => {
       getVehicleAlerts(v).forEach(a => {
@@ -1153,34 +1150,32 @@ function handleQuickQuery(q) {
       });
     });
     let out = '';
-    if(reds.length) out += `**${reds.length} התראות קריטיות:**\n` + reds.slice(0,8).join('\n');
-    if(oranges.length) out += `\n\n**${oranges.length} התראות כתומות:**\n` + oranges.slice(0,6).join('\n');
+    if(reds.length) out += `${reds.length} התראות קריטיות:\n` + reds.slice(0,8).join('\n');
+    if(oranges.length) out += `\n\n${oranges.length} התראות כתומות:\n` + oranges.slice(0,6).join('\n');
     return out || '✅ אין התראות פעילות';
   }
-
-  if(ql.includes('טיפול') || ql.includes('שירות') || ql.includes('תחזוקה')) {
+  if(q.includes('טיפול') || q.includes('שירות') || q.includes('תחזוקה')) {
     const today = new Date();
     const soon = [];
     VEHICLES.forEach(v => {
-      if(v.nextService) {
-        const d = new Date(v.nextService.split('/').reverse().join('-'));
-        const days = Math.round((d - today) / 86400000);
-        if(days <= 30) soon.push(`🔧 ${v.plate} (${v.driver?.split('-')[0]||''}) — ${v.nextService} (${days < 0 ? 'פג לפני '+Math.abs(days) : 'עוד '+days} ימים)`);
+      if(v.nextService && typeof v.nextService === 'string' && v.nextService.includes('/')) {
+        const parts = v.nextService.split('/');
+        if(parts.length === 3) {
+          const d = new Date(parts[2]+'-'+parts[1]+'-'+parts[0]);
+          const days = Math.round((d - today) / 86400000);
+          if(days <= 30) soon.push(`🔧 ${v.plate} (${v.driver?.split('-')[0]||''}) — ${v.nextService} (${days<0?'פג לפני '+Math.abs(days):'עוד '+days} ימים)`);
+        }
       }
     });
-    return soon.length ? soon.sort().join('\n') : '✅ אין טיפולים קרובים ב-30 הימים הקרובים';
+    return soon.length ? soon.join('\n') : '✅ אין טיפולים קרובים ב-30 הימים הקרובים';
   }
-
-  if(ql.includes('סכם') || ql.includes('סיכום') || ql.includes('מצב הציי') || ql.includes('מצב ציי')) {
-    const total = VEHICLES.length;
+  if(q.includes('סכם') || q.includes('סיכום') || q.includes('מצב')) {
     const companies = {};
     VEHICLES.forEach(v => { const c = v.company?.trim()||'אחר'; companies[c] = (companies[c]||0)+1; });
     let reds = 0, oranges = 0;
     VEHICLES.forEach(v => getVehicleAlerts(v).forEach(a => { if(a.type==='red') reds++; else if(a.type==='orange') oranges++; }));
-    const openTasks = TASKS.filter(t => !t.done).length;
-    return `📊 **סיכום ציי הרכב:**\n\n🚗 סה"כ רכבים: ${total}\n${Object.entries(companies).map(([c,n])=>`  • ${c}: ${n}`).join('\n')}\n\n🔴 התראות קריטיות: ${reds}\n🟠 התראות כתומות: ${oranges}\n✅ משימות פתוחות: ${openTasks}`;
+    return `📊 סיכום ציי הרכב:\n\n🚗 סה"כ ${VEHICLES.length} רכבים:\n${Object.entries(companies).map(([c,n])=>`  • ${c}: ${n}`).join('\n')}\n\n🔴 התראות קריטיות: ${reds}\n🟠 התראות כתומות: ${oranges}\n✅ משימות פתוחות: ${TASKS.filter(t=>!t.done).length}`;
   }
-
   return null;
 }
 
@@ -1203,9 +1198,6 @@ function executeAgentAction(action) {
 
 // INIT
 renderDashboard();
-
-
-
 </script>
 </body>
 </html>
