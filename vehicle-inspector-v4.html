@@ -21,7 +21,7 @@ header{background:var(--surface);border-bottom:1px solid var(--border);padding:1
   header{padding:8px 12px}
   main{padding:12px 10px 60px}
   .card{padding:14px 12px;border-radius:12px}
-  input[type=text],input[type=number],select,textarea{padding:12px 14px;font-size:1rem;min-height:48px}
+  input[type=text],input[type=number],select,textarea{padding:11px 12px;font-size:1rem;min-height:44px}
   .damage-table td input{min-height:40px;font-size:0.9rem;padding:6px 4px}
   .damage-table td select{min-height:40px;font-size:0.85rem}
   .damage-table th{font-size:0.65rem;padding:4px 2px}
@@ -43,7 +43,7 @@ main{max-width:520px;margin:0 auto;padding:20px 16px 40px}
 .row{display:flex;gap:10px;margin-bottom:10px}
 .field{display:flex;flex-direction:column;flex:1}
 .field label{font-size:0.72rem;color:var(--muted);margin-bottom:4px}
-input[type=text],input[type=number],select,textarea{background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:12px 14px;font-family:'Heebo',sans-serif;font-size:1rem;min-height:48px;width:100%}
+input[type=text],input[type=number],select,textarea{background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:9px 12px;font-family:'Heebo',sans-serif;font-size:0.88rem;width:100%}
 input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue)}
 /* Office selector */
 .office-card{background:linear-gradient(135deg,#1a2035,#1e2840);border:1px solid var(--accent);border-radius:14px;padding:14px 16px;margin-bottom:16px;display:flex;align-items:center;gap:12px}
@@ -178,18 +178,14 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue)}
   <div class="row">
     <div class="field"><label>יצרן</label><input type="text" id="f-make" placeholder="Toyota"></div>
     <div class="field"><label>דגם</label><input type="text" id="f-model" placeholder="Corolla"></div>
-  </div>
-  <div class="row">
-    <div class="field"><label>שנה</label><input type="text" id="f-year" placeholder="2020" oninput="onYearChange(this.value)"></div>
-    <div class="field"><label>צבע</label><input type="text" id="f-color" placeholder="לבן"></div>
+    <div class="field" style="max-width:80px"><label>שנה</label><input type="text" id="f-year" placeholder="2020" oninput="onYearChange(this.value)"></div>
+    <div class="field" style="max-width:90px"><label>צבע</label><input type="text" id="f-color" placeholder="לבן"></div>
   </div>
   <div class="row">
     <div class="field"><label>שם לקוח</label><input type="text" id="f-client" placeholder="ישראל ישראלי"></div>
     <div class="field"><label>ק"מ</label><input type="text" id="f-km" placeholder="85,000"></div>
-  </div>
-  <div class="row">
+    <div class="field"><label>מספר סידורי (שלדה)</label><input type="text" id="f-serial" placeholder="WBA12345678901234" style="direction:ltr;font-size:0.82rem"></div>
     <div class="field"><label>תאריך מקרה</label><input type="text" id="f-incident-date" placeholder="DD/MM/YYYY" inputmode="numeric" maxlength="10" oninput="onIncidentDateChange(this)"></div>
-    <div class="field"><label>מספר סידורי (שלדה)</label><input type="text" id="f-serial" placeholder="WBA12345678901234" style="direction:ltr;font-size:0.95rem"></div>
   </div>
   <div class="row">
     <div class="field"><label>חברת ביטוח</label>
@@ -220,7 +216,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue)}
     </div>
   </div>
 
-  <!-- Parts type + Report type -->
+  <!-- Parts type -->
   <div style="margin-top:10px;padding:10px 12px;background:var(--surface);border-radius:10px;border:1px solid var(--border)">
     <div style="font-size:0.78rem;font-weight:700;color:var(--muted);margin-bottom:8px">🔩 סוג חלפים</div>
     <div style="display:flex;gap:16px;flex-wrap:wrap">
@@ -232,20 +228,6 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue)}
       </label>
       <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:0.88rem;font-weight:600">
         <input type="checkbox" id="pt-aftermarket" style="width:18px;height:18px;cursor:pointer" onchange="calcTotal()"> תחליפי
-      </label>
-    </div>
-  </div>
-  <div style="margin-top:8px;padding:10px 12px;background:var(--surface);border-radius:10px;border:1px solid var(--border)">
-    <div style="font-size:0.78rem;font-weight:700;color:var(--muted);margin-bottom:8px">📄 סוג דוח</div>
-    <div style="display:flex;gap:16px;flex-wrap:wrap">
-      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:0.88rem;font-weight:600">
-        <input type="radio" name="report-type" id="rt-private" value="פרטי" style="width:18px;height:18px;cursor:pointer"> פרטי
-      </label>
-      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:0.88rem;font-weight:600">
-        <input type="radio" name="report-type" id="rt-policy" value="פוליסה" style="width:18px;height:18px;cursor:pointer"> פוליסה
-      </label>
-      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:0.88rem;font-weight:600">
-        <input type="radio" name="report-type" id="rt-other" value="אחר" style="width:18px;height:18px;cursor:pointer"> אחר
       </label>
     </div>
   </div>
@@ -284,6 +266,9 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue)}
         <input type="number" id="w-electric" value="0" min="0" oninput="calcTotal()">
       </div>
     </div>
+    <!-- Custom work rows -->
+    <div id="custom-works-rows" style="margin-top:8px;display:flex;flex-direction:column;gap:5px"></div>
+    <button type="button" onclick="addCustomWork()" style="margin-top:8px;background:none;border:1px dashed var(--border);color:var(--muted);border-radius:8px;padding:6px 12px;font-size:0.8rem;cursor:pointer;font-family:Heebo,sans-serif;width:100%">+ הוסף עבודה נוספת</button>
   </div>
 
   <div class="totals-row">
@@ -843,10 +828,38 @@ function getWorkTotals() {
   };
 }
 
+// ── Custom work rows ──
+let customWorkId = 0;
+function addCustomWork(desc='', cost=0) {
+  const id = ++customWorkId;
+  const div = document.createElement('div');
+  div.id = 'cw-' + id;
+  div.style.cssText = 'display:flex;gap:6px;align-items:center';
+  div.innerHTML = `
+    <input type="text" placeholder="תיאור עבודה..." value="${desc}"
+      oninput="calcTotal()" class="cw-desc"
+      style="flex:2;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:8px 10px;font-family:Heebo,sans-serif;font-size:0.85rem">
+    <input type="number" value="${cost}" min="0"
+      oninput="calcTotal()" class="cw-cost" placeholder="₪"
+      style="flex:1;min-width:70px;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:8px 10px;font-family:Heebo,sans-serif;font-size:0.85rem">
+    <button type="button" onclick="document.getElementById('cw-${id}').remove();calcTotal()"
+      style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:1.1rem;padding:2px 6px">✕</button>`;
+  document.getElementById('custom-works-rows').appendChild(div);
+  calcTotal();
+}
+
+function getCustomWorks() {
+  return Array.from(document.querySelectorAll('#custom-works-rows > div')).map(div => ({
+    desc: div.querySelector('.cw-desc')?.value?.trim() || '',
+    cost: parseFloat(div.querySelector('.cw-cost')?.value) || 0
+  })).filter(r => r.desc || r.cost > 0);
+}
+
 function calcTotal() {
   const itemsTotal = getRows().reduce((s, r) => s + r.parts, 0);
   const w = getWorkTotals();
-  const total = itemsTotal + w.paint + w.body + w.electric;
+  const cwTotal = getCustomWorks().reduce((s, r) => s + r.cost, 0);
+  const total = itemsTotal + w.paint + w.body + w.electric + cwTotal;
   document.getElementById('total-display').textContent = '₪' + total.toLocaleString('he-IL');
 }
 
@@ -855,26 +868,12 @@ function handlePhoto(input) {
   const file = input.files[0]; if (!file) return;
   const reader = new FileReader();
   reader.onload = e => {
-    const original = e.target.result;
-    const tmpImg = new Image();
-    tmpImg.onload = () => {
-      const MAX = 1200;
-      let w = tmpImg.width, h = tmpImg.height;
-      if (w > MAX || h > MAX) {
-        if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
-        else        { w = Math.round(w * MAX / h); h = MAX; }
-      }
-      const cv = document.createElement('canvas');
-      cv.width = w; cv.height = h;
-      cv.getContext('2d').drawImage(tmpImg, 0, 0, w, h);
-      const compressed = cv.toDataURL('image/jpeg', 0.72);
-      photoBase64 = compressed.split(',')[1];
-      photoMime   = 'image/jpeg';
-      const img = document.getElementById('preview-img');
-      img.src = compressed; img.style.display = 'block';
-      document.getElementById('ai-btn').disabled = false;
-    };
-    tmpImg.src = original;
+    photoBase64 = e.target.result.split(',')[1];
+    photoMime = e.target.result.split(';')[0].split(':')[1];
+    const img = document.getElementById('preview-img');
+    img.src = e.target.result;
+    img.style.display = 'block';
+    document.getElementById('ai-btn').disabled = false;
   };
   reader.readAsDataURL(file);
 }
@@ -994,13 +993,13 @@ function saveRecord() {
     serial: document.getElementById('f-serial').value.trim(),
     insurance:    document.getElementById('f-insurance').value,
     incidentDate: document.getElementById('f-incident-date').value.trim(),
-    reportType: (document.querySelector('input[name="report-type"]:checked') || {}).value || '',
     partsType: {
       original:    document.getElementById('pt-original').checked,
       used:        document.getElementById('pt-used').checked,
       aftermarket: document.getElementById('pt-aftermarket').checked,
     },
     works:  w,
+    customWorks: getCustomWorks(),
     notes:  document.getElementById('f-notes').value.trim(),
     photo:  photoBase64 ? { data: photoBase64, mime: photoMime } : null,
     items, total,
@@ -1009,20 +1008,7 @@ function saveRecord() {
 
   const idx = records.findIndex(r => r.id === record.id);
   if (idx >= 0) records[idx] = record; else records.unshift(record);
-  try {
-    localStorage.setItem('shamay_records', JSON.stringify(records));
-  } catch(e) {
-    // quota exceeded — retry without photo
-    const recNoPhoto = { ...record, photo: null };
-    if (idx >= 0) records[idx] = recNoPhoto; else records[0] = recNoPhoto;
-    try {
-      localStorage.setItem('shamay_records', JSON.stringify(records));
-      toast('⚠️ נשמר ללא תמונה (אחסון מלא)', true);
-    } catch(e2) {
-      toast('❌ שגיאת שמירה — מחק אומדנים ישנים', true);
-      return;
-    }
-  }
+  localStorage.setItem('shamay_records', JSON.stringify(records));
   updatePriceMemory(items); // ← learn prices
   renderRecords();
   syncToSheets(record);
@@ -1094,7 +1080,6 @@ function loadRecord(id) {
   document.getElementById('f-serial').value    = r.serial    || '';
   document.getElementById('f-insurance').value     = r.insurance    || '';
   document.getElementById('f-incident-date').value = r.incidentDate || '';
-  document.querySelectorAll('input[name="report-type"]').forEach(el => { el.checked = el.value === (r.reportType || ''); });
   if (r.partsType) {
     document.getElementById('pt-original').checked    = !!r.partsType.original;
     document.getElementById('pt-used').checked        = !!r.partsType.used;
@@ -1103,6 +1088,10 @@ function loadRecord(id) {
   document.getElementById('w-paint').value    = r.works?.paint    || 0;
   document.getElementById('w-body').value     = r.works?.body     || 0;
   document.getElementById('w-electric').value = r.works?.electric || 0;
+  // Restore custom works
+  document.getElementById('custom-works-rows').innerHTML = '';
+  customWorkId = 0;
+  (r.customWorks || []).forEach(cw => addCustomWork(cw.desc, cw.cost));
   document.getElementById('f-notes').value  = r.notes  || '';
   document.getElementById('f-date').value   = r.date   || '';
   document.getElementById('damage-rows').innerHTML = '';
@@ -1137,10 +1126,11 @@ function newInspection() {
   document.getElementById('pt-original').checked    = false;
   document.getElementById('pt-used').checked        = false;
   document.getElementById('pt-aftermarket').checked = false;
-  document.querySelectorAll('input[name="report-type"]').forEach(el => el.checked = false);
   document.getElementById('w-paint').value    = 0;
   document.getElementById('w-body').value     = 0;
   document.getElementById('w-electric').value = 0;
+  document.getElementById('custom-works-rows').innerHTML = '';
+  customWorkId = 0;
   document.getElementById('f-notes').value     = '';
   document.getElementById('f-date').value   = new Date().toLocaleDateString('he-IL');
   document.getElementById('damage-rows').innerHTML = '';
@@ -1204,7 +1194,6 @@ function buildPDFContent(recsArr) {
         `לקוח: ${rec.client||na}`,
         rec.insurance ? `ביטוח: ${rec.insurance}` : '',
         rec.incidentDate ? `תאריך מקרה: ${rec.incidentDate}` : '',
-        rec.reportType ? `סוג דוח: ${rec.reportType}` : '',
         rec.partsType ? `חלפים: ${[rec.partsType.original?'מקורי':'',rec.partsType.used?'משומש':'',rec.partsType.aftermarket?'תחליפי':''].filter(Boolean).join('+')||'—'}` : '',
         rec.serial ? `שלדה: ${rec.serial}` : ''
       ].filter(Boolean).map(t=>`<span style="background:#f0f4ff;padding:2px 8px;border-radius:4px;display:inline-block">${t}</span>`).join('')}
@@ -1266,7 +1255,7 @@ async function sharePDF() {
     let canvas;
     try {
       canvas = await html2canvas(el, {
-        scale: 1.5, useCORS: false, allowTaint: true,
+        scale: 1.5, useCORS: false, allowTaint: false,
         backgroundColor: '#ffffff', logging: false,
         imageTimeout: 0
       });
