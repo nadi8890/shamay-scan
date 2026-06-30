@@ -998,13 +998,16 @@ function agentAsk(q) {
 }
 
 function addAgentMsg(role, text) {
-  const div = document.createElement('div');
-  div.className = role === 'user' ? 'msg-user' : 'msg-agent';
-  div.innerHTML = text.replace(/\n/g,'<br>');
-  const msgs = document.getElementById('agent-msgs');
-  msgs.appendChild(div);
-  msgs.scrollTop = msgs.scrollHeight;
-  return div;
+  try {
+    const div = document.createElement('div');
+    div.className = role === 'user' ? 'msg-user' : 'msg-agent';
+    div.innerHTML = String(text).replace(/\n/g,'<br>');
+    const msgs = document.getElementById('agent-msgs');
+    if (!msgs) { console.error('agent-msgs not found'); return div; }
+    msgs.appendChild(div);
+    msgs.scrollTop = msgs.scrollHeight;
+    return div;
+  } catch(e) { console.error('addAgentMsg error:', e); return null; }
 }
 
 function buildSystemPrompt() {
@@ -1063,27 +1066,30 @@ ${TASKS.filter(t=>!t.done).map(t=>t.text).join('\n') || 'אין'}
 }
 
 async function sendAgentMsg() {
-  const input = document.getElementById('agent-msg-input');
-  const text = input.value.trim();
-  if(!text) return;
-  input.value = '';
+  try {
+    const input = document.getElementById('agent-msg-input');
+    if (!input) { alert('input not found'); return; }
+    const text = input.value.trim();
+    if(!text) return;
+    input.value = '';
 
-  addAgentMsg('user', text);
-  agentHistory.push({role:'user', content: text});
+    addAgentMsg('user', text);
+    agentHistory.push({role:'user', content: text});
 
-  // Quick responses for simple questions — offline (no API key needed)
-  const quick = handleQuickQuery(text);
-  if(quick) {
-    agentHistory.push({role:'assistant', content: quick});
-    addAgentMsg('agent', quick);
-    return;
-  }
+    // Quick responses for simple questions — offline (no API key needed)
+    let quick = null;
+    try { quick = handleQuickQuery(text); } catch(e) { quick = '❌ שגיאה בעיבוד: ' + e.message; }
+    if(quick) {
+      agentHistory.push({role:'assistant', content: quick});
+      addAgentMsg('agent', quick);
+      return;
+    }
 
-  if(!agentApiKey) {
-    document.getElementById('agent-key-bar').style.display = 'flex';
-    addAgentMsg('agent', '⚠️ לשאלות מורכבות נדרש מפתח API. הכנס אותו למעלה.');
-    return;
-  }
+    if(!agentApiKey) {
+      document.getElementById('agent-key-bar').style.display = 'flex';
+      addAgentMsg('agent', '⚠️ לשאלות מורכבות נדרש מפתח API. הכנס אותו למעלה.');
+      return;
+    }
 
   // Show typing indicator
   const typing = addAgentMsg('agent', '⏳ חושב...');
