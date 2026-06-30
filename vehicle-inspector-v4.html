@@ -376,6 +376,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue)}
     <span style="font-size:0.9rem;font-weight:700">👁 תצוגה מקדימה</span>
     <div style="display:flex;gap:8px">
       <button id="share-pdf-btn" onclick="sharePDF()" style="background:#25d366;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:0.9rem;font-weight:700;cursor:pointer;font-family:Heebo,sans-serif">📤 שתף PDF</button>
+      <button id="save-img-btn" onclick="saveAsImage()" style="background:#6366f1;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:0.9rem;font-weight:700;cursor:pointer;font-family:Heebo,sans-serif">🖼️ שמור תמונה</button>
       <button onclick="window.print()" style="background:#10b981;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:0.9rem;font-weight:700;cursor:pointer;font-family:Heebo,sans-serif">🖨️ הדפס</button>
       <button onclick="closePDF()" style="background:rgba(255,255,255,0.15);color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:0.9rem;cursor:pointer">✕ סגור</button>
     </div>
@@ -1268,6 +1269,37 @@ function closePDF() {
   document.body.style.overflow = '';
 }
 
+async function captureContent() {
+  const el = document.getElementById('pdf-content');
+  await document.fonts.ready;
+  const prevFont = el.style.fontFamily;
+  el.style.fontFamily = 'Arial, sans-serif';
+  await new Promise(r => setTimeout(r, 100));
+  try {
+    // Fix any blob/external images: convert to data URIs first
+    const imgs = el.querySelectorAll('img');
+    for (const img of imgs) {
+      if (img.src && !img.src.startsWith('data:') && img.complete) {
+        try {
+          const c = document.createElement('canvas');
+          c.width = img.naturalWidth || img.width;
+          c.height = img.naturalHeight || img.height;
+          c.getContext('2d').drawImage(img, 0, 0);
+          img.src = c.toDataURL('image/jpeg', 0.85);
+        } catch(e) { /* ignore cross-origin */ }
+      }
+    }
+    const canvas = await html2canvas(el, {
+      scale: 1.5, useCORS: true, allowTaint: true,
+      backgroundColor: '#ffffff', logging: false,
+      imageTimeout: 15000, removeContainer: true
+    });
+    return canvas;
+  } finally {
+    el.style.fontFamily = prevFont;
+  }
+}
+
 async function sharePDF() {
   const btn = document.getElementById('share-pdf-btn');
   const origText = btn.textContent;
@@ -1279,59 +1311,75 @@ async function sharePDF() {
       return;
     }
 
-    // Capture #pdf-content directly — it is already visible on screen inside the overlay
-    const el = document.getElementById('pdf-content');
-    await document.fonts.ready;
-
-    // Override font to system font before capture — avoids Google Fonts CORS errors on mobile
-    const prevFont = el.style.fontFamily;
-    el.style.fontFamily = 'Arial, sans-serif';
-    await new Promise(r => setTimeout(r, 80));
-
-    let canvas;
-    try {
-      canvas = await html2canvas(el, {
-        scale: 1.5, useCORS: false, allowTaint: true,
-        backgroundColor: '#ffffff', logging: false,
-        imageTimeout: 0
-      });
-    } finally {
-      el.style.fontFamily = prevFont; // always restore font
-    }
-
-    const imgData = canvas.toDataURL('image/jpeg', 0.92);
+    const canvas = await captureContent();
+    const imgData = canvas.toDataURL('image/jpeg', 0.9);
     const { jsPDF } = window.jspdf;
 
-    // Custom page size = exact content ratio → single page, no overflow
     const pageW = 210;
-    const pageH = +(((canvas.height / canvas.width) * pageW).toFixed(2));
+    const pageH = Math.max(10, +((canvas.height / canvas.width * pageW).toFixed(2)));
     const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: [pageW, pageH] });
     pdf.addImage(imgData, 'JPEG', 0, 0, pageW, pageH);
 
     const blob = pdf.output('blob');
     const filename = 'אומדן-' + new Date().toLocaleDateString('he-IL').replace(/\//g,'-') + '.pdf';
-    const file = new File([blob], filename, { type: 'application/pdf' });
 
-    if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
-      try {
-        await navigator.share({ title: 'אומדן נזק', files: [file] });
-      } catch(e) {
-        if (e.name !== 'AbortError') throw e;
-        // user cancelled share — ok
+    // Try Web Share API (mobile)
+    if (navigator.share && navigator.canShare) {
+      const file = new File([blob], filename, { type: 'application/pdf' });
+      if (navigator.canShare({ files: [file] })) {
+        try { await navigator.share({ title: 'אומדן נזק', files: [file] }); return; }
+        catch(e) { if (e.name === 'AbortError') return; }
       }
-    } else {
-      // Desktop / browser without file share: download directly
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url; a.download = filename;
-      document.body.appendChild(a); a.click();
-      document.body.removeChild(a);
-      setTimeout(() => URL.revokeObjectURL(url), 3000);
-      toast('PDF הורד ✓');
     }
+    // Fallback: direct download
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    toast('PDF הורד ✓');
   } catch(e) {
     console.error('sharePDF:', e);
-    if (e.name !== 'AbortError') alert('שגיאה: ' + e.message);
+    toast('שגיאת PDF: ' + e.message.slice(0,50) + ' — מנסה הדפסה...', true);
+    setTimeout(() => window.print(), 800);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = origText;
+  }
+}
+
+async function saveAsImage() {
+  const btn = document.getElementById('save-img-btn');
+  const origText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = '⏳ מכין...';
+  try {
+    if (!window.html2canvas) { alert('ספריית תמונה לא נטענה — רענן'); return; }
+    const canvas = await captureContent();
+    const url = canvas.toDataURL('image/jpeg', 0.92);
+    // Try share first (mobile)
+    if (navigator.share && navigator.canShare) {
+      try {
+        const blob = await (await fetch(url)).blob();
+        const filename = 'אומדן-' + new Date().toLocaleDateString('he-IL').replace(/\//g,'-') + '.jpg';
+        const file = new File([blob], filename, { type: 'image/jpeg' });
+        if (navigator.canShare({ files: [file] })) {
+          await navigator.share({ title: 'אומדן נזק', files: [file] });
+          return;
+        }
+      } catch(e) { if (e.name === 'AbortError') return; }
+    }
+    // Fallback: download
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'אומדן-' + new Date().toLocaleDateString('he-IL').replace(/\//g,'-') + '.jpg';
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a);
+    toast('תמונה הורדה ✓');
+  } catch(e) {
+    console.error('saveAsImage:', e);
+    toast('שגיאה: ' + e.message.slice(0,50), true);
   } finally {
     btn.disabled = false;
     btn.textContent = origText;
