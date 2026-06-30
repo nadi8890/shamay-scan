@@ -1142,6 +1142,9 @@ async function sendAgentMsg() {
   }
 
   document.getElementById('agent-quick').style.display = 'flex';
+  } catch(e) {
+    addAgentMsg('agent', '❌ שגיאה: ' + e.message);
+  }
 }
 
 function handleQuickQuery(q) {
