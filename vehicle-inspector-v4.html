@@ -1398,39 +1398,43 @@ function exportPDF() {
   openPDF(buildPDFContent(records));
 }
 
-function shareWhatsApp(id) {
+async function shareWhatsApp(id) {
   const rec = records.find(r => r.id === id);
   if (!rec) { toast('אומדן לא נמצא', true); return; }
-  const na = 'לא ידוע';
-  const office = getOfficeName();
-  let lines = [];
-  if (office) lines.push('🏢 ' + office);
-  lines.push('*אומדן נזק לרכב*');
-  lines.push('──────────────');
-  lines.push('🚗 רישוי: ' + (rec.plate || na));
-  if (rec.make || rec.model) lines.push('🔹 ' + [rec.make, rec.model, rec.year].filter(Boolean).join(' '));
-  if (rec.color) lines.push('🎨 צבע: ' + rec.color);
-  if (rec.km) lines.push('📍 ק"מ: ' + rec.km);
-  if (rec.client) lines.push('👤 לקוח: ' + rec.client);
-  if (rec.date) lines.push('📅 תאריך: ' + rec.date);
-  lines.push('──────────────');
-  lines.push('*פירוט נזקים:*');
-  (rec.items || []).forEach((it, i) => {
-    const cost = Number(it.parts) || 0;
-    lines.push(`${i+1}. ${it.part || ''} – ${it.type || ''}: *${cost.toLocaleString('he-IL')} ₪*`);
-  });
-  if (rec.works) {
-    if (rec.works.paint  > 0) lines.push(`🎨 עבודות צבע: *${Number(rec.works.paint).toLocaleString('he-IL')} ₪*`);
-    if (rec.works.body   > 0) lines.push(`🔨 פחחות: *${Number(rec.works.body).toLocaleString('he-IL')} ₪*`);
-    if (rec.works.electric > 0) lines.push(`⚡ חשמל: *${Number(rec.works.electric).toLocaleString('he-IL')} ₪*`);
+
+  // Build and show the PDF overlay so html2canvas can capture it
+  openPDF(buildPDFContent([rec]));
+  await new Promise(r => setTimeout(r, 200)); // wait for render
+
+  toast('מכין תמונה...');
+  try {
+    const canvas = await captureContent();
+    const filename = 'אומדן-' + (rec.plate || '') + '-' + (rec.date || '').replace(/\//g,'-') + '.jpg';
+
+    // Try Web Share API (mobile — lets user pick WhatsApp or any app)
+    if (navigator.share && navigator.canShare) {
+      const blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.92));
+      const file = new File([blob], filename, { type: 'image/jpeg' });
+      if (navigator.canShare({ files: [file] })) {
+        closePDF();
+        await navigator.share({ title: 'אומדן נזק', files: [file] });
+        return;
+      }
+    }
+
+    // Fallback: download the image
+    const a = document.createElement('a');
+    a.href = canvas.toDataURL('image/jpeg', 0.92);
+    a.download = filename;
+    document.body.appendChild(a); a.click();
+    document.body.removeChild(a);
+    toast('תמונה הורדה ✓');
+    closePDF();
+  } catch(e) {
+    console.error('shareWhatsApp:', e);
+    if (e.name !== 'AbortError') toast('שגיאה: ' + e.message.slice(0,40), true);
+    closePDF();
   }
-  lines.push('──────────────');
-  lines.push('*סה"כ אומדן: ' + (Number(rec.total) || 0).toLocaleString('he-IL') + ' ₪*');
-  if (rec.notes) lines.push('📝 הערות: ' + rec.notes);
-  const text = lines.join('\n');
-  // Open WhatsApp with the estimate text (user picks recipient)
-  const url = 'https://wa.me/?text=' + encodeURIComponent(text);
-  window.open(url, '_blank');
 }
 
 // ── משרד התחבורה lookup ──
