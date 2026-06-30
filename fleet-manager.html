@@ -426,6 +426,12 @@ let TASKS = JSON.parse(JSON.stringify(TASKS_BASE));
 let editingId = null;
 let alertFilter = 'all';
 
+// ── AGENT STATE (declared early to avoid TDZ) ──
+let agentOpen = false;
+let agentApiKey = '';
+let agentHistory = [];
+try { agentApiKey = localStorage.getItem('fleet_agent_key') || ''; } catch(e) {}
+
 // Load overrides from localStorage
 (function(){
   try {
@@ -963,9 +969,6 @@ renderTasks();
 // ══════════════════════════════
 // AGENT
 // ══════════════════════════════
-let agentOpen = false;
-let agentApiKey = localStorage.getItem('fleet_agent_key') || '';
-let agentHistory = [];
 
 function toggleAgent() {
   const panel = document.getElementById('agent-panel');
@@ -1205,7 +1208,8 @@ function executeAgentAction(action) {
     const newId = Math.max(0,...TASKS.map(t=>t.id||0))+1;
     TASKS.push({id:newId, text:action.text, done:false});
     saveTasks();
-    addAgentMsg('agent', `✅ משימה נוספה: "${action.text}"`);
+    addAgentMsg('agent', `✅ משימה נוספה: ${action.text}`);
+    renderTasks();
   }
 }
 
