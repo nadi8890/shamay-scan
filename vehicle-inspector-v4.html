@@ -186,6 +186,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue)}
     <div class="field"><label>ק"מ</label><input type="text" id="f-km" placeholder="85,000"></div>
     <div class="field"><label>מספר סידורי (שלדה)</label><input type="text" id="f-serial" placeholder="WBA12345678901234" style="direction:ltr;font-size:0.82rem"></div>
     <div class="field"><label>תאריך מקרה</label><input type="text" id="f-incident-date" placeholder="DD/MM/YYYY" inputmode="numeric" maxlength="10" oninput="onIncidentDateChange(this)"></div>
+    <div class="field"><label>מקום בדיקה</label><input type="text" id="f-location" placeholder="גאראז', מוסך, רחוב..."></div>
   </div>
   <div class="row">
     <div class="field"><label>חברת ביטוח</label>
@@ -1025,6 +1026,7 @@ function saveRecord() {
     serial: document.getElementById('f-serial').value.trim(),
     insurance:    document.getElementById('f-insurance').value,
     incidentDate: document.getElementById('f-incident-date').value.trim(),
+    location: document.getElementById('f-location').value.trim(),
     reportType: (document.querySelector('input[name="report-type"]:checked') || {}).value || '',
     partsType: {
       original:    document.getElementById('pt-original').checked,
@@ -1114,6 +1116,7 @@ function loadRecord(id) {
   document.getElementById('f-serial').value    = r.serial    || '';
   document.getElementById('f-insurance').value     = r.insurance    || '';
   document.getElementById('f-incident-date').value = r.incidentDate || '';
+  document.getElementById('f-location').value = r.location || '';
   // Restore report type
   document.querySelectorAll('input[name="report-type"]').forEach(rb => rb.checked = rb.value === (r.reportType || ''));
   if (r.partsType) {
@@ -1159,6 +1162,7 @@ function newInspection() {
   document.getElementById('f-serial').value    = '';
   document.getElementById('f-insurance').value     = '';
   document.getElementById('f-incident-date').value = '';
+  document.getElementById('f-location').value = '';
   document.querySelectorAll('input[name="report-type"]').forEach(rb => rb.checked = false);
   document.getElementById('pt-original').checked    = false;
   document.getElementById('pt-used').checked        = false;
@@ -1233,7 +1237,8 @@ function buildPDFContent(recsArr) {
         rec.incidentDate ? `תאריך מקרה: ${rec.incidentDate}` : '',
         rec.reportType ? `סוג דוח: ${rec.reportType}` : '',
         rec.partsType ? `חלפים: ${[rec.partsType.original?'מקורי':'',rec.partsType.used?'משומש':'',rec.partsType.aftermarket?'תחליפי':''].filter(Boolean).join('+')||'—'}` : '',
-        rec.serial ? `שלדה: ${rec.serial}` : ''
+        rec.serial ? `שלדה: ${rec.serial}` : '',
+        rec.location ? `📍 מקום בדיקה: ${rec.location}` : ''
       ].filter(Boolean).map(t=>`<span style="background:#f0f4ff;padding:2px 8px;border-radius:4px;display:inline-block">${t}</span>`).join('')}
     </div>
     <table style="${tblStyle}">
@@ -1246,6 +1251,9 @@ function buildPDFContent(recsArr) {
       if (rec.works.body     > 0) html += `<tr><td style="${tdStyle}">🔨 פחחות/מרכב</td><td style="${tdStyle}">עבודה</td><td style="${tdStyle}">${rec.works.body}</td></tr>`;
       if (rec.works.electric > 0) html += `<tr><td style="${tdStyle}">⚡ חשמל</td><td style="${tdStyle}">עבודה</td><td style="${tdStyle}">${rec.works.electric}</td></tr>`;
     }
+    (rec.customWorks || []).forEach((cw, i) => {
+      if (cw.desc || cw.cost > 0) html += `<tr><td style="${tdStyle}">🔧 ${cw.desc||'עבודה נוספת'}</td><td style="${tdStyle}">עבודה נוספת</td><td style="${tdStyle}">${Number(cw.cost)||0}</td></tr>`;
+    });
     html += `<tr><td colspan="2" style="border:1px solid #ccc;padding:4px 6px;font-weight:bold;background:#e8f0fe">סה"כ אומדן</td><td style="border:1px solid #ccc;padding:4px 6px;font-weight:bold;background:#e8f0fe">${Number(rec.total)||0} ₪</td></tr>`;
     if (rec.notes) html += `<tr><td colspan="3" style="${tdStyle}">הערות: ${rec.notes}</td></tr>`;
     html += `</table>`;
