@@ -317,28 +317,101 @@ function exportTasks() {
 
 <!-- ══ TAB: EVENTS ══ -->
 <div class="tab-content" id="tab-events">
-  <div class="card"><div class="card-title">📅 אירועים</div>
-    <p style="color:var(--muted);font-size:0.85rem">לחץ על רכב בלשונית "ציי רכב" לצפייה באירועים שלו</p>
+  <div class="card" style="margin-bottom:12px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px">
+      <div class="card-title" style="margin:0">📅 אירועים</div>
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-sm btn-gray" onclick="exportEvents()">📥 ייצוא</button>
+        <button class="btn btn-primary btn-sm" onclick="openAddEvent()">+ הוסף אירוע</button>
+      </div>
+    </div>
+    <div id="events-list" style="font-size:0.82rem"></div>
+  </div>
+</div>
+
+<!-- ADD EVENT MODAL -->
+<div id="add-event-modal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:500;align-items:center;justify-content:center;padding:16px;backdrop-filter:blur(2px)">
+  <div style="background:#fff;border-radius:16px;padding:22px;max-width:560px;width:100%;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.15)">
+    <h3 style="font-size:1.05rem;font-weight:800;margin-bottom:16px" id="event-modal-title">+ הוסף אירוע</h3>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
+      <div><label style="font-size:0.75rem;font-weight:700;color:#64748b;display:block;margin-bottom:3px">מספר רכב</label>
+        <input id="ev-plate" type="text" style="width:100%;padding:7px 10px;border:1px solid #e2e8f0;border-radius:8px;font-family:Heebo,sans-serif;font-size:0.85rem;box-sizing:border-box"></div>
+      <div><label style="font-size:0.75rem;font-weight:700;color:#64748b;display:block;margin-bottom:3px">שם העובד</label>
+        <input id="ev-driver" type="text" style="width:100%;padding:7px 10px;border:1px solid #e2e8f0;border-radius:8px;font-family:Heebo,sans-serif;font-size:0.85rem;box-sizing:border-box"></div>
+      <div><label style="font-size:0.75rem;font-weight:700;color:#64748b;display:block;margin-bottom:3px">תאריך אירוע</label>
+        <input id="ev-date" type="date" style="width:100%;padding:7px 10px;border:1px solid #e2e8f0;border-radius:8px;font-family:Heebo,sans-serif;font-size:0.85rem;box-sizing:border-box"></div>
+      <div><label style="font-size:0.75rem;font-weight:700;color:#64748b;display:block;margin-bottom:3px">ביטוח/ליסינג</label>
+        <select id="ev-insurance" style="width:100%;padding:7px 10px;border:1px solid #e2e8f0;border-radius:8px;font-family:Heebo,sans-serif;font-size:0.85rem;box-sizing:border-box">
+          <option>ביטוח</option><option>ליסינג</option><option>אחר</option></select></div>
+      <div><label style="font-size:0.75rem;font-weight:700;color:#64748b;display:block;margin-bottom:3px">מס׳ אירוע</label>
+        <input id="ev-num" type="text" style="width:100%;padding:7px 10px;border:1px solid #e2e8f0;border-radius:8px;font-family:Heebo,sans-serif;font-size:0.85rem;box-sizing:border-box"></div>
+      <div><label style="font-size:0.75rem;font-weight:700;color:#64748b;display:block;margin-bottom:3px">סכום נזק</label>
+        <input id="ev-damage" type="number" placeholder="0" style="width:100%;padding:7px 10px;border:1px solid #e2e8f0;border-radius:8px;font-family:Heebo,sans-serif;font-size:0.85rem;box-sizing:border-box"></div>
+      <div><label style="font-size:0.75rem;font-weight:700;color:#64748b;display:block;margin-bottom:3px">עלות השתתפות</label>
+        <input id="ev-deductible" type="number" placeholder="0" style="width:100%;padding:7px 10px;border:1px solid #e2e8f0;border-radius:8px;font-family:Heebo,sans-serif;font-size:0.85rem;box-sizing:border-box"></div>
+      <div style="grid-column:1/-1"><label style="font-size:0.75rem;font-weight:700;color:#64748b;display:block;margin-bottom:3px">הערות</label>
+        <textarea id="ev-notes" rows="2" style="width:100%;padding:7px 10px;border:1px solid #e2e8f0;border-radius:8px;font-family:Heebo,sans-serif;font-size:0.85rem;box-sizing:border-box;resize:vertical"></textarea></div>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn btn-gray" onclick="closeEventModal()">ביטול</button>
+      <button class="btn btn-primary" onclick="saveEvent()">💾 שמור</button>
+    </div>
   </div>
 </div>
 
 <!-- ══ TAB: REPORTS ══ -->
 <div class="tab-content" id="tab-reports">
-  <div class="card"><div class="card-title">📊 דוחות תנועה</div>
-    <p style="color:var(--muted);font-size:0.85rem">לחץ על רכב בלשונית "ציי רכב" לצפייה בדוחות שלו</p>
+  <div class="card" style="margin-bottom:12px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px">
+      <div class="card-title" style="margin:0">📊 דוחות תנועה</div>
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-sm btn-gray" onclick="exportReports()">📥 ייצוא</button>
+        <button class="btn btn-primary btn-sm" onclick="openAddReport()">+ הוסף דוח</button>
+      </div>
+    </div>
+    <div id="reports-list" style="font-size:0.82rem"></div>
   </div>
 </div>
 
-<!-- ══ TAB: TASKS ══ -->
-<div class="tab-content" id="tab-tasks">
-  <div class="card">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-      <div class="card-title" style="margin:0">📋 משימות</div>
-<div style="display:flex;gap:6px"><button class="btn btn-sm btn-gray" onclick="exportTasks()">📥 ייצוא</button><button class="btn btn-primary btn-sm" onclick="addTask()">+ הוסף</button></div>
+<!-- ADD REPORT MODAL -->
+<div id="add-report-modal" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:500;align-items:center;justify-content:center;padding:16px;backdrop-filter:blur(2px)">
+  <div style="background:#fff;border-radius:16px;padding:22px;max-width:560px;width:100%;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.15)">
+    <h3 style="font-size:1.05rem;font-weight:800;margin-bottom:16px" id="report-modal-title">+ הוסף דוח</h3>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
+      <div><label style="font-size:0.75rem;font-weight:700;color:#64748b;display:block;margin-bottom:3px">רכב מס׳</label>
+        <input id="rp-plate" type="text" style="width:100%;padding:7px 10px;border:1px solid #e2e8f0;border-radius:8px;font-family:Heebo,sans-serif;font-size:0.85rem;box-sizing:border-box"></div>
+      <div><label style="font-size:0.75rem;font-weight:700;color:#64748b;display:block;margin-bottom:3px">שם העובד</label>
+        <input id="rp-driver" type="text" style="width:100%;padding:7px 10px;border:1px solid #e2e8f0;border-radius:8px;font-family:Heebo,sans-serif;font-size:0.85rem;box-sizing:border-box"></div>
+      <div><label style="font-size:0.75rem;font-weight:700;color:#64748b;display:block;margin-bottom:3px">דו"ח משטרה/עיריה</label>
+        <select id="rp-type" style="width:100%;padding:7px 10px;border:1px solid #e2e8f0;border-radius:8px;font-family:Heebo,sans-serif;font-size:0.85rem;box-sizing:border-box">
+          <option>משטרה</option><option>עיריה</option><option>כביש 6</option><option>חניה</option><option>אחר</option></select></div>
+      <div><label style="font-size:0.75rem;font-weight:700;color:#64748b;display:block;margin-bottom:3px">תאריך עבירה</label>
+        <input id="rp-date" type="date" style="width:100%;padding:7px 10px;border:1px solid #e2e8f0;border-radius:8px;font-family:Heebo,sans-serif;font-size:0.85rem;box-sizing:border-box"></div>
+      <div style="grid-column:1/-1"><label style="font-size:0.75rem;font-weight:700;color:#64748b;display:block;margin-bottom:3px">העבירה</label>
+        <input id="rp-offense" type="text" style="width:100%;padding:7px 10px;border:1px solid #e2e8f0;border-radius:8px;font-family:Heebo,sans-serif;font-size:0.85rem;box-sizing:border-box"></div>
+      <div><label style="font-size:0.75rem;font-weight:700;color:#64748b;display:block;margin-bottom:3px">נקודות</label>
+        <input id="rp-points" type="number" placeholder="0" style="width:100%;padding:7px 10px;border:1px solid #e2e8f0;border-radius:8px;font-family:Heebo,sans-serif;font-size:0.85rem;box-sizing:border-box"></div>
+      <div><label style="font-size:0.75rem;font-weight:700;color:#64748b;display:block;margin-bottom:3px">קנס (₪)</label>
+        <input id="rp-fine" type="number" placeholder="0" style="width:100%;padding:7px 10px;border:1px solid #e2e8f0;border-radius:8px;font-family:Heebo,sans-serif;font-size:0.85rem;box-sizing:border-box"></div>
+      <div><label style="font-size:0.75rem;font-weight:700;color:#64748b;display:block;margin-bottom:3px">ת. הגעה לבית משפט</label>
+        <input id="rp-court" type="date" style="width:100%;padding:7px 10px;border:1px solid #e2e8f0;border-radius:8px;font-family:Heebo,sans-serif;font-size:0.85rem;box-sizing:border-box"></div>
+      <div><label style="font-size:0.75rem;font-weight:700;color:#64748b;display:block;margin-bottom:3px">הוסב לנהג</label>
+        <select id="rp-transferred" style="width:100%;padding:7px 10px;border:1px solid #e2e8f0;border-radius:8px;font-family:Heebo,sans-serif;font-size:0.85rem;box-sizing:border-box">
+          <option>לא</option><option>כן</option></select></div>
+      <div><label style="font-size:0.75rem;font-weight:700;color:#64748b;display:block;margin-bottom:3px">אישור</label>
+        <select id="rp-confirmed" style="width:100%;padding:7px 10px;border:1px solid #e2e8f0;border-radius:8px;font-family:Heebo,sans-serif;font-size:0.85rem;box-sizing:border-box">
+          <option>ממתין</option><option>שולם</option><option>ערר</option><option>בוטל</option></select></div>
+      <div style="grid-column:1/-1"><label style="font-size:0.75rem;font-weight:700;color:#64748b;display:block;margin-bottom:3px">הערות</label>
+        <textarea id="rp-notes" rows="2" style="width:100%;padding:7px 10px;border:1px solid #e2e8f0;border-radius:8px;font-family:Heebo,sans-serif;font-size:0.85rem;box-sizing:border-box;resize:vertical"></textarea></div>
     </div>
-    <div id="tasks-list"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button class="btn btn-gray" onclick="closeReportModal()">ביטול</button>
+      <button class="btn btn-primary" onclick="saveReport()">💾 שמור</button>
+    </div>
   </div>
 </div>
+
+
 
 <!-- ══ TAB: ESTIMATE ══ -->
 <div class="tab-content" id="tab-estimate">
@@ -449,9 +522,7 @@ function exportTasks() {
   <button class="nav-btn" onclick="showTab('reports',this)">
     <span class="nav-icon">📊</span>דוחות
   </button>
-  <button class="nav-btn" onclick="showTab('tasks',this)">
-    <span class="nav-icon">✅</span>משימות
-  </button>
+
   <button class="nav-btn" onclick="showTab('estimate',this)">
     <span class="nav-icon">🔧</span>אומדן
   </button>
@@ -682,8 +753,9 @@ function showTab(name, btn) {
   document.getElementById('tab-'+name).classList.add('active');
   btn.classList.add('active');
   if(name==='fleet') renderFleet();
-  if(name==='tasks') renderTasks();
   if(name==='dashboard') renderDashboard();
+  if(name==='events') renderEvents();
+  if(name==='reports') renderReports();
 }
 
 // ── DASHBOARD ──
@@ -967,7 +1039,7 @@ function openEditVehicle(id) {
   // Date fields — convert to YYYY-MM-DD
   ['regExp','insExp','licenseExp','vehicleFrom','lastInspection','trafficCheck','regulations']
     .forEach(f => { const el=document.getElementById('av-'+f); if(el) el.value=toInputDate(v[f]); });
-  document.getElementById('av-company').value = v.company||'נופר אנרגי';
+  const compEl=document.getElementById('av-company'); if(compEl) compEl.value = v.company||'נופר אנרגי';
   openModal('add-vehicle-modal');
 }
 
@@ -1063,8 +1135,8 @@ function saveTasks() {
 }
 
 // ── MODAL ──
-function openModal(id) { document.getElementById(id).classList.add('open'); }
-function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+function openModal(id) { const el=document.getElementById(id); if(el){el.style.display='flex';} }
+function closeModal(id) { const el=document.getElementById(id); if(el){el.style.display='none';} }
 // Modal closes only via explicit close buttons
 
 // ── TOAST ──
@@ -1325,6 +1397,198 @@ function executeAgentAction(action) {
     addAgentMsg('agent', `✅ משימה נוספה: ${action.text}`);
     renderTasks();
   }
+}
+
+
+// ── EVENTS ──
+let EVENTS = [];
+try { const es = localStorage.getItem('fleet_events'); if(es) EVENTS = JSON.parse(es); } catch(e){}
+let editingEventId = null;
+
+function saveEvents() { try { localStorage.setItem('fleet_events', JSON.stringify(EVENTS)); } catch(e){} }
+
+function renderEvents() {
+  const el = document.getElementById('events-list');
+  if(!el) return;
+  if(!EVENTS.length) { el.innerHTML = '<div style="color:#94a3b8;text-align:center;padding:20px">אין אירועים עדיין</div>'; return; }
+  const sorted = [...EVENTS].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  el.innerHTML = `<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:0.8rem">
+    <thead><tr style="background:#f8fafc">
+      <th style="padding:7px 8px;text-align:right;border-bottom:2px solid #e2e8f0;white-space:nowrap">מס׳</th>
+      <th style="padding:7px 8px;text-align:right;border-bottom:2px solid #e2e8f0;white-space:nowrap">רכב</th>
+      <th style="padding:7px 8px;text-align:right;border-bottom:2px solid #e2e8f0;white-space:nowrap">עובד</th>
+      <th style="padding:7px 8px;text-align:right;border-bottom:2px solid #e2e8f0;white-space:nowrap">תאריך</th>
+      <th style="padding:7px 8px;text-align:right;border-bottom:2px solid #e2e8f0;white-space:nowrap">ביטוח</th>
+      <th style="padding:7px 8px;text-align:right;border-bottom:2px solid #e2e8f0;white-space:nowrap">מס ארוע</th>
+      <th style="padding:7px 8px;text-align:right;border-bottom:2px solid #e2e8f0;white-space:nowrap">סכום נזק</th>
+      <th style="padding:7px 8px;text-align:right;border-bottom:2px solid #e2e8f0;white-space:nowrap">השתתפות</th>
+      <th style="padding:7px 8px;text-align:right;border-bottom:2px solid #e2e8f0;white-space:nowrap">הערות</th>
+      <th style="padding:7px 8px;border-bottom:2px solid #e2e8f0"></th>
+    </tr></thead>
+    <tbody>${sorted.map((ev,i)=>`<tr style="border-bottom:1px solid #f1f5f9;${i%2?'background:#fafafa':''}">
+      <td style="padding:6px 8px">${i+1}</td>
+      <td style="padding:6px 8px;font-weight:700">${ev.plate||'—'}</td>
+      <td style="padding:6px 8px">${ev.driver||'—'}</td>
+      <td style="padding:6px 8px">${ev.date||'—'}</td>
+      <td style="padding:6px 8px">${ev.insurance||'—'}</td>
+      <td style="padding:6px 8px">${ev.num||'—'}</td>
+      <td style="padding:6px 8px">${ev.damage?'₪'+(Number(ev.damage)||0).toLocaleString('he-IL'):'—'}</td>
+      <td style="padding:6px 8px">${ev.deductible?'₪'+(Number(ev.deductible)||0).toLocaleString('he-IL'):'—'}</td>
+      <td style="padding:6px 8px;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${ev.notes||''}">${ev.notes||'—'}</td>
+      <td style="padding:6px 8px;white-space:nowrap">
+        <button onclick="editEvent(${ev.id})" style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:2px 7px;font-size:0.7rem;cursor:pointer;font-family:Heebo,sans-serif;margin-left:4px">✏️</button>
+        <button onclick="deleteEvent(${ev.id})" style="background:#fef2f2;border:1px solid #fecaca;border-radius:6px;padding:2px 7px;font-size:0.7rem;cursor:pointer;font-family:Heebo,sans-serif">🗑</button>
+      </td>
+    </tr>`).join('')}</tbody>
+  </table></div>`;
+}
+
+function openAddEvent() {
+  editingEventId = null;
+  document.getElementById('event-modal-title').textContent = '+ הוסף אירוע';
+  ['ev-plate','ev-driver','ev-num','ev-damage','ev-deductible','ev-notes'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  const dateEl = document.getElementById('ev-date'); if(dateEl) dateEl.value='';
+  const insEl = document.getElementById('ev-insurance'); if(insEl) insEl.value='ביטוח';
+  document.getElementById('add-event-modal').style.display='flex';
+}
+
+function closeEventModal() { document.getElementById('add-event-modal').style.display='none'; }
+
+function editEvent(id) {
+  const ev = EVENTS.find(e=>e.id===id); if(!ev) return;
+  editingEventId = id;
+  document.getElementById('event-modal-title').textContent = 'ערוך אירוע';
+  const f = (i,v)=>{ const el=document.getElementById(i); if(el) el.value=v||''; };
+  f('ev-plate',ev.plate); f('ev-driver',ev.driver); f('ev-date',ev.date);
+  f('ev-num',ev.num); f('ev-damage',ev.damage); f('ev-deductible',ev.deductible); f('ev-notes',ev.notes);
+  const insEl=document.getElementById('ev-insurance'); if(insEl) insEl.value=ev.insurance||'ביטוח';
+  document.getElementById('add-event-modal').style.display='flex';
+}
+
+function saveEvent() {
+  const g = id => { const el=document.getElementById(id); return el?el.value.trim():''; };
+  const ev = { plate:g('ev-plate'), driver:g('ev-driver'), date:g('ev-date'),
+    insurance:g('ev-insurance'), num:g('ev-num'),
+    damage:parseFloat(g('ev-damage'))||0, deductible:parseFloat(g('ev-deductible'))||0,
+    notes:g('ev-notes') };
+  if(editingEventId) {
+    const idx=EVENTS.findIndex(e=>e.id===editingEventId);
+    if(idx>=0) EVENTS[idx]={...EVENTS[idx],...ev};
+  } else {
+    ev.id = Math.max(0,...EVENTS.map(e=>e.id||0))+1;
+    EVENTS.push(ev);
+  }
+  saveEvents(); closeEventModal(); renderEvents(); showToast('נשמר ✓');
+}
+
+function deleteEvent(id) {
+  if(!confirm('למחוק אירוע זה?')) return;
+  EVENTS = EVENTS.filter(e=>e.id!==id);
+  saveEvents(); renderEvents();
+}
+
+function exportEvents() {
+  const headers = ['מס׳','מספר רכב','שם העובד','תאריך אירוע','ביטוח/ליסינג','מס ארוע','סכום נזק','עלות השתתפות','הערות'];
+  const data = EVENTS.map((ev,i)=>[i+1,ev.plate||'',ev.driver||'',ev.date||'',ev.insurance||'',ev.num||'',ev.damage||0,ev.deductible||0,ev.notes||'']);
+  xlsxDownload(data, headers, 'אירועים.xlsx');
+  showToast('קובץ הורד ✓');
+}
+
+// ── REPORTS ──
+let REPORTS = [];
+try { const rs = localStorage.getItem('fleet_reports'); if(rs) REPORTS = JSON.parse(rs); } catch(e){}
+let editingReportId = null;
+
+function saveReports() { try { localStorage.setItem('fleet_reports', JSON.stringify(REPORTS)); } catch(e){} }
+
+function renderReports() {
+  const el = document.getElementById('reports-list');
+  if(!el) return;
+  if(!REPORTS.length) { el.innerHTML = '<div style="color:#94a3b8;text-align:center;padding:20px">אין דוחות עדיין</div>'; return; }
+  const sorted = [...REPORTS].sort((a,b)=>(b.date||'').localeCompare(a.date||''));
+  el.innerHTML = `<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:0.8rem">
+    <thead><tr style="background:#f8fafc">
+      <th style="padding:7px 8px;text-align:right;border-bottom:2px solid #e2e8f0;white-space:nowrap">מס׳</th>
+      <th style="padding:7px 8px;text-align:right;border-bottom:2px solid #e2e8f0;white-space:nowrap">רכב</th>
+      <th style="padding:7px 8px;text-align:right;border-bottom:2px solid #e2e8f0;white-space:nowrap">עובד</th>
+      <th style="padding:7px 8px;text-align:right;border-bottom:2px solid #e2e8f0;white-space:nowrap">סוג</th>
+      <th style="padding:7px 8px;text-align:right;border-bottom:2px solid #e2e8f0;white-space:nowrap">תאריך</th>
+      <th style="padding:7px 8px;text-align:right;border-bottom:2px solid #e2e8f0;white-space:nowrap">עבירה</th>
+      <th style="padding:7px 8px;text-align:right;border-bottom:2px solid #e2e8f0;white-space:nowrap">נקודות</th>
+      <th style="padding:7px 8px;text-align:right;border-bottom:2px solid #e2e8f0;white-space:nowrap">קנס</th>
+      <th style="padding:7px 8px;text-align:right;border-bottom:2px solid #e2e8f0;white-space:nowrap">הוסב</th>
+      <th style="padding:7px 8px;text-align:right;border-bottom:2px solid #e2e8f0;white-space:nowrap">סטטוס</th>
+      <th style="padding:7px 8px;border-bottom:2px solid #e2e8f0"></th>
+    </tr></thead>
+    <tbody>${sorted.map((rp,i)=>`<tr style="border-bottom:1px solid #f1f5f9;${i%2?'background:#fafafa':''}">
+      <td style="padding:6px 8px">${i+1}</td>
+      <td style="padding:6px 8px;font-weight:700">${rp.plate||'—'}</td>
+      <td style="padding:6px 8px">${rp.driver||'—'}</td>
+      <td style="padding:6px 8px">${rp.type||'—'}</td>
+      <td style="padding:6px 8px">${rp.date||'—'}</td>
+      <td style="padding:6px 8px;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${rp.offense||'—'}</td>
+      <td style="padding:6px 8px">${rp.points||0}</td>
+      <td style="padding:6px 8px">${rp.fine?'₪'+(Number(rp.fine)||0).toLocaleString('he-IL'):'—'}</td>
+      <td style="padding:6px 8px"><span style="padding:1px 6px;border-radius:99px;font-size:0.68rem;font-weight:700;background:${rp.transferred==='כן'?'#dcfce7':'#f1f5f9'};color:${rp.transferred==='כן'?'#15803d':'#64748b'}">${rp.transferred||'לא'}</span></td>
+      <td style="padding:6px 8px"><span style="padding:1px 6px;border-radius:99px;font-size:0.68rem;font-weight:700;background:${rp.confirmed==='שולם'?'#dcfce7':rp.confirmed==='בוטל'?'#f0fdf4':rp.confirmed==='ערר'?'#fef9c3':'#fef2f2'};color:${rp.confirmed==='שולם'?'#15803d':'#1e293b'}">${rp.confirmed||'ממתין'}</span></td>
+      <td style="padding:6px 8px;white-space:nowrap">
+        <button onclick="editReport(${rp.id})" style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:2px 7px;font-size:0.7rem;cursor:pointer;font-family:Heebo,sans-serif;margin-left:4px">✏️</button>
+        <button onclick="deleteReport(${rp.id})" style="background:#fef2f2;border:1px solid #fecaca;border-radius:6px;padding:2px 7px;font-size:0.7rem;cursor:pointer;font-family:Heebo,sans-serif">🗑</button>
+      </td>
+    </tr>`).join('')}</tbody>
+  </table></div>`;
+}
+
+function openAddReport() {
+  editingReportId = null;
+  document.getElementById('report-modal-title').textContent = '+ הוסף דוח';
+  ['rp-plate','rp-driver','rp-offense','rp-points','rp-fine','rp-notes'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  const d=document.getElementById('rp-date');if(d)d.value='';
+  const c=document.getElementById('rp-court');if(c)c.value='';
+  document.getElementById('add-report-modal').style.display='flex';
+}
+
+function closeReportModal() { document.getElementById('add-report-modal').style.display='none'; }
+
+function editReport(id) {
+  const rp=REPORTS.find(r=>r.id===id); if(!rp) return;
+  editingReportId=id;
+  document.getElementById('report-modal-title').textContent='ערוך דוח';
+  const f=(i,v)=>{const el=document.getElementById(i);if(el)el.value=v||'';};
+  f('rp-plate',rp.plate);f('rp-driver',rp.driver);f('rp-date',rp.date);f('rp-offense',rp.offense);
+  f('rp-points',rp.points);f('rp-fine',rp.fine);f('rp-court',rp.court);f('rp-notes',rp.notes);
+  const t=document.getElementById('rp-type');if(t)t.value=rp.type||'משטרה';
+  const tr=document.getElementById('rp-transferred');if(tr)tr.value=rp.transferred||'לא';
+  const cn=document.getElementById('rp-confirmed');if(cn)cn.value=rp.confirmed||'ממתין';
+  document.getElementById('add-report-modal').style.display='flex';
+}
+
+function saveReport() {
+  const g=id=>{const el=document.getElementById(id);return el?el.value.trim():'';};
+  const rp={plate:g('rp-plate'),driver:g('rp-driver'),type:g('rp-type'),date:g('rp-date'),
+    offense:g('rp-offense'),points:parseInt(g('rp-points'))||0,fine:parseFloat(g('rp-fine'))||0,
+    court:g('rp-court'),transferred:g('rp-transferred'),confirmed:g('rp-confirmed'),notes:g('rp-notes')};
+  if(editingReportId){
+    const idx=REPORTS.findIndex(r=>r.id===editingReportId);
+    if(idx>=0)REPORTS[idx]={...REPORTS[idx],...rp};
+  } else {
+    rp.id=Math.max(0,...REPORTS.map(r=>r.id||0))+1;
+    REPORTS.push(rp);
+  }
+  saveReports(); closeReportModal(); renderReports(); showToast('נשמר ✓');
+}
+
+function deleteReport(id) {
+  if(!confirm('למחוק דוח זה?')) return;
+  REPORTS=REPORTS.filter(r=>r.id!==id);
+  saveReports(); renderReports();
+}
+
+function exportReports() {
+  const headers=["מס׳","רכב מס'","שם העובד","סוג","תאריך עבירה","העבירה","נקודות","קנס","ת. הגעה","הוסב","אישור","הערות"];
+  const data=REPORTS.map((rp,i)=>[i+1,rp.plate||'',rp.driver||'',rp.type||'',rp.date||'',rp.offense||'',rp.points||0,rp.fine||0,rp.court||'',rp.transferred||'',rp.confirmed||'',rp.notes||'']);
+  xlsxDownload(data,headers,'דוחות.xlsx');
+  showToast('קובץ הורד ✓');
 }
 
 // INIT
