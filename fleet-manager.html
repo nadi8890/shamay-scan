@@ -339,7 +339,7 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
     <table>
       <thead>
         <tr>
-          <th>מס׳ רישוי</th><th>נהג</th><th>סוג התראה</th><th>תאריך ביצוע</th><th>סטטוס</th><th>ספידו קודם</th><th>ספידו נוכחי</th><th>הפרש ק"מ</th>
+          <th>מס׳ רישוי</th><th>נהג</th><th>סוג התראה</th><th>תאריך ביצוע</th><th>סטטוס</th><th>ספידו קודם</th><th>ספידו נוכחי</th><th>הפרש ק"מ</th><th></th>
         </tr>
       </thead>
       <tbody id="alerts-tab-body"></tbody>
@@ -822,6 +822,7 @@ function renderAlerts() {
       <td style="color:var(--muted);font-size:0.75rem">${a.prevKm ? a.prevKm.toLocaleString() : '—'}</td>
       <td style="font-size:0.75rem">${a.currentKm ? a.currentKm.toLocaleString() : '—'}</td>
       <td style="font-size:0.75rem;font-weight:600">${a.kmDiff ? a.kmDiff.toLocaleString() : '—'}</td>
+      <td style="white-space:nowrap"><button class="btn btn-gray" style="padding:3px 8px;font-size:0.7rem" onclick="editVehicle('${esc(a.plate)}')">✏️ ערוך</button></td>
     </tr>`;
   }).join('');
 }
