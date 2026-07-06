@@ -46,7 +46,8 @@ header{background:#1e40af;padding:11px 16px;display:flex;align-items:center;just
 .alert-icon{font-size:1.1rem;flex-shrink:0;margin-top:1px}
 .alert-text strong{display:block;font-size:0.82rem;font-weight:700}
 /* Table */
-.tbl-wrap{overflow:auto;-webkit-overflow-scrolling:touch;border-radius:12px;border:1.5px solid #cbd5e1;box-shadow:0 2px 10px rgba(0,0,0,.07);max-height:calc(100vh - 210px)}
+.tbl-wrap{overflow:auto;-webkit-overflow-scrolling:touch;border-radius:12px;border:1.5px solid #cbd5e1;box-shadow:0 2px 10px rgba(0,0,0,.07);max-height:calc(100vh - 200px)}
+thead th{position:sticky;top:0;z-index:3;background:#f8fafc}
 table{width:100%;border-collapse:collapse;font-size:0.79rem;background:#fff}
 th{text-align:right;padding:11px 13px;color:#1e293b;font-weight:800;background:linear-gradient(180deg,#f8fafc,#f1f5f9);border-bottom:2px solid #cbd5e1;white-space:nowrap;font-size:0.71rem;letter-spacing:.03em}
 td{padding:10px 13px;border-bottom:1.5px solid #e2e8f0;vertical-align:middle;color:var(--text);transition:background .1s}
@@ -76,7 +77,6 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
 .modal-overlay{display:none;position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:500;align-items:center;justify-content:center;padding:16px;backdrop-filter:blur(2px)}
 .modal-overlay.open{display:flex}
 .modal{background:#fff;border:1px solid var(--border);border-radius:16px;padding:22px;max-width:520px;width:100%;max-height:88vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.15)}
-thead th{position:sticky;top:0;z-index:3;background:#f8fafc}
 .modal h3{font-size:1.05rem;font-weight:800;margin-bottom:16px;color:var(--text)}
 .modal-row{margin-bottom:11px}
 .modal-row label{font-size:0.72rem;color:var(--muted);display:block;margin-bottom:4px;font-weight:600}
@@ -161,6 +161,17 @@ thead th{position:sticky;top:0;z-index:3;background:#f8fafc}
   th,td{font-size:0.7rem;padding:6px 5px}
   .card{padding:12px}
 }
+
+.task-card{background:#fff;border-radius:10px;border:1.5px solid #e2e8f0;padding:10px 14px;display:flex;align-items:flex-start;gap:10px;box-shadow:0 1px 4px rgba(0,0,0,.05)}
+.task-card.done-card{opacity:.6}
+.task-done{text-decoration:line-through;color:var(--muted)}
+.task-check{width:18px;height:18px;margin-top:2px;flex-shrink:0;cursor:pointer}
+.task-body{flex:1;min-width:0}
+.task-title{font-weight:600;font-size:0.85rem;margin-bottom:3px}
+.task-meta{font-size:0.72rem;color:var(--muted);display:flex;flex-wrap:wrap;gap:6px}
+.priority-high{color:var(--red);font-weight:700}
+.priority-low{color:var(--blue)}
+.priority-normal{color:var(--muted)}
 </style>
 </head>
 <body>
@@ -177,7 +188,6 @@ thead th{position:sticky;top:0;z-index:3;background:#f8fafc}
     <div class="card-title">🚨 התראות ומועדים קרובים</div>
     <div id="alerts-list"></div>
   </div>
-
 </div>
 
 <!-- ══════════════ TAB: FLEET ══════════════ -->
@@ -224,10 +234,7 @@ thead th{position:sticky;top:0;z-index:3;background:#f8fafc}
       <span class="section-title">אירועי נזק</span>
       <span class="count-badge" id="inc-count">0</span>
     </div>
-    <div style="display:flex;gap:8px;align-items:center">
-      <button class="btn btn-primary" style="padding:5px 12px;font-size:0.78rem" onclick="openIncidentModal()">+ הוסף אירוע</button>
-      <button class="btn-export" onclick="exportSection('incidents')">📥 ייצוא Excel</button>
-    </div>
+    <div style="display:flex;gap:8px"><button class="btn btn-primary" style="padding:5px 12px;font-size:0.78rem" onclick="openIncidentModal()">+ הוסף אירוע</button><button class="btn-export" onclick="exportSection('incidents')">📥 ייצוא Excel</button></div>
   </div>
   <div class="tbl-wrap">
     <table>
@@ -249,10 +256,7 @@ thead th{position:sticky;top:0;z-index:3;background:#f8fafc}
       <span class="section-title">דוחות תנועה</span>
       <span class="count-badge" id="viol-count">0</span>
     </div>
-    <div style="display:flex;gap:8px;align-items:center">
-      <button class="btn btn-primary" style="padding:5px 12px;font-size:0.78rem" onclick="openViolationModal()">+ הוסף דוח</button>
-      <button class="btn-export" onclick="exportSection('violations')">📥 ייצוא Excel</button>
-    </div>
+    <div style="display:flex;gap:8px"><button class="btn btn-primary" style="padding:5px 12px;font-size:0.78rem" onclick="openViolationModal()">+ הוסף דוח</button><button class="btn-export" onclick="exportSection('violations')">📥 ייצוא Excel</button></div>
   </div>
   <div class="tbl-wrap">
     <table>
@@ -274,10 +278,7 @@ thead th{position:sticky;top:0;z-index:3;background:#f8fafc}
       <span class="section-title">חשבוניות מוסכים</span>
       <span class="count-badge" id="inv-count">0</span>
     </div>
-    <div style="display:flex;gap:8px;align-items:center">
-      <button class="btn btn-primary" style="padding:5px 12px;font-size:0.78rem" onclick="openInvoiceModal()">+ הוסף חשבונית</button>
-      <button class="btn-export" onclick="exportSection('invoices')">📥 ייצוא Excel</button>
-    </div>
+    <div style="display:flex;gap:8px"><button class="btn btn-primary" style="padding:5px 12px;font-size:0.78rem" onclick="openInvoiceModal()">+ הוסף חשבונית</button><button class="btn-export" onclick="exportSection('invoices')">📥 ייצוא Excel</button></div>
   </div>
   <div class="tbl-wrap">
     <table>
@@ -289,7 +290,23 @@ thead th{position:sticky;top:0;z-index:3;background:#f8fafc}
   </div>
 </div>
 
-
+<!-- ══════════════ TAB: TASKS ══════════════ -->
+<div class="tab-content" id="tab-tasks">
+  <div class="section-hdr">
+    <div style="display:flex;align-items:center;gap:8px">
+      <span class="section-title">משימות</span>
+      <span class="count-badge" id="tasks-count">0</span>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <label style="font-size:0.75rem;color:var(--muted)">
+        <input type="checkbox" id="tasks-show-done" onchange="renderTasks()" style="margin-left:4px">
+        הצג שבוצעו
+      </label>
+      <button class="btn btn-primary" style="padding:5px 12px;font-size:0.78rem" onclick="openTaskModal()">+ הוסף משימה</button>
+    </div>
+  </div>
+  <div id="tasks-list" style="display:flex;flex-direction:column;gap:8px;margin-top:4px;padding-bottom:12px"></div>
+</div>
 
 <!-- ══════════════ TAB: DAMAGE ASSESSMENT ══════════════ -->
 <div class="tab-content" id="tab-damage">
@@ -338,7 +355,7 @@ thead th{position:sticky;top:0;z-index:3;background:#f8fafc}
   <button class="nav-btn" onclick="showTab('incidents',this)"><span class="icon">💥</span>אירועים</button>
   <button class="nav-btn" onclick="showTab('violations',this)"><span class="icon">📄</span>דוחות</button>
   <button class="nav-btn" onclick="showTab('invoices',this)"><span class="icon">🔧</span>מוסכים</button>
-
+  <button class="nav-btn" onclick="showTab('tasks',this)"><span class="icon">✅</span>משימות</button>
   <button class="nav-btn" onclick="showTab('damage',this)"><span class="icon">📋</span>אומדן</button>
 </nav>
 
@@ -407,6 +424,7 @@ thead th{position:sticky;top:0;z-index:3;background:#f8fafc}
   </div>
 </div>
 
+
 <!-- ══ INCIDENT MODAL ══ -->
 <div class="modal-overlay" id="incident-modal">
   <div class="modal">
@@ -437,11 +455,11 @@ thead th{position:sticky;top:0;z-index:3;background:#f8fafc}
       <div class="modal-row"><label>שם הנהג</label><input id="vm-driver" type="text"></div>
       <div class="modal-row"><label>מס׳ דוח</label><input id="vm-reportNum" type="text"></div>
       <div class="modal-row"><label>תאריך עבירה</label><input id="vm-date" type="date"></div>
-      <div class="modal-row" style="grid-column:1/-1"><label>סוג עבירה</label><input id="vm-offense" type="text" placeholder="חניה אסורה / מהירות..."></div>
+      <div class="modal-row" style="grid-column:1/-1"><label>תיאור עבירה</label><input id="vm-offense" type="text"></div>
       <div class="modal-row"><label>נקודות</label><input id="vm-points" type="number" placeholder="0"></div>
       <div class="modal-row"><label>קנס (₪)</label><input id="vm-fine" type="number" placeholder="0"></div>
-      <div class="modal-row"><label>ת. הגעה לבית משפט</label><input id="vm-arrived" type="date"></div>
-      <div class="modal-row"><label>הוסב לנהג</label><select id="vm-transferred"><option>לא</option><option>כן</option></select></div>
+      <div class="modal-row"><label>תאריך הוסב לנהג</label><input id="vm-arrived" type="date"></div>
+      <div class="modal-row"><label>הוסב</label><select id="vm-transferred"><option value="">לא</option><option value="כן">כן</option></select></div>
       <div class="modal-row" style="grid-column:1/-1"><label>הערות</label><input id="vm-notes" type="text"></div>
     </div>
     <div class="btn-row">
@@ -454,17 +472,38 @@ thead th{position:sticky;top:0;z-index:3;background:#f8fafc}
 <!-- ══ INVOICE MODAL ══ -->
 <div class="modal-overlay" id="invoice-modal">
   <div class="modal">
-    <h3 id="invoice-modal-title">+ הוסף חשבונית מוסך</h3>
+    <h3 id="invoice-modal-title">+ הוסף חשבונית</h3>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
       <div class="modal-row"><label>מס׳ רישוי</label><input id="invm-plate" type="text" placeholder="12345678"></div>
       <div class="modal-row"><label>שם הנהג</label><input id="invm-driver" type="text"></div>
-      <div class="modal-row"><label>שם המוסך</label><input id="invm-garage" type="text"></div>
+      <div class="modal-row"><label>מוסך</label><input id="invm-garage" type="text"></div>
       <div class="modal-row"><label>תאריך</label><input id="invm-date" type="date"></div>
-      <div class="modal-row" style="grid-column:1/-1"><label>סוג עבודה</label><input id="invm-workType" type="text" placeholder="טיפול שנתי / החלפת צמיגים..."></div>
+      <div class="modal-row" style="grid-column:1/-1"><label>סוג עבודה</label><input id="invm-workType" type="text"></div>
+      <div class="modal-row"><label>סכום (₪)</label><input id="invm-amount" type="number" placeholder="0"></div>
+      <div class="modal-row" style="grid-column:1/-1"><label>הערות</label><input id="invm-notes" type="text"></div>
     </div>
     <div class="btn-row">
       <button class="btn btn-secondary" onclick="document.getElementById('invoice-modal').classList.remove('open')">ביטול</button>
       <button class="btn btn-primary" onclick="saveInvoiceForm()">💾 שמור</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ TASK MODAL ══ -->
+<div class="modal-overlay" id="task-modal">
+  <div class="modal">
+    <h3 id="task-modal-title">+ הוסף משימה</h3>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <div class="modal-row" style="grid-column:1/-1"><label>תיאור המשימה</label><input id="tm-text" type="text" placeholder="תאר את המשימה..."></div>
+      <div class="modal-row"><label>מס׳ רישוי (אופציונלי)</label><input id="tm-plate" type="text" placeholder="12345678"></div>
+      <div class="modal-row"><label>נהג (אופציונלי)</label><input id="tm-driver" type="text"></div>
+      <div class="modal-row"><label>תאריך יעד</label><input id="tm-date" type="date"></div>
+      <div class="modal-row"><label>עדיפות</label><select id="tm-priority"><option value="normal">רגילה</option><option value="high">גבוהה 🔴</option><option value="low">נמוכה 🔵</option></select></div>
+      <div class="modal-row" style="grid-column:1/-1"><label>הערות</label><input id="tm-notes" type="text"></div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-secondary" onclick="document.getElementById('task-modal').classList.remove('open')">ביטול</button>
+      <button class="btn btn-primary" onclick="saveTaskForm()">💾 שמור</button>
     </div>
   </div>
 </div>
@@ -499,6 +538,10 @@ let TASKS      = [{"id": 1, "text": "לטפל בתשלום טפסי החזר ר�
     if (lv) VEHICLES = JSON.parse(lv);
     const lt = localStorage.getItem('fleet_tasks');
     if (lt) TASKS = JSON.parse(lt);
+    const li = localStorage.getItem('fleet_incidents');
+    if (li) { const arr = JSON.parse(li); if (arr && arr.length) INCIDENTS = arr; }
+    const lvi = localStorage.getItem('fleet_violations');
+    if (lvi) { const arr = JSON.parse(lvi); if (arr && arr.length) VIOLATIONS = arr; }
   } catch(e){}
 })();
 
@@ -622,7 +665,6 @@ function renderDashboard() {
   }).join('') || '<div style="color:var(--muted);font-size:0.82rem;text-align:center;padding:12px">אין התראות פעילות 🎉</div>';
   document.getElementById('alerts-list').innerHTML = alertsHtml;
 
-
 }
 
 // ── FLEET ──
@@ -675,7 +717,10 @@ function renderFleet() {
       <td class="${cellCls(licDays)}">${statusBadge(licDays)}<br><span style="color:var(--muted);font-size:0.65rem">${esc(v.licenseExpiry)}</span></td>
       <td>${kmStatus(v.currentKm, v.nextServiceKm)}<br><span style="color:var(--muted);font-size:0.65rem">${esc(v.currentKm)} / ${esc(v.nextServiceKm)} ק"מ</span></td>
       <td class="${cellCls(inspDays)}">${statusBadge(inspDays)}<br><span style="color:var(--muted);font-size:0.65rem">${esc(v.inspection)}</span></td>
-      <td><button class="btn btn-gray" style="padding:3px 8px;font-size:0.7rem" onclick="editVehicle('${esc(v.plate)}')">✏️</button></td>
+      <td style="white-space:nowrap">
+        <button class="btn btn-gray" style="padding:3px 8px;font-size:0.7rem" onclick="editVehicle('${esc(v.plate)}')">✏️</button>
+        <button class="btn btn-primary" style="padding:3px 8px;font-size:0.7rem;margin-right:3px;background:var(--orange)" onclick="openIncidentModal(null,'${esc(v.plate)}','${esc(v.driverName)}')">💥</button>
+      </td>
     </tr>`;
   }).join('');
 }
@@ -816,12 +861,31 @@ function exportSection(section) {
 
 // ── TASKS ──
 function renderTasks() {
-  document.getElementById('tasks-list').innerHTML = TASKS.map(t => `
-    <div class="task-item">
+  const showDone = document.getElementById('tasks-show-done') && document.getElementById('tasks-show-done').checked;
+  const visible = showDone ? TASKS : TASKS.filter(t => !t.done);
+  const pendingCount = TASKS.filter(t => !t.done).length;
+  if (document.getElementById('tasks-count')) document.getElementById('tasks-count').textContent = pendingCount;
+  const prioLabel = {high:'גבוהה 🔴', normal:'רגילה', low:'נמוכה 🔵'};
+  document.getElementById('tasks-list').innerHTML = visible.map(t => {
+    const meta = [
+      t.plate ? '🚗 '+esc(t.plate) : '',
+      t.driver ? '👤 '+esc(t.driver) : '',
+      t.date ? '📅 '+esc(t.date) : '',
+      t.priority && t.priority!=='normal' ? prioLabel[t.priority]||'' : ''
+    ].filter(Boolean).join('  ·  ');
+    return `<div class="task-card ${t.done?'done-card':''}">
       <input type="checkbox" class="task-check" ${t.done?'checked':''} onchange="toggleTask(${t.id})">
-      <span class="${t.done?'task-done':''}">${esc(t.text)}</span>
-      <button onclick="deleteTask(${t.id})" style="margin-right:auto;background:none;border:none;color:var(--muted);cursor:pointer;font-size:0.85rem" title="מחק">✕</button>
-    </div>`).join('');
+      <div class="task-body">
+        <div class="task-title ${t.done?'task-done':''}">${esc(t.text)}</div>
+        ${meta ? '<div class="task-meta">'+meta+'</div>' : ''}
+        ${t.notes ? '<div class="task-meta" style="margin-top:3px;color:var(--muted)">'+esc(t.notes)+'</div>' : ''}
+      </div>
+      <div style="display:flex;gap:4px;flex-shrink:0">
+        <button onclick="openTaskModal(${t.id})" style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:2px 7px;cursor:pointer;font-size:0.78rem">✏️</button>
+        <button onclick="deleteTask(${t.id})" style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:2px 7px;cursor:pointer;font-size:0.78rem;color:var(--muted)">✕</button>
+      </div>
+    </div>`;
+  }).join('') || '<div style="text-align:center;color:var(--muted);padding:24px;font-size:0.85rem">אין משימות פתוחות 🎉</div>';
 }
 function toggleTask(id) {
   const t = TASKS.find(x=>x.id===id);
@@ -833,14 +897,44 @@ function deleteTask(id) {
   localStorage.setItem('fleet_tasks', JSON.stringify(TASKS));
   renderTasks();
 }
-function addTask() {
-  const text = prompt('הזן משימה חדשה:');
-  if (!text) return;
-  const maxId = Math.max(0, ...TASKS.map(t => t.id||0));
-  TASKS.push({ id: maxId+1, text: text.trim(), done: false });
-  localStorage.setItem('fleet_tasks', JSON.stringify(TASKS));
+let editingTaskId = null;
+function openTaskModal(id) {
+  editingTaskId = id || null;
+  const t = id ? TASKS.find(x=>x.id===id) : null;
+  document.getElementById('task-modal-title').textContent = t ? 'ערוך משימה' : '+ הוסף משימה';
+  const f = (elId,val)=>{ const el=document.getElementById(elId); if(el) el.value=val||''; };
+  f('tm-text', t ? t.text : '');
+  f('tm-plate', t ? t.plate||'' : '');
+  f('tm-driver', t ? t.driver||'' : '');
+  f('tm-date', t ? t.date||'' : '');
+  const prioEl = document.getElementById('tm-priority');
+  if (prioEl) prioEl.value = t ? (t.priority||'normal') : 'normal';
+  f('tm-notes', t ? t.notes||'' : '');
+  document.getElementById('task-modal').classList.add('open');
+}
+function saveTaskForm() {
+  const text = document.getElementById('tm-text').value.trim();
+  if (!text) { toast('יש להזין תיאור משימה', true); return; }
+  const rec = {
+    text,
+    plate: document.getElementById('tm-plate').value.trim(),
+    driver: document.getElementById('tm-driver').value.trim(),
+    date: document.getElementById('tm-date').value,
+    priority: document.getElementById('tm-priority').value || 'normal',
+    notes: document.getElementById('tm-notes').value.trim(),
+    done: false
+  };
+  if (editingTaskId) {
+    const idx = TASKS.findIndex(x=>x.id===editingTaskId);
+    if (idx>=0) { rec.id = editingTaskId; rec.done = TASKS[idx].done; TASKS[idx] = rec; }
+  } else {
+    rec.id = Math.max(0,...TASKS.map(x=>x.id||0))+1;
+    TASKS.unshift(rec);
+  }
+  try{localStorage.setItem('fleet_tasks',JSON.stringify(TASKS));}catch(e){}
+  document.getElementById('task-modal').classList.remove('open');
   renderTasks();
-  toast('משימה נוספה ✓');
+  toast('משימה נשמרה ✓');
 }
 
 // ── VEHICLE MODAL ──
@@ -915,6 +1009,7 @@ window.onload = () => {
   renderIncidents();
   renderViolations();
   renderInvoices();
+  renderTasks();
   agentInit();
 };
 
@@ -1206,38 +1301,47 @@ function dateToInput(s) {
   const m = String(s).match(/(\d{1,2})[./](\d{1,2})[./](\d{2,4})/);
   if (!m) return '';
   let y = m[3]; if (y.length===2) y='20'+y;
-  return `${y}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+  return y+'-'+m[2].padStart(2,'0')+'-'+m[1].padStart(2,'0');
 }
 function inputToDate(s) {
   if (!s) return '';
-  const [y,mo,d] = s.split('-');
-  if (!y||!mo||!d) return s;
-  return `${d}.${mo}.${y.slice(2)}`;
+  const parts = s.split('-');
+  if (parts.length!==3) return s;
+  return parts[2]+'.'+parts[1]+'.'+parts[0].slice(2);
 }
 
 // ── INCIDENT FORM ──
 let editingIncidentId = null;
-function openIncidentModal(id) {
+function openIncidentModal(id, prefillPlate, prefillDriver) {
   editingIncidentId = id || null;
   const ev = id ? INCIDENTS.find(x=>x.id===id) : null;
   document.getElementById('incident-modal-title').textContent = ev ? 'ערוך אירוע' : '+ הוסף אירוע';
-  const f = (elId, val) => { const el=document.getElementById(elId); if(el) el.value=val||''; };
-  f('im-plate', ev?.plate); f('im-driver', ev?.driver);
-  f('im-date', dateToInput(ev?.date));
-  const insEl=document.getElementById('im-insurance'); if(insEl) insEl.value=ev?.insurance||'ביטוח';
-  f('im-reportNum', ev?.reportNum); f('im-damage', ev?.damage||'');
-  f('im-deductible', ev?.deductible||''); f('im-notes', ev?.notes);
+  const f = (elId,val)=>{ const el=document.getElementById(elId); if(el) el.value=val||''; };
+  f('im-plate', ev ? ev.plate : (prefillPlate||''));
+  f('im-driver', ev ? ev.driver : (prefillDriver||''));
+  f('im-date', dateToInput(ev ? ev.date : ''));
+  const insEl=document.getElementById('im-insurance'); if(insEl) insEl.value=ev ? (ev.insurance||'ביטוח') : 'ביטוח';
+  f('im-reportNum', ev ? ev.reportNum||'' : '');
+  f('im-damage', ev ? ev.damage||'' : '');
+  f('im-deductible', ev ? ev.deductible||'' : '');
+  f('im-notes', ev ? ev.notes||'' : '');
   document.getElementById('incident-modal').classList.add('open');
+  if (prefillPlate && !id) showTab('incidents', document.querySelector(".nav-btn[onclick*=\"'incidents'\"]"));
 }
 function saveIncidentForm() {
-  const g = id => { const el=document.getElementById(id); return el?el.value.trim():''; };
-  const rec = { plate:g('im-plate'), driver:g('im-driver'),
-    date: inputToDate(g('im-date')), insurance:g('im-insurance'),
-    reportNum:g('im-reportNum'), damage:parseFloat(g('im-damage'))||0,
-    deductible:parseFloat(g('im-deductible'))||0, notes:g('im-notes') };
+  const rec = {
+    plate: document.getElementById('im-plate').value.trim(),
+    driver: document.getElementById('im-driver').value.trim(),
+    date: inputToDate(document.getElementById('im-date').value),
+    insurance: document.getElementById('im-insurance').value,
+    reportNum: document.getElementById('im-reportNum').value.trim(),
+    damage: document.getElementById('im-damage').value,
+    deductible: document.getElementById('im-deductible').value,
+    notes: document.getElementById('im-notes').value.trim()
+  };
   if (editingIncidentId) {
     const idx=INCIDENTS.findIndex(x=>x.id===editingIncidentId);
-    if(idx>=0) INCIDENTS[idx]={...INCIDENTS[idx],...rec};
+    if(idx>=0) { rec.id=editingIncidentId; INCIDENTS[idx]=rec; }
   } else {
     rec.id = Math.max(0,...INCIDENTS.map(x=>x.id||0))+1;
     INCIDENTS.unshift(rec);
@@ -1254,23 +1358,34 @@ function openViolationModal(id) {
   const vl = id ? VIOLATIONS.find(x=>x.id===id) : null;
   document.getElementById('violation-modal-title').textContent = vl ? 'ערוך דוח' : '+ הוסף דוח';
   const f = (elId,val)=>{ const el=document.getElementById(elId); if(el) el.value=val||''; };
-  f('vm-plate',vl?.plate); f('vm-driver',vl?.driver); f('vm-reportNum',vl?.reportNum);
-  f('vm-date', dateToInput(vl?.date));
-  f('vm-offense',vl?.offense); f('vm-points',vl?.points||''); f('vm-fine',vl?.fine||'');
-  f('vm-arrived', dateToInput(vl?.arrived));
-  const trEl=document.getElementById('vm-transferred'); if(trEl) trEl.value=vl?.transferred||'לא';
-  f('vm-notes',vl?.notes);
+  f('vm-plate', vl ? vl.plate||'' : '');
+  f('vm-driver', vl ? vl.driver||'' : '');
+  f('vm-reportNum', vl ? vl.reportNum||'' : '');
+  f('vm-date', dateToInput(vl ? vl.date||'' : ''));
+  f('vm-offense', vl ? vl.offense||'' : '');
+  f('vm-points', vl ? vl.points||'' : '');
+  f('vm-fine', vl ? vl.fine||'' : '');
+  f('vm-arrived', dateToInput(vl ? vl.arrived||'' : ''));
+  const trEl=document.getElementById('vm-transferred'); if(trEl) trEl.value=vl ? (vl.transferred||'') : '';
+  f('vm-notes', vl ? vl.notes||'' : '');
   document.getElementById('violation-modal').classList.add('open');
 }
 function saveViolationForm() {
-  const g = id=>{ const el=document.getElementById(id); return el?el.value.trim():''; };
-  const rec = { plate:g('vm-plate'), driver:g('vm-driver'), reportNum:g('vm-reportNum'),
-    date: inputToDate(g('vm-date')), offense:g('vm-offense'),
-    points:parseInt(g('vm-points'))||0, fine:parseFloat(g('vm-fine'))||0,
-    arrived: inputToDate(g('vm-arrived')), transferred:g('vm-transferred'), notes:g('vm-notes') };
+  const rec = {
+    plate: document.getElementById('vm-plate').value.trim(),
+    driver: document.getElementById('vm-driver').value.trim(),
+    reportNum: document.getElementById('vm-reportNum').value.trim(),
+    date: inputToDate(document.getElementById('vm-date').value),
+    offense: document.getElementById('vm-offense').value.trim(),
+    points: document.getElementById('vm-points').value,
+    fine: document.getElementById('vm-fine').value,
+    arrived: inputToDate(document.getElementById('vm-arrived').value),
+    transferred: document.getElementById('vm-transferred').value,
+    notes: document.getElementById('vm-notes').value.trim()
+  };
   if (editingViolationId) {
     const idx=VIOLATIONS.findIndex(x=>x.id===editingViolationId);
-    if(idx>=0) VIOLATIONS[idx]={...VIOLATIONS[idx],...rec};
+    if(idx>=0) { rec.id=editingViolationId; VIOLATIONS[idx]=rec; }
   } else {
     rec.id = Math.max(0,...VIOLATIONS.map(x=>x.id||0))+1;
     VIOLATIONS.unshift(rec);
@@ -1286,19 +1401,29 @@ function openInvoiceModal(id) {
   editingInvoiceId = id || null;
   const inv = id ? INVOICES.find(x=>x.id===id) : null;
   document.getElementById('invoice-modal-title').textContent = inv ? 'ערוך חשבונית' : '+ הוסף חשבונית';
-  const f=(elId,val)=>{ const el=document.getElementById(elId); if(el) el.value=val||''; };
-  f('invm-plate',inv?.plate); f('invm-driver',inv?.driver); f('invm-garage',inv?.garage);
-  f('invm-date', dateToInput(inv?.date));
-  f('invm-workType',inv?.workType);
+  const f = (elId,val)=>{ const el=document.getElementById(elId); if(el) el.value=val||''; };
+  f('invm-plate', inv ? inv.plate||'' : '');
+  f('invm-driver', inv ? inv.driver||'' : '');
+  f('invm-garage', inv ? inv.garage||'' : '');
+  f('invm-date', dateToInput(inv ? inv.date||'' : ''));
+  f('invm-workType', inv ? inv.workType||'' : '');
+  f('invm-amount', inv ? inv.amount||'' : '');
+  f('invm-notes', inv ? inv.notes||'' : '');
   document.getElementById('invoice-modal').classList.add('open');
 }
 function saveInvoiceForm() {
-  const g=id=>{ const el=document.getElementById(id); return el?el.value.trim():''; };
-  const rec = { plate:g('invm-plate'), driver:g('invm-driver'), garage:g('invm-garage'),
-    date: inputToDate(g('invm-date')), workType:g('invm-workType') };
+  const rec = {
+    plate: document.getElementById('invm-plate').value.trim(),
+    driver: document.getElementById('invm-driver').value.trim(),
+    garage: document.getElementById('invm-garage').value.trim(),
+    date: inputToDate(document.getElementById('invm-date').value),
+    workType: document.getElementById('invm-workType').value.trim(),
+    amount: document.getElementById('invm-amount').value,
+    notes: document.getElementById('invm-notes').value.trim()
+  };
   if (editingInvoiceId) {
     const idx=INVOICES.findIndex(x=>x.id===editingInvoiceId);
-    if(idx>=0) INVOICES[idx]={...INVOICES[idx],...rec};
+    if(idx>=0) { rec.id=editingInvoiceId; INVOICES[idx]=rec; }
   } else {
     rec.id = Math.max(0,...INVOICES.map(x=>x.id||0))+1;
     INVOICES.unshift(rec);
@@ -1307,6 +1432,7 @@ function saveInvoiceForm() {
   document.getElementById('invoice-modal').classList.remove('open');
   renderInvoices(); toast('נשמר ✓');
 }
+
 </script>
 </body>
 </html>
