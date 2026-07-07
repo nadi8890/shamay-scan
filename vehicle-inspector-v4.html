@@ -1097,6 +1097,7 @@ function renderRecords() {
         <button class="rec-del" onclick="deleteRecord(${r.id})" title="מחק">✕</button>
         <button class="btn-sm btn-gray" style="font-size:0.7rem;padding:4px 8px" onclick="loadRecord(${r.id})">ערוך</button>
         <button class="btn-sm btn-gray" style="font-size:0.7rem;padding:4px 8px;color:var(--accent)" onclick="exportSinglePDF(${r.id})">⬇ PDF</button>
+        <button class="btn-sm btn-gray" style="font-size:0.7rem;padding:4px 8px;color:#3b82f6" onclick="exportSingleImage(${r.id})">🖼️</button>
       </div>
     </div>`).join('');
 }
@@ -1273,6 +1274,36 @@ function openPDF(content) {
   overlay.style.display = 'block';
   document.body.style.overflow = 'hidden';
   overlay.scrollTop = 0;
+}
+
+function exportSinglePDF(id) {
+  const rec = records.find(r => r.id === id);
+  if (!rec) return;
+  openPDF(buildPDFContent([rec]));
+}
+
+async function exportSingleImage(id) {
+  const rec = records.find(r => r.id === id);
+  if (!rec) return;
+  toast('מכין תמונה...');
+  // Build content into a hidden off-screen div
+  const tmp = document.createElement('div');
+  tmp.style.cssText = 'position:fixed;left:-9999px;top:0;width:700px;background:#fff;padding:16px;direction:rtl;font-family:Arial,sans-serif;font-size:11pt;color:#000;z-index:-1';
+  tmp.innerHTML = buildPDFContent([rec]);
+  document.body.appendChild(tmp);
+  try {
+    await new Promise(r => setTimeout(r, 80)); // let DOM paint
+    const canvas = await html2canvas(tmp, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
+    const a = document.createElement('a');
+    a.href = canvas.toDataURL('image/png');
+    a.download = 'אומדן-' + (rec.plate||'') + '-' + (rec.date||'').replace(/\//g,'-') + '.png';
+    a.click();
+    toast('✅ תמונה נשמרה');
+  } catch(e) {
+    toast('❌ שגיאה בייצוא', true);
+  } finally {
+    document.body.removeChild(tmp);
+  }
 }
 
 async function saveImage() {
