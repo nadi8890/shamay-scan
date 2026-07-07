@@ -25,6 +25,7 @@ header{background:#1e40af;padding:11px 16px;display:flex;align-items:center;just
 .nav-btn .icon{font-size:1.25rem;padding:2px 8px;border-radius:8px;transition:background .15s}
 /* Content */
 .tab-content{display:none;max-width:980px;margin:0 auto;padding:14px 12px}
+#tab-fleet{max-width:100%;padding:10px 6px}
 .tab-content.active{display:block}
 /* Cards */
 .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:12px;box-shadow:var(--shadow)}
@@ -218,7 +219,18 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
     <div id="fleet-count" style="font-size:0.75rem;color:var(--muted)"></div>
     <button class="btn-export" onclick="exportSection('fleet')">📥 ייצוא Excel</button>
   </div>
-  <div id="fleet-body" style="display:flex;flex-direction:column;gap:8px;padding-bottom:8px"></div>
+  <div class="tbl-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>מס׳ רישוי</th><th>יצרן / דגם</th><th>נהג</th><th>חברה</th>
+          <th>תוקף רישוי</th><th>תוקף ביטוח</th><th>רישיון נהג</th>
+          <th>טיפול הבא</th><th>ביקורת</th><th></th>
+        </tr>
+      </thead>
+      <tbody id="fleet-body"></tbody>
+    </table>
+  </div>
 </div>
 
 <!-- ══════════════ TAB: INCIDENTS ══════════════ -->
@@ -689,7 +701,7 @@ function renderFleet() {
   document.getElementById('fleet-count').textContent = `מציג ${filtered.length} מתוך ${VEHICLES.length} רכבים`;
 
   const tbody = document.getElementById('fleet-body');
-  if (!filtered.length) { tbody.innerHTML = '<div style="text-align:center;padding:24px;color:var(--muted);font-size:0.85rem">אין רכבים להצגה</div>'; return; }
+  if (!filtered.length) { tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:24px;color:var(--muted);font-size:0.85rem">אין רכבים להצגה</td></tr>'; return; }
   tbody.innerHTML = filtered.map(v => {
     const regDays = daysUntil(v.registrationExpiry);
     const insDays = daysUntil(v.insuranceExpiry);
@@ -705,37 +717,21 @@ function renderFleet() {
     const hasSoon = [regDays,insDays,licDays,inspDays].some(d=>d!==null&&d>=0&&d<=14);
     const hasWarn = false;
     const rowCls = hasExpired ? 'row-expired' : hasSoon ? 'row-soon' : hasWarn ? 'row-warn' : '';
-    function expChip(days, label, date) {
-      const bg  = days===null ? '#e2e8f0' : days<0 ? '#fecaca' : days<=14 ? '#fed7aa' : '#bbf7d0';
-      const col = days===null ? '#64748b' : days<0 ? '#991b1b' : days<=14 ? '#9a3412' : '#166534';
-      const icon = days===null ? '—' : days<0 ? '🔴' : days<=14 ? '🟡' : '🟢';
-      const tip = date ? `${label}: ${date}` : label;
-      return `<span class="exp-chip" title="${tip}" style="background:${bg};color:${col}">${icon} ${label}</span>`;
-    }
-    const kmChip = (() => {
-      if (!v.currentKm || !v.nextServiceKm) return '';
-      const diff = Number(v.nextServiceKm) - Number(v.currentKm);
-      const icon = diff < 0 ? '🔴' : diff < 2000 ? '🟡' : '🟢';
-      return `<span class="exp-chip" style="background:${diff<0?'#fecaca':diff<2000?'#fed7aa':'#bbf7d0'};color:${diff<0?'#991b1b':diff<2000?'#9a3412':'#166534'}">${icon} ק"מ ${diff < 0 ? 'חריג' : diff.toLocaleString()+' נותרו'}</span>`;
-    })();
-    return `<div class="vehicle-card ${rowCls}">
-      <div class="vc-top">
-        <span class="vc-plate">${esc(v.plate)}</span>
-        <div style="display:flex;align-items:center;gap:4px">
-          ${companyBadge(v.company)}
-          <button class="btn btn-gray" style="padding:4px 8px;font-size:0.72rem" onclick="editVehicle('${esc(v.plate)}')">✏️ ערוך</button>
-          <button class="btn btn-primary" style="padding:4px 8px;font-size:0.72rem;background:var(--orange)" onclick="openIncidentModal(null,'${esc(v.plate)}','${esc(v.driverName)}')">💥</button>
-        </div>
-      </div>
-      <div class="vc-meta">${esc(v.make)} ${esc(v.model)}${v.year?' · '+esc(v.year):''}${v.driverName?' · 👤 '+esc(v.driverName):''}</div>
-      <div class="vc-badges">
-        ${expChip(regDays,'רישוי',v.registrationExpiry)}
-        ${expChip(insDays,'ביטוח',v.insuranceExpiry)}
-        ${expChip(licDays,'רישיון',v.licenseExpiry)}
-        ${expChip(inspDays,'ביקורת',v.inspection)}
-        ${kmChip}
-      </div>
-    </div>`;
+    return `<tr class="${rowCls}">
+      <td style="font-weight:700;color:var(--accent);direction:ltr;font-size:0.78rem;white-space:nowrap">${esc(v.plate)}</td>
+      <td style="font-size:0.73rem">${esc(v.make)} ${esc(v.model)}<br><span style="color:var(--muted);font-size:0.65rem">${esc(v.year)}</span></td>
+      <td style="font-size:0.73rem">${esc((v.driverName||'').split('-')[0])}</td>
+      <td>${companyBadge(v.company)}</td>
+      <td class="${cellCls(regDays)}">${statusBadge(regDays)}<br><span style="color:var(--muted);font-size:0.63rem">${esc(v.registrationExpiry)}</span></td>
+      <td class="${cellCls(insDays)}">${statusBadge(insDays)}<br><span style="color:var(--muted);font-size:0.63rem">${esc(v.insuranceExpiry)}</span></td>
+      <td class="${cellCls(licDays)}">${statusBadge(licDays)}<br><span style="color:var(--muted);font-size:0.63rem">${esc(v.licenseExpiry)}</span></td>
+      <td>${kmStatus(v.currentKm, v.nextServiceKm)}<br><span style="color:var(--muted);font-size:0.63rem">${esc(v.nextServiceKm)||'—'} ק"מ</span></td>
+      <td class="${cellCls(inspDays)}">${statusBadge(inspDays)}<br><span style="color:var(--muted);font-size:0.63rem">${esc(v.inspection)}</span></td>
+      <td style="white-space:nowrap">
+        <button class="btn btn-gray" style="padding:3px 8px;font-size:0.7rem" onclick="editVehicle('${esc(v.plate)}')">✏️</button>
+        <button class="btn btn-primary" style="padding:3px 8px;font-size:0.7rem;margin-right:3px;background:var(--orange)" onclick="openIncidentModal(null,'${esc(v.plate)}','${esc(v.driverName)}')">💥</button>
+      </td>
+    </tr>`;
   }).join('');
 }
 
