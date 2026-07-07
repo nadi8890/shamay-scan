@@ -1285,20 +1285,33 @@ function exportSinglePDF(id) {
 async function exportSingleImage(id) {
   const rec = records.find(r => r.id === id);
   if (!rec) return;
-  toast('מכין תמונה...');
-  // Build content into a hidden off-screen div
+  toast('מכין תמונה לשיתוף...');
   const tmp = document.createElement('div');
   tmp.style.cssText = 'position:fixed;left:-9999px;top:0;width:700px;background:#fff;padding:16px;direction:rtl;font-family:Arial,sans-serif;font-size:11pt;color:#000;z-index:-1';
   tmp.innerHTML = buildPDFContent([rec]);
   document.body.appendChild(tmp);
   try {
-    await new Promise(r => setTimeout(r, 80)); // let DOM paint
+    await new Promise(r => setTimeout(r, 80));
     const canvas = await html2canvas(tmp, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
-    const a = document.createElement('a');
-    a.href = canvas.toDataURL('image/png');
-    a.download = 'אומדן-' + (rec.plate||'') + '-' + (rec.date||'').replace(/\//g,'-') + '.png';
-    a.click();
-    toast('✅ תמונה נשמרה');
+    const fileName = 'אומדן-' + (rec.plate||'') + '-' + (rec.date||'').replace(/\//g,'-') + '.png';
+    // Try native share (mobile — opens WhatsApp, etc.)
+    canvas.toBlob(async blob => {
+      const file = new File([blob], fileName, { type: 'image/png' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        try {
+          await navigator.share({ files: [file], title: 'אומדן נזק - ' + (rec.plate||'') });
+        } catch(e) {
+          if (e.name !== 'AbortError') toast('❌ שגיאה בשיתוף', true);
+        }
+      } else {
+        // Desktop fallback — download
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = fileName;
+        a.click();
+        toast('✅ תמונה נשמרה');
+      }
+    }, 'image/png');
   } catch(e) {
     toast('❌ שגיאה בייצוא', true);
   } finally {
