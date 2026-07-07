@@ -375,6 +375,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue)}
     <span style="font-size:0.9rem;font-weight:700">👁 תצוגה מקדימה</span>
     <div style="display:flex;gap:8px">
       <button id="share-pdf-btn" onclick="sharePDF()" style="background:#25d366;color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:0.9rem;font-weight:700;cursor:pointer;font-family:Heebo,sans-serif">📤 שתף PDF</button>
+      <button id="save-img-btn" onclick="saveImage()" style="background:#3b82f6;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:0.9rem;font-weight:700;cursor:pointer;font-family:Heebo,sans-serif">🖼️ שמור תמונה</button>
       <button onclick="window.print()" style="background:#10b981;color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:0.9rem;font-weight:700;cursor:pointer;font-family:Heebo,sans-serif">🖨️ הדפס</button>
       <button onclick="closePDF()" style="background:rgba(255,255,255,0.15);color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:0.9rem;cursor:pointer">✕ סגור</button>
     </div>
@@ -1272,6 +1273,27 @@ function openPDF(content) {
   overlay.style.display = 'block';
   document.body.style.overflow = 'hidden';
   overlay.scrollTop = 0;
+}
+
+async function saveImage() {
+  const btn = document.getElementById('save-img-btn');
+  const el = document.getElementById('pdf-content');
+  if (!el) return;
+  btn.textContent = 'שומר...';
+  btn.disabled = true;
+  try {
+    const canvas = await html2canvas(el, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
+    const a = document.createElement('a');
+    a.href = canvas.toDataURL('image/png');
+    a.download = 'אומדן-' + new Date().toLocaleDateString('he-IL').replace(/\//g,'-') + '.png';
+    a.click();
+    toast('✅ תמונה נשמרה');
+  } catch(e) {
+    toast('❌ שגיאה בשמירת תמונה', true);
+  } finally {
+    btn.textContent = '🖼️ שמור תמונה';
+    btn.disabled = false;
+  }
 }
 
 function closePDF() {

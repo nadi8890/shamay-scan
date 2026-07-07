@@ -428,6 +428,7 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
     <div class="modal-row" style="grid-column:1/-1"><label>הערות / נהלים</label><textarea id="m-notes" rows="2"></textarea></div>
     <div class="btn-row">
       <button class="btn btn-gray" onclick="closeModal()">ביטול</button>
+      <button class="btn btn-primary" style="background:var(--orange)" id="modal-incident-btn" onclick="openIncidentFromModal()">💥 דיווח תאונה</button>
       <button class="btn btn-green" onclick="saveVehicle()">💾 שמור</button>
     </div>
   </div>
@@ -729,7 +730,6 @@ function renderFleet() {
       <td class="${cellCls(inspDays)}">${statusBadge(inspDays)}<br><span style="color:var(--muted);font-size:0.63rem">${esc(v.inspection)}</span></td>
       <td style="white-space:nowrap">
         <button class="btn btn-gray" style="padding:3px 8px;font-size:0.7rem" onclick="editVehicle('${esc(v.plate)}')">✏️</button>
-        <button class="btn btn-primary" style="padding:3px 8px;font-size:0.7rem;margin-right:3px;background:var(--orange)" onclick="openIncidentModal(null,'${esc(v.plate)}','${esc(v.driverName)}')">💥</button>
       </td>
     </tr>`;
   }).join('');
@@ -982,6 +982,12 @@ function editVehicle(plate) {
 }
 function closeModal() {
   document.getElementById('vehicle-modal').classList.remove('open');
+}
+function openIncidentFromModal() {
+  const plate = document.getElementById('m-plate').value.trim();
+  const driver = document.getElementById('m-driver').value.trim();
+  closeModal();
+  openIncidentModal(null, plate, driver);
 }
 function saveVehicle() {
   const plate = document.getElementById('m-plate').value.trim();
