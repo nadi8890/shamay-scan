@@ -216,6 +216,22 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue)}
     </div>
   </div>
 
+  <!-- Report type -->
+  <div style="margin-top:10px;padding:10px 12px;background:var(--surface);border-radius:10px;border:1px solid var(--border)">
+    <div style="font-size:0.78rem;font-weight:700;color:var(--muted);margin-bottom:8px">📄 סוג דוח</div>
+    <div style="display:flex;gap:16px;flex-wrap:wrap">
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:0.88rem;font-weight:600">
+        <input type="radio" name="report-type" id="rt-private" value="פרטי" style="width:16px;height:16px;cursor:pointer"> פרטי
+      </label>
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:0.88rem;font-weight:600">
+        <input type="radio" name="report-type" id="rt-policy" value="פוליסה" style="width:16px;height:16px;cursor:pointer"> פוליסה
+      </label>
+      <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:0.88rem;font-weight:600">
+        <input type="radio" name="report-type" id="rt-other" value="אחר" style="width:16px;height:16px;cursor:pointer"> אחר
+      </label>
+    </div>
+  </div>
+
   <!-- Parts type -->
   <div style="margin-top:10px;padding:10px 12px;background:var(--surface);border-radius:10px;border:1px solid var(--border)">
     <div style="font-size:0.78rem;font-weight:700;color:var(--muted);margin-bottom:8px">🔩 סוג חלפים</div>
@@ -266,6 +282,8 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue)}
         <input type="number" id="w-electric" value="0" min="0" oninput="calcTotal()">
       </div>
     </div>
+    <div id="extra-works" style="display:flex;flex-direction:column;gap:6px;margin-top:6px"></div>
+    <button class="add-row-btn" style="margin-top:8px" onclick="addExtraWork()">+ הוסף עבודה נוספת</button>
   </div>
 
   <div class="totals-row">
@@ -817,18 +835,47 @@ function getRows() {
   }).filter(r => r.part || r.parts);
 }
 
+let extraWorkId = 0;
+function addExtraWork(label='', amount=0) {
+  const id = ++extraWorkId;
+  const div = document.createElement('div');
+  div.id = 'ew-' + id;
+  div.style.cssText = 'display:flex;gap:6px;align-items:center';
+  div.innerHTML = `
+    <input type="text" placeholder="שם עבודה" value="${label}" style="flex:1;padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text);font-family:Heebo,sans-serif;font-size:0.88rem" oninput="calcTotal()">
+    <input type="number" min="0" value="${amount}" placeholder="₪" style="width:90px;padding:8px;border-radius:8px;border:1px solid var(--border);background:var(--card);color:var(--text);font-family:Heebo,sans-serif;font-size:0.88rem" oninput="calcTotal()">
+    <button onclick="document.getElementById('ew-${id}').remove();calcTotal()" style="background:var(--red);color:#fff;border:none;border-radius:6px;padding:6px 9px;cursor:pointer;font-size:0.85rem">✕</button>
+  `;
+  document.getElementById('extra-works').appendChild(div);
+  calcTotal();
+}
+
+function getExtraWorks() {
+  return [...document.getElementById('extra-works').children].map(div => {
+    const inputs = div.querySelectorAll('input');
+    return { label: inputs[0].value.trim(), amount: parseFloat(inputs[1].value)||0 };
+  }).filter(w => w.label || w.amount > 0);
+}
+
+function getReportType() {
+  const sel = document.querySelector('input[name="report-type"]:checked');
+  return sel ? sel.value : '';
+}
+
 function getWorkTotals() {
+  const extra = getExtraWorks().reduce((s,w)=>s+w.amount, 0);
   return {
     paint:    parseFloat(document.getElementById('w-paint').value)    || 0,
     body:     parseFloat(document.getElementById('w-body').value)     || 0,
     electric: parseFloat(document.getElementById('w-electric').value) || 0,
+    extra,
   };
 }
 
 function calcTotal() {
   const itemsTotal = getRows().reduce((s, r) => s + r.parts, 0);
   const w = getWorkTotals();
-  const total = itemsTotal + w.paint + w.body + w.electric;
+  const total = itemsTotal + w.paint + w.body + w.electric + (w.extra||0);
   document.getElementById('total-display').textContent = '₪' + total.toLocaleString('he-IL');
 }
 
@@ -974,12 +1021,13 @@ function saveRecord() {
     serial: document.getElementById('f-serial').value.trim(),
     insurance:    document.getElementById('f-insurance').value,
     incidentDate: document.getElementById('f-incident-date').value.trim(),
+    reportType: getReportType(),
     partsType: {
       original:    document.getElementById('pt-original').checked,
       used:        document.getElementById('pt-used').checked,
       aftermarket: document.getElementById('pt-aftermarket').checked,
     },
-    works:  w,
+    works:  { ...w, extraWorks: getExtraWorks() },
     notes:  document.getElementById('f-notes').value.trim(),
     photo:  photoBase64 ? { data: photoBase64, mime: photoMime } : null,
     items, total,
@@ -1072,6 +1120,8 @@ function loadRecord(id) {
   document.getElementById('f-serial').value    = r.serial    || '';
   document.getElementById('f-insurance').value     = r.insurance    || '';
   document.getElementById('f-incident-date').value = r.incidentDate || '';
+  // Report type
+  document.querySelectorAll('input[name="report-type"]').forEach(r2 => r2.checked = (r2.value === r.reportType));
   if (r.partsType) {
     document.getElementById('pt-original').checked    = !!r.partsType.original;
     document.getElementById('pt-used').checked        = !!r.partsType.used;
@@ -1080,6 +1130,10 @@ function loadRecord(id) {
   document.getElementById('w-paint').value    = r.works?.paint    || 0;
   document.getElementById('w-body').value     = r.works?.body     || 0;
   document.getElementById('w-electric').value = r.works?.electric || 0;
+  // Extra works
+  document.getElementById('extra-works').innerHTML = '';
+  extraWorkId = 0;
+  (r.works?.extraWorks || []).forEach(w => addExtraWork(w.label, w.amount));
   document.getElementById('f-notes').value  = r.notes  || '';
   document.getElementById('f-date').value   = r.date   || '';
   document.getElementById('damage-rows').innerHTML = '';
@@ -1111,12 +1165,15 @@ function newInspection() {
   document.getElementById('f-serial').value    = '';
   document.getElementById('f-insurance').value     = '';
   document.getElementById('f-incident-date').value = '';
+  document.querySelectorAll('input[name="report-type"]').forEach(r => r.checked = false);
   document.getElementById('pt-original').checked    = false;
   document.getElementById('pt-used').checked        = false;
   document.getElementById('pt-aftermarket').checked = false;
   document.getElementById('w-paint').value    = 0;
   document.getElementById('w-body').value     = 0;
   document.getElementById('w-electric').value = 0;
+  document.getElementById('extra-works').innerHTML = '';
+  extraWorkId = 0;
   document.getElementById('f-notes').value     = '';
   document.getElementById('f-date').value   = new Date().toLocaleDateString('he-IL');
   document.getElementById('damage-rows').innerHTML = '';
@@ -1180,6 +1237,7 @@ function buildPDFContent(recsArr) {
         `לקוח: ${rec.client||na}`,
         rec.insurance ? `ביטוח: ${rec.insurance}` : '',
         rec.incidentDate ? `תאריך מקרה: ${rec.incidentDate}` : '',
+        rec.reportType ? `סוג דוח: ${rec.reportType}` : '',
         rec.partsType ? `חלפים: ${[rec.partsType.original?'מקורי':'',rec.partsType.used?'משומש':'',rec.partsType.aftermarket?'תחליפי':''].filter(Boolean).join('+')||'—'}` : '',
         rec.serial ? `שלדה: ${rec.serial}` : ''
       ].filter(Boolean).map(t=>`<span style="background:#f0f4ff;padding:2px 8px;border-radius:4px;display:inline-block">${t}</span>`).join('')}
@@ -1193,6 +1251,9 @@ function buildPDFContent(recsArr) {
       if (rec.works.paint    > 0) html += `<tr><td style="${tdStyle}">🎨 עבודות צבע</td><td style="${tdStyle}">עבודה</td><td style="${tdStyle}">${rec.works.paint}</td></tr>`;
       if (rec.works.body     > 0) html += `<tr><td style="${tdStyle}">🔨 פחחות/מרכב</td><td style="${tdStyle}">עבודה</td><td style="${tdStyle}">${rec.works.body}</td></tr>`;
       if (rec.works.electric > 0) html += `<tr><td style="${tdStyle}">⚡ חשמל</td><td style="${tdStyle}">עבודה</td><td style="${tdStyle}">${rec.works.electric}</td></tr>`;
+      (rec.works.extraWorks||[]).forEach(w => {
+        if (w.amount > 0) html += `<tr><td style="${tdStyle}">${w.label||'עבודה נוספת'}</td><td style="${tdStyle}">עבודה</td><td style="${tdStyle}">${w.amount}</td></tr>`;
+      });
     }
     html += `<tr><td colspan="2" style="border:1px solid #ccc;padding:4px 6px;font-weight:bold;background:#e8f0fe">סה"כ אומדן</td><td style="border:1px solid #ccc;padding:4px 6px;font-weight:bold;background:#e8f0fe">${Number(rec.total)||0} ₪</td></tr>`;
     if (rec.notes) html += `<tr><td colspan="3" style="${tdStyle}">הערות: ${rec.notes}</td></tr>`;
