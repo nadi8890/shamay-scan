@@ -574,6 +574,46 @@ function daysUntil(s) {
   if (!d) return null;
   return Math.ceil((d - new Date()) / 86400000);
 }
+function parseVehicleYear(yearStr) {
+  if (!yearStr) return null;
+  const s = String(yearStr).trim();
+  // Format: "11.24" → Nov 2024, "3.19" → Mar 2019
+  const m = s.match(/^(\d{1,2})\.(\d{2,4})$/);
+  if (m) {
+    let mo = parseInt(m[1]);
+    let y = parseInt(m[2]);
+    if (y < 100) y += 2000;
+    return new Date(y, mo - 1, 1);
+  }
+  // Just a year number e.g. "26" or "2026"
+  const y = parseInt(s);
+  if (!isNaN(y)) {
+    const yr = y < 100 ? 2000 + y : y;
+    return new Date(yr, 0, 1);
+  }
+  return null;
+}
+function nextInspectionDate(v) {
+  const lastInsp = parseDate(v.inspection);
+  if (!lastInsp) return null;
+  const vehicleStart = parseVehicleYear(v.year);
+  const now = new Date();
+  const ageYears = vehicleStart ? (now - vehicleStart) / (365.25 * 24 * 3600 * 1000) : 999;
+  const monthsToAdd = ageYears <= 3 ? 6 : 3;
+  const next = new Date(lastInsp);
+  next.setMonth(next.getMonth() + monthsToAdd);
+  return next;
+}
+function nextInspectionStr(v) {
+  const d = nextInspectionDate(v);
+  if (!d) return '';
+  return ('0'+d.getDate()).slice(-2)+'/'+('0'+(d.getMonth()+1)).slice(-2)+'/'+d.getFullYear();
+}
+function daysUntilNextInsp(v) {
+  const d = nextInspectionDate(v);
+  if (!d) return null;
+  return Math.ceil((d - new Date()) / 86400000);
+}
 function statusBadge(days) {
   if (days === null) return '<span class="badge badge-gray">—</span>';
   if (days < 0) return `<span class="badge badge-red">פג תוקף (${Math.abs(days)} ימים)</span>`;
@@ -624,7 +664,7 @@ function renderDashboard() {
   const totalVehicles = VEHICLES.length;
   let expiredCount = 0, soonCount = 0;
   VEHICLES.forEach(v => {
-    const dates = [v.registrationExpiry, v.insuranceExpiry, v.licenseExpiry, v.inspection];
+    const dates = [v.registrationExpiry, v.insuranceExpiry, v.licenseExpiry, nextInspectionStr(v)];
     dates.forEach(d => {
       const days = daysUntil(d);
       if (days !== null && days < 0) expiredCount++;
@@ -646,7 +686,7 @@ function renderDashboard() {
       {label:'תוקף רישוי',val:v.registrationExpiry},
       {label:'תוקף ביטוח',val:v.insuranceExpiry},
       {label:'רישיון נהג',val:v.licenseExpiry},
-      {label:'ביקורת בטיחות',val:v.inspection},
+      {label:'ביקורת בטיחות',val:nextInspectionStr(v)},
     ];
     checks.forEach(c => {
       const days = daysUntil(c.val);
@@ -693,7 +733,7 @@ function renderFleet() {
     }
     if (co && !String(v.company||'').includes(co.replace('נופר אנרגי','נופר'))) return false;
     if (st) {
-      const dates = [v.registrationExpiry,v.insuranceExpiry,v.licenseExpiry,v.inspection];
+      const dates = [v.registrationExpiry,v.insuranceExpiry,v.licenseExpiry,nextInspectionStr(v)];
       const hasExpired = dates.some(d => { const x=daysUntil(d); return x!==null && x<0; });
       const hasSoon = dates.some(d => { const x=daysUntil(d); return x!==null && x>=0 && x<=30; });
       if (st==='expired' && !hasExpired) return false;
@@ -710,7 +750,7 @@ function renderFleet() {
     const regDays = daysUntil(v.registrationExpiry);
     const insDays = daysUntil(v.insuranceExpiry);
     const licDays = daysUntil(v.licenseExpiry);
-    const inspDays = daysUntil(v.inspection);
+    const inspDays = daysUntilNextInsp(v);
     function cellCls(d) {
       if (d===null) return '';
       if (d < 0) return 'cell-red';
@@ -730,7 +770,7 @@ function renderFleet() {
       <td class="${cellCls(insDays)}">${statusBadge(insDays)}<br><span style="color:var(--muted);font-size:0.63rem">${esc(v.insuranceExpiry)}</span></td>
       <td class="${cellCls(licDays)}">${statusBadge(licDays)}<br><span style="color:var(--muted);font-size:0.63rem">${esc(v.licenseExpiry)}</span></td>
       <td>${kmStatus(v.currentKm, v.nextServiceKm)}<br><span style="color:var(--muted);font-size:0.63rem">${esc(v.nextServiceKm)||'—'} ק"מ</span></td>
-      <td class="${cellCls(inspDays)}">${statusBadge(inspDays)}<br><span style="color:var(--muted);font-size:0.63rem">${esc(v.inspection)}</span></td>
+      <td class="${cellCls(inspDays)}">${statusBadge(inspDays)}<br><span style="color:var(--muted);font-size:0.63rem">הבאה: ${nextInspectionStr(v)||'—'}</span><br><span style="color:var(--muted);font-size:0.58rem">אחרונה: ${esc(v.inspection)||'—'}</span></td>
       <td style="white-space:nowrap">
         <button class="btn btn-gray" style="padding:3px 8px;font-size:0.7rem" onclick="editVehicle('${esc(v.plate)}')">✏️</button>
       </td>
