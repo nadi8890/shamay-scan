@@ -541,11 +541,14 @@ const ALERTS_DATA = [
 
 let TASKS      = [{"id": 1, "text": "לטפל בתשלום טפסי החזר רישוי"}, {"id": 2, "text": "לעקוב אחרי החזר תשלום כביש 6 מיוגב עבור רכב 85349903, בחשבונית נובמבר 25 הוחזר הכסף"}, {"id": 3, "text": "לראות אולי ייאסף פסקל מליסקאר באר שבע על הרכב של רוית הקודם 21897903"}, {"id": 4, "text": "לבטל ביטוח לרכב 28491903 רכב שמכרנו - טופל תיעוד מהסוכן ביטוח בוואטצאפ 29.10.2"}, {"id": 5, "text": "העברת בעלות וביטול ביטוח 13738004- טופל, ממתינים לעדכון על ביטול הביטוח"}, {"id": 6, "text": "להחזיר מפתח נוסף שגיא לליסקאר"}, {"id": 7, "text": "לראות שבוטלו ביטוחים לרכבים נדב, שחר ואדי"}, {"id": 8, "text": "העברת בעלות רכב אריאל אשר לבעלות נופר ישראל"}, {"id": 9, "text": "למכור רכבים אוהד ואריאל"}, {"id": 10, "text": "לבדוק שקיבלנו תשלום שרידים רכב 12198203 הראל דרוקר לשעבר טוטאלוס"}, {"id": 11, "text": "חשבוניות השכרה הרץ -לסדר גוסטבו רוצמן"}, {"id": 12, "text": "להביא זיכוי איזפליט ולשלוח חשבונית חדשה"}, {"id": 13, "text": "להביא לליסקאר מפתח של רכב 42008902"}, {"id": 14, "text": "שופרסל, נתתי לנועה פתרון 28.4.26"}, {"id": 15, "text": "לאסוף פסקל קודם עיינה ליסקאר פתח תקווה לדבר עם אלון"}, {"id": 16, "text": "עד הלום"}, {"id": 17, "text": "לאסוף פסקל פנוי ליסקאר שהיה של אוריאל"}, {"id": 18, "text": "להזמין פסקלים נופר ישראל ולאסוף קיימים מעובדים ולראות לגבי זיכוי מול חדווה"}, {"id": "מס\"ד", "text": "שם ספק"}, {"id": 1, "text": "דלק"}, {"id": 2, "text": "סונול"}, {"id": 3, "text": "דור אלון"}, {"id": 4, "text": "איזפליט"}, {"id": 5, "text": "עמדות טעינה נופר"}, {"id": 6, "text": "שלמה"}, {"id": 7, "text": "ליסקאר"}, {"id": 8, "text": "כביש 6"}, {"id": 9, "text": "חוצה צפון"}, {"id": 10, "text": "מנהרות הכרמל"}, {"id": 11, "text": "שטיפומט"}, {"id": 12, "text": "געש"}, {"id": 13, "text": "האומנים"}, {"id": 14, "text": "רון שטיין"}, {"id": 15, "text": "משרד התחבורה"}, {"id": 16, "text": "הרץ"}, {"id": 17, "text": "קוברה"}, {"id": 18, "text": "רב בריח"}, {"id": 19, "text": "עד נהריה"}];
 
+const VEHICLES_VERSION = '2026-07-08-v2';
 // Load any local overrides
 (function(){
   try {
     const lv = localStorage.getItem('fleet_vehicles');
-    if (lv) VEHICLES = JSON.parse(lv);
+    const lvv = localStorage.getItem('fleet_vehicles_version');
+    if (lv && lvv === VEHICLES_VERSION) VEHICLES = JSON.parse(lv);
+    else { localStorage.setItem('fleet_vehicles_version', VEHICLES_VERSION); localStorage.removeItem('fleet_vehicles'); }
     const lt = localStorage.getItem('fleet_tasks');
     if (lt) TASKS = JSON.parse(lt);
     const li = localStorage.getItem('fleet_incidents');
@@ -1014,6 +1017,7 @@ function saveVehicle() {
     VEHICLES.unshift(v);
   }
   localStorage.setItem('fleet_vehicles', JSON.stringify(VEHICLES));
+  localStorage.setItem('fleet_vehicles_version', VEHICLES_VERSION);
   closeModal();
   renderDashboard();
   renderFleet();
