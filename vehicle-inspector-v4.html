@@ -37,13 +37,13 @@ header{background:var(--surface);border-bottom:1px solid var(--border);padding:1
 .btn-green{background:var(--green);color:#fff}
 .btn-blue{background:var(--blue);color:#fff}
 .btn-gray{background:var(--surface);color:var(--text);border:1px solid var(--border)}
-main{max-width:520px;margin:0 auto;padding:20px 16px 40px}
+main{max-width:620px;margin:0 auto;padding:20px 16px 40px}
 .card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:18px;margin-bottom:16px}
 .card-title{font-size:0.9rem;font-weight:700;margin-bottom:14px;display:flex;align-items:center;gap:8px}
 .row{display:flex;gap:10px;margin-bottom:10px}
 .field{display:flex;flex-direction:column;flex:1}
 .field label{font-size:0.72rem;color:var(--muted);margin-bottom:4px}
-input[type=text],input[type=number],select,textarea{background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:9px 12px;font-family:'Heebo',sans-serif;font-size:0.88rem;width:100%}
+input[type=text],input[type=number],select,textarea{background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:12px 14px;font-family:'Heebo',sans-serif;font-size:0.93rem;width:100%;min-height:46px}
 input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue)}
 /* Office selector */
 .office-card{background:linear-gradient(135deg,#1a2035,#1e2840);border:1px solid var(--accent);border-radius:14px;padding:14px 16px;margin-bottom:16px;display:flex;align-items:center;gap:12px}
@@ -186,6 +186,9 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue)}
     <div class="field"><label>ק"מ</label><input type="text" id="f-km" placeholder="85,000"></div>
     <div class="field"><label>מספר סידורי (שלדה)</label><input type="text" id="f-serial" placeholder="WBA12345678901234" style="direction:ltr;font-size:0.82rem"></div>
     <div class="field"><label>תאריך מקרה</label><input type="text" id="f-incident-date" placeholder="DD/MM/YYYY" inputmode="numeric" maxlength="10" oninput="onIncidentDateChange(this)"></div>
+  </div>
+  <div class="row">
+    <div class="field"><label>מקום בדיקה</label><input type="text" id="f-location" placeholder="גראז' כהן, תל אביב"></div>
   </div>
   <div class="row">
     <div class="field"><label>חברת ביטוח</label>
@@ -1022,6 +1025,7 @@ function saveRecord() {
     serial: document.getElementById('f-serial').value.trim(),
     insurance:    document.getElementById('f-insurance').value,
     incidentDate: document.getElementById('f-incident-date').value.trim(),
+    location: document.getElementById('f-location').value.trim(),
     reportType: getReportType(),
     partsType: {
       original:    document.getElementById('pt-original').checked,
@@ -1122,6 +1126,7 @@ function loadRecord(id) {
   document.getElementById('f-serial').value    = r.serial    || '';
   document.getElementById('f-insurance').value     = r.insurance    || '';
   document.getElementById('f-incident-date').value = r.incidentDate || '';
+  document.getElementById('f-location').value = r.location || '';
   // Report type
   document.querySelectorAll('input[name="report-type"]').forEach(r2 => r2.checked = (r2.value === r.reportType));
   if (r.partsType) {
@@ -1167,6 +1172,7 @@ function newInspection() {
   document.getElementById('f-serial').value    = '';
   document.getElementById('f-insurance').value     = '';
   document.getElementById('f-incident-date').value = '';
+  document.getElementById('f-location').value = '';
   document.querySelectorAll('input[name="report-type"]').forEach(r => r.checked = false);
   document.getElementById('pt-original').checked    = false;
   document.getElementById('pt-used').checked        = false;
@@ -1239,6 +1245,7 @@ function buildPDFContent(recsArr) {
         `לקוח: ${rec.client||na}`,
         rec.insurance ? `ביטוח: ${rec.insurance}` : '',
         rec.incidentDate ? `תאריך מקרה: ${rec.incidentDate}` : '',
+        rec.location ? `מקום בדיקה: ${rec.location}` : '',
         rec.reportType ? `סוג דוח: ${rec.reportType}` : '',
         rec.partsType ? `חלפים: ${[rec.partsType.original?'מקורי':'',rec.partsType.used?'משומש':'',rec.partsType.aftermarket?'תחליפי':''].filter(Boolean).join('+')||'—'}` : '',
         rec.serial ? `שלדה: ${rec.serial}` : ''
