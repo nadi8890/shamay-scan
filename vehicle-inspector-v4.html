@@ -981,9 +981,12 @@ async function analyzePhoto() {
     const result = JSON.parse(m[0]);
 
     // Fill vehicle fields if empty
-    if (result.plate && !document.getElementById('f-plate').value) document.getElementById('f-plate').value = result.plate;
+    const plateWasEmpty = !document.getElementById('f-plate').value;
+    if (result.plate && plateWasEmpty) document.getElementById('f-plate').value = result.plate;
     if (result.make  && !document.getElementById('f-make').value)  document.getElementById('f-make').value  = result.make;
     if (result.model && !document.getElementById('f-model').value) document.getElementById('f-model').value = result.model;
+    // Auto-lookup plate from MOT if AI detected one and field was empty
+    if (result.plate && plateWasEmpty) lookupPlate();
     if (result.year  && !document.getElementById('f-year').value)  document.getElementById('f-year').value  = result.year;
     if (result.color && !document.getElementById('f-color').value) document.getElementById('f-color').value = result.color;
 
