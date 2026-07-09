@@ -412,7 +412,8 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
   <div class="agent-key-wrap" id="agent-key-wrap">
     <label>🔑 מפתח API של Anthropic (נשמר בדפדפן בלבד)</label>
     <div class="agent-key-row">
-      <input class="agent-key-input" id="agent-key-input" type="password" placeholder="sk-ant-api03-...">
+      <input class="agent-key-input" id="agent-key-input" type="text" placeholder="sk-ant-api03-..." autocomplete="off" spellcheck="false">
+      <button onclick="const i=document.getElementById('agent-key-input');i.type=i.type==='password'?'text':'password';this.textContent=i.type==='password'?'👁️':'🙈'" style="background:none;border:1px solid #e2e8f0;border-radius:8px;padding:7px 10px;cursor:pointer;font-size:0.9rem" title="הסתר/הצג מפתח">🙈</button>
       <button class="agent-key-save" onclick="saveApiKey()">שמור</button>
     </div>
   </div>
