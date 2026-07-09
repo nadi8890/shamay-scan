@@ -1249,6 +1249,14 @@ ${VEHICLES.map(v=>`• ${v.plate} | ${v.make} ${v.model} ${v.year||''} | נהג:
 [[ACTION:addIncident:רישוי|נהג|תאריך(DD/MM/YYYY)|סכום_נזק|הערות]]
 דוגמה: [[ACTION:addIncident:12345678|ישראל ישראלי|15/07/2026|5000|פגיעה קדמית]]
 
+בדיקת רישוי ממשלתי (data.gov.il) — מחזיר יצרן/דגם/שנה/צבע/תוקף + מעדכן תוקף ברכב אם קיים:
+[[ACTION:lookupVehicle:מספר_רישוי]]
+דוגמה: [[ACTION:lookupVehicle:83945203]]
+
+ייצוא כרטיס רכב (פותח חלון הדפסה עם כל הפרטים):
+[[ACTION:exportVehicleCard:מספר_רישוי]]
+דוגמה: [[ACTION:exportVehicleCard:83945203]]
+
 ═══ ניתוח תמונות ═══
 כאשר מקבל תמונה של מסמך רכב:
 1. זהה מספר רישוי
@@ -1359,13 +1367,13 @@ async function agentSend() {
     const reply = data.content[0].text;
     agentMessages.push({ role: 'assistant', content: reply });
 
-    // Execute all embedded actions
+    // Execute all embedded actions (async-capable)
     const actions = [...reply.matchAll(/\[\[ACTION:([^:]+):([^\]]*)\]\]/g)];
     const updates = [];
-    actions.forEach(([, action, param]) => {
-      const result = agentExecAction(action, param.trim());
+    for (const [, action, param] of actions) {
+      const result = await agentExecActionAsync(action, param.trim());
       if (result) updates.push(result);
-    });
+    }
     if (updates.length) agentMessages[agentMessages.length-1]._updates = updates;
 
   } catch (e) {
@@ -1458,6 +1466,91 @@ function agentExecAction(action, param) {
   return null;
 }
 
+// Async wrapper — sync actions fall through to agentExecAction
+async function agentExecActionAsync(action, param) {
+  if (action === 'lookupVehicle') return await lookupVehicleGov(param);
+  if (action === 'exportVehicleCard') { exportVehicleCard(param); return { type:'vehicleCard', plate: param }; }
+  return agentExecAction(action, param);
+}
+
+async function lookupVehicleGov(rawPlate) {
+  const plate = rawPlate.replace(/\D/g, '');
+  const statusEl = document.getElementById('agent-status');
+  if (statusEl) statusEl.textContent = `מחפש רישוי ${plate}...`;
+  try {
+    const url = `https://data.gov.il/api/3/action/datastore_search?resource_id=053cea08-09bc-40ec-8f7a-156f0677aff3&q=${encodeURIComponent(plate)}&limit=5`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    const records = data?.result?.records || [];
+    const rec = records.find(r => String(r.mispar_rechev||'').replace(/\D/g,'') === plate) || records[0];
+    if (!rec) return { type:'govLookup', plate, error:'לא נמצא במאגר' };
+
+    // Auto-update local vehicle registration expiry if exists
+    const v = VEHICLES.find(v => v.plate.replace(/\D/g,'') === plate);
+    if (v && rec.tokef_dt) {
+      const d = new Date(rec.tokef_dt);
+      if (!isNaN(d)) {
+        v.registrationExpiry = ('0'+d.getDate()).slice(-2)+'/'+('0'+(d.getMonth()+1)).slice(-2)+'/'+d.getFullYear();
+        localStorage.setItem('fleet_vehicles', JSON.stringify(VEHICLES));
+        localStorage.setItem('fleet_vehicles_version', VEHICLES_VERSION);
+        renderFleet();
+        toast(`✓ תוקף רישוי ${plate} עודכן`);
+      }
+    }
+
+    const fmtDate = s => { if(!s) return '—'; const d=new Date(s); return isNaN(d)?s:('0'+d.getDate()).slice(-2)+'/'+('0'+(d.getMonth()+1)).slice(-2)+'/'+d.getFullYear(); };
+    return {
+      type:'govLookup', plate,
+      make: rec.tozeret_nm||'—',
+      model: rec.degem_nm||rec.kinuy_mishari||'—',
+      year: rec.shnat_yitzur||'—',
+      color: rec.tzeva_rechev||'—',
+      regExpiry: fmtDate(rec.tokef_dt),
+      vehicleType: rec.sug_degem||'—',
+      ownership: rec.baalut||'—',
+      onRoadSince: fmtDate(rec.moed_aliya_lakvish),
+      engineCC: rec.engine_cc||'—',
+      doors: rec.num_doors||'—',
+      weight: rec.mishkal_kolel||'—'
+    };
+  } catch(e) {
+    return { type:'govLookup', plate, error: e.message };
+  }
+}
+
+function exportVehicleCard(rawPlate) {
+  const plate = rawPlate.trim();
+  const v = VEHICLES.find(v => v.plate === plate || v.plate.replace(/\D/g,'') === plate.replace(/\D/g,''));
+  if (!v) { toast(`רכב ${plate} לא נמצא`, true); return; }
+  const win = window.open('', '_blank', 'width=640,height=820');
+  if (!win) { toast('חסמת חלונות קופצים — אפשר אותם בדפדפן', true); return; }
+  win.document.write(`<!DOCTYPE html><html dir="rtl" lang="he">
+<head><meta charset="UTF-8"><title>כרטיס רכב ${v.plate}</title>
+<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:'Segoe UI',Arial,sans-serif;background:#f8fafc;padding:24px;color:#1e293b}.card{background:#fff;border-radius:16px;box-shadow:0 4px 24px rgba(0,0,0,.10);padding:28px;max-width:560px;margin:0 auto}h1{font-size:1.5rem;color:#1e40af;margin-bottom:4px}.sub{color:#64748b;font-size:.9rem;margin-bottom:20px}table{width:100%;border-collapse:collapse;font-size:.9rem}td,th{border:1px solid #e2e8f0;padding:9px 12px;text-align:right}th{background:#eff6ff;color:#1e40af;width:40%;font-weight:600}.btn{margin-top:20px;padding:10px 24px;background:#1e40af;color:#fff;border:none;border-radius:8px;font-size:1rem;cursor:pointer}.btn:hover{background:#1e3a8a}.logo{font-size:1.8rem;margin-bottom:8px}</style>
+</head><body>
+<div class="card">
+  <div class="logo">🚘</div>
+  <h1>${v.plate}</h1>
+  <div class="sub">${v.make||''} ${v.model||''} ${v.year?'('+v.year+')':''}</div>
+  <table>
+    <tr><th>נהג</th><td>${v.driverName||'—'}</td></tr>
+    <tr><th>חברה</th><td>${v.company||'—'}</td></tr>
+    <tr><th>יצרן / דגם</th><td>${v.make||''} ${v.model||''}</td></tr>
+    <tr><th>שנת ייצור</th><td>${v.year||'—'}</td></tr>
+    <tr><th>תוקף רישוי</th><td>${v.registrationExpiry||'—'}</td></tr>
+    <tr><th>תוקף ביטוח</th><td>${v.insuranceExpiry||'—'}</td></tr>
+    <tr><th>רישיון נהג</th><td>${v.licenseExpiry||'—'}</td></tr>
+    <tr><th>ביקורת בטיחות</th><td>${v.inspection||'—'}</td></tr>
+    <tr><th>ק"מ נוכחי</th><td>${v.currentKm||'—'}</td></tr>
+    <tr><th>ק"מ לטיפול הבא</th><td>${v.nextServiceKm||'—'}</td></tr>
+  </table>
+  <div style="margin-top:8px;font-size:.75rem;color:#94a3b8">הופק: ${new Date().toLocaleString('he-IL')}</div>
+  <button class="btn" onclick="window.print()">🖨️ הדפסה</button>
+</div></body></html>`);
+  win.document.close();
+}
+
 function renderAgentMsgs(showTyping = false) {
   const container = document.getElementById('agent-msgs');
   const html = agentMessages.map(m => {
@@ -1482,6 +1575,9 @@ function renderAgentMsgs(showTyping = false) {
         if (u.type === 'vehicle' && u.action === 'כבר קיים') return `<div class="update-card"><strong>⚠️ רכב ${esc(u.plate)} כבר קיים במערכת</strong></div>`;
         if (u.type === 'task') return `<div class="update-card"><strong>✅ משימה ${esc(u.action)}</strong><span>${esc(u.text)}</span></div>`;
         if (u.type === 'incident') return `<div class="update-card"><strong>✅ אירוע נזק נוסף — רכב ${esc(u.plate)}</strong><span>תאריך: ${esc(u.date||'—')}</span></div>`;
+        if (u.type === 'govLookup' && u.error) return `<div class="update-card"><strong>⚠️ רישוי ${esc(u.plate)}: ${esc(u.error)}</strong></div>`;
+        if (u.type === 'govLookup') return `<div class="update-card"><strong>🏛️ נתוני ממשלה — ${esc(u.plate)}</strong><span>${esc(u.make)} ${esc(u.model)} | שנה: ${esc(String(u.year))} | צבע: ${esc(u.color)}</span><span>תוקף רישוי: ${esc(u.regExpiry)} | על הכביש מ: ${esc(u.onRoadSince)}</span><span>סוג: ${esc(u.vehicleType)} | בעלות: ${esc(u.ownership)}</span></div>`;
+        if (u.type === 'vehicleCard') return `<div class="update-card"><strong>🖨️ כרטיס רכב נפתח — ${esc(u.plate)}</strong></div>`;
         return '';
       }).join('');
     }
