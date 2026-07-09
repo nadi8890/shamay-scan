@@ -745,7 +745,7 @@ function renderDashboard() {
 
 // ── FLEET SORT/FILTER ──
 let fleetSort = { col: null, dir: 1 };
-let fleetColFilters = { plate:'', make:'', driver:'', company:'' };
+let fleetColFilters = { plate:'', make:'', driver:'', company:'', reg:'', ins:'', lic:'', km:'', insp:'' };
 
 function sortFleetCol(col) {
   if (fleetSort.col === col) fleetSort.dir *= -1;
@@ -757,19 +757,25 @@ function setColFilter(col, val) {
   renderFleet();
 }
 function buildColFilterRow(vehicles) {
-  const uniq = key => [...new Set(vehicles.map(v => {
-    if (key==='make') return (v.make||'')+(v.model?' '+v.model:'');
+  const getVal = (v, key) => {
+    if (key==='make')   return ((v.make||'')+(v.model?' '+v.model:'')).trim();
     if (key==='driver') return (v.driverName||'').split('-')[0].trim();
-    if (key==='company') return String(v.company||'').trim();
+    if (key==='company')return String(v.company||'').trim();
+    if (key==='reg')    return String(v.registrationExpiry||'').trim();
+    if (key==='ins')    return String(v.insuranceExpiry||'').trim();
+    if (key==='lic')    return String(v.licenseExpiry||'').trim();
+    if (key==='km')     return String(v.nextServiceKm||'').trim();
+    if (key==='insp')   return String(v.inspection||'').trim();
     return String(v[key]||'').trim();
-  }).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'he'));
+  };
+  const uniq = key => [...new Set(vehicles.map(v => getVal(v,key)).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'he'));
 
-  const sel = (col, label) => {
+  const sel = col => {
     const opts = uniq(col).map(u=>`<option value="${esc(u)}"${fleetColFilters[col]===u?' selected':''}>${esc(u)}</option>`).join('');
     return `<th><select class="col-filter-sel" onchange="setColFilter('${col}',this.value)"><option value="">הכל</option>${opts}</select></th>`;
   };
   const row = document.getElementById('col-filter-row');
-  if (row) row.innerHTML = sel('plate','רישוי') + sel('make','דגם') + sel('driver','נהג') + sel('company','חברה') + '<th></th><th></th><th></th><th></th><th></th><th></th>';
+  if (row) row.innerHTML = sel('plate')+sel('make')+sel('driver')+sel('company')+sel('reg')+sel('ins')+sel('lic')+sel('km')+sel('insp')+'<th></th>';
 }
 function updateSortArrows() {
   ['plate','make','driver','company','reg','ins','lic','km','insp'].forEach(c => {
@@ -800,10 +806,15 @@ function renderFleet() {
       if (st==='soon' && !hasSoon) return false;
     }
     // Column filters
-    if (fleetColFilters.plate && v.plate !== fleetColFilters.plate) return false;
-    if (fleetColFilters.make && ((v.make||'')+' '+(v.model||'')).trim() !== fleetColFilters.make) return false;
-    if (fleetColFilters.driver && (v.driverName||'').split('-')[0].trim() !== fleetColFilters.driver) return false;
+    if (fleetColFilters.plate   && v.plate !== fleetColFilters.plate) return false;
+    if (fleetColFilters.make    && ((v.make||'')+' '+(v.model||'')).trim() !== fleetColFilters.make) return false;
+    if (fleetColFilters.driver  && (v.driverName||'').split('-')[0].trim() !== fleetColFilters.driver) return false;
     if (fleetColFilters.company && String(v.company||'').trim() !== fleetColFilters.company) return false;
+    if (fleetColFilters.reg     && String(v.registrationExpiry||'').trim() !== fleetColFilters.reg) return false;
+    if (fleetColFilters.ins     && String(v.insuranceExpiry||'').trim() !== fleetColFilters.ins) return false;
+    if (fleetColFilters.lic     && String(v.licenseExpiry||'').trim() !== fleetColFilters.lic) return false;
+    if (fleetColFilters.km      && String(v.nextServiceKm||'').trim() !== fleetColFilters.km) return false;
+    if (fleetColFilters.insp    && String(v.inspection||'').trim() !== fleetColFilters.insp) return false;
     return true;
   });
 
