@@ -51,6 +51,12 @@ header{background:#1e40af;padding:11px 16px;display:flex;align-items:center;just
 thead th{position:sticky;top:0;z-index:3;background:#f8fafc}
 table{width:100%;border-collapse:collapse;font-size:0.79rem;background:#fff}
 th{text-align:right;padding:11px 13px;color:#1e293b;font-weight:800;background:linear-gradient(180deg,#f8fafc,#f1f5f9);border-bottom:2px solid #cbd5e1;white-space:nowrap;font-size:0.71rem;letter-spacing:.03em}
+.th-sort{cursor:pointer;user-select:none;display:flex;align-items:center;justify-content:space-between;gap:4px}
+.th-sort:hover{color:#2563eb}
+.sort-arrow{font-size:0.65rem;color:#94a3b8;flex-shrink:0}
+.col-filter-row th{padding:3px 4px;background:#f1f5f9;border-bottom:2px solid #cbd5e1}
+.col-filter-sel{width:100%;border:1px solid #cbd5e1;border-radius:5px;padding:3px 4px;font-family:'Heebo',sans-serif;font-size:0.65rem;background:#fff;color:#334155;cursor:pointer}
+.col-filter-sel:focus{outline:none;border-color:#2563eb}
 td{padding:10px 13px;border-bottom:1.5px solid #e2e8f0;vertical-align:middle;color:var(--text);transition:background .1s}
 tr:last-child td{border-bottom:none}
 tr:hover td{background:#f0f7ff!important}
@@ -75,7 +81,7 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
 .search-input:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(37,99,235,.1)}
 .filter-select{background:#fff;border:1px solid var(--border);color:var(--text);border-radius:9px;padding:9px 10px;font-family:'Heebo',sans-serif;font-size:0.82rem;box-shadow:0 1px 3px rgba(0,0,0,.05)}
 /* Modal */
-.modal-overlay{display:none;position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:500;align-items:center;justify-content:center;padding:16px;backdrop-filter:blur(2px)}
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(15,23,42,.5);z-index:600;align-items:center;justify-content:center;padding:16px;backdrop-filter:blur(2px)}
 .modal-overlay.open{display:flex}
 .modal{background:#fff;border:1px solid var(--border);border-radius:16px;padding:22px;max-width:520px;width:100%;max-height:88vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.15)}
 .modal h3{font-size:1.05rem;font-weight:800;margin-bottom:16px;color:var(--text)}
@@ -221,12 +227,20 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
   </div>
   <div class="tbl-wrap">
     <table>
-      <thead>
+      <thead id="fleet-thead">
         <tr>
-          <th>מס׳ רישוי</th><th>יצרן / דגם</th><th>נהג</th><th>חברה</th>
-          <th>תוקף רישוי</th><th>תוקף ביטוח</th><th>רישיון נהג</th>
-          <th>טיפול הבא</th><th>ביקורת</th><th></th>
+          <th><div class="th-sort" onclick="sortFleetCol('plate')">מס׳ רישוי<span class="sort-arrow" id="sarr-plate">⇅</span></div></th>
+          <th><div class="th-sort" onclick="sortFleetCol('make')">יצרן / דגם<span class="sort-arrow" id="sarr-make">⇅</span></div></th>
+          <th><div class="th-sort" onclick="sortFleetCol('driver')">נהג<span class="sort-arrow" id="sarr-driver">⇅</span></div></th>
+          <th><div class="th-sort" onclick="sortFleetCol('company')">חברה<span class="sort-arrow" id="sarr-company">⇅</span></div></th>
+          <th><div class="th-sort" onclick="sortFleetCol('reg')">תוקף רישוי<span class="sort-arrow" id="sarr-reg">⇅</span></div></th>
+          <th><div class="th-sort" onclick="sortFleetCol('ins')">תוקף ביטוח<span class="sort-arrow" id="sarr-ins">⇅</span></div></th>
+          <th><div class="th-sort" onclick="sortFleetCol('lic')">רישיון נהג<span class="sort-arrow" id="sarr-lic">⇅</span></div></th>
+          <th><div class="th-sort" onclick="sortFleetCol('km')">טיפול הבא<span class="sort-arrow" id="sarr-km">⇅</span></div></th>
+          <th><div class="th-sort" onclick="sortFleetCol('insp')">ביקורת<span class="sort-arrow" id="sarr-insp">⇅</span></div></th>
+          <th></th>
         </tr>
+        <tr class="col-filter-row" id="col-filter-row"></tr>
       </thead>
       <tbody id="fleet-body"></tbody>
     </table>
@@ -729,6 +743,43 @@ function renderDashboard() {
 
 }
 
+// ── FLEET SORT/FILTER ──
+let fleetSort = { col: null, dir: 1 };
+let fleetColFilters = { plate:'', make:'', driver:'', company:'' };
+
+function sortFleetCol(col) {
+  if (fleetSort.col === col) fleetSort.dir *= -1;
+  else { fleetSort.col = col; fleetSort.dir = 1; }
+  renderFleet();
+}
+function setColFilter(col, val) {
+  fleetColFilters[col] = val;
+  renderFleet();
+}
+function buildColFilterRow(vehicles) {
+  const uniq = key => [...new Set(vehicles.map(v => {
+    if (key==='make') return (v.make||'')+(v.model?' '+v.model:'');
+    if (key==='driver') return (v.driverName||'').split('-')[0].trim();
+    if (key==='company') return String(v.company||'').trim();
+    return String(v[key]||'').trim();
+  }).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'he'));
+
+  const sel = (col, label) => {
+    const opts = uniq(col).map(u=>`<option value="${esc(u)}"${fleetColFilters[col]===u?' selected':''}>${esc(u)}</option>`).join('');
+    return `<th><select class="col-filter-sel" onchange="setColFilter('${col}',this.value)"><option value="">הכל</option>${opts}</select></th>`;
+  };
+  const row = document.getElementById('col-filter-row');
+  if (row) row.innerHTML = sel('plate','רישוי') + sel('make','דגם') + sel('driver','נהג') + sel('company','חברה') + '<th></th><th></th><th></th><th></th><th></th><th></th>';
+}
+function updateSortArrows() {
+  ['plate','make','driver','company','reg','ins','lic','km','insp'].forEach(c => {
+    const el = document.getElementById('sarr-'+c);
+    if (!el) return;
+    el.textContent = fleetSort.col===c ? (fleetSort.dir===1 ? '↑' : '↓') : '⇅';
+    el.style.color = fleetSort.col===c ? '#2563eb' : '#94a3b8';
+  });
+}
+
 // ── FLEET ──
 function renderFleet() {
   const q = (document.getElementById('fleet-search').value||'').toLowerCase();
@@ -748,9 +799,37 @@ function renderFleet() {
       if (st==='expired' && !hasExpired) return false;
       if (st==='soon' && !hasSoon) return false;
     }
+    // Column filters
+    if (fleetColFilters.plate && v.plate !== fleetColFilters.plate) return false;
+    if (fleetColFilters.make && ((v.make||'')+' '+(v.model||'')).trim() !== fleetColFilters.make) return false;
+    if (fleetColFilters.driver && (v.driverName||'').split('-')[0].trim() !== fleetColFilters.driver) return false;
+    if (fleetColFilters.company && String(v.company||'').trim() !== fleetColFilters.company) return false;
     return true;
   });
 
+  // Sort
+  if (fleetSort.col) {
+    filtered.sort((a,b) => {
+      let va, vb;
+      switch(fleetSort.col) {
+        case 'plate': va=a.plate||''; vb=b.plate||''; break;
+        case 'make': va=(a.make||'')+(a.model||''); vb=(b.make||'')+(b.model||''); break;
+        case 'driver': va=a.driverName||''; vb=b.driverName||''; break;
+        case 'company': va=a.company||''; vb=b.company||''; break;
+        case 'reg': va=daysUntil(a.registrationExpiry)??9999; vb=daysUntil(b.registrationExpiry)??9999; break;
+        case 'ins': va=daysUntil(a.insuranceExpiry)??9999; vb=daysUntil(b.insuranceExpiry)??9999; break;
+        case 'lic': va=daysUntil(a.licenseExpiry)??9999; vb=daysUntil(b.licenseExpiry)??9999; break;
+        case 'km': va=parseKm(a.nextServiceKm)-parseKm(a.currentKm); vb=parseKm(b.nextServiceKm)-parseKm(b.currentKm); break;
+        case 'insp': va=daysUntilNextInsp(a)??9999; vb=daysUntilNextInsp(b)??9999; break;
+        default: va=''; vb='';
+      }
+      if (typeof va==='string') return va.localeCompare(vb,'he')*fleetSort.dir;
+      return (va-vb)*fleetSort.dir;
+    });
+  }
+
+  buildColFilterRow(VEHICLES);
+  updateSortArrows();
   document.getElementById('fleet-count').textContent = `מציג ${filtered.length} מתוך ${VEHICLES.length} רכבים`;
 
   const tbody = document.getElementById('fleet-body');
@@ -938,14 +1017,14 @@ function renderTasks() {
     ].filter(Boolean).join('  ·  ');
     return `<div class="task-card ${t.done?'done-card':''}">
       <input type="checkbox" class="task-check" ${t.done?'checked':''} onchange="toggleTask(${t.id})">
-      <div class="task-body">
+      <div class="task-body" onclick="openTaskModal(${t.id})" style="cursor:pointer">
         <div class="task-title ${t.done?'task-done':''}">${esc(t.text)}</div>
         ${meta ? '<div class="task-meta">'+meta+'</div>' : ''}
         ${t.notes ? '<div class="task-meta" style="margin-top:3px;color:var(--muted)">'+esc(t.notes)+'</div>' : ''}
       </div>
       <div style="display:flex;gap:4px;flex-shrink:0">
-        <button onclick="openTaskModal(${t.id})" style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:2px 7px;cursor:pointer;font-size:0.78rem">✏️</button>
-        <button onclick="deleteTask(${t.id})" style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:2px 7px;cursor:pointer;font-size:0.78rem;color:var(--muted)">✕</button>
+        <button onclick="event.stopPropagation();openTaskModal(${t.id})" style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:0.82rem">✏️</button>
+        <button onclick="event.stopPropagation();deleteTask(${t.id})" style="background:none;border:1px solid #e2e8f0;border-radius:6px;padding:4px 10px;cursor:pointer;font-size:0.82rem;color:var(--muted)">✕</button>
       </div>
     </div>`;
   }).join('') || '<div style="text-align:center;color:var(--muted);padding:24px;font-size:0.85rem">אין משימות פתוחות 🎉</div>';
