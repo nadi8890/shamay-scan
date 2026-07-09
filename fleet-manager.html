@@ -394,6 +394,7 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
     <input type="file" id="agent-img-input" accept="image/*" capture="environment" style="display:none" onchange="handleAgentImage(this)">
     <button class="agent-cam" onclick="document.getElementById('agent-img-input').click()" title="צרף תמונה / מסמך">📷</button>
   </div>
+  <div id="change-key-btn" style="display:none;padding:6px 14px;text-align:left"><button onclick="document.getElementById('agent-key-wrap').style.display='block';this.parentElement.style.display='none'" style="background:none;border:none;color:#6366f1;font-size:0.72rem;cursor:pointer;text-decoration:underline;font-family:Heebo,sans-serif">🔑 שנה מפתח API</button></div>
   <div class="agent-key-wrap" id="agent-key-wrap">
     <label>🔑 מפתח API של Anthropic (נשמר בדפדפן בלבד)</label>
     <div class="agent-key-row">
@@ -1095,6 +1096,9 @@ function agentInit() {
   if (agentApiKey) {
     document.getElementById('agent-key-wrap').style.display = 'none';
     document.getElementById('agent-key-input').value = agentApiKey;
+    // Show change-key link
+    const changeBtn = document.getElementById('change-key-btn');
+    if (changeBtn) changeBtn.style.display = 'block';
   }
   // Welcome message
   agentMessages = [{
