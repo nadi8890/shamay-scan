@@ -336,6 +336,9 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
 
 <!-- ══════════════ TAB: RETURNS ══════════════ -->
 <div class="tab-content" id="tab-returns">
+  <div class="search-row" style="margin-bottom:12px">
+    <input class="search-input" id="returns-search" placeholder="🔍 חפש לפי עובד, רישוי, סוג, תאריך, הערות..." oninput="renderReturns()" style="flex:1">
+  </div>
   <!-- Table 1: רכבים חליפיים -->
   <div class="section-hdr" style="margin-bottom:10px">
     <div style="display:flex;align-items:center;gap:8px">
@@ -1789,13 +1792,19 @@ function exportVehicleCard(rawPlate) {
 
 // ── RETURNS TAB ──
 function renderReturns() {
+  const q = (document.getElementById('returns-search')?.value || '').trim().toLowerCase();
+
   const rb = document.getElementById('repl-body');
   const rc = document.getElementById('repl-count');
   if (rb) {
-    if (!REPLACEMENTS.length) {
-      rb.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:20px">אין רכבים חליפיים פעילים</td></tr>`;
+    const filteredRepl = q ? REPLACEMENTS.filter(r =>
+      [r.employee, r.plate, r.typeCompany, r.fromDate, r.toDate, r.notes]
+        .some(v => (v||'').toLowerCase().includes(q))
+    ) : REPLACEMENTS;
+    if (!filteredRepl.length) {
+      rb.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:20px">${q ? 'לא נמצאו תוצאות' : 'אין רכבים חליפיים פעילים'}</td></tr>`;
     } else {
-      rb.innerHTML = REPLACEMENTS.map((r,i) => `
+      rb.innerHTML = filteredRepl.map((r,i) => `
         <tr>
           <td>${esc(r.employee||'—')}</td>
           <td style="font-weight:700;color:var(--accent);direction:ltr">${esc(r.plate||'—')}</td>
@@ -1806,16 +1815,22 @@ function renderReturns() {
           <td><button class="btn-export" style="padding:3px 9px;font-size:0.68rem" onclick="removeReplacementRow(${i})">הסר</button></td>
         </tr>`).join('');
     }
-    if (rc) rc.textContent = REPLACEMENTS.length;
+    if (rc) rc.textContent = q && filteredRepl.length !== REPLACEMENTS.length
+      ? filteredRepl.length + '/' + REPLACEMENTS.length
+      : REPLACEMENTS.length;
   }
 
   const retb = document.getElementById('ret-body');
   const retc = document.getElementById('ret-count');
   if (retb) {
-    if (!RETURNS.length) {
-      retb.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:20px">אין רשומות היסטוריה</td></tr>`;
+    const filteredRet = q ? RETURNS.filter(r =>
+      [r.employee, r.plate, r.make, r.model, r.fromDate, r.toDate, r.reason, r.notes]
+        .some(v => (v||'').toLowerCase().includes(q))
+    ) : RETURNS;
+    if (!filteredRet.length) {
+      retb.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:20px">${q ? 'לא נמצאו תוצאות' : 'אין רשומות היסטוריה'}</td></tr>`;
     } else {
-      retb.innerHTML = RETURNS.map(r => `
+      retb.innerHTML = filteredRet.map(r => `
         <tr>
           <td>${esc(r.employee||'—')}</td>
           <td style="font-weight:700;color:var(--accent);direction:ltr">${esc(r.plate||'—')}</td>
@@ -1826,7 +1841,9 @@ function renderReturns() {
           <td>${esc(r.notes||'')}</td>
         </tr>`).join('');
     }
-    if (retc) retc.textContent = RETURNS.length;
+    if (retc) retc.textContent = q && filteredRet.length !== RETURNS.length
+      ? filteredRet.length + '/' + RETURNS.length
+      : RETURNS.length;
   }
 }
 
