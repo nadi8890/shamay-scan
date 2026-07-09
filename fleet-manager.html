@@ -334,6 +334,59 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
   <div id="tasks-list" style="display:flex;flex-direction:column;gap:8px;margin-top:4px;padding-bottom:12px"></div>
 </div>
 
+<!-- ══════════════ TAB: RETURNS ══════════════ -->
+<div class="tab-content" id="tab-returns">
+  <!-- Table 1: רכבים חליפיים -->
+  <div class="section-hdr" style="margin-bottom:10px">
+    <div style="display:flex;align-items:center;gap:8px">
+      <span class="section-title">🔄 רכבים חליפיים</span>
+      <span class="count-badge" id="repl-count">0</span>
+    </div>
+    <button class="btn-export" onclick="exportSection('replacements')">📊 ייצוא Excel</button>
+  </div>
+  <div class="tbl-wrap" style="margin-bottom:18px">
+    <table>
+      <thead>
+        <tr>
+          <th>עובד</th>
+          <th>רכב חליפי (רישוי)</th>
+          <th>סוג / חברה</th>
+          <th>מתאריך</th>
+          <th>עד תאריך</th>
+          <th>הערות</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="repl-body"></tbody>
+    </table>
+  </div>
+
+  <!-- Table 2: תיעוד תקופת אחזקה -->
+  <div class="section-hdr" style="margin-bottom:10px">
+    <div style="display:flex;align-items:center;gap:8px">
+      <span class="section-title">📋 תיעוד תקופת אחזקה</span>
+      <span class="count-badge" id="ret-count">0</span>
+    </div>
+    <button class="btn-export" onclick="exportSection('returns')">📊 ייצוא Excel</button>
+  </div>
+  <div class="tbl-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>עובד</th>
+          <th>רישוי רכב</th>
+          <th>יצרן / דגם</th>
+          <th>מתאריך</th>
+          <th>עד תאריך</th>
+          <th>סיבת החזרה</th>
+          <th>הערות</th>
+        </tr>
+      </thead>
+      <tbody id="ret-body"></tbody>
+    </table>
+  </div>
+</div>
+
 <!-- ══════════════ TAB: DAMAGE ASSESSMENT ══════════════ -->
 <div class="tab-content" id="tab-damage">
   <div class="card" style="text-align:center;padding:20px">
@@ -382,6 +435,7 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
   <button class="nav-btn" onclick="showTab('violations',this)"><span class="icon">📄</span>דוחות</button>
   <button class="nav-btn" onclick="showTab('invoices',this)"><span class="icon">🔧</span>מוסכים</button>
   <button class="nav-btn" onclick="showTab('tasks',this)"><span class="icon">✅</span>משימות</button>
+  <button class="nav-btn" onclick="showTab('returns',this)"><span class="icon">🔄</span>החזרות</button>
   <button class="nav-btn" onclick="showTab('damage',this)"><span class="icon">📋</span>אומדן</button>
 </nav>
 
@@ -561,6 +615,8 @@ const ALERTS_DATA = [
 let TASKS      = [{"id": 1, "text": "לטפל בתשלום טפסי החזר רישוי"}, {"id": 2, "text": "לעקוב אחרי החזר תשלום כביש 6 מיוגב עבור רכב 85349903, בחשבונית נובמבר 25 הוחזר הכסף"}, {"id": 3, "text": "לראות אולי ייאסף פסקל מליסקאר באר שבע על הרכב של רוית הקודם 21897903"}, {"id": 4, "text": "לבטל ביטוח לרכב 28491903 רכב שמכרנו - טופל תיעוד מהסוכן ביטוח בוואטצאפ 29.10.2"}, {"id": 5, "text": "העברת בעלות וביטול ביטוח 13738004- טופל, ממתינים לעדכון על ביטול הביטוח"}, {"id": 6, "text": "להחזיר מפתח נוסף שגיא לליסקאר"}, {"id": 7, "text": "לראות שבוטלו ביטוחים לרכבים נדב, שחר ואדי"}, {"id": 8, "text": "העברת בעלות רכב אריאל אשר לבעלות נופר ישראל"}, {"id": 9, "text": "למכור רכבים אוהד ואריאל"}, {"id": 10, "text": "לבדוק שקיבלנו תשלום שרידים רכב 12198203 הראל דרוקר לשעבר טוטאלוס"}, {"id": 11, "text": "חשבוניות השכרה הרץ -לסדר גוסטבו רוצמן"}, {"id": 12, "text": "להביא זיכוי איזפליט ולשלוח חשבונית חדשה"}, {"id": 13, "text": "להביא לליסקאר מפתח של רכב 42008902"}, {"id": 14, "text": "שופרסל, נתתי לנועה פתרון 28.4.26"}, {"id": 15, "text": "לאסוף פסקל קודם עיינה ליסקאר פתח תקווה לדבר עם אלון"}, {"id": 16, "text": "עד הלום"}, {"id": 17, "text": "לאסוף פסקל פנוי ליסקאר שהיה של אוריאל"}, {"id": 18, "text": "להזמין פסקלים נופר ישראל ולאסוף קיימים מעובדים ולראות לגבי זיכוי מול חדווה"}, {"id": "מס\"ד", "text": "שם ספק"}, {"id": 1, "text": "דלק"}, {"id": 2, "text": "סונול"}, {"id": 3, "text": "דור אלון"}, {"id": 4, "text": "איזפליט"}, {"id": 5, "text": "עמדות טעינה נופר"}, {"id": 6, "text": "שלמה"}, {"id": 7, "text": "ליסקאר"}, {"id": 8, "text": "כביש 6"}, {"id": 9, "text": "חוצה צפון"}, {"id": 10, "text": "מנהרות הכרמל"}, {"id": 11, "text": "שטיפומט"}, {"id": 12, "text": "געש"}, {"id": 13, "text": "האומנים"}, {"id": 14, "text": "רון שטיין"}, {"id": 15, "text": "משרד התחבורה"}, {"id": 16, "text": "הרץ"}, {"id": 17, "text": "קוברה"}, {"id": 18, "text": "רב בריח"}, {"id": 19, "text": "עד נהריה"}];
 
 const VEHICLES_VERSION = '2026-07-08-v2';
+let REPLACEMENTS = []; // רכבים חליפיים נוכחיים
+let RETURNS      = []; // תיעוד תקופת אחזקה (היסטוריה)
 // Load any local overrides
 (function(){
   try {
@@ -574,6 +630,10 @@ const VEHICLES_VERSION = '2026-07-08-v2';
     if (li) { const arr = JSON.parse(li); if (arr && arr.length) INCIDENTS = arr; }
     const lvi = localStorage.getItem('fleet_violations');
     if (lvi) { const arr = JSON.parse(lvi); if (arr && arr.length) VIOLATIONS = arr; }
+    const lr = localStorage.getItem('fleet_replacements');
+    if (lr) { const arr = JSON.parse(lr); if (arr && arr.length) REPLACEMENTS = arr; }
+    const lret = localStorage.getItem('fleet_returns');
+    if (lret) { const arr = JSON.parse(lret); if (arr && arr.length) RETURNS = arr; }
   } catch(e){}
 })();
 
@@ -683,6 +743,7 @@ function showTab(name, btn) {
   if (name==='violations') renderViolations();
   if (name==='invoices') renderInvoices();
   if (name==='tasks') renderTasks();
+  if (name==='returns') renderReturns();
 }
 
 // ── DASHBOARD ──
@@ -990,6 +1051,12 @@ function exportSection(section) {
   } else if (section === 'alerts') {
     headers = ['מס׳ רישוי','נהג','סוג התראה','תאריך ביצוע','ימים לביצוע','ספידו קודם','ק"מ להתראה','ספידו נוכחי','הפרש ק"מ'];
     rows = ALERTS_DATA.map(a => [a.plate,a.driver,a.type,a.dueDate,a.daysLeft??'ק"מ',a.prevKm,a.kmAlert,a.currentKm,a.kmDiff]);
+  } else if (section === 'replacements') {
+    headers = ['עובד','רכב חליפי (רישוי)','סוג / חברה','מתאריך','עד תאריך','הערות'];
+    rows = REPLACEMENTS.map(r => [r.employee,r.plate,r.typeCompany,r.fromDate,r.toDate,r.notes]);
+  } else if (section === 'returns') {
+    headers = ['עובד','רישוי רכב','יצרן','דגם','מתאריך','עד תאריך','סיבת החזרה','הערות'];
+    rows = RETURNS.map(r => [r.employee,r.plate,r.make,r.model,r.fromDate,r.toDate,r.reason,r.notes]);
   }
   const bom = '﻿';
   const csv = bom + [headers, ...rows]
@@ -1227,7 +1294,7 @@ ${VEHICLES.map(v=>`• ${v.plate} | ${v.make} ${v.model} ${v.year||''} | נהג:
 
 ניווט:
 [[ACTION:tab:fleet]] [[ACTION:tab:alerts]] [[ACTION:tab:incidents]]
-[[ACTION:tab:violations]] [[ACTION:tab:invoices]] [[ACTION:tab:tasks]] [[ACTION:tab:dashboard]]
+[[ACTION:tab:violations]] [[ACTION:tab:invoices]] [[ACTION:tab:tasks]] [[ACTION:tab:returns]] [[ACTION:tab:dashboard]]
 
 חיפוש וייצוא:
 [[ACTION:search:טקסט]] — חיפוש ברשימת רכבים
@@ -1273,6 +1340,28 @@ ${VEHICLES.map(v=>`• ${v.plate} | ${v.make} ${v.model} ${v.year||''} | נהג:
 דוגמה: [[ACTION:exportVehicleCard:83945203]]
 
 כלל: כשמשתמש מבקש להוסיף רכב — השתמש תמיד ב-[[ACTION:addVehicle:מספר_רישוי]] בלבד. המערכת תמלא את הפרטים אוטומטית מהממשלה.
+
+═══ לשונית החזרות / רכבים חליפיים ═══
+
+רשימת רכבים חליפיים נוכחיים:
+${REPLACEMENTS.length ? REPLACEMENTS.map(r=>`• ${r.employee} ← רכב חליפי ${r.plate} (${r.typeCompany||'—'}) ${r.fromDate||''}–${r.toDate||''}`).join('\n') : 'אין רכבים חליפיים פעילים'}
+
+תיעוד אחזקה (${RETURNS.length} רשומות):
+${RETURNS.slice(0,5).map(r=>`• ${r.employee} | ${r.plate} | ${r.fromDate||'?'}–${r.toDate||'?'} | ${r.reason||'—'}`).join('\n')||'אין'}
+
+הוספת רכב חליפי לעובד (רכב זמני/שכור):
+[[ACTION:addReplacement:שם_עובד|רישוי_חליפי|סוג_חברה|מתאריך|עד_תאריך|הערות]]
+דוגמה: [[ACTION:addReplacement:ישראל ישראלי|12345678|שכור/מונזה|01/07/2026|31/07/2026|]]
+
+רישום החזרת רכב / תיעוד תקופת אחזקה (מעביר רכב ישן לטבלת ההיסטוריה):
+[[ACTION:returnVehicle:שם_עובד|רישוי|מתאריך|עד_תאריך|סיבת_החזרה|הערות]]
+דוגמה: [[ACTION:returnVehicle:ישראל ישראלי|83945203|01/01/2026|01/07/2026|רכב חדש|]]
+
+הסרת רכב חליפי (כשמחזירים אותו):
+[[ACTION:removeReplacement:רישוי_או_שם_עובד]]
+
+כלל: כשעובד מקבל רכב חדש → בצע [[ACTION:returnVehicle:...]] על הרכב הישן ואז [[ACTION:addVehicle:...]] לרכב החדש.
+כשעובד מקבל רכב חליפי → בצע [[ACTION:addReplacement:...]].
 
 ═══ ניתוח תמונות ═══
 כאשר מקבל תמונה של מסמך רכב:
@@ -1337,55 +1426,58 @@ async function agentSend() {
   if (hasImage) {
     currentContent = [
       { type: 'image', source: { type: 'base64', media_type: imgMime, data: imgData } },
-      { type: 'text',  text: msg || 'נתח את המסמך בתמונה. זהה מספר רישוי, סוג מסמך ותאריך תפוגה, ועדכן את הנתונים המתאימים.' }
+      { type: 'text',  text      { type: 'text', text: msg || 'נתח את המסמך ובצע עדכונים מתאימים' }
     ];
-    clearAgentImage();
   } else {
-    currentContent = msg;
+    currentContent = [{ type: 'text', text: msg }];
   }
+  agentPendingImage = null;
+  document.getElementById('agent-img-preview').style.display = 'none';
 
   agentTyping = true;
-  document.getElementById('agent-send-btn').disabled = true;
-  document.getElementById('agent-status').textContent = hasImage ? 'מנתח תמונה...' : 'מעבד...';
   renderAgentMsgs(true);
+  document.getElementById('agent-send-btn').disabled = true;
+  document.getElementById('agent-status').textContent = '...';
 
   try {
-    // Build messages for API — images only in current message (not history)
-    const apiMessages = agentMessages.slice(0, -1).map(m => ({
-      role: m.role,
-      content: m.role === 'user'
-        ? (m.imageDataUrl ? `[תמונה צורפה] ${m.content}` : m.content)
-        : m.content
-    }));
-    apiMessages.push({ role: 'user', content: currentContent });
-
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': agentApiKey,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true'
-      },
-      body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 1024,
-        system: buildSystemPrompt(),
-        messages: apiMessages
-      })
+    const historyMsgs = agentMessages.slice(0,-1).map(m => {
+      if (m.role === 'user') {
+        const parts = [];
+        if (m.imageDataUrl) {
+          const [hdr, b64] = m.imageDataUrl.split(',');
+          const mimeType = hdr.match(/:(.*?);/)?.[1] || 'image/jpeg';
+          parts.push({ type:'image', source:{ type:'base64', media_type:mimeType, data:b64 } });
+        }
+        if (m.content) parts.push({ type:'text', text: m.content });
+        if (!parts.length) parts.push({ type:'text', text: '' });
+        return { role:'user', content: parts.length===1 && parts[0].type==='text' ? m.content : parts };
+      }
+      return { role:'assistant', content: m.content || '' };
     });
 
-    if (!res.ok) {
-      const err = await res.json().catch(()=>({error:{message:'שגיאת רשת'}}));
-      throw new Error(err.error?.message || `שגיאה ${res.status}`);
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json',
+        'x-api-key': agentApiKey,
+        'anthropic-version':'2023-06-01',
+        'anthropic-dangerous-direct-browser-access':'true'
+      },
+      body: JSON.stringify({
+        model:'claude-opus-4-5',
+        max_tokens:2000,
+        system: buildSystemPrompt(),
+        messages:[...historyMsgs, { role:'user', content: currentContent }]
+      })
+    });
+    if (!resp.ok) {
+      const err = await resp.json().catch(()=>({error:{message:'שגיאה'}}));
+      throw new Error(err.error?.message || `HTTP ${resp.status}`);
     }
-
-    const data = await res.json();
-    const reply = data.content[0].text;
-    agentMessages.push({ role: 'assistant', content: reply });
-
-    // Execute all embedded actions (async-capable)
-    const actions = [...reply.matchAll(/\[\[ACTION:([^:]+):([^\]]*)\]\]/g)];
+    const data = await resp.json();
+    const text = data.content?.[0]?.text || '';
+    agentMessages.push({ role:'assistant', content: text });
+    const actions = [...text.matchAll(/\[\[ACTION:(\w+):([^\]]*)\]\]/g)];
     const updates = [];
     for (const [, action, param] of actions) {
       const result = await agentExecActionAsync(action, param.trim());
@@ -1479,6 +1571,43 @@ function agentExecAction(action, param) {
     saveIncidents(); if(typeof renderIncidents==='function') renderIncidents();
     toast(`✓ אירוע נוסף לרכב ${plate}`);
     return { type:'incident', action:'נוסף', plate, date };
+
+  } else if (action === 'addReplacement') {
+    const p = param.split('|').map(s=>s.trim());
+    const [employee, plate, typeCompany, fromDate, toDate, notes] = p;
+    if (!employee || !plate) return null;
+    REPLACEMENTS.push({ employee, plate, typeCompany:typeCompany||'', fromDate:fromDate||'', toDate:toDate||'', notes:notes||'' });
+    try { localStorage.setItem('fleet_replacements', JSON.stringify(REPLACEMENTS)); } catch(e){}
+    renderReturns();
+    const btn = document.querySelector(".nav-btn[onclick*=\"'returns'\"]");
+    if (btn) showTab('returns', btn);
+    toast(`✓ רכב חליפי ${plate} נוסף לעובד ${employee}`);
+    return { type:'replacement', action:'נוסף', employee, plate };
+
+  } else if (action === 'returnVehicle') {
+    const p = param.split('|').map(s=>s.trim());
+    const [employee, plate, fromDate, toDate, reason, notes] = p;
+    if (!employee || !plate) return null;
+    const v = VEHICLES.find(v => v.plate === plate || v.plate.replace(/\D/g,'') === plate.replace(/\D/g,''));
+    const make  = v ? (v.make||'') : '';
+    const model = v ? (v.model||'') : '';
+    RETURNS.unshift({ employee, plate, make, model, fromDate:fromDate||'', toDate:toDate||new Date().toLocaleDateString('he-IL'), reason:reason||'', notes:notes||'' });
+    try { localStorage.setItem('fleet_returns', JSON.stringify(RETURNS)); } catch(e){}
+    renderReturns();
+    const btn = document.querySelector(".nav-btn[onclick*=\"'returns'\"]");
+    if (btn) showTab('returns', btn);
+    toast(`✓ רכב ${plate} נרשם בתיעוד אחזקה`);
+    return { type:'returnRecord', action:'נוסף', employee, plate };
+
+  } else if (action === 'removeReplacement') {
+    const key = param.trim();
+    const idx = REPLACEMENTS.findIndex(r => r.plate === key || r.employee === key);
+    if (idx < 0) return { type:'replacement', action:'לא נמצא', key };
+    const removed = REPLACEMENTS.splice(idx, 1)[0];
+    try { localStorage.setItem('fleet_replacements', JSON.stringify(REPLACEMENTS)); } catch(e){}
+    renderReturns();
+    toast(`✓ רכב חליפי ${removed.plate} הוסר`);
+    return { type:'replacement', action:'הוסר', employee:removed.employee, plate:removed.plate };
   }
   return null;
 }
@@ -1498,7 +1627,6 @@ async function addVehicleWithLookup(param) {
   if (!plate) return null;
   if (VEHICLES.find(v => v.plate === plate)) return { type:'vehicle', action:'כבר קיים', plate };
 
-  // Auto-lookup government data when minimal info provided
   let govMake='', govModel='', govYear='', govReg='';
   if (parts.length <= 3) {
     const lookup = await lookupVehicleGov(plate);
@@ -1556,7 +1684,6 @@ async function syncVehicleFromGov(plate) {
 async function autoFillFromGov(rawPlate) {
   const plate = rawPlate.replace(/\D/g,'');
   if (plate.length < 7) return;
-  // Only auto-fill when adding (not editing)
   if (editingPlate) return;
   const statusEl = document.getElementById('m-gov-status');
   if (statusEl) statusEl.textContent = '⏳ מחפש...';
@@ -1568,7 +1695,6 @@ async function autoFillFromGov(rawPlate) {
     const rec = records.find(r => String(r.mispar_rechev||'').replace(/\D/g,'') === plate) || records[0];
     if (!rec) { if (statusEl) statusEl.textContent = '❌ לא נמצא'; return; }
     const fmtDate = s => { if(!s) return ''; const d=new Date(s); return isNaN(d)?'':('0'+d.getDate()).slice(-2)+'/'+('0'+(d.getMonth()+1)).slice(-2)+'/'+d.getFullYear(); };
-    // Fill fields only if empty
     const fill = (id, val) => { const el=document.getElementById(id); if(el && !el.value && val) el.value=val; };
     fill('m-make', rec.tozeret_nm||'');
     fill('m-model', rec.degem_nm||rec.kinuy_mishari||'');
@@ -1593,7 +1719,6 @@ async function lookupVehicleGov(rawPlate) {
     const rec = records.find(r => String(r.mispar_rechev||'').replace(/\D/g,'') === plate) || records[0];
     if (!rec) return { type:'govLookup', plate, error:'לא נמצא במאגר' };
 
-    // Auto-update local vehicle registration expiry if exists
     const v = VEHICLES.find(v => v.plate.replace(/\D/g,'') === plate);
     if (v && rec.tokef_dt) {
       const d = new Date(rec.tokef_dt);
@@ -1658,6 +1783,55 @@ function exportVehicleCard(rawPlate) {
   win.document.close();
 }
 
+// ── RETURNS TAB ──
+function renderReturns() {
+  const rb = document.getElementById('repl-body');
+  const rc = document.getElementById('repl-count');
+  if (rb) {
+    if (!REPLACEMENTS.length) {
+      rb.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:20px">אין רכבים חליפיים פעילים</td></tr>`;
+    } else {
+      rb.innerHTML = REPLACEMENTS.map((r,i) => `
+        <tr>
+          <td>${esc(r.employee||'—')}</td>
+          <td style="font-weight:700;color:var(--accent);direction:ltr">${esc(r.plate||'—')}</td>
+          <td>${esc(r.typeCompany||'—')}</td>
+          <td>${esc(r.fromDate||'—')}</td>
+          <td>${esc(r.toDate||'—')}</td>
+          <td>${esc(r.notes||'')}</td>
+          <td><button class="btn-export" style="padding:3px 9px;font-size:0.68rem" onclick="removeReplacementRow(${i})">הסר</button></td>
+        </tr>`).join('');
+    }
+    if (rc) rc.textContent = REPLACEMENTS.length;
+  }
+
+  const retb = document.getElementById('ret-body');
+  const retc = document.getElementById('ret-count');
+  if (retb) {
+    if (!RETURNS.length) {
+      retb.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:20px">אין רשומות היסטוריה</td></tr>`;
+    } else {
+      retb.innerHTML = RETURNS.map(r => `
+        <tr>
+          <td>${esc(r.employee||'—')}</td>
+          <td style="font-weight:700;color:var(--accent);direction:ltr">${esc(r.plate||'—')}</td>
+          <td>${esc((r.make||'') + ' ' + (r.model||'')).trim()||'—'}</td>
+          <td>${esc(r.fromDate||'—')}</td>
+          <td>${esc(r.toDate||'—')}</td>
+          <td>${esc(r.reason||'—')}</td>
+          <td>${esc(r.notes||'')}</td>
+        </tr>`).join('');
+    }
+    if (retc) retc.textContent = RETURNS.length;
+  }
+}
+
+function removeReplacementRow(idx) {
+  REPLACEMENTS.splice(idx, 1);
+  try { localStorage.setItem('fleet_replacements', JSON.stringify(REPLACEMENTS)); } catch(e){}
+  renderReturns();
+}
+
 function renderAgentMsgs(showTyping = false) {
   const container = document.getElementById('agent-msgs');
   const html = agentMessages.map(m => {
@@ -1668,7 +1842,6 @@ function renderAgentMsgs(showTyping = false) {
       const txt = m.content ? `<span>${esc(m.content).replace(/\n/g,'<br>')}</span>` : '';
       return `<div class="msg user"><div class="msg-bubble">${txt}${imgHtml}</div></div>`;
     }
-    // Clean ACTION tags, render update cards
     let clean = m.content
       .replace(/\[\[ACTION:[^\]]+\]\]/g, '')
       .trim();
@@ -1685,6 +1858,10 @@ function renderAgentMsgs(showTyping = false) {
         if (u.type === 'govLookup' && u.error) return `<div class="update-card"><strong>⚠️ רישוי ${esc(u.plate)}: ${esc(u.error)}</strong></div>`;
         if (u.type === 'govLookup') return `<div class="update-card"><strong>🏛️ נתוני ממשלה — ${esc(u.plate)}</strong><span>${esc(u.make)} ${esc(u.model)} | שנה: ${esc(String(u.year))} | צבע: ${esc(u.color)}</span><span>תוקף רישוי: ${esc(u.regExpiry)} | על הכביש מ: ${esc(u.onRoadSince)}</span><span>סוג: ${esc(u.vehicleType)} | בעלות: ${esc(u.ownership)}</span></div>`;
         if (u.type === 'vehicleCard') return `<div class="update-card"><strong>🖨️ כרטיס רכב נפתח — ${esc(u.plate)}</strong></div>`;
+        if (u.type === 'replacement' && u.action === 'נוסף') return `<div class="update-card"><strong>🔄 רכב חליפי נוסף — ${esc(u.plate)}</strong><span>עובד: ${esc(u.employee)}</span></div>`;
+        if (u.type === 'replacement' && u.action === 'הוסר') return `<div class="update-card"><strong>✅ רכב חליפי הוסר — ${esc(u.plate)}</strong><span>עובד: ${esc(u.employee)}</span></div>`;
+        if (u.type === 'replacement' && u.action === 'לא נמצא') return `<div class="update-card"><strong>⚠️ לא נמצא רכב חליפי: ${esc(u.key)}</strong></div>`;
+        if (u.type === 'returnRecord') return `<div class="update-card"><strong>📋 נרשם בתיעוד אחזקה — ${esc(u.plate)}</strong><span>עובד: ${esc(u.employee)}</span></div>`;
         return '';
       }).join('');
     }
@@ -1823,6 +2000,25 @@ function saveInvoiceForm() {
     garage: document.getElementById('invm-garage').value.trim(),
     date: inputToDate(document.getElementById('invm-date').value),
     workType: document.getElementById('invm-workType').value.trim(),
+    amount: document.getElementById('invm-amount').value,
+    notes: document.getElementById('invm-notes').value.trim()
+  };
+  if (editingInvoiceId) {
+    const idx=INVOICES.findIndex(x=>x.id===editingInvoiceId);
+    if(idx>=0) { rec.id=editingInvoiceId; INVOICES[idx]=rec; }
+  } else {
+    rec.id = Math.max(0,...INVOICES.map(x=>x.id||0))+1;
+    INVOICES.unshift(rec);
+  }
+  try{localStorage.setItem('fleet_invoices',JSON.stringify(INVOICES));}catch(e){}
+  document.getElementById('invoice-modal').classList.remove('open');
+  renderInvoices(); toast('נשמר ✓');
+}
+
+</script>
+</body>
+</html>
+ype').value.trim(),
     amount: document.getElementById('invm-amount').value,
     notes: document.getElementById('invm-notes').value.trim()
   };
