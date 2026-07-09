@@ -1088,7 +1088,7 @@ window.onload = () => {
 let agentOpen = false;
 let agentMessages = [];
 let agentTyping = false;
-let agentApiKey = localStorage.getItem('nofar_agent_key') || '';
+let agentApiKey = localStorage.getItem('ai_key') || localStorage.getItem('nofar_agent_key') || '';
 let agentPendingImage = null; // {data, mime, dataUrl}
 
 function agentInit() {
@@ -1114,7 +1114,7 @@ function saveApiKey() {
   const key = document.getElementById('agent-key-input').value.trim();
   if (!key.startsWith('sk-ant-')) { toast('מפתח לא תקין — חייב להתחיל ב-sk-ant-', true); return; }
   agentApiKey = key;
-  localStorage.setItem('nofar_agent_key', key);
+  localStorage.setItem('ai_key', key); localStorage.setItem('nofar_agent_key', key);
   document.getElementById('agent-key-wrap').style.display = 'none';
   toast('מפתח API נשמר ✓');
 }
