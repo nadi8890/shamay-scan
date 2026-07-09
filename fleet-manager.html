@@ -1567,7 +1567,7 @@ function agentExecAction(action, param) {
     const [plate, driver, date, damage, notes] = p;
     if (!plate) return null;
     const id = Math.max(0, ...INCIDENTS.map(x=>x.id||0)) + 1;
-    INCIDENTS.unshift({ id, plate, driver:driver||'', date:date||'', damage:damage||'', deductible:'', notes:notes||'', insurance:'ביטוח' });
+    INCIDENTS.push({ id, plate, driver:driver||'', date:date||'', damage:damage||'', deductible:'', notes:notes||'', insurance:'ביטוח' });
     saveIncidents(); if(typeof renderIncidents==='function') renderIncidents();
     toast(`✓ אירוע נוסף לרכב ${plate}`);
     return { type:'incident', action:'נוסף', plate, date };
@@ -1926,7 +1926,7 @@ function saveIncidentForm() {
     if(idx>=0) { rec.id=editingIncidentId; INCIDENTS[idx]=rec; }
   } else {
     rec.id = Math.max(0,...INCIDENTS.map(x=>x.id||0))+1;
-    INCIDENTS.unshift(rec);
+    INCIDENTS.push(rec);
   }
   try{localStorage.setItem('fleet_incidents',JSON.stringify(INCIDENTS));}catch(e){}
   document.getElementById('incident-modal').classList.remove('open');
