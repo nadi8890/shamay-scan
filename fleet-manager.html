@@ -13,7 +13,7 @@
   --shadow:0 1px 4px rgba(0,0,0,.08),0 2px 12px rgba(0,0,0,.05)
 }
 *{box-sizing:border-box;margin:0;padding:0}
-body{background:var(--bg);color:var(--text);font-family:'Heebo',sans-serif;min-height:100vh;padding-bottom:72px}
+body{background:var(--bg);color:var(--text);font-family:'Heebo',sans-serif;min-heighht:100vh;padding-bottom:72px}
 /* Header */
 header{background:#1e40af;padding:11px 16px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(30,64,175,.3)}
 .logo{font-size:1.1rem;font-weight:900;color:#fff;letter-spacing:.3px}.logo span{font-weight:400;opacity:.85}
@@ -1426,7 +1426,7 @@ async function agentSend() {
   if (hasImage) {
     currentContent = [
       { type: 'image', source: { type: 'base64', media_type: imgMime, data: imgData } },
-      { type: 'text',  text      { type: 'text', text: msg || 'נתח את המסמך ובצע עדכונים מתאימים' }
+      { type: 'text', text: msg || 'נתח את המסמך ובצע עדכונים מתאימים' }
     ];
   } else {
     currentContent = [{ type: 'text', text: msg }];
