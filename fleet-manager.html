@@ -1094,11 +1094,7 @@ let agentPendingImage = null; // {data, mime, dataUrl}
 
 function agentInit() {
   if (agentApiKey) {
-    document.getElementById('agent-key-wrap').style.display = 'none';
     document.getElementById('agent-key-input').value = agentApiKey;
-    // Show change-key link
-    const changeBtn = document.getElementById('change-key-btn');
-    if (changeBtn) changeBtn.style.display = 'block';
   }
   // Welcome message
   agentMessages = [{
@@ -1119,7 +1115,6 @@ function saveApiKey() {
   if (!key.startsWith('sk-ant-')) { toast('מפתח לא תקין — חייב להתחיל ב-sk-ant-', true); return; }
   agentApiKey = key;
   localStorage.setItem('ai_key', key); localStorage.setItem('nofar_agent_key', key);
-  document.getElementById('agent-key-wrap').style.display = 'none';
   toast('מפתח API נשמר ✓');
 }
 
