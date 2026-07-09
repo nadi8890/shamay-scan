@@ -761,10 +761,13 @@ function setColFilter(col, val) {
   renderFleet();
 }
 function buildColFilterRow(vehicles) {
+  const row = document.getElementById('col-filter-row');
+  if (!row) return;
+  // Build only once — rebuilding on every keystroke destroys focus
+  if (row.querySelector('.col-filter-inp')) return;
   const placeholders = { plate:'רישוי...', make:'יצרן/דגם...', driver:'נהג...', company:'חברה...', reg:'תאריך...', ins:'תאריך...', lic:'תאריך...', km:'ק"מ...', insp:'תאריך...' };
   const inp = col => `<th><input class="col-filter-inp" type="text" placeholder="${placeholders[col]||'חפש...'}" value="${esc(fleetColFilters[col]||'')}" oninput="setColFilter('${col}',this.value)"></th>`;
-  const row = document.getElementById('col-filter-row');
-  if (row) row.innerHTML = inp('plate')+inp('make')+inp('driver')+inp('company')+inp('reg')+inp('ins')+inp('lic')+inp('km')+inp('insp')+'<th></th>';
+  row.innerHTML = inp('plate')+inp('make')+inp('driver')+inp('company')+inp('reg')+inp('ins')+inp('lic')+inp('km')+inp('insp')+'<th></th>';
 }
 function updateSortArrows() {
   ['plate','make','driver','company','reg','ins','lic','km','insp'].forEach(c => {
