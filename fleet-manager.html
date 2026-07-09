@@ -2018,22 +2018,3 @@ function saveInvoiceForm() {
 </script>
 </body>
 </html>
-ype').value.trim(),
-    amount: document.getElementById('invm-amount').value,
-    notes: document.getElementById('invm-notes').value.trim()
-  };
-  if (editingInvoiceId) {
-    const idx=INVOICES.findIndex(x=>x.id===editingInvoiceId);
-    if(idx>=0) { rec.id=editingInvoiceId; INVOICES[idx]=rec; }
-  } else {
-    rec.id = Math.max(0,...INVOICES.map(x=>x.id||0))+1;
-    INVOICES.unshift(rec);
-  }
-  try{localStorage.setItem('fleet_invoices',JSON.stringify(INVOICES));}catch(e){}
-  document.getElementById('invoice-modal').classList.remove('open');
-  renderInvoices(); toast('נשמר ✓');
-}
-
-</script>
-</body>
-</html>
