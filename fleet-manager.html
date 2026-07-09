@@ -425,7 +425,7 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
   <div class="modal">
     <h3 id="modal-title">הוסף רכב</h3>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-      <div class="modal-row"><label>מס׳ רישוי</label><input id="m-plate" type="text" placeholder="12345678"></div>
+      <div class="modal-row"><label>מס׳ רישוי</label><div style="display:flex;gap:5px;align-items:center"><input id="m-plate" type="text" placeholder="12345678" style="flex:1" onblur="autoFillFromGov(this.value)"><span id="m-gov-status" style="font-size:0.7rem;color:#64748b;white-space:nowrap"></span></div></div>
       <div class="modal-row"><label>חברה</label>
         <select id="m-company">
           <option>נופר אנרגי</option><option>ליסקאר</option><option>שלמה סיקסט</option><option>אחר</option>
@@ -1086,6 +1086,8 @@ function openAddVehicle() {
   ['m-plate','m-make','m-model','m-year','m-driver','m-regExpiry','m-insExpiry','m-licExpiry','m-inspection','m-km','m-nextKm','m-notes'].forEach(id => {
     document.getElementById(id).value = '';
   });
+  const govSt = document.getElementById('m-gov-status');
+  if (govSt) govSt.textContent = '';
   document.getElementById('vehicle-modal').classList.add('open');
 }
 function editVehicle(plate) {
@@ -1544,6 +1546,33 @@ async function syncVehicleFromGov(plate) {
   renderFleet(); renderDashboard();
   toast(`✓ ${v.plate} סונכרן עם מאגר הממשלה`);
   return { ...lookup, action:'סונכרן', synced:true };
+}
+
+async function autoFillFromGov(rawPlate) {
+  const plate = rawPlate.replace(/\D/g,'');
+  if (plate.length < 7) return;
+  // Only auto-fill when adding (not editing)
+  if (editingPlate) return;
+  const statusEl = document.getElementById('m-gov-status');
+  if (statusEl) statusEl.textContent = '⏳ מחפש...';
+  try {
+    const url = `https://data.gov.il/api/3/action/datastore_search?resource_id=053cea08-09bc-40ec-8f7a-156f0677aff3&q=${encodeURIComponent(plate)}&limit=5`;
+    const res = await fetch(url);
+    const data = await res.json();
+    const records = data?.result?.records || [];
+    const rec = records.find(r => String(r.mispar_rechev||'').replace(/\D/g,'') === plate) || records[0];
+    if (!rec) { if (statusEl) statusEl.textContent = '❌ לא נמצא'; return; }
+    const fmtDate = s => { if(!s) return ''; const d=new Date(s); return isNaN(d)?'':('0'+d.getDate()).slice(-2)+'/'+('0'+(d.getMonth()+1)).slice(-2)+'/'+d.getFullYear(); };
+    // Fill fields only if empty
+    const fill = (id, val) => { const el=document.getElementById(id); if(el && !el.value && val) el.value=val; };
+    fill('m-make', rec.tozeret_nm||'');
+    fill('m-model', rec.degem_nm||rec.kinuy_mishari||'');
+    fill('m-year',  rec.shnat_yitzur ? String(rec.shnat_yitzur) : '');
+    fill('m-regExpiry', fmtDate(rec.tokef_dt));
+    if (statusEl) statusEl.textContent = `✅ ${rec.tozeret_nm||''} ${rec.degem_nm||''}`.trim();
+  } catch(e) {
+    if (statusEl) statusEl.textContent = '❌ שגיאה';
+  }
 }
 
 async function lookupVehicleGov(rawPlate) {
