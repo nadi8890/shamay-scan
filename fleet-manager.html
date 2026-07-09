@@ -1249,13 +1249,24 @@ ${VEHICLES.map(v=>`• ${v.plate} | ${v.make} ${v.model} ${v.year||''} | נהג:
 [[ACTION:addIncident:רישוי|נהג|תאריך(DD/MM/YYYY)|סכום_נזק|הערות]]
 דוגמה: [[ACTION:addIncident:12345678|ישראל ישראלי|15/07/2026|5000|פגיעה קדמית]]
 
-בדיקת רישוי ממשלתי (data.gov.il) — מחזיר יצרן/דגם/שנה/צבע/תוקף + מעדכן תוקף ברכב אם קיים:
+הוספת רכב עם מספר רישוי בלבד — מולא אוטומטית ממאגר ממשלתי (יצרן/דגם/שנה/תוקף רישוי):
+[[ACTION:addVehicle:מספר_רישוי]]
+דוגמה: [[ACTION:addVehicle:83945203]]
+(ניתן גם לספק פרטים נוספים: [[ACTION:addVehicle:83945203|Toyota|Corolla|2022|ישראל כהן|נופר אנרגי]])
+
+סנכרון רכב קיים עם מאגר ממשלתי (מעדכן יצרן/דגם/שנה/תוקף רישוי):
+[[ACTION:syncVehicle:מספר_רישוי]]
+דוגמה: [[ACTION:syncVehicle:83945203]]
+
+בדיקת רישוי ממשלתי בלבד (הצגת נתונים בלי לשמור):
 [[ACTION:lookupVehicle:מספר_רישוי]]
 דוגמה: [[ACTION:lookupVehicle:83945203]]
 
 ייצוא כרטיס רכב (פותח חלון הדפסה עם כל הפרטים):
 [[ACTION:exportVehicleCard:מספר_רישוי]]
 דוגמה: [[ACTION:exportVehicleCard:83945203]]
+
+כלל: כשמשתמש מבקש להוסיף רכב — השתמש תמיד ב-[[ACTION:addVehicle:מספר_רישוי]] בלבד. המערכת תמלא את הפרטים אוטומטית מהממשלה.
 
 ═══ ניתוח תמונות ═══
 כאשר מקבל תמונה של מסמך רכב:
@@ -1470,7 +1481,70 @@ function agentExecAction(action, param) {
 async function agentExecActionAsync(action, param) {
   if (action === 'lookupVehicle') return await lookupVehicleGov(param);
   if (action === 'exportVehicleCard') { exportVehicleCard(param); return { type:'vehicleCard', plate: param }; }
+  if (action === 'addVehicle') return await addVehicleWithLookup(param);
+  if (action === 'syncVehicle') return await syncVehicleFromGov(param);
   return agentExecAction(action, param);
+}
+
+async function addVehicleWithLookup(param) {
+  const parts = param.split('|').map(s => s.trim());
+  const plate = parts[0];
+  if (!plate) return null;
+  if (VEHICLES.find(v => v.plate === plate)) return { type:'vehicle', action:'כבר קיים', plate };
+
+  // Auto-lookup government data when minimal info provided
+  let govMake='', govModel='', govYear='', govReg='';
+  if (parts.length <= 3) {
+    const lookup = await lookupVehicleGov(plate);
+    if (!lookup.error) {
+      govMake = (lookup.make && lookup.make!=='—') ? lookup.make : '';
+      govModel = (lookup.model && lookup.model!=='—') ? lookup.model : '';
+      govYear  = (lookup.year  && String(lookup.year)!=='—') ? String(lookup.year) : '';
+      govReg   = (lookup.regExpiry && lookup.regExpiry!=='—') ? lookup.regExpiry : '';
+    }
+  }
+
+  const [,make,model,year,driverName,company,registrationExpiry,insuranceExpiry,licenseExpiry,inspection,currentKm,nextServiceKm] = parts;
+  const v = {
+    plate,
+    make: make||govMake||'',
+    model: model||govModel||'',
+    year: year||govYear||'',
+    driverName: driverName||'',
+    company: company||'נופר אנרגי',
+    registrationExpiry: registrationExpiry||govReg||'',
+    insuranceExpiry: insuranceExpiry||'',
+    licenseExpiry: licenseExpiry||'',
+    inspection: inspection||'',
+    currentKm: currentKm||'0',
+    nextServiceKm: nextServiceKm||''
+  };
+  VEHICLES.push(v);
+  localStorage.setItem('fleet_vehicles', JSON.stringify(VEHICLES));
+  localStorage.setItem('fleet_vehicles_version', VEHICLES_VERSION);
+  renderFleet(); renderDashboard();
+  toast(`✓ רכב ${plate} נוסף${govMake?' (מולא ממאגר ממשלתי)':''}`);
+  return { type:'vehicle', action:'נוסף', plate, driver:driverName, make:v.make, model:v.model, govEnriched:!!govMake };
+}
+
+async function syncVehicleFromGov(plate) {
+  const cleanPlate = plate.replace(/\D/g,'');
+  const v = VEHICLES.find(v => v.plate.replace(/\D/g,'') === cleanPlate);
+  if (!v) return { type:'vehicle', action:'לא נמצא', plate };
+
+  const lookup = await lookupVehicleGov(plate);
+  if (lookup.error) return lookup;
+
+  if (lookup.make && lookup.make!=='—') v.make = lookup.make;
+  if (lookup.model && lookup.model!=='—') v.model = lookup.model;
+  if (lookup.year && String(lookup.year)!=='—') v.year = String(lookup.year);
+  if (lookup.regExpiry && lookup.regExpiry!=='—') v.registrationExpiry = lookup.regExpiry;
+
+  localStorage.setItem('fleet_vehicles', JSON.stringify(VEHICLES));
+  localStorage.setItem('fleet_vehicles_version', VEHICLES_VERSION);
+  renderFleet(); renderDashboard();
+  toast(`✓ ${v.plate} סונכרן עם מאגר הממשלה`);
+  return { ...lookup, action:'סונכרן', synced:true };
 }
 
 async function lookupVehicleGov(rawPlate) {
