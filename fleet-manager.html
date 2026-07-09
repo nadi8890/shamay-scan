@@ -55,8 +55,9 @@ th{text-align:right;padding:11px 13px;color:#1e293b;font-weight:800;background:l
 .th-sort:hover{color:#2563eb}
 .sort-arrow{font-size:0.65rem;color:#94a3b8;flex-shrink:0}
 .col-filter-row th{padding:3px 4px;background:#f1f5f9;border-bottom:2px solid #cbd5e1}
-.col-filter-sel{width:100%;border:1px solid #cbd5e1;border-radius:5px;padding:3px 4px;font-family:'Heebo',sans-serif;font-size:0.65rem;background:#fff;color:#334155;cursor:pointer}
-.col-filter-sel:focus{outline:none;border-color:#2563eb}
+.col-filter-inp{width:100%;border:1px solid #cbd5e1;border-radius:5px;padding:3px 6px;font-family:'Heebo',sans-serif;font-size:0.65rem;background:#fff;color:#334155;box-sizing:border-box;min-width:0}
+.col-filter-inp:focus{outline:none;border-color:#2563eb;background:#eff6ff}
+.col-filter-inp::placeholder{color:#cbd5e1}
 td{padding:10px 13px;border-bottom:1.5px solid #e2e8f0;vertical-align:middle;color:var(--text);transition:background .1s}
 tr:last-child td{border-bottom:none}
 tr:hover td{background:#f0f7ff!important}
@@ -758,25 +759,10 @@ function setColFilter(col, val) {
   renderFleet();
 }
 function buildColFilterRow(vehicles) {
-  const getVal = (v, key) => {
-    if (key==='make')   return ((v.make||'')+(v.model?' '+v.model:'')).trim();
-    if (key==='driver') return (v.driverName||'').split('-')[0].trim();
-    if (key==='company')return String(v.company||'').trim();
-    if (key==='reg')    return String(v.registrationExpiry||'').trim();
-    if (key==='ins')    return String(v.insuranceExpiry||'').trim();
-    if (key==='lic')    return String(v.licenseExpiry||'').trim();
-    if (key==='km')     return String(v.nextServiceKm||'').trim();
-    if (key==='insp')   return String(v.inspection||'').trim();
-    return String(v[key]||'').trim();
-  };
-  const uniq = key => [...new Set(vehicles.map(v => getVal(v,key)).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'he'));
-
-  const sel = col => {
-    const opts = uniq(col).map(u=>`<option value="${esc(u)}"${fleetColFilters[col]===u?' selected':''}>${esc(u)}</option>`).join('');
-    return `<th><select class="col-filter-sel" onchange="setColFilter('${col}',this.value)"><option value="">הכל</option>${opts}</select></th>`;
-  };
+  const placeholders = { plate:'רישוי...', make:'יצרן/דגם...', driver:'נהג...', company:'חברה...', reg:'תאריך...', ins:'תאריך...', lic:'תאריך...', km:'ק"מ...', insp:'תאריך...' };
+  const inp = col => `<th><input class="col-filter-inp" type="text" placeholder="${placeholders[col]||'חפש...'}" value="${esc(fleetColFilters[col]||'')}" oninput="setColFilter('${col}',this.value)"></th>`;
   const row = document.getElementById('col-filter-row');
-  if (row) row.innerHTML = sel('plate')+sel('make')+sel('driver')+sel('company')+sel('reg')+sel('ins')+sel('lic')+sel('km')+sel('insp')+'<th></th>';
+  if (row) row.innerHTML = inp('plate')+inp('make')+inp('driver')+inp('company')+inp('reg')+inp('ins')+inp('lic')+inp('km')+inp('insp')+'<th></th>';
 }
 function updateSortArrows() {
   ['plate','make','driver','company','reg','ins','lic','km','insp'].forEach(c => {
@@ -806,16 +792,17 @@ function renderFleet() {
       if (st==='expired' && !hasExpired) return false;
       if (st==='soon' && !hasSoon) return false;
     }
-    // Column filters
-    if (fleetColFilters.plate   && v.plate !== fleetColFilters.plate) return false;
-    if (fleetColFilters.make    && ((v.make||'')+' '+(v.model||'')).trim() !== fleetColFilters.make) return false;
-    if (fleetColFilters.driver  && (v.driverName||'').split('-')[0].trim() !== fleetColFilters.driver) return false;
-    if (fleetColFilters.company && String(v.company||'').trim() !== fleetColFilters.company) return false;
-    if (fleetColFilters.reg     && String(v.registrationExpiry||'').trim() !== fleetColFilters.reg) return false;
-    if (fleetColFilters.ins     && String(v.insuranceExpiry||'').trim() !== fleetColFilters.ins) return false;
-    if (fleetColFilters.lic     && String(v.licenseExpiry||'').trim() !== fleetColFilters.lic) return false;
-    if (fleetColFilters.km      && String(v.nextServiceKm||'').trim() !== fleetColFilters.km) return false;
-    if (fleetColFilters.insp    && String(v.inspection||'').trim() !== fleetColFilters.insp) return false;
+    // Column filters — partial case-insensitive match
+    const fMatch = (val, f) => !f || String(val||'').toLowerCase().includes(f.toLowerCase());
+    if (!fMatch(v.plate, fleetColFilters.plate)) return false;
+    if (!fMatch((v.make||'')+' '+(v.model||''), fleetColFilters.make)) return false;
+    if (!fMatch(v.driverName, fleetColFilters.driver)) return false;
+    if (!fMatch(v.company, fleetColFilters.company)) return false;
+    if (!fMatch(v.registrationExpiry, fleetColFilters.reg)) return false;
+    if (!fMatch(v.insuranceExpiry, fleetColFilters.ins)) return false;
+    if (!fMatch(v.licenseExpiry, fleetColFilters.lic)) return false;
+    if (!fMatch(v.nextServiceKm, fleetColFilters.km)) return false;
+    if (!fMatch(v.inspection, fleetColFilters.insp)) return false;
     return true;
   });
 
