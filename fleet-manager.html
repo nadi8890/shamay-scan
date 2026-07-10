@@ -3,10 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>נופר אנרגי — ניהול ציי רכב</title>
+<title>נופר אנרגי — ניהול ציי רכב</title>h
 <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;600;700;900&display=swap" rel="stylesheet">
 <style>
-:root{
+:root{h
   --bg:#f0f4f8;--surface:#ffffff;--card:#ffffff;--border:#dde3ed;
   --accent:#2563eb;--blue:#2563eb;--text:#1e293b;--muted:#64748b;
   --green:#059669;--red:#dc2626;--orange:#d97706;--purple:#7c3aed;
@@ -266,6 +266,7 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
     <table>
       <thead>
         <tr><th>#</th><th>רישוי</th><th>נהג</th><th>תאריך</th><th>ביטוח/בעלות</th><th>מס׳ ארוע</th><th>סכום נזק</th><th>השתתפות עצמית</th><th>הערות</th></tr>
+        <tr class="col-filter-row" id="inc-col-filter-row"></tr>
       </thead>
       <tbody id="inc-body"></tbody>
     </table>
@@ -359,6 +360,7 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
           <th>הערות</th>
           <th></th>
         </tr>
+        <tr class="col-filter-row" id="repl-col-filter-row"></tr>
       </thead>
       <tbody id="repl-body"></tbody>
     </table>
@@ -383,7 +385,9 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
           <th>עד תאריך</th>
           <th>סיבת החזרה</th>
           <th>הערות</th>
+          <th></th>
         </tr>
+        <tr class="col-filter-row" id="ret-col-filter-row"></tr>
       </thead>
       <tbody id="ret-body"></tbody>
     </table>
@@ -818,6 +822,9 @@ function renderDashboard() {
 // ── FLEET SORT/FILTER ──
 let fleetSort = { col: null, dir: 1 };
 let fleetColFilters = { plate:'', make:'', driver:'', company:'', reg:'', ins:'', lic:'', km:'', insp:'' };
+let incColFilters  = { plate:'', driver:'', date:'', insurance:'', reportNum:'', damage:'', notes:'' };
+let replColFilters = { employee:'', plate:'', typeCompany:'', fromDate:'', toDate:'', notes:'' };
+let retColFilters  = { employee:'', plate:'', make:'', fromDate:'', toDate:'', reason:'', notes:'' };
 
 function sortFleetCol(col) {
   if (fleetSort.col === col) fleetSort.dir *= -1;
@@ -939,12 +946,28 @@ function renderFleet() {
 }
 
 // ── INCIDENTS ──
+function buildIncColFilterRow() {
+  const row = document.getElementById('inc-col-filter-row');
+  if (!row || row.querySelector('.col-filter-inp')) return;
+  const ph = { plate:'רישוי...', driver:'נהג...', date:'תאריך...', insurance:'ביטוח...', reportNum:'מס׳...', damage:'סכום...', notes:'הערות...' };
+  const inp = col => `<th><input class="col-filter-inp" type="text" placeholder="${ph[col]||'חפש...'}" value="${esc(incColFilters[col]||'')}" oninput="incColFilters['${col}']=this.value;renderIncidents()"></th>`;
+  row.innerHTML = '<th></th>'+inp('plate')+inp('driver')+inp('date')+inp('insurance')+inp('reportNum')+inp('damage')+'<th></th>'+'<th></th>';
+}
 function renderIncidents() {
   const q = (document.getElementById('inc-search').value||'').toLowerCase();
+  const fm = (val,f) => !f || String(val||'').toLowerCase().includes(f.toLowerCase());
   const filtered = INCIDENTS.filter(i => {
-    if (!q) return true;
-    return [i.plate,i.driver,i.insurance,i.notes,i.reportNum].join(' ').toLowerCase().includes(q);
+    if (q && ![i.plate,i.driver,i.insurance,i.notes,i.reportNum].join(' ').toLowerCase().includes(q)) return false;
+    if (!fm(i.plate, incColFilters.plate)) return false;
+    if (!fm(i.driver, incColFilters.driver)) return false;
+    if (!fm(i.date, incColFilters.date)) return false;
+    if (!fm(i.insurance, incColFilters.insurance)) return false;
+    if (!fm(i.reportNum, incColFilters.reportNum)) return false;
+    if (!fm(i.damage, incColFilters.damage)) return false;
+    if (!fm(i.notes, incColFilters.notes)) return false;
+    return true;
   });
+  buildIncColFilterRow();
   document.getElementById('inc-count').textContent = filtered.length;
   document.getElementById('inc-body').innerHTML = filtered.map(i => `
     <tr>
@@ -1407,15 +1430,279 @@ function clearAgentImage() {
   document.getElementById('agent-input').placeholder = 'שאל אותי כל דבר על הציי...';
 }
 
-async function agentSend() {
+const POLICY = [
+  {
+    id: 'shlomo',
+    keywords: ['שלמה','סיקסט','6603','שלמה סיקסט'],
+    answer: `רכבי שלמה סיקסט — הסכם אחזקה מלא:
+
+✅ כולל: קביעת טיפולים, טסטים וכל תקלה אחרת.
+
+📞 לכל תקלה/טיפול — התקשר למוקד:
+⭐ *6603
+
+🔧 החלפת צמיג (לא תקר) — דרך שלמה סיקסט בלבד: *6603
+
+🔧 תקר — אפשרות 1: שלמה סיקסט *6603
+          אפשרות 2: גיא — צמיגי געש 📱 053-7504921`
+  },
+  {
+    id: 'hertz',
+    keywords: ['הרץ','hertz','3113'],
+    answer: `רכבי הרץ — הסכם אחזקה מלא:
+
+✅ כולל: טיפולים, טסטים וכל תקלה אחרת.
+
+📞 לכל תקלה/טיפול — התקשר למוקד הרץ:
+⭐ *3113
+
+🔧 החלפת צמיג (לא תקר) — דרך הרץ בלבד: *3113
+
+🔧 תקר — אפשרות 1: הרץ *3113
+          אפשרות 2: גיא — צמיגי געש 📱 053-7504921`
+  },
+  {
+    id: 'liskar',
+    keywords: ['ליסקאר','ליסקר','נופר אנרג\'י','רועי','קארן','עופר','דרום','צפון','כפר סבא'],
+    answer: `רכבי ליסקאר / נופר אנרג'י — הסכם אחזקה חלקי (טיפולים תקופתיים):
+
+📍 דרום — רועי: 053-5558082
+📍 צפון — קארן: 052-6412779
+📍 כפר סבא — עופר: 053-4332304
+
+🔧 תקר / החלפת צמיגים — גיא: 053-7504921
+(לאחר עדכון נדב קצב"ת: 054-2840258)`
+  },
+  {
+    id: 'fault',
+    keywords: ['תקלה','מקלט','מתקלקל','לא עובד','נורה','אזהרה','מה נושים','בניה ברכב','קרה לרכב'],
+    answer: `יש תקלה ברכב? כך פועלים:
+
+1️⃣ זהה את חברת הליסינג של הרכב שלך:
+   • שלמה סיקסט ← *6603
+   • הרץ ← *3113
+   • ליסקאר/נופר אנרג'י ← לפי אזור (ראה פירוט)
+
+2️⃣ יידע את נדב (קצב"ת) בכל מקרה:
+📱 054-2840258
+
+⚠️ האחריות לטיפול בתקלות היא על מחזיק הרכב.`
+  },
+  {
+    id: 'tire',
+    keywords: ['צמיג','תקר','גלגל','פנצ\'ר','החלפת צמיג'],
+    answer: `החלפת צמיג / תקר — לפי חברת הליסינג:
+
+🔵 שלמה סיקסט:
+   • החלפת צמיג (לא תקר) — *6603 בלבד
+   • תקר — *6603 או גיא (צמיגי געש) 📱 053-7504921
+
+🔵 הרץ:
+   • החלפת צמיג (לא תקר) — *3113 בלבד
+   • תקר — *3113 או גיא (צמיגי געש) 📱 053-7504921
+
+🔵 ליסקאר / נופר אנרג'י:
+   • צמיגים ותקרים — גיא (צמיגי געש) 📱 053-7504921
+   • לאחר עדכון קצב"ת: 054-2840258`
+  },
+  {
+    id: 'fuel',
+    keywords: ['תדלוק','דלק','תחנה','דלקן','סונול','דור אלון','כרטיס דלק','לתדלק'],
+    answer: `תדלוק רכבי נופר אנרגיה:
+
+⛽ כל הרכבים הרגילים — מצוידים בהתקן דלקן המאפשר תדלוק ב:
+   • דור אלון
+   • סונול
+   • דלק
+
+🚗 רכבי השכרה / רכבים זמניים — כרטיס תדלוק לחברת דלק בלבד.`
+  },
+  {
+    id: 'electric',
+    keywords: ['חשמלי','טעינה','פלאג אין','plug in','עמדת טעינה','ezfleet','ציפ','צ\'יפ','EV'],
+    answer: `טעינת רכבים חשמליים / פלאג-אין:
+
+⚡ כל עובד יקבל צ'יפ לטעינה + גישה לאפליקציית EZFleet.
+
+📱 דרך האפליקציה ניתן לטעון באלפי עמדות טעינה ברחבי הארץ, כולל עמדות בבניין.`
+  },
+  {
+    id: 'toll',
+    keywords: ['כביש 6','אגרה','חוצה','כרמל','מנהרה','פסקל','פאסקל','כביש אגרה','טול'],
+    answer: `כבישי אגרה:
+
+🛣️ כל רכבי נופר מנויים ל:
+   • כביש 6
+   • חוצה צפון
+   • מנהרות הכרמל
+
+📦 הפסקל נמצא ברכב שלך.
+
+🔄 בהחלפת רכב — יידע את הקצב"ת והעבר את הפסקל לרכב החדש.`
+  },
+  {
+    id: 'wash',
+    keywords: ['שטיפה','שטיפומט','לשטוף','ניקיון','נקיון','כביסה'],
+    answer: `שטיפת הרכב — שטיפומט:
+
+🚿 כל רכבי נופר מנויים לשטיפומט.
+✅ ניתן לשטוף עד 2 שטיפות בחודש.
+📍 סניפים — חיפוש ב-Google: "שטיפומט" (פריסה ארצית).`
+  },
+  {
+    id: 'accident',
+    keywords: ['תאונה','פגיעה','פגע','תאונתי','אירוע','נסיעה לא טובה','מה עושים','התנגשתי','פגעו בי'],
+    answer: `אירוע תאונתי — נוהל פעולה:
+
+1️⃣ עצור בבטחה בצד הדרך.
+2️⃣ רד מהרכב עם אפוד זוהר.
+3️⃣ החלף פרטים עם המעורבים:
+   📸 צלם פוליסת ביטוח, רישיון רכב ורישיון נהיגה.
+4️⃣ צלם את מוקדי הנזק בכל הרכבים המעורבים.
+5️⃣ יידע מיד את נדב (קצב"ת):
+   📱 054-2840258`
+  },
+  {
+    id: 'inspection',
+    keywords: ['טסט','בדיקה שנתית','ביקורת','טיפול תקופתי','הדרכת בטיחות','הדרכה','בטיחות'],
+    answer: `טסט, טיפולים והדרכות בטיחות:
+
+🔧 טיפולים תקופתיים — קבע ישירות מול חברת הליסינג שלך, וייד את הקצב"ת לאחר מכן.
+
+🚗 ביקורת בטיחות — אחת לחצי שנה / 3 חודשים (לפי גיל הרכב) ע"י קצב"ת.
+
+📋 הדרכת בטיחות — לפחות אחת בשנה. חובה להשתתף או למלא טופס הדרכה.
+
+⚠️ האחריות לקביעת טיפולים וטסטים היא על מחזיק הרכב.`
+  },
+  {
+    id: 'nadav',
+    keywords: ['נדב','קצב"ת','קצבת','קצין','ליצור קשר','טלפון','מ�פר','054','מי אחראי'],
+    answer: `קצין בטיחות בתעבורה (קצב"ת) — נופר אנרגיה:
+
+👤 נדב מרציאנו
+📱 054-2840258
+
+יש ליצור קשר עם הקצב"ת במקרים הבאים:
+• אירוע תאונתי
+• החלפת רכב
+• כל תקלה או בעיה ברכב
+
+📋 טיפול / טסט — קבע ישירות מול חברת הליסינג, וייד את הקצב"ת לאחר מכן.`
+  },
+  {
+    id: 'replace',
+    keywords: ['החלפת רכב','רכב חדש','מחליף','עובר לרכב'],
+    answer: `החלפת רכב:
+
+📋 בכל החלפת רכב יש ליידע את נדב (קצב"ת) מיידית לצורך תיעוד:
+📱 054-2840258
+
+🔑 יש להעביר את הפסקל (כבישי אגרה) לרכב החדש.`
+  }
+];
+
+function cbGetCompanyInfo(company) {
+  const c = (company||'').trim().replace(/\s+/g,' ');
+  if (c.includes('שלמה') || c.includes('סיקסט')) return {
+    name: 'שלמה סיקסט', contact: '⭐ *6603',
+    tire: 'החלפת צמיג: *6603 בלבד\nתקר: *6603 או גיא צמיגי געש 📱 053-7504921'
+  };
+  if (c.includes('הרץ')) return {
+    name: 'הרץ', contact: '⭐ *3113',
+    tire: 'החלפת צמיג: *3113 בלבד\nתקר: *3113 או גיא צמיגי געש 📱 053-7504921'
+  };
+  if (c.includes('ליסקאר')) return {
+    name: 'ליסקאר',
+    contact: 'דרום — רועי: 053-5558082\nצפון — קארן: 052-6412779\nכפר סבא — עופר: 053-4332304',
+    tire: 'גיא צמיגי געש 📱 053-7504921'
+  };
+  return {
+    name: 'נופר אנרגי',
+    contact: 'דרום — רועי: 053-5558082\nצפון — קארן: 052-6412779\nכפר סבא — עופר: 053-4332304',
+    tire: 'גיא צמיגי געש 📱 053-7504921'
+  };
+}
+
+function cbLookupVehicle(text) {
+  const clean = text.trim().toLowerCase();
+  if (!clean || clean.length < 3) return null;
+  // Search by plate, driverName, or model
+  const matches = VEHICLES.filter(v =>
+    (v.plate && v.plate.includes(clean)) ||
+    (v.driverName && v.driverName.toLowerCase().includes(clean)) ||
+    ((v.make||'').toLowerCase().includes(clean))
+  );
+  return matches.length ? matches : null;
+}
+
+function findAnswerLocal(rawText) {
+  if (!rawText || !rawText.trim()) return null;
+  // --- Vehicle/driver lookup ---
+  const words = rawText.trim().split(/\s+/);
+  let vehicleMatches = null;
+  const candidates = [rawText];
+  for (let i = 0; i < words.length - 1; i++) candidates.push(words[i] + ' ' + words[i+1]);
+  for (const w of words) if (w.length > 2) candidates.push(w);
+  for (const c of candidates) {
+    const res = cbLookupVehicle(c);
+    if (res) { vehicleMatches = res; break; }
+  }
+  if (vehicleMatches) {
+    return vehicleMatches.map(v => {
+      const info = cbGetCompanyInfo(v.company);
+      const km = v.nextServiceKm && v.currentKm
+        ? `\n🔩 טיפול הבא: ${v.nextServiceKm} ק"מ (כיום: ${v.currentKm})`
+        : v.nextServiceKm ? `\n🔩 טיפול הבא: ${v.nextServiceKm} ק"מ` : '';
+      const ins = v.insuranceExpiry ? `\n🛡️ תוקף ביטוח: ${v.insuranceExpiry}` : '';
+      const reg = v.registrationExpiry ? `\n📋 תוקף רישוי: ${v.registrationExpiry}` : '';
+      const lic = v.licenseExpiry ? `\n🪪 תוקף רישיון: ${v.licenseExpiry}` : '';
+      const insp = v.inspection ? `\n🔍 ביקורת קצב"ת: ${v.inspection}` : '';
+      return `👤 ${v.driverName || 'לא צוין'}
+🚗 ${v.make||''} ${v.model||''} (${v.year || 'שנתון לא ידוע'})
+🔢 מס׳ רכב: ${v.plate}
+🏢 חברת ליסינג: ${info.name}
+${ins}${reg}${lic}${km}${insp}
+
+📞 לתקלה / טיפול:
+${info.contact}
+
+🔧 צמיגים:
+${info.tire}`;
+    }).join('\n\n---\n\n');
+  }
+  // --- Policy keyword match ---
+  const text = rawText.toLowerCase();
+  let best = null, bestScore = 0;
+  for (const item of POLICY) {
+    let score = 0;
+    for (const kw of item.keywords) { if (text.includes(kw.toLowerCase())) score++; }
+    if (score > bestScore) { bestScore = score; best = item.answer; }
+  }
+  return bestScore > 0 ? best : null; // null = let Anthropic API handle it
+}
+// ═════════════════════════════════════════════════════════════════════
+function agentSend() {
   if (agentTyping) return;
   const input = document.getElementById('agent-input');
   const msg = input.value.trim();
   if (!msg && !agentPendingImage) return;
 
+  // Try local knowledge base first (no API key needed)
+  if (msg && !agentPendingImage) {
+    const localAnswer = findAnswerLocal(msg);
+    if (localAnswer) {
+      input.value = '';
+      agentMessages.push({ role: 'user', content: msg });
+      agentMessages.push({ role: 'assistant', content: localAnswer });
+      renderAgentMsgs();
+      return;
+    }
+  }
+
   if (!agentApiKey) {
     document.getElementById('agent-key-wrap').style.display = 'block';
-    toast('הכנס מפתח API תחילה', true);
+    toast('הכנס ן'�תח API תחילה', true);
     return;
   }
 
@@ -1791,20 +2078,42 @@ function exportVehicleCard(rawPlate) {
 }
 
 // ── RETURNS TAB ──
+function buildReplColFilterRow() {
+  const row = document.getElementById('repl-col-filter-row');
+  if (!row || row.querySelector('.col-filter-inp')) return;
+  const ph = { employee:'עובד...', plate:'רישוי...', typeCompany:'סוג/חברה...', fromDate:'מתאריך...', toDate:'עד תאריך...', notes:'הערות...' };
+  const inp = col => `<th><input class="col-filter-inp" type="text" placeholder="${ph[col]||'חפש...'}" value="${esc(replColFilters[col]||'')}" oninput="replColFilters['${col}']=this.value;renderReturns()"></th>`;
+  row.innerHTML = inp('employee')+inp('plate')+inp('typeCompany')+inp('fromDate')+inp('toDate')+inp('notes')+'<th></th>';
+}
+function buildRetColFilterRow() {
+  const row = document.getElementById('ret-col-filter-row');
+  if (!row || row.querySelector('.col-filter-inp')) return;
+  const ph = { employee:'עובד...', plate:'רישוי...', make:'יצרן/דגם...', fromDate:'מתאריך...', toDate:'עד תאריך...', reason:'סיבה...', notes:'הערות...' };
+  const inp = col => `<th><input class="col-filter-inp" type="text" placeholder="${ph[col]||'חפש...'}" value="${esc(retColFilters[col]||'')}" oninput="retColFilters['${col}']=this.value;renderReturns()"></th>`;
+  row.innerHTML = inp('employee')+inp('plate')+inp('make')+inp('fromDate')+inp('toDate')+inp('reason')+inp('notes')+'<th></th>';
+}
 function renderReturns() {
   const q = (document.getElementById('returns-search')?.value || '').trim().toLowerCase();
+  const fm = (val,f) => !f || String(val||'').toLowerCase().includes(f.toLowerCase());
 
   const rb = document.getElementById('repl-body');
   const rc = document.getElementById('repl-count');
   if (rb) {
-    const filteredRepl = q ? REPLACEMENTS.filter(r =>
-      [r.employee, r.plate, r.typeCompany, r.fromDate, r.toDate, r.notes]
-        .some(v => (v||'').toLowerCase().includes(q))
-    ) : REPLACEMENTS;
+    buildReplColFilterRow();
+    const filteredRepl = REPLACEMENTS.filter(r => {
+      if (q && ![r.employee,r.plate,r.typeCompany,r.fromDate,r.toDate,r.notes].join(' ').toLowerCase().includes(q)) return false;
+      if (!fm(r.employee, replColFilters.employee)) return false;
+      if (!fm(r.plate, replColFilters.plate)) return false;
+      if (!fm(r.typeCompany, replColFilters.typeCompany)) return false;
+      if (!fm(r.fromDate, replColFilters.fromDate)) return false;
+      if (!fm(r.toDate, replColFilters.toDate)) return false;
+      if (!fm(r.notes, replColFilters.notes)) return false;
+      return true;
+    });
     if (!filteredRepl.length) {
       rb.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:20px">${q ? 'לא נמצאו תוצאות' : 'אין רכבים חליפיים פעילים'}</td></tr>`;
     } else {
-      rb.innerHTML = filteredRepl.map((r,i) => `
+      rb.innerHTML = filteredRepl.map((r) => { const oi = REPLACEMENTS.indexOf(r); return `
         <tr>
           <td>${esc(r.employee||'—')}</td>
           <td style="font-weight:700;color:var(--accent);direction:ltr">${esc(r.plate||'—')}</td>
@@ -1812,25 +2121,35 @@ function renderReturns() {
           <td>${esc(r.fromDate||'—')}</td>
           <td>${esc(r.toDate||'—')}</td>
           <td>${esc(r.notes||'')}</td>
-          <td><button class="btn-export" style="padding:3px 9px;font-size:0.68rem" onclick="removeReplacementRow(${i})">הסר</button></td>
-        </tr>`).join('');
+          <td style="white-space:nowrap">
+            <button class="btn-export" style="padding:3px 8px;font-size:0.65rem;margin-left:3px" onclick="openEditReplacement(${oi})">✏️</button>
+            <button class="btn-export" style="padding:3px 8px;font-size:0.65rem;color:#dc2626" onclick="removeReplacementRow(${oi})">הסר</button>
+          </td>
+        </tr>`;}).join('');
     }
-    if (rc) rc.textContent = q && filteredRepl.length !== REPLACEMENTS.length
-      ? filteredRepl.length + '/' + REPLACEMENTS.length
-      : REPLACEMENTS.length;
+    if (rc) rc.textContent = filteredRepl.length !== REPLACEMENTS.length
+      ? filteredRepl.length + '/' + REPLACEMENTS.length : REPLACEMENTS.length;
   }
 
   const retb = document.getElementById('ret-body');
   const retc = document.getElementById('ret-count');
   if (retb) {
-    const filteredRet = q ? RETURNS.filter(r =>
-      [r.employee, r.plate, r.make, r.model, r.fromDate, r.toDate, r.reason, r.notes]
-        .some(v => (v||'').toLowerCase().includes(q))
-    ) : RETURNS;
+    buildRetColFilterRow();
+    const filteredRet = RETURNS.filter(r => {
+      if (q && ![r.employee,r.plate,r.make,r.model,r.fromDate,r.toDate,r.reason,r.notes].join(' ').toLowerCase().includes(q)) return false;
+      if (!fm(r.employee, retColFilters.employee)) return false;
+      if (!fm(r.plate, retColFilters.plate)) return false;
+      if (!fm((r.make||'')+' '+(r.model||''), retColFilters.make)) return false;
+      if (!fm(r.fromDate, retColFilters.fromDate)) return false;
+      if (!fm(r.toDate, retColFilters.toDate)) return false;
+      if (!fm(r.reason, retColFilters.reason)) return false;
+      if (!fm(r.notes, retColFilters.notes)) return false;
+      return true;
+    });
     if (!filteredRet.length) {
       retb.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:20px">${q ? 'לא נמצאו תוצאות' : 'אין רשומות היסטוריה'}</td></tr>`;
     } else {
-      retb.innerHTML = filteredRet.map(r => `
+      retb.innerHTML = filteredRet.map((r) => { const oi = RETURNS.indexOf(r); return `
         <tr>
           <td>${esc(r.employee||'—')}</td>
           <td style="font-weight:700;color:var(--accent);direction:ltr">${esc(r.plate||'—')}</td>
@@ -1839,18 +2158,88 @@ function renderReturns() {
           <td>${esc(r.toDate||'—')}</td>
           <td>${esc(r.reason||'—')}</td>
           <td>${esc(r.notes||'')}</td>
-        </tr>`).join('');
+          <td style="white-space:nowrap">
+            <button class="btn-export" style="padding:3px 8px;font-size:0.65rem;margin-left:3px" onclick="openEditReturn(${oi})">✏️</button>
+            <button class="btn-export" style="padding:3px 8px;font-size:0.65rem;color:#dc2626" onclick="removeReturnRow(${oi})">הסר</button>
+          </td>
+        </tr>`;}).join('');
     }
-    if (retc) retc.textContent = q && filteredRet.length !== RETURNS.length
-      ? filteredRet.length + '/' + RETURNS.length
-      : RETURNS.length;
+    if (retc) retc.textContent = filteredRet.length !== RETURNS.length
+      ? filteredRet.length + '/' + RETURNS.length : RETURNS.length;
   }
 }
 
-function removeReplacementRow(idx) {
-  REPLACEMENTS.splice(idx, 1);
+function removeReplacementRow(origIdx) {
+  REPLACEMENTS.splice(origIdx, 1);
   try { localStorage.setItem('fleet_replacements', JSON.stringify(REPLACEMENTS)); } catch(e){}
   renderReturns();
+}
+
+function openEditReplacement(origIdx) {
+  const r = REPLACEMENTS[origIdx];
+  if (!r) return;
+  document.getElementById('repl-edit-idx').value = origIdx;
+  document.getElementById('re-employee').value = r.employee||'';
+  document.getElementById('re-plate').value = r.plate||'';
+  document.getElementById('re-typeCompany').value = r.typeCompany||'';
+  document.getElementById('re-fromDate').value = r.fromDate||'';
+  document.getElementById('re-toDate').value = r.toDate||'';
+  document.getElementById('re-notes').value = r.notes||'';
+  document.getElementById('repl-edit-modal').classList.add('open');
+}
+function saveEditReplacement() {
+  const idx = parseInt(document.getElementById('repl-edit-idx').value);
+  if (isNaN(idx) || !REPLACEMENTS[idx]) return;
+  REPLACEMENTS[idx] = {
+    employee: document.getElementById('re-employee').value.trim(),
+    plate: document.getElementById('re-plate').value.trim(),
+    typeCompany: document.getElementById('re-typeCompany').value.trim(),
+    fromDate: document.getElementById('re-fromDate').value.trim(),
+    toDate: document.getElementById('re-toDate').value.trim(),
+    notes: document.getElementById('re-notes').value.trim(),
+  };
+  try { localStorage.setItem('fleet_replacements', JSON.stringify(REPLACEMENTS)); } catch(e){}
+  document.getElementById('repl-edit-modal').classList.remove('open');
+  renderReturns();
+  toast('✓ רכב חליפי עודכן');
+}
+function removeReturnRow(origIdx) {
+  RETURNS.splice(origIdx, 1);
+  try { localStorage.setItem('fleet_returns', JSON.stringify(RETURNS)); } catch(e){}
+  renderReturns();
+}
+function openEditReturn(origIdx) {
+  const r = RETURNS[origIdx];
+  if (!r) return;
+  document.getElementById('ret-edit-idx').value = origIdx;
+  document.getElementById('rete-employee').value = r.employee||'';
+  document.getElementById('rete-plate').value = r.plate||'';
+  document.getElementById('rete-make').value = r.make||'';
+  document.getElementById('rete-model').value = r.model||'';
+  document.getElementById('rete-fromDate').value = r.fromDate||'';
+  document.getElementById('rete-toDate').value = r.toDate||'';
+  document.getElementById('rete-reason').value = r.reason||'';
+  document.getElementById('rete-notes').value = r.notes||'';
+  document.getElementById('ret-edit-modal').classList.add('open');
+}
+function saveEditReturn() {
+  const idx = parseInt(document.getElementById('ret-edit-idx').value);
+  if (isNaN(idx) || !RETURNS[idx]) return;
+  RETURNS[idx] = {
+    ...RETURNS[idx],
+    employee: document.getElementById('rete-employee').value.trim(),
+    plate: document.getElementById('rete-plate').value.trim(),
+    make: document.getElementById('rete-make').value.trim(),
+    model: document.getElementById('rete-model').value.trim(),
+    fromDate: document.getElementById('rete-fromDate').value.trim(),
+    toDate: document.getElementById('rete-toDate').value.trim(),
+    reason: document.getElementById('rete-reason').value.trim(),
+    notes: document.getElementById('rete-notes').value.trim(),
+  };
+  try { localStorage.setItem('fleet_returns', JSON.stringify(RETURNS)); } catch(e){}
+  document.getElementById('ret-edit-modal').classList.remove('open');
+  renderReturns();
+  toast('✓ רשומה עודכנה');
 }
 
 function renderAgentMsgs(showTyping = false) {
@@ -1947,7 +2336,7 @@ function saveIncidentForm() {
     if(idx>=0) { rec.id=editingIncidentId; INCIDENTS[idx]=rec; }
   } else {
     rec.id = Math.max(0,...INCIDENTS.map(x=>x.id||0))+1;
-    INCIDENTS.push(rec);
+    INCIDENTS.unshift(rec);
   }
   try{localStorage.setItem('fleet_incidents',JSON.stringify(INCIDENTS));}catch(e){}
   document.getElementById('incident-modal').classList.remove('open');
@@ -2037,5 +2426,46 @@ function saveInvoiceForm() {
 }
 
 </script>
+<div class="modal-overlay" id="repl-edit-modal">
+  <div class="modal">
+    <h3>✏️ עריכת רכב חליפי</h3>
+    <input type="hidden" id="repl-edit-idx">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <div class="modal-row"><label>עובד</label><input id="re-employee" type="text"></div>
+      <div class="modal-row"><label>רישוי רכב חליפי</label><input id="re-plate" type="text" style="direction:ltr"></div>
+      <div class="modal-row"><label>סוג / חברה</label><input id="re-typeCompany" type="text"></div>
+      <div class="modal-row"></div>
+      <div class="modal-row"><label>מתאריך</label><input id="re-fromDate" type="text" placeholder="DD/MM/YYYY"></div>
+      <div class="modal-row"><label>עד תאריך</label><input id="re-toDate" type="text" placeholder="DD/MM/YYYY"></div>
+      <div class="modal-row" style="grid-column:1/-1"><label>הערות</label><input id="re-notes" type="text"></div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-gray" onclick="document.getElementById('repl-edit-modal').classList.remove('open')">ביטול</button>
+      <button class="btn btn-primary" onclick="saveEditReplacement()">💾 שמור שינויים</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ RETURN EDIT MODAL ══ -->
+<div class="modal-overlay" id="ret-edit-modal">
+  <div class="modal">
+    <h3>✏️ עריכת רשומת תקופת אחזקה</h3>
+    <input type="hidden" id="ret-edit-idx">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <div class="modal-row"><label>עובד</label><input id="rete-employee" type="text"></div>
+      <div class="modal-row"><label>רישוי רכב</label><input id="rete-plate" type="text" style="direction:ltr"></div>
+      <div class="modal-row"><label>יצרן</label><input id="rete-make" type="text"></div>
+      <div class="modal-row"><label>דגם</label><input id="rete-model" type="text"></div>
+      <div class="modal-row"><label>מתאריך</label><input id="rete-fromDate" type="text" placeholder="DD/MM/YYYY"></div>
+      <div class="modal-row"><label>עד תאריך</label><input id="rete-toDate" type="text" placeholder="DD/MM/YYYY"></div>
+      <div class="modal-row"><label>סיבת החזרה</label><input id="rete-reason" type="text"></div>
+      <div class="modal-row"><label>הערות</label><input id="rete-notes" type="text"></div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-gray" onclick="document.getElementById('ret-edit-modal').classList.remove('open')">ביטול</button>
+      <button class="btn btn-primary" onclick="saveEditReturn()">💾 שמור שינויים</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>
