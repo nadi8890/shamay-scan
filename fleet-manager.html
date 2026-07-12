@@ -1682,7 +1682,7 @@ ${info.tire}`;
   return bestScore > 0 ? best : null; // null = let Anthropic API handle it
 }
 // ═════════════════════════════════════════════════════════════════════
-function agentSend() {
+async function agentSend(){
   if (agentTyping) return;
   const input = document.getElementById('agent-input');
   const msg = input.value.trim();
