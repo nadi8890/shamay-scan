@@ -289,6 +289,7 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
     <table>
       <thead>
         <tr><th>#</th><th>ת׳ עבירה</th><th>עבירה</th><th>נהג</th><th>רישוי</th><th>נקודות</th><th>קנס</th><th>הוסב</th></tr>
+        <tr class="col-filter-row" id="viol-col-filter-row"></tr>
       </thead>
       <tbody id="viol-body"></tbody>
     </table>
@@ -311,6 +312,7 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
     <table>
       <thead>
         <tr><th>#</th><th>רישוי</th><th>מוסך</th><th>תאריך</th><th>סוג עבודה</th><th>נהג</th></tr>
+        <tr class="col-filter-row" id="inv-col-filter-row"></tr>
       </thead>
       <tbody id="inv-body"></tbody>
     </table>
@@ -751,8 +753,8 @@ function showTab(name, btn) {
   if (name==='fleet') renderFleet();
   if (name==='alerts') renderAlerts();
   if (name==='incidents') renderIncidents();
-  if (name==='violations') renderViolations();
-  if (name==='invoices') renderInvoices();
+  if (name==='violations') { renderViolations(); buildViolColFilterRow(); }
+  if (name==='invoices') { renderInvoices(); buildInvColFilterRow(); }
   if (name==='tasks') renderTasks();
   if (name==='returns') renderReturns();
 }
@@ -825,6 +827,8 @@ let fleetColFilters = { plate:'', make:'', driver:'', company:'', reg:'', ins:''
 let incColFilters  = { plate:'', driver:'', date:'', insurance:'', reportNum:'', damage:'', notes:'' };
 let replColFilters = { employee:'', plate:'', typeCompany:'', fromDate:'', toDate:'', notes:'' };
 let retColFilters  = { employee:'', plate:'', make:'', fromDate:'', toDate:'', reason:'', notes:'' };
+let violColFilters = { date:'', offense:'', driver:'', plate:'', points:'', fine:'', transferred:'' };
+let invColFilters  = { plate:'', garage:'', date:'', workType:'', driver:'' };
 
 function sortFleetCol(col) {
   if (fleetSort.col === col) fleetSort.dir *= -1;
@@ -984,11 +988,33 @@ function renderIncidents() {
 }
 
 // ── VIOLATIONS ──
+function buildViolColFilterRow() {
+  const row = document.getElementById('viol-col-filter-row');
+  if (!row || row.querySelector('.col-filter-inp')) return;
+  const ph = { date:'תאריך...', offense:'עבירה...', driver:'נהג...', plate:'רישוי...', points:'נקודות...', fine:'קנס...', transferred:'הוסב...' };
+  const inp = col => `<th><input class="col-filter-inp" type="text" placeholder="${ph[col]||'חפש...'}" value="${esc(violColFilters[col]||'')}" oninput="violColFilters['${col}']=this.value;renderViolations()"></th>`;
+  row.innerHTML = '<th></th>'+inp('date')+inp('offense')+inp('driver')+inp('plate')+inp('points')+inp('fine')+inp('transferred');
+}
+function buildInvColFilterRow() {
+  const row = document.getElementById('inv-col-filter-row');
+  if (!row || row.querySelector('.col-filter-inp')) return;
+  const ph = { plate:'רישוי...', garage:'מוסך...', date:'תאריך...', workType:'סוג...', driver:'נהג...' };
+  const inp = col => `<th><input class="col-filter-inp" type="text" placeholder="${ph[col]||'חפש...'}" value="${esc(invColFilters[col]||'')}" oninput="invColFilters['${col}']=this.value;renderInvoices()"></th>`;
+  row.innerHTML = '<th></th>'+inp('plate')+inp('garage')+inp('date')+inp('workType')+inp('driver');
+}
 function renderViolations() {
   const q = (document.getElementById('viol-search').value||'').toLowerCase();
+  const fm = (val,f) => !f || String(val||'').toLowerCase().includes(f.toLowerCase());
   const filtered = VIOLATIONS.filter(v => {
-    if (!q) return true;
-    return [v.driver,v.plate,v.offense,v.reportNum].join(' ').toLowerCase().includes(q);
+    if (q && ![v.driver,v.plate,v.offense,v.reportNum].join(' ').toLowerCase().includes(q)) return false;
+    if (!fm(v.date, violColFilters.date)) return false;
+    if (!fm(v.offense, violColFilters.offense)) return false;
+    if (!fm(v.driver, violColFilters.driver)) return false;
+    if (!fm(v.plate, violColFilters.plate)) return false;
+    if (!fm(v.points, violColFilters.points)) return false;
+    if (!fm(v.fine, violColFilters.fine)) return false;
+    if (!fm(v.transferred, violColFilters.transferred)) return false;
+    return true;
   });
   document.getElementById('viol-count').textContent = filtered.length;
   document.getElementById('viol-body').innerHTML = filtered.map(v => `
@@ -1007,9 +1033,15 @@ function renderViolations() {
 // ── INVOICES ──
 function renderInvoices() {
   const q = (document.getElementById('inv-search').value||'').toLowerCase();
+  const fm = (val,f) => !f || String(val||'').toLowerCase().includes(f.toLowerCase());
   const filtered = INVOICES.filter(i => {
-    if (!q) return true;
-    return [i.plate,i.garage,i.driver,i.workType].join(' ').toLowerCase().includes(q);
+    if (q && ![i.plate,i.garage,i.driver,i.workType].join(' ').toLowerCase().includes(q)) return false;
+    if (!fm(i.plate, invColFilters.plate)) return false;
+    if (!fm(i.garage, invColFilters.garage)) return false;
+    if (!fm(i.date, invColFilters.date)) return false;
+    if (!fm(i.workType, invColFilters.workType)) return false;
+    if (!fm(i.driver, invColFilters.driver)) return false;
+    return true;
   });
   document.getElementById('inv-count').textContent = filtered.length;
   document.getElementById('inv-body').innerHTML = filtered.map(i => `
