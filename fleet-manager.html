@@ -420,7 +420,7 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
     <table>
       <thead>
         <tr>
-          <th>מס׳ רישוי</th><th>נהג</th><th>סוג התראה</th><th>תאריך ביצוע</th><th>סטטוס</th><th>ספידו קודם</th><th>ספידו נוכחי</th><th>הפרש ק"מ</th><th></th>
+          <th>מס׳ רישוי</th><th>נהג</th><th>התראות</th><th></th>
         </tr>
       </thead>
       <tbody id="alerts-tab-body"></tbody>
@@ -1056,39 +1056,52 @@ function buildDynamicAlerts() {
 function renderAlerts() {
   const active = buildDynamicAlerts();
   document.getElementById('alerts-tab-count').textContent = active.length;
-  document.getElementById('alerts-tab-body').innerHTML = active.map(a => {
-    let statusHtml, rowCls, cellCls;
+
+  // Group by plate
+  const byPlate = {};
+  active.forEach(a => {
+    if (!byPlate[a.plate]) byPlate[a.plate] = { plate: a.plate, driver: a.driver, alerts: [] };
+    byPlate[a.plate].alerts.push(a);
+  });
+
+  const groups = Object.values(byPlate);
+
+  function worstCls(alerts) {
+    if (alerts.some(a => a.daysLeft !== null ? a.daysLeft < 0 : a.kmDiff >= a.kmAlert)) return 'row-expired';
+    if (alerts.some(a => a.daysLeft !== null ? a.daysLeft <= 7 : false)) return 'row-soon';
+    return 'row-warn';
+  }
+
+  function alertBadge(a) {
+    let badge;
     if (a.daysLeft === null) {
-      // KM-based alert
-      const overKm = a.kmDiff - a.kmAlert;
-      if (overKm >= 0) {
-        statusHtml = `<span class="badge badge-red">חריג ${overKm.toLocaleString()} ק"מ</span>`;
-        rowCls = 'row-expired'; cellCls = 'cell-red';
-      } else {
-        const left = Math.abs(overKm);
-        statusHtml = `<span class="badge badge-orange">${left.toLocaleString()} ק"מ נותרו</span>`;
-        rowCls = 'row-soon'; cellCls = 'cell-orange';
-      }
+      const over = a.kmDiff - a.kmAlert;
+      badge = over >= 0
+        ? `<span class="badge badge-red">חריג ${over.toLocaleString()} ק"מ</span>`
+        : `<span class="badge badge-orange">${Math.abs(over).toLocaleString()} ק"מ נותרו</span>`;
     } else if (a.daysLeft < 0) {
-      statusHtml = `<span class="badge badge-red">באיחור ${Math.abs(a.daysLeft)} ימים</span>`;
-      rowCls = 'row-expired'; cellCls = 'cell-red';
-    } else if (a.daysLeft <= 14) {
-      statusHtml = `<span class="badge badge-orange">בעוד ${a.daysLeft} ימים</span>`;
-      rowCls = 'row-soon'; cellCls = 'cell-orange';
+      badge = `<span class="badge badge-red">באיחור ${Math.abs(a.daysLeft)} ימים</span>`;
+    } else if (a.daysLeft <= 7) {
+      badge = `<span class="badge badge-orange">בעוד ${a.daysLeft} ימים</span>`;
     } else {
-      statusHtml = `<span class="badge badge-green">✓</span>`;
-      rowCls = ''; cellCls = '';
+      badge = `<span class="badge badge-yellow" style="background:#fefce8;color:#713f12;border:1px solid #fde68a">בעוד ${a.daysLeft} ימים</span>`;
     }
-    return `<tr class="${rowCls}">
-      <td style="font-weight:700;color:var(--accent);direction:ltr;font-size:0.85rem">${esc(a.plate)}</td>
-      <td style="font-size:0.78rem">${esc(a.driver)}</td>
-      <td style="font-size:0.78rem;font-weight:600">${esc(a.type)}</td>
-      <td class="${cellCls}" style="white-space:nowrap;font-size:0.78rem">${esc(a.dueDate)}</td>
-      <td class="${cellCls}">${statusHtml}</td>
-      <td style="color:var(--muted);font-size:0.75rem">${a.prevKm ? a.prevKm.toLocaleString() : '—'}</td>
-      <td style="font-size:0.75rem">${a.currentKm ? a.currentKm.toLocaleString() : '—'}</td>
-      <td style="font-size:0.75rem;font-weight:600">${a.kmDiff ? a.kmDiff.toLocaleString() : '—'}</td>
-      <td style="white-space:nowrap"><button class="btn btn-gray" style="padding:3px 8px;font-size:0.7rem" onclick="editVehicle('${esc(a.plate)}')">✏️ ערוך</button></td>
+    return `<div style="margin-bottom:3px;font-size:0.75rem"><span style="font-weight:600;margin-left:5px">${esc(a.type)}</span>${badge}${a.dueDate && a.dueDate!=='—' ? `<span style="color:var(--muted);margin-right:5px;font-size:0.7rem"> · ${esc(a.dueDate)}</span>` : ''}</div>`;
+  }
+
+  if (!groups.length) {
+    document.getElementById('alerts-tab-body').innerHTML =
+      `<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:24px;font-size:0.85rem">אין התראות פעילות 🎉</td></tr>`;
+    return;
+  }
+
+  document.getElementById('alerts-tab-body').innerHTML = groups.map(g => {
+    const cls = worstCls(g.alerts);
+    return `<tr class="${cls}">
+      <td style="font-weight:700;color:var(--accent);direction:ltr;font-size:0.85rem;white-space:nowrap">${esc(g.plate)}</td>
+      <td style="font-size:0.8rem;font-weight:600;white-space:nowrap">${esc(g.driver)}</td>
+      <td style="padding:8px 13px">${g.alerts.map(alertBadge).join('')}</td>
+      <td style="white-space:nowrap"><button class="btn btn-gray" style="padding:3px 8px;font-size:0.7rem" onclick="editVehicle('${esc(g.plate)}')">✏️ ערוך</button></td>
     </tr>`;
   }).join('');
 }
