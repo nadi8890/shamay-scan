@@ -199,15 +199,6 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
   <button class="btn" style="padding:7px 14px;font-size:0.82rem;background:#fff;color:#1e40af;font-weight:700;border-radius:8px" onclick="openAddVehicle()">+ רכב חדש</button>
 </header>
 
-<!-- ══════════════ TAB: DASHBOARD ══════════════ -->
-<div class="tab-content active" id="tab-dashboard">
-  <div class="stats-row" id="stats-row"></div>
-  <div class="card">
-    <div class="card-title">🚨 התראות ומועדים קרובים</div>
-    <div id="alerts-list"></div>
-  </div>
-</div>
-
 <!-- ══════════════ TAB: FLEET ══════════════ -->
 <div class="tab-content" id="tab-fleet">
   <div class="search-row">
@@ -411,7 +402,8 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
 </div>
 
 <!-- ══════════════ TAB: ALERTS ══════════════ -->
-<div class="tab-content" id="tab-alerts">
+<div class="tab-content active" id="tab-alerts">
+  <div class="stats-row" id="stats-row" style="margin-bottom:14px"></div>
   <div class="section-hdr">
     <div style="display:flex;align-items:center;gap:8px">
       <span class="section-title">🔔 התראות תקפות</span>
@@ -438,9 +430,8 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
 
 <!-- Bottom Nav -->
 <nav class="bottom-nav">
-  <button class="nav-btn active" onclick="showTab('dashboard',this)"><span class="icon">🏠</span>לוח בקרה</button>
+  <button class="nav-btn active" onclick="showTab('alerts',this)"><span class="icon">🔔</span>התראות</button>
   <button class="nav-btn" onclick="showTab('fleet',this)"><span class="icon">🚗</span>ציי רכב</button>
-  <button class="nav-btn" onclick="showTab('alerts',this)"><span class="icon">🔔</span>התראות</button>
   <button class="nav-btn" onclick="showTab('incidents',this)"><span class="icon">💥</span>אירועים</button>
   <button class="nav-btn" onclick="showTab('violations',this)"><span class="icon">📄</span>דוחות</button>
   <button class="nav-btn" onclick="showTab('invoices',this)"><span class="icon">🔧</span>מוסכים</button>
@@ -781,45 +772,6 @@ function renderDashboard() {
     <div class="stat-box"><div class="stat-num" style="color:var(--orange)">${soonCount}</div><div class="stat-label">עומדים לפוג (30 יום)</div></div>
     <div class="stat-box"><div class="stat-num" style="color:var(--blue)">${INCIDENTS.length}</div><div class="stat-label">אירועי נזק</div></div>
   `;
-
-  // Alerts
-  const alerts = [];
-  VEHICLES.forEach(v => {
-    const checks = [
-      {label:'תוקף רישוי',val:v.registrationExpiry},
-      {label:'תוקף ביטוח',val:v.insuranceExpiry},
-      {label:'רישיון נהג',val:v.licenseExpiry},
-      {label:'ביקורת בטיחות',val:nextInspectionStr(v)},
-    ];
-    checks.forEach(c => {
-      const days = daysUntil(c.val);
-      if (days !== null && days <= 14) {
-        alerts.push({ days, plate: v.plate, driver: v.driverName, type: c.label, date: c.val });
-      }
-    });
-    // KM check
-    const cur = parseKm(v.currentKm);
-    const nxt = parseKm(v.nextServiceKm);
-    if (cur && nxt && (nxt - cur) <= 3000) {
-      alerts.push({ days: nxt-cur, plate: v.plate, driver: v.driverName, type: 'טיפול הבא', date: v.nextServiceKm+'ק"מ', isKm: true });
-    }
-  });
-  alerts.sort((a,b) => a.days - b.days);
-
-  const alertsHtml = alerts.slice(0,30).map(a => {
-    const cls = a.days < 0 ? 'alert-red' : a.days <= 7 ? 'alert-orange' : 'alert-yellow';
-    const icon = a.days < 0 ? '🔴' : a.days <= 7 ? '🟠' : '🟡';
-
-    const daysText = a.isKm ? `${Math.abs(a.days).toLocaleString()} ק"מ` : a.days < 0 ? `פג לפני ${Math.abs(a.days)} ימים` : `בעוד ${a.days} ימים`;
-    return `<div class="alert-item ${cls}">
-      <span class="alert-icon">${icon}</span>
-      <div class="alert-text">
-        <strong>${esc(a.type)} — רכב ${esc(a.plate)}</strong>
-        <span>${esc(a.driver)} · ${daysText} · ${esc(a.date)}</span>
-      </div>
-    </div>`;
-  }).join('') || '<div style="color:var(--muted);font-size:0.82rem;text-align:center;padding:12px">אין התראות פעילות 🎉</div>';
-  document.getElementById('alerts-list').innerHTML = alertsHtml;
 
 }
 
@@ -1321,6 +1273,7 @@ function saveVehicle() {
   localStorage.setItem('fleet_vehicles_version', VEHICLES_VERSION);
   closeModal();
   renderDashboard();
+  renderAlerts();
   renderFleet();
   toast(editingPlate ? 'רכב עודכן ✓' : 'רכב נוסף ✓');
 }
@@ -1328,6 +1281,7 @@ function saveVehicle() {
 // ── INIT ──
 window.onload = () => {
   renderDashboard();
+  renderAlerts();
   renderIncidents();
   renderViolations();
   renderInvoices();
@@ -1910,7 +1864,7 @@ function agentExecAction(action, param) {
     if (!plate) return null;
     if (VEHICLES.find(v=>v.plate===plate)) return { type:'vehicle', action:'כבר קיים', plate };
     VEHICLES.push({ plate, make:make||'', model:model||'', year:year||'', driverName:driverName||'', company:company||'נופר אנרגי', registrationExpiry:registrationExpiry||'', insuranceExpiry:insuranceExpiry||'', licenseExpiry:licenseExpiry||'', inspection:inspection||'', currentKm:currentKm||'0', nextServiceKm:nextServiceKm||String((parseInt(currentKm)||0)+15000) });
-    saveVehicles(); renderFleet(); renderDashboard();
+    saveVehicles(); renderFleet(); renderDashboard(); renderAlerts();
     toast(`✓ רכב ${plate} נוסף`);
     return { type:'vehicle', action:'נוסף', plate, driver:driverName, make, model };
 
@@ -1919,7 +1873,7 @@ function agentExecAction(action, param) {
     const idx = VEHICLES.findIndex(v=>v.plate===plate);
     if (idx<0) return { type:'vehicle', action:'לא נמצא', plate };
     VEHICLES.splice(idx,1);
-    saveVehicles(); renderFleet(); renderDashboard();
+    saveVehicles(); renderFleet(); renderDashboard(); renderAlerts();
     toast(`✓ רכב ${plate} נמחק`);
     return { type:'vehicle', action:'נמחק', plate };
 
@@ -1937,7 +1891,7 @@ function agentExecAction(action, param) {
     };
     const oldVal = vehicle[field];
     vehicle[field] = value;
-    saveVehicles(); renderFleet(); renderDashboard();
+    saveVehicles(); renderFleet(); renderDashboard(); renderAlerts();
     toast(`✓ ${plate} עודכן`);
     return { type:'update', plate, field, label: fieldLabels[field]||field, oldVal, newVal: value };
 
