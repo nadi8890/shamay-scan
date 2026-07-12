@@ -1061,9 +1061,40 @@ function renderInvoices() {
 }
 
 // ── ALERTS ──
+function buildDynamicAlerts() {
+  const today = new Date();
+  const alerts = [];
+  for (const v of VEHICLES) {
+    const addDate = (type, dateStr) => {
+      const days = daysUntil(dateStr);
+      if (days !== null && days <= 30)
+        alerts.push({ plate:v.plate, driver:v.driverName, type, dueDate:dateStr||'—', daysLeft:days, prevKm:null, kmAlert:null, currentKm:null, kmDiff:null });
+    };
+    addDate('תוקף רישוי', v.registrationExpiry);
+    addDate('תוקף ביטוח חובה', v.insuranceExpiry);
+    addDate('רישיון נהג', v.licenseExpiry);
+    const inspDays = daysUntilNextInsp(v);
+    if (inspDays !== null && inspDays <= 30) {
+      const vs = parseVehicleYear(v.year);
+      const ageYrs = vs ? (today - vs) / (365.25*24*3600*1000) : 99;
+      const label = ageYrs <= 3 ? 'ביקורת בטיחות חציונית' : 'ביקורת בטיחות רבעונית';
+      alerts.push({ plate:v.plate, driver:v.driverName, type:label, dueDate:nextInspectionStr(v), daysLeft:inspDays, prevKm:null, kmAlert:null, currentKm:null, kmDiff:null });
+    }
+    const cur = parseKm(v.currentKm);
+    const nxt = parseKm(v.nextServiceKm);
+    if (cur > 0 && nxt > 0 && cur >= nxt - 2000)
+      alerts.push({ plate:v.plate, driver:v.driverName, type:'טיפול הבא', dueDate:'—', daysLeft:null, prevKm:null, kmAlert:2000, currentKm:cur, kmDiff: cur - nxt + 2000 });
+  }
+  alerts.sort((a,b) => {
+    const score = x => x.daysLeft !== null ? x.daysLeft : (x.kmDiff >= x.kmAlert ? -((x.kmDiff-x.kmAlert)*30) : (x.kmAlert-x.kmDiff));
+    return score(a) - score(b);
+  });
+  return alerts;
+}
 function renderAlerts() {
-  document.getElementById('alerts-tab-count').textContent = ALERTS_DATA.length;
-  document.getElementById('alerts-tab-body').innerHTML = ALERTS_DATA.map(a => {
+  const active = buildDynamicAlerts();
+  document.getElementById('alerts-tab-count').textContent = active.length;
+  document.getElementById('alerts-tab-body').innerHTML = active.map(a => {
     let statusHtml, rowCls, cellCls;
     if (a.daysLeft === null) {
       // KM-based alert
@@ -1117,7 +1148,7 @@ function exportSection(section) {
     rows = INVOICES.map(i => [i.id,i.plate,i.garage,i.date,i.workType,i.driver]);
   } else if (section === 'alerts') {
     headers = ['מס׳ רישוי','נהג','סוג התראה','תאריך ביצוע','ימים לביצוע','ספידו קודם','ק"מ להתראה','ספידו נוכחי','הפרש ק"מ'];
-    rows = ALERTS_DATA.map(a => [a.plate,a.driver,a.type,a.dueDate,a.daysLeft??'ק"מ',a.prevKm,a.kmAlert,a.currentKm,a.kmDiff]);
+    rows = buildDynamicAlerts().map(a => [a.plate,a.driver,a.type,a.dueDate,a.daysLeft??'ק"מ',a.prevKm,a.kmAlert,a.currentKm,a.kmDiff]);
   } else if (section === 'replacements') {
     headers = ['עובד','רכב חליפי (רישוי)','סוג / חברה','מתאריך','עד תאריך','הערות'];
     rows = REPLACEMENTS.map(r => [r.employee,r.plate,r.typeCompany,r.fromDate,r.toDate,r.notes]);
@@ -1340,8 +1371,9 @@ function saveApiKey() {
 }
 
 function buildSystemPrompt() {
-  const expiredAlerts = ALERTS_DATA.filter(a => (a.daysLeft !== null && a.daysLeft < 0) || (a.daysLeft === null && a.kmDiff > a.kmAlert));
-  const soonAlerts   = ALERTS_DATA.filter(a => a.daysLeft !== null && a.daysLeft >= 0 && a.daysLeft <= 14);
+  const activeAlerts  = buildDynamicAlerts();
+  const expiredAlerts = activeAlerts.filter(a => a.daysLeft !== null ? a.daysLeft < 0 : a.kmDiff >= a.kmAlert);
+  const soonAlerts    = activeAlerts.filter(a => a.daysLeft !== null && a.daysLeft >= 0 && a.daysLeft <= 14);
 
   return `אתה סוכן AI מקצועי לניהול ציי רכב של חברת נופר אנרגי. אתה עוזר לקציני רכב ופקידים לנהל את הצי ביעילות.
 תמיד ענה בעברית, בצורה תמציתית ומקצועית.
