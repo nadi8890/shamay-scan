@@ -241,6 +241,7 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
           <th><div class="th-sort" onclick="sortFleetCol('lic')">רישיון נהג<span class="sort-arrow" id="sarr-lic">⇅</span></div></th>
           <th><div class="th-sort" onclick="sortFleetCol('km')">טיפול הבא<span class="sort-arrow" id="sarr-km">⇅</span></div></th>
           <th><div class="th-sort" onclick="sortFleetCol('insp')">ביקורת<span class="sort-arrow" id="sarr-insp">⇅</span></div></th>
+          <th><div class="th-sort" onclick="sortFleetCol('from')">קבלת רכב<span class="sort-arrow" id="sarr-from">⇅</span></div></th>
           <th></th>
         </tr>
         <tr class="col-filter-row" id="col-filter-row"></tr>
@@ -823,7 +824,7 @@ function renderDashboard() {
 
 // ── FLEET SORT/FILTER ──
 let fleetSort = { col: null, dir: 1 };
-let fleetColFilters = { plate:'', make:'', driver:'', company:'', reg:'', ins:'', lic:'', km:'', insp:'' };
+let fleetColFilters = { plate:'', make:'', driver:'', company:'', reg:'', ins:'', lic:'', km:'', insp:'', from:'' };
 let incColFilters  = { plate:'', driver:'', date:'', insurance:'', reportNum:'', damage:'', notes:'' };
 let replColFilters = { employee:'', plate:'', typeCompany:'', fromDate:'', toDate:'', notes:'' };
 let retColFilters  = { employee:'', plate:'', make:'', fromDate:'', toDate:'', reason:'', notes:'' };
@@ -844,12 +845,12 @@ function buildColFilterRow(vehicles) {
   if (!row) return;
   // Build only once — rebuilding on every keystroke destroys focus
   if (row.querySelector('.col-filter-inp')) return;
-  const placeholders = { plate:'רישוי...', make:'יצרן/דגם...', driver:'נהג...', company:'חברה...', reg:'תאריך...', ins:'תאריך...', lic:'תאריך...', km:'ק"מ...', insp:'תאריך...' };
+  const placeholders = { plate:'רישוי...', make:'יצרן/דגם...', driver:'נהג...', company:'חברה...', reg:'תאריך...', ins:'תאריך...', lic:'תאריך...', km:'ק"מ...', insp:'תאריך...', from:'תאריך...' };
   const inp = col => `<th><input class="col-filter-inp" type="text" placeholder="${placeholders[col]||'חפש...'}" value="${esc(fleetColFilters[col]||'')}" oninput="setColFilter('${col}',this.value)"></th>`;
-  row.innerHTML = inp('plate')+inp('make')+inp('driver')+inp('company')+inp('reg')+inp('ins')+inp('lic')+inp('km')+inp('insp')+'<th></th>';
+  row.innerHTML = inp('plate')+inp('make')+inp('driver')+inp('company')+inp('reg')+inp('ins')+inp('lic')+inp('km')+inp('insp')+inp('from')+'<th></th>';
 }
 function updateSortArrows() {
-  ['plate','make','driver','company','reg','ins','lic','km','insp'].forEach(c => {
+  ['plate','make','driver','company','reg','ins','lic','km','insp','from'].forEach(c => {
     const el = document.getElementById('sarr-'+c);
     if (!el) return;
     el.textContent = fleetSort.col===c ? (fleetSort.dir===1 ? '↑' : '↓') : '⇅';
@@ -887,6 +888,7 @@ function renderFleet() {
     if (!fMatch(v.licenseExpiry, fleetColFilters.lic)) return false;
     if (!fMatch(v.nextServiceKm, fleetColFilters.km)) return false;
     if (!fMatch(v.inspection, fleetColFilters.insp)) return false;
+    if (!fMatch(v.vehicleFrom, fleetColFilters.from)) return false;
     return true;
   });
 
@@ -904,6 +906,7 @@ function renderFleet() {
         case 'lic': va=daysUntil(a.licenseExpiry)??9999; vb=daysUntil(b.licenseExpiry)??9999; break;
         case 'km': va=parseKm(a.nextServiceKm)-parseKm(a.currentKm); vb=parseKm(b.nextServiceKm)-parseKm(b.currentKm); break;
         case 'insp': va=daysUntilNextInsp(a)??9999; vb=daysUntilNextInsp(b)??9999; break;
+        case 'from': va=a.vehicleFrom||''; vb=b.vehicleFrom||''; break;
         default: va=''; vb='';
       }
       if (typeof va==='string') return va.localeCompare(vb,'he')*fleetSort.dir;
@@ -916,7 +919,7 @@ function renderFleet() {
   document.getElementById('fleet-count').textContent = `מציג ${filtered.length} מתוך ${VEHICLES.length} רכבים`;
 
   const tbody = document.getElementById('fleet-body');
-  if (!filtered.length) { tbody.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:24px;color:var(--muted);font-size:0.85rem">אין רכבים להצגה</td></tr>'; return; }
+  if (!filtered.length) { tbody.innerHTML = '<tr><td colspan="11" style="text-align:center;padding:24px;color:var(--muted);font-size:0.85rem">אין רכבים להצגה</td></tr>'; return; }
   tbody.innerHTML = filtered.map(v => {
     const regDays = daysUntil(v.registrationExpiry);
     const insDays = daysUntil(v.insuranceExpiry);
@@ -942,6 +945,7 @@ function renderFleet() {
       <td class="${cellCls(licDays)}">${statusBadge(licDays)}<br><span style="color:var(--muted);font-size:0.63rem">${esc(v.licenseExpiry)}</span></td>
       <td>${kmStatus(v.currentKm, v.nextServiceKm)}<br><span style="color:var(--muted);font-size:0.63rem">${esc(v.nextServiceKm)||'—'} ק"מ</span></td>
       <td class="${cellCls(inspDays)}">${statusBadge(inspDays)}<br><span style="color:var(--muted);font-size:0.63rem">הבאה: ${nextInspectionStr(v)||'—'}</span><br><span style="color:var(--muted);font-size:0.58rem">אחרונה: ${esc(v.inspection)||'—'}</span></td>
+      <td style="font-size:0.73rem;white-space:nowrap">${esc(v.vehicleFrom)||'—'}</td>
       <td style="white-space:nowrap">
         <button class="btn btn-gray" style="padding:3px 8px;font-size:0.7rem" onclick="editVehicle('${esc(v.plate)}')">✏️</button>
       </td>
@@ -1269,7 +1273,7 @@ function saveVehicle() {
     licenseExpiry: document.getElementById('m-licExpiry').value.trim(),
     inspection: document.getElementById('m-inspection').value.trim(),
     currentKm: document.getElementById('m-km').value.trim(),
-    nextServiceKm: document.getElementById('m-nextKm').value.trim(),
+    nextServiceKm: document.getElementById('m-nextKm').value.trim() || (!editingPlate ? String((parseInt(document.getElementById('m-km').value)||0)+15000) : ''),
     procedures: document.getElementById('m-notes').value.trim(),
     id: editingPlate ? (VEHICLES.find(x=>x.plate===editingPlate)||{}).id : Date.now(),
   };
@@ -1882,7 +1886,7 @@ function agentExecAction(action, param) {
     const [plate,make,model,year,driverName,company,registrationExpiry,insuranceExpiry,licenseExpiry,inspection,currentKm,nextServiceKm] = p;
     if (!plate) return null;
     if (VEHICLES.find(v=>v.plate===plate)) return { type:'vehicle', action:'כבר קיים', plate };
-    VEHICLES.push({ plate, make:make||'', model:model||'', year:year||'', driverName:driverName||'', company:company||'נופר אנרגי', registrationExpiry:registrationExpiry||'', insuranceExpiry:insuranceExpiry||'', licenseExpiry:licenseExpiry||'', inspection:inspection||'', currentKm:currentKm||'0', nextServiceKm:nextServiceKm||'' });
+    VEHICLES.push({ plate, make:make||'', model:model||'', year:year||'', driverName:driverName||'', company:company||'נופר אנרגי', registrationExpiry:registrationExpiry||'', insuranceExpiry:insuranceExpiry||'', licenseExpiry:licenseExpiry||'', inspection:inspection||'', currentKm:currentKm||'0', nextServiceKm:nextServiceKm||String((parseInt(currentKm)||0)+15000) });
     saveVehicles(); renderFleet(); renderDashboard();
     toast(`✓ רכב ${plate} נוסף`);
     return { type:'vehicle', action:'נוסף', plate, driver:driverName, make, model };
