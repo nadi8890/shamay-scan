@@ -485,7 +485,7 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
 </div>
 
 <!-- Add/Edit Vehicle Modal -->
-<div class="modal-overlay" id="vehicle-modal">
+<div class="modal-overlay" id="vehicle-modal" onkeydown="if(event.key==='Enter'&&event.target.tagName!=='TEXTAREA'){event.preventDefault();saveVehicle();}">
   <div class="modal">
     <h3 id="modal-title">הוסף רכב</h3>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
