@@ -1714,14 +1714,24 @@ ${info.tire}`;
   return bestScore > 0 ? best : null; // null = let Anthropic API handle it
 }
 // ═════════════════════════════════════════════════════════════════════
+function isActionRequest(text) {
+  const actionWords = [
+    'הוסף','הוספ','עדכן','עדכ','מחק','מחיק','שנה','שינ','סנכרן','ייצא','ייצו',
+    'הצג','עבור','בצע','רשום','צור','הוצא','תוסיף','תעדכן','תמחק','תשנה',
+    'תסנכרן','העבר','שייך','הכנס','הזן','תרשום','פתח','טפל','תיעד','הוסיף',
+    'הפוך','ייבא','ייבוא','הדפס','כרטיס','שלח','הודע','עשה','תעשה'
+  ];
+  const t = text.toLowerCase();
+  return actionWords.some(w => t.includes(w));
+}
 async function agentSend(){
   if (agentTyping) return;
   const input = document.getElementById('agent-input');
   const msg = input.value.trim();
   if (!msg && !agentPendingImage) return;
 
-  // Try local knowledge base first (no API key needed)
-  if (msg && !agentPendingImage) {
+  // Try local knowledge base only for non-action queries
+  if (msg && !agentPendingImage && !isActionRequest(msg)) {
     const localAnswer = findAnswerLocal(msg);
     if (localAnswer) {
       input.value = '';
