@@ -471,8 +471,8 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
   <div class="agent-input-row">
     <button class="agent-send" id="agent-send-btn" onclick="agentSend()" title="שלח">➤</button>
     <input class="agent-input" id="agent-input" placeholder="שאל אותי כל דבר על הציי..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();agentSend()}" dir="rtl">
-    <input type="file" id="agent-img-input" accept="image/*" capture="environment" style="display:none" onchange="handleAgentImage(this)">
-    <button class="agent-cam" onclick="document.getElementById('agent-img-input').click()" title="צרף תמונה / מסמך">📷</button>
+    <input type="file" id="agent-img-input" accept="image/*,application/pdf" style="display:none" onchange="handleAgentImage(this)">
+    <button class="agent-cam" onclick="document.getElementById('agent-img-input').click()" title="צרף תמונה / PDF">📎</button>
   </div>
   <div id="change-key-btn" style="display:none;padding:6px 14px;text-align:left"><button onclick="document.getElementById('agent-key-wrap').style.display='block';this.parentElement.style.display='none'" style="background:none;border:none;color:#6366f1;font-size:0.72rem;cursor:pointer;text-decoration:underline;font-family:Heebo,sans-serif">🔑 שנה מפתח API</button></div>
   <div class="agent-key-wrap" id="agent-key-wrap">
@@ -1445,10 +1445,20 @@ function handleAgentImage(input) {
     const dataUrl = e.target.result;
     const [header, b64] = dataUrl.split(',');
     const mime = header.match(/:(.*?);/)[1];
-    agentPendingImage = { data: b64, mime, dataUrl };
-    document.getElementById('agent-img-thumb').src = dataUrl;
+    const isPdf = mime === 'application/pdf';
+    agentPendingImage = { data: b64, mime, dataUrl, isPdf, fileName: file.name };
+    const thumb = document.getElementById('agent-img-thumb');
+    if (isPdf) {
+      thumb.src = ''; thumb.style.display = 'none';
+      let lbl = document.getElementById('agent-pdf-label');
+      if (!lbl) { lbl = document.createElement('span'); lbl.id = 'agent-pdf-label'; lbl.style.cssText = 'font-size:0.85rem;padding:8px 4px;display:inline-block'; thumb.parentNode.insertBefore(lbl, thumb); }
+      lbl.textContent = '📄 ' + file.name;
+    } else {
+      thumb.src = dataUrl; thumb.style.display = '';
+      const lbl = document.getElementById('agent-pdf-label'); if (lbl) lbl.remove();
+    }
     document.getElementById('agent-img-preview').style.display = 'block';
-    document.getElementById('agent-input').placeholder = 'תאר מה לעדכן, או לחץ שלח לניתוח אוטומטי...';
+    document.getElementById('agent-input').placeholder = isPdf ? 'שאל שאלה על המסמך, או לחץ שלח לניתוח אוטומטי...' : 'תאר מה לעדכן, או לחץ שלח לניתוח אוטומטי...';
     document.getElementById('agent-input').focus();
   };
   reader.readAsDataURL(file);
@@ -1754,15 +1764,20 @@ async function agentSend(){
   const imgData    = agentPendingImage?.data;
   const imgMime    = agentPendingImage?.mime;
 
+  const isPdf = agentPendingImage?.isPdf;
+  const fileName = agentPendingImage?.fileName || '';
   // Store in history for display
-  agentMessages.push({ role: 'user', content: msg || '📷 נתח תמונה זו', imageDataUrl: imgDataUrl });
+  agentMessages.push({ role: 'user', content: msg || (isPdf ? '📄 ' + fileName : '📷 נתח תמונה זו'), imageDataUrl: isPdf ? null : imgDataUrl, isPdf, fileName });
 
   // Build API content for THIS message
   let currentContent;
   if (hasImage) {
+    const fileBlock = isPdf
+      ? { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: imgData } }
+      : { type: 'image',    source: { type: 'base64', media_type: imgMime, data: imgData } };
     currentContent = [
-      { type: 'image', source: { type: 'base64', media_type: imgMime, data: imgData } },
-      { type: 'text', text: msg || 'נתח את המסמך ובצע עדכונים מתאימים' }
+      fileBlock,
+      { type: 'text', text: msg || (isPdf ? 'נתח את המסמך ובצע עדכונים מתאימים' : 'נתח את התמונה ובצע עדכונים מתאימים') }
     ];
   } else {
     currentContent = [{ type: 'text', text: msg }];
@@ -1797,6 +1812,7 @@ async function agentSend(){
         'Content-Type':'application/json',
         'x-api-key': agentApiKey,
         'anthropic-version':'2023-06-01',
+        'anthropic-beta':'pdfs-2024-09-25',
         'anthropic-dangerous-direct-browser-access':'true'
       },
       body: JSON.stringify({
