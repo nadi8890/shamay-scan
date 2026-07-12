@@ -492,11 +492,11 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
       <div class="modal-row"><label>דגם</label><input id="m-model" type="text" placeholder="אאוטלנדר"></div>
       <div class="modal-row"><label>שנתון</label><input id="m-year" type="text" placeholder="2024"></div>
       <div class="modal-row"><label>שם נהג</label><input id="m-driver" type="text" placeholder="ישראל ישראלי"></div>
-      <div class="modal-row"><label>תוקף רישוי (טסט)</label><input id="m-regExpiry" type="text" placeholder="DD/MM/YYYY"></div>
-      <div class="modal-row"><label>תוקף ביטוח חובה</label><input id="m-insExpiry" type="text" placeholder="DD/MM/YYYY"></div>
-      <div class="modal-row"><label>תוקף רישיון נהג</label><input id="m-licExpiry" type="text" placeholder="DD/MM/YYYY"></div>
-      <div class="modal-row"><label>ביקורת בטיחות</label><input id="m-inspection" type="text" placeholder="DD/MM/YYYY"></div>
-      <div class="modal-row"><label>תאריך קבלת רכב</label><input id="m-from" type="text" placeholder="DD.MM.YY"></div>
+      <div class="modal-row"><label>תוקף רישוי (טסט)</label><input id="m-regExpiry" type="text" placeholder="יי.חח.שש" inputmode="numeric" oninput="dateAutoMask(this)"></div>
+      <div class="modal-row"><label>תוקף ביטוח חובה</label><input id="m-insExpiry" type="text" placeholder="יי.חח.שש" inputmode="numeric" oninput="dateAutoMask(this)"></div>
+      <div class="modal-row"><label>תוקף רישיון נהג</label><input id="m-licExpiry" type="text" placeholder="יי.חח.שש" inputmode="numeric" oninput="dateAutoMask(this)"></div>
+      <div class="modal-row"><label>ביקורת בטיחות</label><input id="m-inspection" type="text" placeholder="יי.חח.שש" inputmode="numeric" oninput="dateAutoMask(this)"></div>
+      <div class="modal-row"><label>תאריך קבלת רכב</label><input id="m-from" type="text" placeholder="יי.חח.שש" inputmode="numeric" oninput="dateAutoMask(this)"></div>
       <div class="modal-row"><label>ק״מ נוכחי</label><input id="m-km" type="text" placeholder="45000"></div>
       <div class="modal-row"><label>טיפול הבא (ק״מ)</label><input id="m-nextKm" type="text" placeholder="60000"></div>
     </div>
@@ -644,6 +644,16 @@ let RETURNS      = []; // תיעוד תקופת אחזקה (היסטוריה)
 })();
 
 // ── UTILS ──
+function dateAutoMask(inp) {
+  const sel = inp.selectionStart;
+  const prev = inp.value;
+  let v = prev.replace(/[^\d]/g, '').slice(0, 6);
+  if (v.length > 4) v = v.slice(0,2)+'.'+v.slice(2,4)+'.'+v.slice(4);
+  else if (v.length > 2) v = v.slice(0,2)+'.'+v.slice(2);
+  inp.value = v;
+  const added = v.length - prev.length;
+  try { inp.setSelectionRange(sel+added, sel+added); } catch(e){}
+}
 function parseDate(s) {
   if (!s) return null;
   s = String(s).trim();
