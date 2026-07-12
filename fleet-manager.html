@@ -413,8 +413,8 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
   </div>
   <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
     <span style="display:flex;align-items:center;gap:4px;font-size:0.72rem;color:#991b1b"><span style="width:10px;height:10px;background:#fef2f2;border:2px solid #ef4444;border-radius:2px;display:inline-block"></span>באיחור</span>
-    <span style="display:flex;align-items:center;gap:4px;font-size:0.72rem;color:#9a3412"><span style="width:10px;height:10px;background:#fff7ed;border:2px solid #f97316;border-radius:2px;display:inline-block"></span>דחוף (עד שבוע)</span>
-    <span style="display:flex;align-items:center;gap:4px;font-size:0.72rem;color:#713f12"><span style="width:10px;height:10px;background:#fefce8;border:2px solid #eab308;border-radius:2px;display:inline-block"></span>קרוב (עד חודש)</span>
+    <span style="display:flex;align-items:center;gap:4px;font-size:0.72rem;color:#9a3412"><span style="width:10px;height:10px;background:#fff7ed;border:2px solid #f97316;border-radius:2px;display:inline-block"></span>דחוף (עד 3 ימים)</span>
+    <span style="display:flex;align-items:center;gap:4px;font-size:0.72rem;color:#713f12"><span style="width:10px;height:10px;background:#fefce8;border:2px solid #eab308;border-radius:2px;display:inline-block"></span>קרוב (4–7 ימים)</span>
   </div>
   <div class="tbl-wrap">
     <table>
@@ -1029,14 +1029,14 @@ function buildDynamicAlerts() {
   for (const v of VEHICLES) {
     const addDate = (type, dateStr) => {
       const days = daysUntil(dateStr);
-      if (days !== null && days <= 30)
+      if (days !== null && days <= 7)
         alerts.push({ plate:v.plate, driver:v.driverName, type, dueDate:dateStr||'—', daysLeft:days, prevKm:null, kmAlert:null, currentKm:null, kmDiff:null });
     };
     addDate('תוקף רישוי', v.registrationExpiry);
     addDate('תוקף ביטוח חובה', v.insuranceExpiry);
     addDate('רישיון נהג', v.licenseExpiry);
     const inspDays = daysUntilNextInsp(v);
-    if (inspDays !== null && inspDays <= 30) {
+    if (inspDays !== null && inspDays <= 7) {
       const vs = parseVehicleYear(v.year);
       const ageYrs = vs ? (today - vs) / (365.25*24*3600*1000) : 99;
       const label = ageYrs <= 3 ? 'ביקורת בטיחות חציונית' : 'ביקורת בטיחות רבעונית';
@@ -1068,7 +1068,7 @@ function renderAlerts() {
 
   function worstCls(alerts) {
     if (alerts.some(a => a.daysLeft !== null ? a.daysLeft < 0 : a.kmDiff >= a.kmAlert)) return 'row-expired';
-    if (alerts.some(a => a.daysLeft !== null ? a.daysLeft <= 7 : false)) return 'row-soon';
+    if (alerts.some(a => a.daysLeft !== null ? a.daysLeft <= 3 : false)) return 'row-soon';
     return 'row-warn';
   }
 
@@ -1081,7 +1081,7 @@ function renderAlerts() {
         : `<span class="badge badge-orange">${Math.abs(over).toLocaleString()} ק"מ נותרו</span>`;
     } else if (a.daysLeft < 0) {
       badge = `<span class="badge badge-red">באיחור ${Math.abs(a.daysLeft)} ימים</span>`;
-    } else if (a.daysLeft <= 7) {
+    } else if (a.daysLeft <= 3) {
       badge = `<span class="badge badge-orange">בעוד ${a.daysLeft} ימים</span>`;
     } else {
       badge = `<span class="badge badge-yellow" style="background:#fefce8;color:#713f12;border:1px solid #fde68a">בעוד ${a.daysLeft} ימים</span>`;
