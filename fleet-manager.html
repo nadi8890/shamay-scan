@@ -105,9 +105,11 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
 .task-check{width:18px;height:18px;flex-shrink:0;margin-top:1px;cursor:pointer;accent-color:var(--green)}
 .task-done{text-decoration:line-through;color:var(--muted)}
 /* Toast */
-.toast{position:fixed;bottom:78px;left:50%;transform:translateX(-50%);background:#059669;color:#fff;padding:10px 22px;border-radius:99px;font-weight:700;font-size:0.85rem;opacity:0;transition:opacity .3s;z-index:999;white-space:nowrap;pointer-events:none;box-shadow:0 4px 12px rgba(0,0,0,.15)}
-.toast.show{opacity:1}
+.toast{position:fixed;bottom:82px;left:50%;transform:translateX(-50%) scale(.92);background:#059669;color:#fff;padding:12px 28px;border-radius:99px;font-weight:700;font-size:0.92rem;opacity:0;transition:opacity .25s,transform .25s;z-index:999;white-space:nowrap;pointer-events:none;box-shadow:0 6px 20px rgba(0,0,0,.22)}
+.toast.show{opacity:1;transform:translateX(-50%) scale(1)}
 .toast.err{background:#dc2626}
+#save-indicator{font-size:0.68rem;color:rgba(255,255,255,0.7);transition:color .3s;white-space:nowrap}
+#save-indicator.saved{color:#86efac}
 /* AI Agent */
 .agent-fab{position:fixed;left:16px;bottom:80px;width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#6366f1,#2563eb);color:#fff;font-size:1.5rem;border:none;cursor:pointer;box-shadow:0 4px 18px rgba(99,102,241,.45);z-index:200;display:flex;align-items:center;justify-content:center;transition:transform .2s,box-shadow .2s}
 .agent-fab:hover{transform:scale(1.08);box-shadow:0 6px 24px rgba(99,102,241,.55)}
@@ -196,7 +198,10 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
 
 <header>
   <div class="logo">🚗 נופר<span> | ניהול ציי רכב</span></div>
-  <button class="btn" style="padding:7px 14px;font-size:0.82rem;background:#fff;color:#1e40af;font-weight:700;border-radius:8px" onclick="openAddVehicle()">+ רכב חדש</button>
+  <div style="display:flex;align-items:center;gap:10px">
+    <span id="save-indicator">💾 לא נשמר</span>
+    <button class="btn" style="padding:7px 14px;font-size:0.82rem;background:#fff;color:#1e40af;font-weight:700;border-radius:8px" onclick="openAddVehicle()">+ רכב חדש</button>
+  </div>
 </header>
 
 <!-- ══════════════ TAB: FLEET ══════════════ -->
@@ -744,7 +749,16 @@ function toast(msg, err=false) {
   const t = document.getElementById('toast');
   t.textContent = msg;
   t.className = 'toast show' + (err?' err':'');
-  setTimeout(()=>t.className='toast',2500);
+  setTimeout(()=>t.className='toast', 3000);
+  if (!err) {
+    const ind = document.getElementById('save-indicator');
+    if (ind) {
+      const now = new Date();
+      const time = ('0'+now.getHours()).slice(-2)+':'+('0'+now.getMinutes()).slice(-2);
+      ind.textContent = '✓ נשמר ' + time;
+      ind.className = 'saved';
+    }
+  }
 }
 
 // ── TAB SWITCHING ──
@@ -1303,6 +1317,8 @@ function saveVehicle() {
 
 // ── INIT ──
 window.onload = () => {
+  const ind = document.getElementById('save-indicator');
+  if (ind) { ind.textContent = '✓ נתונים טעונים'; ind.className = 'saved'; }
   renderDashboard();
   renderAlerts();
   renderIncidents();
