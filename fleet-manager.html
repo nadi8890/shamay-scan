@@ -1747,18 +1747,6 @@ async function agentSend(){
   const msg = input.value.trim();
   if (!msg && !agentPendingImage) return;
 
-  // Try local knowledge base only for non-action queries
-  if (msg && !agentPendingImage && !isActionRequest(msg)) {
-    const localAnswer = findAnswerLocal(msg);
-    if (localAnswer) {
-      input.value = '';
-      agentMessages.push({ role: 'user', content: msg });
-      agentMessages.push({ role: 'assistant', content: localAnswer });
-      renderAgentMsgs();
-      return;
-    }
-  }
-
   if (!agentApiKey) {
     document.getElementById('agent-key-wrap').style.display = 'block';
     toast('הכנס מפתח API תחילה', true);
