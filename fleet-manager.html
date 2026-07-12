@@ -505,6 +505,7 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
       <div class="modal-row"><label>תוקף ביטוח חובה</label><input id="m-insExpiry" type="text" placeholder="DD/MM/YYYY"></div>
       <div class="modal-row"><label>תוקף רישיון נהג</label><input id="m-licExpiry" type="text" placeholder="DD/MM/YYYY"></div>
       <div class="modal-row"><label>ביקורת בטיחות</label><input id="m-inspection" type="text" placeholder="DD/MM/YYYY"></div>
+      <div class="modal-row"><label>תאריך קבלת רכב</label><input id="m-from" type="text" placeholder="DD.MM.YY"></div>
       <div class="modal-row"><label>ק״מ נוכחי</label><input id="m-km" type="text" placeholder="45000"></div>
       <div class="modal-row"><label>טיפול הבא (ק״מ)</label><input id="m-nextKm" type="text" placeholder="60000"></div>
     </div>
@@ -1221,7 +1222,7 @@ let editingPlate = null;
 function openAddVehicle() {
   editingPlate = null;
   document.getElementById('modal-title').textContent = 'הוסף רכב חדש';
-  ['m-plate','m-make','m-model','m-year','m-driver','m-regExpiry','m-insExpiry','m-licExpiry','m-inspection','m-km','m-nextKm','m-notes'].forEach(id => {
+  ['m-plate','m-make','m-model','m-year','m-driver','m-regExpiry','m-insExpiry','m-licExpiry','m-inspection','m-from','m-km','m-nextKm','m-notes'].forEach(id => {
     document.getElementById(id).value = '';
   });
   const govSt = document.getElementById('m-gov-status');
@@ -1242,6 +1243,7 @@ function editVehicle(plate) {
   document.getElementById('m-insExpiry').value = v.insuranceExpiry||'';
   document.getElementById('m-licExpiry').value = v.licenseExpiry||'';
   document.getElementById('m-inspection').value = v.inspection||'';
+  document.getElementById('m-from').value = v.vehicleFrom||'';
   document.getElementById('m-km').value = v.currentKm||'';
   document.getElementById('m-nextKm').value = v.nextServiceKm||'';
   document.getElementById('m-notes').value = v.procedures||'';
@@ -1272,6 +1274,7 @@ function saveVehicle() {
     insuranceExpiry: document.getElementById('m-insExpiry').value.trim(),
     licenseExpiry: document.getElementById('m-licExpiry').value.trim(),
     inspection: document.getElementById('m-inspection').value.trim(),
+    vehicleFrom: document.getElementById('m-from').value.trim(),
     currentKm: document.getElementById('m-km').value.trim(),
     nextServiceKm: document.getElementById('m-nextKm').value.trim() || (!editingPlate ? String((parseInt(document.getElementById('m-km').value)||0)+15000) : ''),
     procedures: document.getElementById('m-notes').value.trim(),
@@ -1279,7 +1282,7 @@ function saveVehicle() {
   };
   if (editingPlate) {
     const idx = VEHICLES.findIndex(x=>x.plate===editingPlate);
-    if (idx>=0) VEHICLES[idx] = v;
+    if (idx>=0) VEHICLES[idx] = { ...VEHICLES[idx], ...v };
   } else {
     VEHICLES.unshift(v);
   }
