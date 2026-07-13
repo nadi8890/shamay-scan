@@ -1869,7 +1869,7 @@ function isActionRequest(text) {
   const t = text.toLowerCase();
   return actionWords.some(w => t.includes(w));
 }
-function agentSend() {
+async function agentSend() {
   if (agentTyping) return;
   const input = document.getElementById('agent-input');
   const msg = input.value.trim();
