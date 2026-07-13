@@ -2466,4 +2466,56 @@ function renderAgentMsgs(showTyping = false) {
   }).join('');
 
   const typing = showTyping
-    ? `<div class="msg assistant"><div class="msg-avatar">🤖</div><div cl
+    ? `<div class="msg assistant"><div class="msg-avatar">🤖</div><div class="msg-bubble"><span class="typing-dot"></span><span class="typing-dot"></span><span class="typing-dot"></span></div></div>`
+    : '';
+  if (container) {
+    container.innerHTML = html + typing;
+    container.scrollTop = container.scrollHeight;
+  }
+}
+</script>
+
+<!-- ══ REPLACEMENT EDIT MODAL ══ -->
+<div class="modal-overlay" id="repl-edit-modal">
+<div class="modal">
+<h3>✏️ ערוך רכב חליפי</h3>
+<input type="hidden" id="repl-edit-idx">
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+<div class="modal-row"><label>עובד</label><input id="re-employee" type="text"></div>
+<div class="modal-row"><label>רישוי רכב חליפי</label><input id="re-plate" type="text"></div>
+<div class="modal-row"><label>סוג / חברה</label><input id="re-typeCompany" type="text"></div>
+<div class="modal-row"><label>מתאריך</label><input id="re-fromDate" type="text"></div>
+<div class="modal-row"><label>עד תאריך</label><input id="re-toDate" type="text"></div>
+<div class="modal-row" style="grid-column:1/-1"><label>הערות</label><input id="re-notes" type="text"></div>
+</div>
+<div class="btn-row">
+<button class="btn btn-gray" onclick="document.getElementById('repl-edit-modal').classList.remove('open')">ביטול</button>
+<button class="btn btn-green" onclick="saveEditReplacement()">💾 שמור</button>
+</div>
+</div>
+</div>
+
+<!-- ══ RETURN EDIT MODAL ══ -->
+<div class="modal-overlay" id="ret-edit-modal">
+<div class="modal">
+<h3>✏️ ערוך רשומת אחזקה</h3>
+<input type="hidden" id="ret-edit-idx">
+<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+<div class="modal-row"><label>עובד</label><input id="rete-employee" type="text"></div>
+<div class="modal-row"><label>רישוי רכב</label><input id="rete-plate" type="text"></div>
+<div class="modal-row"><label>יצרן</label><input id="rete-make" type="text"></div>
+<div class="modal-row"><label>דגם</label><input id="rete-model" type="text"></div>
+<div class="modal-row"><label>מתאריך</label><input id="rete-fromDate" type="text"></div>
+<div class="modal-row"><label>עד תאריך</label><input id="rete-toDate" type="text"></div>
+<div class="modal-row"><label>סיבת החזרה</label><input id="rete-reason" type="text"></div>
+<div class="modal-row" style="grid-column:1/-1"><label>הערות</label><input id="rete-notes" type="text"></div>
+</div>
+<div class="btn-row">
+<button class="btn btn-gray" onclick="document.getElementById('ret-edit-modal').classList.remove('open')">ביטול</button>
+<button class="btn btn-green" onclick="saveEditReturn()">💾 שמור</button>
+</div>
+</div>
+</div>
+
+</body>
+</html>
