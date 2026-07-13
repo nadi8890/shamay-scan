@@ -8,13 +8,23 @@
 <meta http-equiv="Expires" content="0">
 <title>נופר אנרגי — ניהול ציי רכב</title>
 <script>
-// Cache-buster: force reload when a new version is deployed
-(function(){
-  var BUILD = '2026-07-13-v3';
-  var cached = sessionStorage.getItem('_build');
-  if (cached && cached !== BUILD) { sessionStorage.setItem('_build', BUILD); location.reload(true); }
-  else sessionStorage.setItem('_build', BUILD);
-})();
+// Service Worker registration — network-first for home screen shortcuts
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/shamay-scan/sw.js', { scope: '/shamay-scan/' })
+    .then(reg => {
+      // If a new SW is waiting, activate it immediately and reload
+      if (reg.waiting) { reg.waiting.postMessage({ type: 'SKIP_WAITING' }); }
+      reg.addEventListener('updatefound', () => {
+        const nw = reg.installing;
+        nw.addEventListener('statechange', () => {
+          if (nw.state === 'installed' && navigator.serviceWorker.controller) {
+            // New version available — reload to get fresh page
+            window.location.reload(true);
+          }
+        });
+      });
+    });
+}
 </script>
 <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;600;700;900&display=swap" rel="stylesheet">
 <style>
