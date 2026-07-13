@@ -3,7 +3,19 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <title>נופר אנרגי — ניהול ציי רכב</title>
+<script>
+// Cache-buster: force reload when a new version is deployed
+(function(){
+  var BUILD = '2026-07-13-v3';
+  var cached = sessionStorage.getItem('_build');
+  if (cached && cached !== BUILD) { sessionStorage.setItem('_build', BUILD); location.reload(true); }
+  else sessionStorage.setItem('_build', BUILD);
+})();
+</script>
 <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;600;700;900&display=swap" rel="stylesheet">
 <style>
 :root{
