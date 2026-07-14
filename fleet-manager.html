@@ -313,7 +313,7 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
   <div class="tbl-wrap">
     <table>
       <thead>
-        <tr><th>#</th><th>ת׳ עבירה</th><th>עבירה</th><th>נהג</th><th>רישוי</th><th>נקודות</th><th>קנס</th><th>הוסב</th></tr>
+        <tr><th>#</th><th>ת׳ עבירה</th><th>עבירה</th><th>נהג</th><th>רישוי</th><th>נקודות</th><th>קנס</th><th>סטטוס</th><th></th></tr>
         <tr class="col-filter-row" id="viol-col-filter-row"></tr>
       </thead>
       <tbody id="viol-body"></tbody>
@@ -585,6 +585,26 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
     <div class="btn-row">
       <button class="btn btn-secondary" onclick="document.getElementById('violation-modal').classList.remove('open')">ביטול</button>
       <button class="btn btn-primary" onclick="saveViolationForm()">💾 שמור</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ VIOLATION EDIT (STATUS) MODAL ══ -->
+<div class="modal-overlay" id="viol-edit-modal">
+  <div class="modal">
+    <h3 id="ve-title">עריכת דוח</h3>
+    <div style="display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:center">
+      <label style="display:flex;align-items:center;gap:6px;font-weight:600"><input type="checkbox" id="ve-hosav" style="width:17px;height:17px"> הוסב</label>
+      <input id="ve-hosav-date" type="date">
+      <label style="display:flex;align-items:center;gap:6px;font-weight:600"><input type="checkbox" id="ve-paid" style="width:17px;height:17px"> שולם</label>
+      <input id="ve-paid-date" type="date">
+      <label style="display:flex;align-items:center;gap:6px;font-weight:600"><input type="checkbox" id="ve-handled" style="width:17px;height:17px"> טופל</label>
+      <input id="ve-handled-date" type="date">
+    </div>
+    <p style="font-size:0.75rem;color:var(--muted);margin-top:8px">סימון אחד לפחות = הדוח טופל. ללא סימון — השורה תסומן באדום.</p>
+    <div class="btn-row">
+      <button class="btn btn-secondary" onclick="document.getElementById('viol-edit-modal').classList.remove('open')">ביטול</button>
+      <button class="btn btn-primary" onclick="saveViolEdit()">💾 שמור</button>
     </div>
   </div>
 </div>
@@ -902,7 +922,7 @@ let fleetColFilters = { plate:'', make:'', driver:'', company:'', reg:'', ins:''
 let incColFilters  = { plate:'', driver:'', date:'', insurance:'', reportNum:'', damage:'', notes:'' };
 let replColFilters = { employee:'', plate:'', typeCompany:'', fromDate:'', toDate:'', notes:'' };
 let retColFilters  = { employee:'', plate:'', make:'', fromDate:'', toDate:'', reason:'', notes:'' };
-let violColFilters = { date:'', offense:'', driver:'', plate:'', points:'', fine:'', transferred:'' };
+let violColFilters = { date:'', offense:'', driver:'', plate:'', points:'', fine:'', status:'' };
 let invColFilters  = { plate:'', garage:'', date:'', workType:'', driver:'' };
 
 function sortFleetCol(col) {
@@ -1075,9 +1095,9 @@ function renderIncidents() {
 function buildViolColFilterRow() {
   const row = document.getElementById('viol-col-filter-row');
   if (!row || row.querySelector('.col-filter-inp')) return;
-  const ph = { date:'תאריך...', offense:'עבירה...', driver:'נהג...', plate:'רישוי...', points:'נקודות...', fine:'קנס...', transferred:'הוסב...' };
+  const ph = { date:'תאריך...', offense:'עבירה...', driver:'נהג...', plate:'רישוי...', points:'נקודות...', fine:'קנס...', status:'סטטוס...' };
   const inp = col => `<th><input class="col-filter-inp" type="text" placeholder="${ph[col]||'חפש...'}" value="${esc(violColFilters[col]||'')}" oninput="violColFilters['${col}']=this.value;renderViolations()"></th>`;
-  row.innerHTML = '<th></th>'+inp('date')+inp('offense')+inp('driver')+inp('plate')+inp('points')+inp('fine')+inp('transferred');
+  row.innerHTML = '<th></th>'+inp('date')+inp('offense')+inp('driver')+inp('plate')+inp('points')+inp('fine')+inp('status')+'<th></th>';
 }
 function buildInvColFilterRow() {
   const row = document.getElementById('inv-col-filter-row');
@@ -1085,6 +1105,15 @@ function buildInvColFilterRow() {
   const ph = { plate:'רישוי...', garage:'מוסך...', date:'תאריך...', workType:'סוג...', driver:'נהג...' };
   const inp = col => `<th><input class="col-filter-inp" type="text" placeholder="${ph[col]||'חפש...'}" value="${esc(invColFilters[col]||'')}" oninput="invColFilters['${col}']=this.value;renderInvoices()"></th>`;
   row.innerHTML = '<th></th>'+inp('plate')+inp('garage')+inp('date')+inp('workType')+inp('driver');
+}
+// A violation is "treated" once at least one status (transferred/paid/handled) is marked
+function violStatusParts(v) {
+  const fmtD = d => d ? d.split('-').reverse().join('/') : '';
+  const parts = [];
+  if (v.stHosav) parts.push('הוסב' + (v.stHosavDate ? ' ' + fmtD(v.stHosavDate) : ''));
+  if (v.stPaid) parts.push('שולם' + (v.stPaidDate ? ' ' + fmtD(v.stPaidDate) : ''));
+  if (v.stHandled) parts.push('טופל' + (v.stHandledDate ? ' ' + fmtD(v.stHandledDate) : ''));
+  return parts;
 }
 function renderViolations() {
   const q = (document.getElementById('viol-search').value||'').toLowerCase();
@@ -1097,12 +1126,19 @@ function renderViolations() {
     if (!fm(v.plate, violColFilters.plate)) return false;
     if (!fm(v.points, violColFilters.points)) return false;
     if (!fm(v.fine, violColFilters.fine)) return false;
-    if (!fm(v.transferred, violColFilters.transferred)) return false;
+    const parts = violStatusParts(v);
+    if (!fm(parts.length ? parts.join(' ') : 'לא טופל', violColFilters.status)) return false;
     return true;
   });
   document.getElementById('viol-count').textContent = filtered.length;
-  document.getElementById('viol-body').innerHTML = filtered.map(v => `
-    <tr>
+  document.getElementById('viol-body').innerHTML = filtered.map(v => {
+    const parts = violStatusParts(v);
+    const treated = parts.length > 0;
+    const statusHtml = treated
+      ? parts.map(p => `<span class="badge badge-green">✓ ${esc(p)}</span>`).join(' ')
+      : '<span class="badge badge-red">⚠ לא טופל</span>';
+    return `
+    <tr${treated ? '' : ' style="background:#fef2f2"'}>
       <td style="color:var(--muted)">${v.id}</td>
       <td style="white-space:nowrap">${esc(v.date)}</td>
       <td style="font-size:0.78rem">${esc(v.offense)}</td>
@@ -1110,8 +1146,42 @@ function renderViolations() {
       <td style="font-weight:700;color:var(--accent);direction:ltr">${esc(v.plate)}</td>
       <td>${v.points ? `<span class="badge badge-orange">${esc(v.points)}</span>` : '—'}</td>
       <td style="font-weight:700">${esc(v.fine)||'—'}</td>
-      <td>${v.transferred ? `<span class="badge badge-green">✓ ${esc(v.transferred)}</span>` : '<span class="badge badge-gray">לא</span>'}</td>
-    </tr>`).join('');
+      <td style="white-space:nowrap">${statusHtml}</td>
+      <td><button class="btn btn-secondary" style="padding:3px 9px;font-size:0.75rem" onclick="openViolEdit(${v.id})">✏️ עריכה</button></td>
+    </tr>`;
+  }).join('');
+}
+function persistViolations() {
+  try { localStorage.setItem('fleet_violations', JSON.stringify(VIOLATIONS)); } catch(e){}
+  saveToFirestore('violations', VIOLATIONS);
+}
+let editingViolId = null;
+function openViolEdit(id) {
+  const v = VIOLATIONS.find(x => x.id === id);
+  if (!v) return;
+  editingViolId = id;
+  document.getElementById('ve-title').textContent = `דוח #${v.id} — ${v.driver||''} (${v.plate||''})`;
+  document.getElementById('ve-hosav').checked = !!v.stHosav;
+  document.getElementById('ve-hosav-date').value = v.stHosavDate || '';
+  document.getElementById('ve-paid').checked = !!v.stPaid;
+  document.getElementById('ve-paid-date').value = v.stPaidDate || '';
+  document.getElementById('ve-handled').checked = !!v.stHandled;
+  document.getElementById('ve-handled-date').value = v.stHandledDate || '';
+  document.getElementById('viol-edit-modal').classList.add('open');
+}
+function saveViolEdit() {
+  const v = VIOLATIONS.find(x => x.id === editingViolId);
+  if (!v) return;
+  v.stHosav = document.getElementById('ve-hosav').checked;
+  v.stHosavDate = document.getElementById('ve-hosav-date').value;
+  v.stPaid = document.getElementById('ve-paid').checked;
+  v.stPaidDate = document.getElementById('ve-paid-date').value;
+  v.stHandled = document.getElementById('ve-handled').checked;
+  v.stHandledDate = document.getElementById('ve-handled-date').value;
+  persistViolations();
+  document.getElementById('viol-edit-modal').classList.remove('open');
+  renderViolations();
+  toast('הדוח עודכן ✓');
 }
 
 // ── INVOICES ──
@@ -1238,8 +1308,8 @@ function exportSection(section) {
     headers = ['#','מס׳ רישוי','נהג','תאריך','ביטוח/בעלות','מס׳ ארוע','סכום נזק','השתתפות עצמית','הערות'];
     rows = INCIDENTS.map(i => [i.id,i.plate,i.driver,i.date,i.insurance,i.reportNum,i.damage,i.deductible,i.notes]);
   } else if (section === 'violations') {
-    headers = ['#','תאריך עבירה','עבירה','נהג','מס׳ רישוי','נקודות','קנס','הוסב לנהג'];
-    rows = VIOLATIONS.map(v => [v.id,v.date,v.offense,v.driver,v.plate,v.points,v.fine,v.transferred]);
+    headers = ['#','תאריך עבירה','עבירה','נהג','מס׳ רישוי','נקודות','קנס','סטטוס'];
+    rows = VIOLATIONS.map(v => { const p = violStatusParts(v); return [v.id,v.date,v.offense,v.driver,v.plate,v.points,v.fine, p.length ? p.join(' | ') : 'לא טופל']; });
   } else if (section === 'invoices') {
     headers = ['#','מס׳ רישוי','מוסך','תאריך','סוג עבודה','נהג'];
     rows = INVOICES.map(i => [i.id,i.plate,i.garage,i.date,i.workType,i.driver]);
