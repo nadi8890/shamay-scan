@@ -578,8 +578,6 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
       <div class="modal-row" style="grid-column:1/-1"><label>תיאור עבירה</label><input id="vm-offense" type="text"></div>
       <div class="modal-row"><label>נקודות</label><input id="vm-points" type="number" placeholder="0"></div>
       <div class="modal-row"><label>קנס (₪)</label><input id="vm-fine" type="number" placeholder="0"></div>
-      <div class="modal-row"><label>תאריך הוסב לנהג</label><input id="vm-arrived" type="date"></div>
-      <div class="modal-row"><label>הוסב</label><select id="vm-transferred"><option value="">לא</option><option value="כן">כן</option></select></div>
       <div class="modal-row" style="grid-column:1/-1"><label>הערות</label><input id="vm-notes" type="text"></div>
     </div>
     <div class="btn-row">
@@ -1182,6 +1180,41 @@ function saveViolEdit() {
   document.getElementById('viol-edit-modal').classList.remove('open');
   renderViolations();
   toast('הדוח עודכן ✓');
+}
+function openViolationModal() {
+  ['vm-plate','vm-driver','vm-reportNum','vm-date','vm-offense','vm-points','vm-fine','vm-notes'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.value = '';
+  });
+  const plateEl = document.getElementById('vm-plate');
+  plateEl.onchange = () => {
+    const v = VEHICLES.find(x => x.plate === plateEl.value.trim());
+    const drv = document.getElementById('vm-driver');
+    if (v && !drv.value) drv.value = v.driverName || '';
+  };
+  document.getElementById('violation-modal').classList.add('open');
+}
+function saveViolationForm() {
+  const plate = document.getElementById('vm-plate').value.trim();
+  const driver = document.getElementById('vm-driver').value.trim();
+  const offense = document.getElementById('vm-offense').value.trim();
+  if (!plate && !driver) { toast('הכנס לפחות מס׳ רישוי או שם נהג', true); return; }
+  const isoDate = document.getElementById('vm-date').value;
+  const rec = {
+    id: Math.max(0, ...VIOLATIONS.map(v => v.id || 0)) + 1,
+    date: isoDate ? isoDate.split('-').reverse().join('/') : '',
+    offense,
+    driver,
+    plate,
+    reportNum: document.getElementById('vm-reportNum').value.trim(),
+    points: document.getElementById('vm-points').value.trim(),
+    fine: document.getElementById('vm-fine').value.trim(),
+    notes: document.getElementById('vm-notes').value.trim()
+  };
+  VIOLATIONS.unshift(rec);
+  persistViolations();
+  document.getElementById('violation-modal').classList.remove('open');
+  renderViolations();
+  toast('הדוח נוסף ✓');
 }
 
 // ── INVOICES ──
