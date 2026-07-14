@@ -1456,17 +1456,24 @@ async function submitInspection() {
       try { localStorage.setItem('fleet_vehicles', JSON.stringify(VEHICLES)); } catch(e){}
       saveToFirestore('vehicles', VEHICLES);
     }
-    // 3. email a copy
+    // 3. email a copy — auto-send first, mail-app fallback if the service is down
+    const subject = `ביקורת בטיחות למספר רכב ${plate}`;
+    const bodyText = buildInspectionText(rec);
     let mailOk = false;
     try {
       const resp = await fetch('https://formsubmit.co/ajax/' + INSPECTION_EMAIL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-        body: JSON.stringify({ _subject: `ביקורת בטיחות למספר רכב ${plate}`, message: buildInspectionText(rec), _template: 'box' })
+        body: JSON.stringify({ _subject: subject, message: bodyText, _template: 'box' })
       });
       mailOk = resp.ok;
     } catch(e) {}
-    toast(mailOk ? 'הביקורת נשמרה ונשלחה למייל ✓' : 'הביקורת נשמרה ✓ (המייל לא נשלח)');
+    if (mailOk) {
+      toast('הביקורת נשמרה ונשלחה למייל ✓');
+    } else {
+      toast('הביקורת נשמרה ✓ — נפתח מייל לשליחה ידנית');
+      location.href = `mailto:${INSPECTION_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(bodyText)}`;
+    }
     renderFormsTab();
   } catch(e) {
     toast('שגיאה בשמירה — נסה שוב', true);
