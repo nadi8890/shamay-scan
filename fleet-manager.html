@@ -549,18 +549,27 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
     <div class="insp-section">
       <div class="insp-section-hdr">פרטי הרכב</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:10px">
-        <div class="modal-row"><label>מספר רכב</label><input id="if-plate" list="if-plates" inputmode="numeric" placeholder="12345678" onchange="inspFillFromPlate()"><datalist id="if-plates"></datalist></div>
+        <div class="modal-row"><label>מספר רכב</label><input id="if-plate" list="if-plates" inputmode="numeric" placeholder="12345678" oninput="inspFillFromPlate()" onchange="inspFillFromPlate()"><datalist id="if-plates"></datalist></div>
         <div class="modal-row"><label>סוג ביקורת</label><select id="if-type"><option>חציונית</option><option>רבעונית</option><option>שנתית</option></select></div>
         <div class="modal-row"><label>סוג רכב</label><input id="if-model" type="text"></div>
-        <div class="modal-row"><label>מחזיק רכב</label><input id="if-driver" type="text"></div>
         <div class="modal-row"><label>קריאת מד אוץ (ק"מ)</label><input id="if-km" type="number" inputmode="numeric" placeholder="52336"></div>
-        <div class="modal-row"><label>שם הבוחן</label><input id="if-inspector" type="text" value="נדב מרציאנו"></div>
+        <div class="modal-row" style="grid-column:1/-1"><label>שם הבוחן</label><input id="if-inspector" type="text" value="נדב מרציאנו"></div>
       </div>
+      <div id="if-driver-line" style="padding:0 10px 10px;font-size:0.85rem;color:var(--muted)">👤 מחזיק הרכב: <b id="if-driver-name" style="color:var(--text,#1e293b)">—</b></div>
     </div>
     <div id="if-sections"></div>
     <div class="insp-section">
       <div class="insp-section-hdr">הערות</div>
       <div style="padding:10px"><textarea id="if-notes" rows="3" style="width:100%;border:1.5px solid #e2e8f0;border-radius:8px;padding:8px;font-family:Heebo,sans-serif;font-size:0.85rem" placeholder="לדוגמה: 2 קדמיים ואחד אחורי ימני"></textarea></div>
+    </div>
+    <div class="insp-section">
+      <div class="insp-section-hdr" style="display:flex;justify-content:space-between;align-items:center">חתימת הבוחן
+        <button class="btn btn-secondary" style="padding:3px 10px;font-size:0.72rem" onclick="clearSignature()">🗑️ נקה</button>
+      </div>
+      <div style="padding:10px">
+        <canvas id="if-signature" width="560" height="160" style="width:100%;height:120px;border:1.5px dashed #cbd5e1;border-radius:10px;background:#fff;touch-action:none;cursor:crosshair"></canvas>
+        <div style="font-size:0.7rem;color:var(--muted);margin-top:4px">חתום עם האצבע או העכבר</div>
+      </div>
     </div>
     <div class="btn-row" style="margin-bottom:30px">
       <button class="btn btn-secondary" onclick="closeInspectionForm()">ביטול</button>
@@ -573,7 +582,8 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
 <div class="modal-overlay" id="insp-view-modal">
   <div class="modal">
     <h3 id="iv-title">ביקורת בטיחות</h3>
-    <pre id="iv-body" style="white-space:pre-wrap;font-family:Heebo,sans-serif;font-size:0.8rem;max-height:60vh;overflow-y:auto;background:#f8fafc;border-radius:10px;padding:12px"></pre>
+    <pre id="iv-body" style="white-space:pre-wrap;font-family:Heebo,sans-serif;font-size:0.8rem;max-height:55vh;overflow-y:auto;background:#f8fafc;border-radius:10px;padding:12px"></pre>
+    <div id="iv-sig-wrap" style="display:none;margin-top:8px"><div style="font-size:0.75rem;color:var(--muted);margin-bottom:3px">חתימת הבוחן:</div><img id="iv-sig" style="max-width:220px;border:1px solid #e2e8f0;border-radius:8px;background:#fff"></div>
     <div class="btn-row">
       <button class="btn btn-secondary" onclick="document.getElementById('insp-view-modal').classList.remove('open')">סגור</button>
     </div>
@@ -1332,7 +1342,9 @@ function openInspectionForm() {
   document.getElementById('inspection-form').style.display = '';
   // plates datalist
   document.getElementById('if-plates').innerHTML = VEHICLES.map(v => `<option value="${esc(v.plate)}">${esc(v.driverName||'')} — ${esc(v.make||'')} ${esc(v.model||'')}</option>`).join('');
-  ['if-plate','if-model','if-driver','if-km','if-notes'].forEach(id => document.getElementById(id).value = '');
+  ['if-plate','if-model','if-km','if-notes'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('if-driver-name').textContent = '—';
+  initSignaturePad();
   // checklist — everything starts as תקין, tap to change
   inspAnswers = {};
   INSPECTION_SECTIONS.forEach(s => s.items.forEach(it => inspAnswers[it] = 'תקין'));
@@ -1356,10 +1368,36 @@ function renderInspSections() {
 
 function inspFillFromPlate() {
   const v = VEHICLES.find(x => x.plate === document.getElementById('if-plate').value.trim());
-  if (!v) return;
+  if (!v) { document.getElementById('if-driver-name').textContent = '—'; return; }
   document.getElementById('if-model').value = ((v.make||'')+' '+(v.model||'')).trim();
-  document.getElementById('if-driver').value = v.driverName || '';
+  document.getElementById('if-driver-name').textContent = v.driverName || '—';
   if (v.currentKm) document.getElementById('if-km').value = v.currentKm;
+}
+
+// ── signature pad ──
+let _sigDrawn = false;
+function initSignaturePad() {
+  const c = document.getElementById('if-signature');
+  const ctx = c.getContext('2d');
+  ctx.clearRect(0, 0, c.width, c.height);
+  ctx.lineWidth = 2.5; ctx.lineCap = 'round'; ctx.strokeStyle = '#1e293b';
+  _sigDrawn = false;
+  if (c._sigReady) return; // listeners already attached
+  c._sigReady = true;
+  let drawing = false;
+  const pos = e => {
+    const r = c.getBoundingClientRect();
+    return { x: (e.clientX - r.left) * (c.width / r.width), y: (e.clientY - r.top) * (c.height / r.height) };
+  };
+  c.addEventListener('pointerdown', e => { drawing = true; _sigDrawn = true; const p = pos(e); ctx.beginPath(); ctx.moveTo(p.x, p.y); c.setPointerCapture(e.pointerId); e.preventDefault(); });
+  c.addEventListener('pointermove', e => { if (!drawing) return; const p = pos(e); ctx.lineTo(p.x, p.y); ctx.stroke(); e.preventDefault(); });
+  c.addEventListener('pointerup', () => drawing = false);
+  c.addEventListener('pointercancel', () => drawing = false);
+}
+function clearSignature() {
+  const c = document.getElementById('if-signature');
+  c.getContext('2d').clearRect(0, 0, c.width, c.height);
+  _sigDrawn = false;
 }
 
 function buildInspectionText(r) {
@@ -1380,12 +1418,14 @@ function buildInspectionText(r) {
   lines.push('');
   if (r.notes) { lines.push(`הערות: ${r.notes}`); lines.push(''); }
   lines.push(`הבוחן: ${r.inspector||'-'}`);
+  if (r.signature) lines.push('נחתם דיגיטלית ✍ (החתימה שמורה במערכת)');
   return lines.join('\n');
 }
 
 async function submitInspection() {
   const plate = document.getElementById('if-plate').value.trim();
   if (!plate) { toast('הכנס מספר רכב', true); return; }
+  if (!_sigDrawn) { toast('חסרה חתימת הבוחן', true); return; }
   const btn = document.getElementById('if-submit-btn');
   btn.disabled = true; btn.textContent = 'שומר...';
   const now = new Date();
@@ -1398,11 +1438,12 @@ async function submitInspection() {
     plate,
     inspType: document.getElementById('if-type').value,
     model: document.getElementById('if-model').value.trim(),
-    driver: document.getElementById('if-driver').value.trim(),
+    driver: (VEHICLES.find(x => x.plate === plate) || {}).driverName || '',
     km: document.getElementById('if-km').value.trim(),
     inspector: document.getElementById('if-inspector').value.trim(),
     notes: document.getElementById('if-notes').value.trim(),
-    items: { ...inspAnswers }
+    items: { ...inspAnswers },
+    signature: document.getElementById('if-signature').toDataURL('image/png')
   };
   try {
     // 1. save the inspection to the cloud (own doc — synced everywhere)
@@ -1438,6 +1479,9 @@ function viewInspection(i) {
   if (!r) return;
   document.getElementById('iv-title').textContent = `ביקורת בטיחות — ${r.plate}`;
   document.getElementById('iv-body').textContent = buildInspectionText(r);
+  const sw = document.getElementById('iv-sig-wrap');
+  if (r.signature) { sw.style.display = ''; document.getElementById('iv-sig').src = r.signature; }
+  else sw.style.display = 'none';
   document.getElementById('insp-view-modal').classList.add('open');
 }
 
