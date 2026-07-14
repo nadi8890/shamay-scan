@@ -471,6 +471,7 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
   <button class="nav-btn" onclick="showTab('tasks',this)"><span class="icon">✅</span>משימות</button>
   <button class="nav-btn" onclick="showTab('returns',this)"><span class="icon">🔄</span>החזרות</button>
   <button class="nav-btn" onclick="showTab('damage',this)"><span class="icon">📋</span>אומדן</button>
+  <button class="nav-btn" onclick="showTab('forms',this)"><span class="icon">📝</span>טפסים</button>
 </nav>
 
 <!-- AI Agent FAB -->
@@ -506,6 +507,75 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
       <input class="agent-key-input" id="agent-key-input" type="text" placeholder="sk-ant-api03-..." autocomplete="off" spellcheck="false">
       <button onclick="const i=document.getElementById('agent-key-input');i.type=i.type==='password'?'text':'password';this.textContent=i.type==='password'?'👁️':'🙈'" style="background:none;border:1px solid #e2e8f0;border-radius:8px;padding:7px 10px;cursor:pointer;font-size:0.9rem" title="הסתר/הצג מפתח">🙈</button>
       <button class="agent-key-save" onclick="saveApiKey()">שמור</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ TAB: FORMS ══════════════ -->
+<div class="tab-content" id="tab-forms">
+  <style>
+    .insp-item{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 10px;border-bottom:1px solid #f1f5f9;flex-wrap:wrap}
+    .insp-item-name{font-size:0.82rem;flex:1;min-width:140px}
+    .insp-opts{display:flex;gap:5px}
+    .insp-opt{border:1.5px solid #e2e8f0;background:#fff;border-radius:8px;padding:6px 12px;font-size:0.78rem;cursor:pointer;font-family:Heebo,sans-serif}
+    .insp-opt.sel-ok{background:#dcfce7;border-color:#22c55e;font-weight:700}
+    .insp-opt.sel-bad{background:#fee2e2;border-color:#ef4444;font-weight:700}
+    .insp-opt.sel-fixed{background:#dbeafe;border-color:#3b82f6;font-weight:700}
+    .insp-section{background:#fff;border:1.5px solid #e2e8f0;border-radius:12px;margin-bottom:12px;overflow:hidden}
+    .insp-section-hdr{background:#f8fafc;padding:9px 12px;font-weight:800;font-size:0.85rem;border-bottom:1px solid #e2e8f0}
+    .form-card{background:#fff;border:1.5px solid #e2e8f0;border-radius:14px;padding:16px;cursor:pointer;box-shadow:0 1px 5px rgba(0,0,0,.06);display:flex;align-items:center;gap:12px;max-width:420px}
+    .form-card:hover{border-color:var(--accent)}
+    .insp-hist-row{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:9px 12px;margin-bottom:7px;display:flex;justify-content:space-between;align-items:center;gap:8px;cursor:pointer;font-size:0.8rem;flex-wrap:wrap}
+  </style>
+
+  <!-- forms menu -->
+  <div id="forms-menu">
+    <div class="section-hdr"><span class="section-title">📝 טפסים</span></div>
+    <div class="form-card" onclick="openInspectionForm()">
+      <span style="font-size:1.8rem">🛡️</span>
+      <div><div style="font-weight:800">ביקורת קצין בטיחות</div>
+      <div style="font-size:0.75rem;color:var(--muted)">מילוי דיגיטלי בשטח — נשמר בתיק הרכב ונשלח למייל</div></div>
+    </div>
+    <div class="section-hdr" style="margin-top:18px"><div style="display:flex;align-items:center;gap:8px"><span class="section-title">ביקורות שבוצעו</span><span class="count-badge" id="insp-count">0</span></div></div>
+    <div id="insp-history"></div>
+  </div>
+
+  <!-- inspection form -->
+  <div id="inspection-form" style="display:none;max-width:640px">
+    <div class="section-hdr">
+      <span class="section-title">🛡️ ביקורת קצין בטיחות</span>
+      <button class="btn btn-secondary" onclick="closeInspectionForm()">→ חזרה</button>
+    </div>
+    <div class="insp-section">
+      <div class="insp-section-hdr">פרטי הרכב</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:10px">
+        <div class="modal-row"><label>מספר רכב</label><input id="if-plate" list="if-plates" inputmode="numeric" placeholder="12345678" onchange="inspFillFromPlate()"><datalist id="if-plates"></datalist></div>
+        <div class="modal-row"><label>סוג ביקורת</label><select id="if-type"><option>חציונית</option><option>רבעונית</option><option>שנתית</option></select></div>
+        <div class="modal-row"><label>סוג רכב</label><input id="if-model" type="text"></div>
+        <div class="modal-row"><label>מחזיק רכב</label><input id="if-driver" type="text"></div>
+        <div class="modal-row"><label>קריאת מד אוץ (ק"מ)</label><input id="if-km" type="number" inputmode="numeric" placeholder="52336"></div>
+        <div class="modal-row"><label>שם הבוחן</label><input id="if-inspector" type="text" value="נדב מרציאנו"></div>
+      </div>
+    </div>
+    <div id="if-sections"></div>
+    <div class="insp-section">
+      <div class="insp-section-hdr">הערות</div>
+      <div style="padding:10px"><textarea id="if-notes" rows="3" style="width:100%;border:1.5px solid #e2e8f0;border-radius:8px;padding:8px;font-family:Heebo,sans-serif;font-size:0.85rem" placeholder="לדוגמה: 2 קדמיים ואחד אחורי ימני"></textarea></div>
+    </div>
+    <div class="btn-row" style="margin-bottom:30px">
+      <button class="btn btn-secondary" onclick="closeInspectionForm()">ביטול</button>
+      <button class="btn btn-green" id="if-submit-btn" onclick="submitInspection()">✅ סיים ביקורת ושלח</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ INSPECTION VIEW MODAL ══ -->
+<div class="modal-overlay" id="insp-view-modal">
+  <div class="modal">
+    <h3 id="iv-title">ביקורת בטיחות</h3>
+    <pre id="iv-body" style="white-space:pre-wrap;font-family:Heebo,sans-serif;font-size:0.8rem;max-height:60vh;overflow-y:auto;background:#f8fafc;border-radius:10px;padding:12px"></pre>
+    <div class="btn-row">
+      <button class="btn btn-secondary" onclick="document.getElementById('insp-view-modal').classList.remove('open')">סגור</button>
     </div>
   </div>
 </div>
@@ -889,6 +959,7 @@ function showTab(name, btn) {
   if (name==='invoices') { renderInvoices(); buildInvColFilterRow(); }
   if (name==='tasks') renderTasks();
   if (name==='returns') renderReturns();
+  if (name==='forms') renderFormsTab();
 }
 
 // ── DASHBOARD ──
@@ -1215,6 +1286,159 @@ function saveViolationForm() {
   document.getElementById('violation-modal').classList.remove('open');
   renderViolations();
   toast('הדוח נוסף ✓');
+}
+
+// ── FORMS TAB: SAFETY INSPECTION ──
+const INSPECTION_EMAIL = 'nadavmarciano90@gmail.com';
+const INSPECTION_SECTIONS = [
+  { title: 'בדיקת תוקף מסמכים', items: ['תוקף רישיון רכב ונספח','תעודת ביטוח'] },
+  { title: 'מרכב', items: ['בדיקת הרכב (בדיקה חזותית)','נזילות לסוגיהן','מפלסי נוזלים דלק/נוזל קירור','שמן מנוע'] },
+  { title: 'צמיגים ואופנים', items: ['תקינות צמיגים בסרן קדמי','תקינות צמיגים בסרן אחורי','תקינות גלגל חילוף'] },
+  { title: 'אורות ופנסים', items: ['תקינות ושלמות פנסים קדמיים','תקינות ושלמות פנסים אחוריים','תקינות ושלמות פנסים מהבהבים','תקינות אור: בלם/חנייה','תקינות אור: ערפל/נסיעה לאחור'] },
+  { title: 'אביזרי בטיחות', items: ['אפוד זוהר/משולש אזהרה','מגבה, מפתח גלגלים/מגבים'] },
+  { title: 'נסיעת מבחן', items: ['היגוי, יציבות רכב, תנועה'] }
+];
+let inspAnswers = {};
+
+function renderFormsTab() {
+  document.getElementById('forms-menu').style.display = '';
+  document.getElementById('inspection-form').style.display = 'none';
+  loadInspectionHistory();
+}
+
+async function loadInspectionHistory() {
+  const wrap = document.getElementById('insp-history');
+  wrap.innerHTML = '<div style="color:var(--muted);font-size:0.8rem;padding:8px">טוען...</div>';
+  try {
+    const snap = await db.collection('fleet').where('type','==','inspection').get();
+    const list = snap.docs.map(d => ({ _docId: d.id, ...d.data() })).sort((a,b) => (b.created||0)-(a.created||0));
+    document.getElementById('insp-count').textContent = list.length;
+    if (!list.length) { wrap.innerHTML = '<div style="color:var(--muted);font-size:0.8rem;padding:8px">עוד לא בוצעו ביקורות דיגיטליות</div>'; return; }
+    window._INSPECTIONS = list;
+    wrap.innerHTML = list.map((r,i) => {
+      const bad = Object.values(r.items||{}).filter(x => x === 'לא תקין').length;
+      return `<div class="insp-hist-row" onclick="viewInspection(${i})">
+        <span style="font-weight:700;color:var(--accent);direction:ltr">${esc(r.plate)}</span>
+        <span>${esc(r.driver||'')}</span>
+        <span style="color:var(--muted)">${esc(r.dateStr||'')}</span>
+        ${bad ? `<span class="badge badge-red">${bad} לא תקין</span>` : '<span class="badge badge-green">✓ תקין</span>'}
+      </div>`;
+    }).join('');
+  } catch(e) { wrap.innerHTML = '<div style="color:#dc2626;font-size:0.8rem;padding:8px">שגיאה בטעינת היסטוריה</div>'; }
+}
+
+function openInspectionForm() {
+  document.getElementById('forms-menu').style.display = 'none';
+  document.getElementById('inspection-form').style.display = '';
+  // plates datalist
+  document.getElementById('if-plates').innerHTML = VEHICLES.map(v => `<option value="${esc(v.plate)}">${esc(v.driverName||'')} — ${esc(v.make||'')} ${esc(v.model||'')}</option>`).join('');
+  ['if-plate','if-model','if-driver','if-km','if-notes'].forEach(id => document.getElementById(id).value = '');
+  // checklist — everything starts as תקין, tap to change
+  inspAnswers = {};
+  INSPECTION_SECTIONS.forEach(s => s.items.forEach(it => inspAnswers[it] = 'תקין'));
+  renderInspSections();
+}
+function closeInspectionForm() { renderFormsTab(); }
+
+function renderInspSections() {
+  const cls = v => v==='תקין' ? 'sel-ok' : v==='לא תקין' ? 'sel-bad' : 'sel-fixed';
+  document.getElementById('if-sections').innerHTML = INSPECTION_SECTIONS.map(s => `
+    <div class="insp-section">
+      <div class="insp-section-hdr">${esc(s.title)}</div>
+      ${s.items.map(it => `<div class="insp-item">
+        <span class="insp-item-name">${esc(it)}</span>
+        <span class="insp-opts">${['תקין','לא תקין','טופל'].map(opt =>
+          `<button class="insp-opt ${inspAnswers[it]===opt ? cls(opt) : ''}" onclick="inspAnswers['${esc(it).replace(/'/g,"\\'")}']='${opt}';renderInspSections()">${opt}</button>`).join('')}
+        </span>
+      </div>`).join('')}
+    </div>`).join('');
+}
+
+function inspFillFromPlate() {
+  const v = VEHICLES.find(x => x.plate === document.getElementById('if-plate').value.trim());
+  if (!v) return;
+  document.getElementById('if-model').value = ((v.make||'')+' '+(v.model||'')).trim();
+  document.getElementById('if-driver').value = v.driverName || '';
+  if (v.currentKm) document.getElementById('if-km').value = v.currentKm;
+}
+
+function buildInspectionText(r) {
+  const lines = [];
+  lines.push(`ביקורת קצין בטיחות ${r.inspType||''} — רכב ${r.plate}`);
+  lines.push(`תאריך: ${r.dateStr}`);
+  lines.push(`סוג רכב: ${r.model||'-'} | מחזיק: ${r.driver||'-'}`);
+  lines.push(`קריאת מד אוץ: ${r.km||'-'} ק"מ`);
+  lines.push('');
+  INSPECTION_SECTIONS.forEach(s => {
+    lines.push(`◼ ${s.title}`);
+    s.items.forEach(it => {
+      const val = (r.items||{})[it] || '-';
+      const mark = val==='תקין' ? '✓' : val==='לא תקין' ? '✗' : '🔧';
+      lines.push(`   ${mark} ${it}: ${val}`);
+    });
+  });
+  lines.push('');
+  if (r.notes) { lines.push(`הערות: ${r.notes}`); lines.push(''); }
+  lines.push(`הבוחן: ${r.inspector||'-'}`);
+  return lines.join('\n');
+}
+
+async function submitInspection() {
+  const plate = document.getElementById('if-plate').value.trim();
+  if (!plate) { toast('הכנס מספר רכב', true); return; }
+  const btn = document.getElementById('if-submit-btn');
+  btn.disabled = true; btn.textContent = 'שומר...';
+  const now = new Date();
+  const p2 = n => String(n).padStart(2,'0');
+  const dateStr = `${p2(now.getDate())}/${p2(now.getMonth()+1)}/${now.getFullYear()} ${p2(now.getHours())}:${p2(now.getMinutes())}`;
+  const rec = {
+    type: 'inspection',
+    created: Date.now(),
+    dateStr,
+    plate,
+    inspType: document.getElementById('if-type').value,
+    model: document.getElementById('if-model').value.trim(),
+    driver: document.getElementById('if-driver').value.trim(),
+    km: document.getElementById('if-km').value.trim(),
+    inspector: document.getElementById('if-inspector').value.trim(),
+    notes: document.getElementById('if-notes').value.trim(),
+    items: { ...inspAnswers }
+  };
+  try {
+    // 1. save the inspection to the cloud (own doc — synced everywhere)
+    await db.collection('fleet').doc('insp_' + rec.created).set(rec);
+    // 2. update the vehicle file: inspection date + current km
+    const v = VEHICLES.find(x => x.plate === plate);
+    if (v) {
+      v.inspection = `${p2(now.getDate())}/${p2(now.getMonth()+1)}/${now.getFullYear()}`;
+      if (rec.km) v.currentKm = rec.km;
+      try { localStorage.setItem('fleet_vehicles', JSON.stringify(VEHICLES)); } catch(e){}
+      saveToFirestore('vehicles', VEHICLES);
+    }
+    // 3. email a copy
+    let mailOk = false;
+    try {
+      const resp = await fetch('https://formsubmit.co/ajax/' + INSPECTION_EMAIL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify({ _subject: `ביקורת בטיחות למספר רכב ${plate}`, message: buildInspectionText(rec), _template: 'box' })
+      });
+      mailOk = resp.ok;
+    } catch(e) {}
+    toast(mailOk ? 'הביקורת נשמרה ונשלחה למייל ✓' : 'הביקורת נשמרה ✓ (המייל לא נשלח)');
+    renderFormsTab();
+  } catch(e) {
+    toast('שגיאה בשמירה — נסה שוב', true);
+  }
+  btn.disabled = false; btn.textContent = '✅ סיים ביקורת ושלח';
+}
+
+function viewInspection(i) {
+  const r = (window._INSPECTIONS||[])[i];
+  if (!r) return;
+  document.getElementById('iv-title').textContent = `ביקורת בטיחות — ${r.plate}`;
+  document.getElementById('iv-body').textContent = buildInspectionText(r);
+  document.getElementById('insp-view-modal').classList.add('open');
 }
 
 // ── INVOICES ──
