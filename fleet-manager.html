@@ -859,7 +859,12 @@ function showTab(name, btn) {
   document.querySelectorAll('.nav-btn').forEach(el=>el.classList.remove('active'));
   document.getElementById('tab-'+name).classList.add('active');
   btn.classList.add('active');
-  if (name==='fleet') renderFleet();
+  if (name==='fleet') {
+    const fs = document.getElementById('fleet-search'); if (fs) fs.value = '';
+    const fc = document.getElementById('fleet-company'); if (fc) fc.value = '';
+    const fst = document.getElementById('fleet-status'); if (fst) fst.value = '';
+    renderFleet();
+  }
   if (name==='alerts') renderAlerts();
   if (name==='incidents') renderIncidents();
   if (name==='violations') { renderViolations(); buildViolColFilterRow(); }
@@ -2005,7 +2010,7 @@ function agentExecAction(action, param) {
 
   } else if (action === 'search') {
     const s = document.getElementById('fleet-search');
-    if (s) { s.value = param; renderFleet(); const b = document.querySelector(".nav-btn[onclick*=\"'fleet'\"]"); if(b) showTab('fleet',b); }
+    if (s) { const b = document.querySelector(".nav-btn[onclick*=\"'fleet'\"]"); if(b) showTab('fleet',b); s.value = param; renderFleet(); }
 
   } else if (action === 'addTask') {
     const id = Math.max(0, ...TASKS.map(x=>x.id||0)) + 1;
