@@ -578,6 +578,19 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
   </div>
 </div>
 
+<!-- ══ INSPECTION MAIL FALLBACK MODAL ══ -->
+<div class="modal-overlay" id="insp-mail-modal">
+  <div class="modal">
+    <h3>📧 שליחת הביקורת למייל</h3>
+    <p style="font-size:0.85rem;color:var(--muted);margin:8px 0 14px">הביקורת נשמרה במערכת ✓<br>השליחה האוטומטית לא הצליחה — לחץ על הכפתור והמייל ייפתח מוכן לשליחה:</p>
+    <a id="imm-mailto" href="#" class="btn btn-green" style="display:block;text-align:center;text-decoration:none;margin-bottom:8px">📧 פתח מייל מוכן לשליחה</a>
+    <button class="btn btn-secondary" style="width:100%" onclick="inspCopyText()">📋 העתק את הביקורת (להדבקה בוואטסאפ/מייל)</button>
+    <div class="btn-row">
+      <button class="btn btn-secondary" onclick="document.getElementById('insp-mail-modal').classList.remove('open')">סגור</button>
+    </div>
+  </div>
+</div>
+
 <!-- ══ INSPECTION VIEW MODAL ══ -->
 <div class="modal-overlay" id="insp-view-modal">
   <div class="modal">
@@ -1471,8 +1484,9 @@ async function submitInspection() {
     if (mailOk) {
       toast('הביקורת נשמרה ונשלחה למייל ✓');
     } else {
-      toast('הביקורת נשמרה ✓ — נפתח מייל לשליחה ידנית');
-      location.href = `mailto:${INSPECTION_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(bodyText)}`;
+      window._lastInspText = bodyText;
+      document.getElementById('imm-mailto').href = `mailto:${INSPECTION_EMAIL}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(bodyText)}`;
+      document.getElementById('insp-mail-modal').classList.add('open');
     }
     renderFormsTab();
   } catch(e) {
@@ -1481,6 +1495,10 @@ async function submitInspection() {
   btn.disabled = false; btn.textContent = '✅ סיים ביקורת ושלח';
 }
 
+async function inspCopyText() {
+  try { await navigator.clipboard.writeText(window._lastInspText || ''); toast('הביקורת הועתקה ✓'); }
+  catch(e) { toast('ההעתקה נכשלה', true); }
+}
 function viewInspection(i) {
   const r = (window._INSPECTIONS||[])[i];
   if (!r) return;
