@@ -542,7 +542,8 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
       <div style="padding:10px">
         <div class="modal-row"><label>כתובת מייל לקבלת ביקורות (מייל עבודה)</label><input id="ms-recipient" type="email" placeholder="name@company.co.il" style="direction:ltr"></div>
         <div class="modal-row" style="margin-top:6px"><label>מפתח Web3Forms — לשליחה אוטומטית</label><input id="ms-key" type="text" placeholder="הדבק כאן את המפתח" style="direction:ltr"></div>
-        <div style="font-size:0.7rem;color:var(--muted);margin:6px 0 10px">להפקת מפתח חינם (פעם אחת): היכנס ל-<b>web3forms.com</b>, הזן את מייל העבודה ולחץ Create Access Key. המפתח יגיע למייל — הדבק אותו כאן. בלי מפתח, המייל ייפתח לשליחה בהקשה אחת.</div>
+        <div class="modal-row" style="margin-top:6px"><label>כתובת Apps Script — לשליחת PDF מצורף</label><input id="ms-gas" type="text" placeholder="https://script.google.com/macros/s/..." style="direction:ltr"></div>
+        <div style="font-size:0.7rem;color:var(--muted);margin:6px 0 10px">להפקת מפתח חינם (פעם אחת): היכנס ל-<b>web3forms.com</b>, הזן את מייל העבודה ולחץ Create Access Key. המפתח יגיע למייל — הדבק אותו כאן. אם מוגדרת כתובת Apps Script — המייל יישלח מה-Gmail שלך עם קובץ ה-PDF מצורף.</div>
         <button class="btn btn-primary" onclick="saveMailSettings()">💾 שמור הגדרות</button>
       </div>
     </div>
@@ -1334,7 +1335,8 @@ try { MAIL_SETTINGS = JSON.parse(localStorage.getItem('fleet_mailSettings')) || 
 function saveMailSettings() {
   MAIL_SETTINGS = {
     recipient: document.getElementById('ms-recipient').value.trim(),
-    web3formsKey: document.getElementById('ms-key').value.trim()
+    web3formsKey: document.getElementById('ms-key').value.trim(),
+    gasUrl: document.getElementById('ms-gas').value.trim()
   };
   try { localStorage.setItem('fleet_mailSettings', JSON.stringify(MAIL_SETTINGS)); } catch(e) {}
   saveToFirestore('mailSettings', MAIL_SETTINGS);
@@ -1355,6 +1357,7 @@ function renderFormsTab() {
   document.getElementById('inspection-form').style.display = 'none';
   document.getElementById('ms-recipient').value = MAIL_SETTINGS.recipient || '';
   document.getElementById('ms-key').value = MAIL_SETTINGS.web3formsKey || '';
+  document.getElementById('ms-gas').value = MAIL_SETTINGS.gasUrl || '';
   loadInspectionHistory();
 }
 
@@ -1580,7 +1583,20 @@ async function submitInspection() {
     const bodyText = buildInspectionText(rec);
     const recipient = MAIL_SETTINGS.recipient || INSPECTION_EMAIL;
     let mailOk = false;
-    if (MAIL_SETTINGS.web3formsKey) {
+    let mailWithPdf = false;
+    if (MAIL_SETTINGS.gasUrl) {
+      try {
+        const blob = await inspPdfBlob(rec);
+        const b64 = await new Promise(res => { const fr = new FileReader(); fr.onload = () => res(String(fr.result).split(',')[1]); fr.readAsDataURL(blob); });
+        await fetch(MAIL_SETTINGS.gasUrl, {
+          method: 'POST', mode: 'no-cors',
+          headers: { 'Content-Type': 'text/plain' },
+          body: JSON.stringify({ subject, body: bodyText, pdfBase64: b64, filename: `ביקורת בטיחות ${plate}.pdf` })
+        });
+        mailOk = true; mailWithPdf = true;
+      } catch(e) {}
+    }
+    if (!mailOk && MAIL_SETTINGS.web3formsKey) {
       try {
         const resp = await fetch('https://api.web3forms.com/submit', {
           method: 'POST',
@@ -1602,7 +1618,9 @@ async function submitInspection() {
     }
     window._lastInspRec = rec;
     window._lastInspText = bodyText;
-    document.getElementById('imm-status').textContent = mailOk
+    document.getElementById('imm-status').textContent = mailWithPdf
+      ? `הביקורת נשמרה ונשלחה למייל עם קובץ PDF מצורף ✓`
+      : mailOk
       ? `הביקורת נשמרה ונשלחה אוטומטית למייל (${recipient}) ✓ — אפשר גם לשתף כ-PDF:`
       : 'הביקורת נשמרה ✓ אך המייל האוטומטי לא נשלח — שתף כ-PDF או פתח מייל:';
     document.getElementById('imm-mailto').style.display = mailOk ? 'none' : 'block';
