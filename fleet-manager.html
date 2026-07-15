@@ -1966,6 +1966,8 @@ function openIncidentFromModal() {
 function saveVehicle() {
   const plate = document.getElementById('m-plate').value.trim();
   if (!plate) { toast('הכנס מספר רישוי', true); return; }
+  const _t = new Date();
+  const _today = ('0'+_t.getDate()).slice(-2)+'/'+('0'+(_t.getMonth()+1)).slice(-2)+'/'+_t.getFullYear();
   const v = {
     plate, make: document.getElementById('m-make').value.trim(),
     model: document.getElementById('m-model').value.trim(),
@@ -1975,7 +1977,7 @@ function saveVehicle() {
     registrationExpiry: document.getElementById('m-regExpiry').value.trim(),
     insuranceExpiry: document.getElementById('m-insExpiry').value.trim(),
     licenseExpiry: document.getElementById('m-licExpiry').value.trim(),
-    inspection: document.getElementById('m-inspection').value.trim(),
+    inspection: document.getElementById('m-inspection').value.trim() || (!editingPlate ? (document.getElementById('m-from').value.trim() || _today) : ''),
     vehicleFrom: document.getElementById('m-from').value.trim(),
     currentKm: document.getElementById('m-km').value.trim(),
     nextServiceKm: document.getElementById('m-nextKm').value.trim() || (!editingPlate ? String((parseInt(document.getElementById('m-km').value)||0)+15000) : ''),
@@ -2606,7 +2608,9 @@ function agentExecAction(action, param) {
     if (!plate) return null;
     if (VEHICLES.find(v=>v.plate===plate)) return { type:'vehicle', action:'כבר קיים', plate };
     const _km = parseInt(currentKm)||0;
-    VEHICLES.push({ plate, make:make||'', model:model||'', year:year||'', driverName:driverName||'', company:company||'נופר אנרגי', registrationExpiry:registrationExpiry||'', insuranceExpiry:insuranceExpiry||'', licenseExpiry:licenseExpiry||'', inspection:inspection||'', currentKm:currentKm||'0', nextServiceKm:nextServiceKm||String(_km+15000) });
+    const _t = new Date();
+    const _today = ('0'+_t.getDate()).slice(-2)+'/'+('0'+(_t.getMonth()+1)).slice(-2)+'/'+_t.getFullYear();
+    VEHICLES.push({ plate, make:make||'', model:model||'', year:year||'', driverName:driverName||'', company:company||'נופר אנרגי', registrationExpiry:registrationExpiry||'', insuranceExpiry:insuranceExpiry||'', licenseExpiry:licenseExpiry||'', inspection:inspection||_today, vehicleFrom:_today, currentKm:currentKm||'0', nextServiceKm:nextServiceKm||String(_km+15000) });
     saveVehicles(); renderFleet(); renderDashboard(); renderAlerts();
     toast(`✓ רכב ${plate} נוסף`);
     return { type:'vehicle', action:'נוסף', plate, driver:driverName, make, model };
@@ -2715,6 +2719,8 @@ async function addVehicleWithLookup(param) {
   }
 
   const [,make,model,year,driverName,company,registrationExpiry,insuranceExpiry,licenseExpiry,inspection,currentKm,nextServiceKm] = parts;
+  const _t = new Date();
+  const _today = ('0'+_t.getDate()).slice(-2)+'/'+('0'+(_t.getMonth()+1)).slice(-2)+'/'+_t.getFullYear();
   const v = {
     plate,
     make: make||govMake||'',
@@ -2725,9 +2731,10 @@ async function addVehicleWithLookup(param) {
     registrationExpiry: registrationExpiry||govReg||'',
     insuranceExpiry: insuranceExpiry||'',
     licenseExpiry: licenseExpiry||'',
-    inspection: inspection||'',
+    inspection: inspection||_today,
+    vehicleFrom: _today,
     currentKm: currentKm||'0',
-    nextServiceKm: nextServiceKm||''
+    nextServiceKm: nextServiceKm||String((parseInt(currentKm)||0)+15000)
   };
   VEHICLES.push(v);
   localStorage.setItem('fleet_vehicles', JSON.stringify(VEHICLES));
