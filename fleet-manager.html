@@ -219,6 +219,7 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
 <!-- Firebase SDK -->
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.2/html2pdf.bundle.min.js"></script>
 </head>
 <body>
 
@@ -587,13 +588,15 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
   </div>
 </div>
 
-<!-- ══ INSPECTION MAIL FALLBACK MODAL ══ -->
+<!-- ══ INSPECTION DONE MODAL ══ -->
 <div class="modal-overlay" id="insp-mail-modal">
   <div class="modal">
-    <h3>📧 שליחת הביקורת למייל</h3>
-    <p style="font-size:0.85rem;color:var(--muted);margin:8px 0 14px">הביקורת נשמרה במערכת ✓<br>השליחה האוטומטית לא הצליחה — לחץ על הכפתור והמייל ייפתח מוכן לשליחה:</p>
-    <a id="imm-mailto" href="#" class="btn btn-green" style="display:block;text-align:center;text-decoration:none;margin-bottom:8px">📧 פתח מייל מוכן לשליחה</a>
-    <button class="btn btn-secondary" style="width:100%" onclick="inspCopyText()">📋 העתק את הביקורת (להדבקה בוואטסאפ/מייל)</button>
+    <h3>✅ הביקורת הושלמה</h3>
+    <p id="imm-status" style="font-size:0.85rem;color:var(--muted);margin:8px 0 14px"></p>
+    <button class="btn btn-primary" style="width:100%;margin-bottom:8px" onclick="inspPdfShare(window._lastInspRec)">📤 שתף PDF (מייל / וואטסאפ)</button>
+    <button class="btn btn-secondary" style="width:100%;margin-bottom:8px" onclick="inspPdfDownload(window._lastInspRec)">📄 הורד PDF</button>
+    <a id="imm-mailto" href="#" class="btn btn-green" style="display:none;text-align:center;text-decoration:none;margin-bottom:8px">📧 פתח מייל מוכן לשליחה (טקסט)</a>
+    <button class="btn btn-secondary" style="width:100%" onclick="inspCopyText()">📋 העתק כטקסט</button>
     <div class="btn-row">
       <button class="btn btn-secondary" onclick="document.getElementById('insp-mail-modal').classList.remove('open')">סגור</button>
     </div>
@@ -608,6 +611,8 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
     <div id="iv-sig-wrap" style="display:none;margin-top:8px"><div style="font-size:0.75rem;color:var(--muted);margin-bottom:3px">חתימת הבוחן:</div><img id="iv-sig" style="max-width:220px;border:1px solid #e2e8f0;border-radius:8px;background:#fff"></div>
     <div class="btn-row">
       <button class="btn btn-secondary" onclick="document.getElementById('insp-view-modal').classList.remove('open')">סגור</button>
+      <button class="btn btn-secondary" onclick="inspPdfDownload(window._viewInspRec)">📄 הורד PDF</button>
+      <button class="btn btn-primary" onclick="inspPdfShare(window._viewInspRec)">📤 שתף PDF</button>
     </div>
   </div>
 </div>
@@ -1460,6 +1465,82 @@ function buildInspectionText(r) {
   return lines.join('\n');
 }
 
+// ── inspection PDF ──
+function buildInspectionPdfHtml(r) {
+  const rows = INSPECTION_SECTIONS.map(s => `
+    <tr><td colspan="4" style="background:#eef2f7;font-weight:800;padding:6px 10px;border:1px solid #cbd5e1">${esc(s.title)}</td></tr>
+    ${s.items.map(it => {
+      const val = (r.items||{})[it] || '';
+      const cell = o => `<td style="text-align:center;border:1px solid #cbd5e1;width:60px;font-size:15px">${val===o ? '✔' : ''}</td>`;
+      return `<tr><td style="padding:5px 10px;border:1px solid #cbd5e1">${esc(it)}</td>${cell('תקין')}${cell('לא תקין')}${cell('טופל')}</tr>`;
+    }).join('')}`).join('');
+  return `
+  <div dir="rtl" style="font-family:Arial,Heebo,sans-serif;color:#0f172a;width:760px;padding:24px;background:#fff">
+    <div style="text-align:center;font-size:20px;font-weight:900;margin-bottom:4px">ביקורת קצין בטיחות ${esc(r.inspType||'')} — מלאה</div>
+    <div style="text-align:center;font-size:12px;color:#475569;margin-bottom:14px">נופר אנרגיה — מחלקת רכב | ${esc(r.dateStr||'')}</div>
+    <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:12px">
+      <tr>
+        <td style="border:1px solid #cbd5e1;padding:6px 10px"><b>מספר רכב:</b> <span dir="ltr">${esc(r.plate||'')}</span></td>
+        <td style="border:1px solid #cbd5e1;padding:6px 10px"><b>סוג רכב:</b> ${esc(r.model||'')}</td>
+        <td style="border:1px solid #cbd5e1;padding:6px 10px"><b>מחזיק רכב:</b> ${esc(r.driver||'')}</td>
+        <td style="border:1px solid #cbd5e1;padding:6px 10px"><b>מד אוץ:</b> ${esc(r.km||'')} ק"מ</td>
+      </tr>
+    </table>
+    <table style="width:100%;border-collapse:collapse;font-size:13px">
+      <tr style="background:#1e3a8a;color:#fff">
+        <th style="padding:6px 10px;border:1px solid #1e3a8a;text-align:right">סעיף בדיקה</th>
+        <th style="padding:6px;border:1px solid #1e3a8a">תקין</th>
+        <th style="padding:6px;border:1px solid #1e3a8a">לא תקין</th>
+        <th style="padding:6px;border:1px solid #1e3a8a">טופל</th>
+      </tr>
+      ${rows}
+    </table>
+    <div style="margin-top:12px;font-size:13px;border:1px solid #cbd5e1;padding:8px 10px;min-height:40px"><b>הערות:</b> ${esc(r.notes||'—')}</div>
+    <table style="width:100%;margin-top:16px;font-size:13px">
+      <tr>
+        <td><b>הבוחן:</b> ${esc(r.inspector||'')}</td>
+        <td style="text-align:left">${r.signature ? `<div style="font-size:11px;color:#475569">חתימת הבוחן:</div><img src="${r.signature}" style="width:170px;border-bottom:1px solid #0f172a">` : ''}</td>
+      </tr>
+    </table>
+  </div>`;
+}
+async function inspPdfBlob(r) {
+  const holder = document.createElement('div');
+  holder.style.cssText = 'position:absolute;left:-9999px;top:0';
+  holder.innerHTML = buildInspectionPdfHtml(r);
+  document.body.appendChild(holder);
+  try {
+    const blob = await html2pdf().set({
+      margin: 8,
+      image: { type: 'jpeg', quality: 0.92 },
+      html2canvas: { scale: 2 },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    }).from(holder.firstElementChild).outputPdf('blob');
+    return blob;
+  } finally { document.body.removeChild(holder); }
+}
+async function inspPdfDownload(r) {
+  try {
+    const blob = await inspPdfBlob(r);
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `ביקורת בטיחות ${r.plate}.pdf`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  } catch(e) { toast('שגיאה ביצירת PDF', true); }
+}
+async function inspPdfShare(r) {
+  try {
+    const blob = await inspPdfBlob(r);
+    const file = new File([blob], `ביקורת בטיחות ${r.plate}.pdf`, { type: 'application/pdf' });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({ files: [file], title: `ביקורת בטיחות למספר רכב ${r.plate}` });
+    } else {
+      inspPdfDownload(r);
+    }
+  } catch(e) { if (e.name !== 'AbortError') toast('השיתוף לא נתמך — הקובץ יורד', true); }
+}
+
 async function submitInspection() {
   const plate = document.getElementById('if-plate').value.trim();
   if (!plate) { toast('הכנס מספר רכב', true); return; }
@@ -1519,13 +1600,14 @@ async function submitInspection() {
         mailOk = resp.ok;
       } catch(e) {}
     }
-    if (mailOk) {
-      toast('הביקורת נשמרה ונשלחה למייל ✓');
-    } else {
-      window._lastInspText = bodyText;
-      document.getElementById('imm-mailto').href = `mailto:${recipient}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(bodyText)}`;
-      document.getElementById('insp-mail-modal').classList.add('open');
-    }
+    window._lastInspRec = rec;
+    window._lastInspText = bodyText;
+    document.getElementById('imm-status').textContent = mailOk
+      ? `הביקורת נשמרה ונשלחה אוטומטית למייל (${recipient}) ✓ — אפשר גם לשתף כ-PDF:`
+      : 'הביקורת נשמרה ✓ אך המייל האוטומטי לא נשלח — שתף כ-PDF או פתח מייל:';
+    document.getElementById('imm-mailto').style.display = mailOk ? 'none' : 'block';
+    document.getElementById('imm-mailto').href = `mailto:${recipient}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(bodyText)}`;
+    document.getElementById('insp-mail-modal').classList.add('open');
     renderFormsTab();
   } catch(e) {
     toast('שגיאה בשמירה — נסה שוב', true);
@@ -1550,6 +1632,7 @@ async function inspCopyText() {
 function viewInspection(i) {
   const r = (window._INSPECTIONS||[])[i];
   if (!r) return;
+  window._viewInspRec = r;
   document.getElementById('iv-title').textContent = `ביקורת בטיחות — ${r.plate}`;
   document.getElementById('iv-body').textContent = buildInspectionText(r);
   const sw = document.getElementById('iv-sig-wrap');
