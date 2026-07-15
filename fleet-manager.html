@@ -220,6 +220,7 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.2/html2pdf.bundle.min.js"></script>
 </head>
 <body>
 
@@ -596,6 +597,7 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
     <p id="imm-status" style="font-size:0.85rem;color:var(--muted);margin:8px 0 14px"></p>
     <button class="btn btn-primary" style="width:100%;margin-bottom:8px" onclick="inspImgShare(window._lastInspRec)">📤 שתף תמונה (מייל / וואטסאפ)</button>
     <button class="btn btn-secondary" style="width:100%;margin-bottom:8px" onclick="inspImgDownload(window._lastInspRec)">🖼️ הורד תמונה</button>
+    <button class="btn btn-secondary" style="width:100%;margin-bottom:8px" onclick="inspPdfDownload(window._lastInspRec)">📄 הורד PDF</button>
     <a id="imm-mailto" href="#" class="btn btn-green" style="display:none;text-align:center;text-decoration:none;margin-bottom:8px">📧 פתח מייל מוכן לשליחה (טקסט)</a>
     <button class="btn btn-secondary" style="width:100%" onclick="inspCopyText()">📋 העתק כטקסט</button>
     <div class="btn-row">
@@ -612,8 +614,9 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
     <div id="iv-sig-wrap" style="display:none;margin-top:8px"><div style="font-size:0.75rem;color:var(--muted);margin-bottom:3px">חתימת הבוחן:</div><img id="iv-sig" style="max-width:220px;border:1px solid #e2e8f0;border-radius:8px;background:#fff"></div>
     <div class="btn-row">
       <button class="btn btn-secondary" onclick="document.getElementById('insp-view-modal').classList.remove('open')">סגור</button>
-      <button class="btn btn-secondary" onclick="inspImgDownload(window._viewInspRec)">🖼️ הורד תמונה</button>
-      <button class="btn btn-primary" onclick="inspImgShare(window._viewInspRec)">📤 שתף תמונה</button>
+      <button class="btn btn-secondary" onclick="inspPdfDownload(window._viewInspRec)">📄 PDF</button>
+      <button class="btn btn-secondary" onclick="inspImgDownload(window._viewInspRec)">🖼️ תמונה</button>
+      <button class="btn btn-primary" onclick="inspImgShare(window._viewInspRec)">📤 שתף</button>
     </div>
   </div>
 </div>
@@ -1517,6 +1520,30 @@ async function inspImgBlob(r) {
     return await new Promise(res => canvas.toBlob(res, 'image/png'));
   } finally { document.body.removeChild(holder); }
 }
+async function inspPdfBlob(r) {
+  const holder = document.createElement('div');
+  holder.style.cssText = 'position:absolute;left:-9999px;top:0';
+  holder.innerHTML = buildInspectionPdfHtml(r);
+  document.body.appendChild(holder);
+  try {
+    return await html2pdf().set({
+      margin: 8,
+      image: { type: 'jpeg', quality: 0.92 },
+      html2canvas: { scale: 2 },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    }).from(holder.firstElementChild).outputPdf('blob');
+  } finally { document.body.removeChild(holder); }
+}
+async function inspPdfDownload(r) {
+  try {
+    const blob = await inspPdfBlob(r);
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `ביקורת בטיחות ${r.plate}.pdf`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  } catch(e) { toast('שגיאה ביצירת PDF', true); }
+}
 async function inspImgDownload(r) {
   try {
     const blob = await inspImgBlob(r);
@@ -1581,12 +1608,16 @@ async function submitInspection() {
     let mailWithPdf = false;
     if (MAIL_SETTINGS.gasUrl) {
       try {
-        const blob = await inspImgBlob(rec);
-        const b64 = await new Promise(res => { const fr = new FileReader(); fr.onload = () => res(String(fr.result).split(',')[1]); fr.readAsDataURL(blob); });
+        const toB64 = blob => new Promise(res => { const fr = new FileReader(); fr.onload = () => res(String(fr.result).split(',')[1]); fr.readAsDataURL(blob); });
+        const [imgBlob, pdfBlob] = await Promise.all([inspImgBlob(rec), inspPdfBlob(rec)]);
+        const files = [
+          { base64: await toB64(pdfBlob), mimeType: 'application/pdf', filename: `ביקורת בטיחות ${plate}.pdf` },
+          { base64: await toB64(imgBlob), mimeType: 'image/png', filename: `ביקורת בטיחות ${plate}.png` }
+        ];
         await fetch(MAIL_SETTINGS.gasUrl, {
           method: 'POST', mode: 'no-cors',
           headers: { 'Content-Type': 'text/plain' },
-          body: JSON.stringify({ subject, body: bodyText, fileBase64: b64, mimeType: 'image/png', filename: `ביקורת בטיחות ${plate}.png` })
+          body: JSON.stringify({ subject, body: bodyText, files })
         });
         mailOk = true; mailWithPdf = true;
       } catch(e) {}
@@ -1614,7 +1645,7 @@ async function submitInspection() {
     window._lastInspRec = rec;
     window._lastInspText = bodyText;
     document.getElementById('imm-status').textContent = mailWithPdf
-      ? `הביקורת נשמרה ונשלחה למייל עם קובץ תמונה מצורף ✓`
+      ? `הביקורת נשמרה ונשלחה למייל עם PDF ותמונה מצורפים ✓`
       : mailOk
       ? `הביקורת נשמרה ונשלחה אוטומטית למייל (${recipient}) ✓ — אפשר גם לשתף כ-PDF:`
       : 'הביקורת נשמרה ✓ אך המייל האוטומטי לא נשלח — שתף כ-PDF או פתח מייל:';
