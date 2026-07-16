@@ -2171,8 +2171,12 @@ ${RETURNS.slice(0,5).map(r=>`• ${r.employee} | ${r.plate} | ${r.fromDate||'?'}
 הסרת רכב חליפי (כשמחזירים אותו):
 [[ACTION:removeReplacement:רישוי_או_שם_עובד]]
 
-כלל: כשעובד מקבל רכב חדש → בצע [[ACTION:returnVehicle:...]] על הרכב הישן ואז [[ACTION:addVehicle:...]] לרכב החדש.
-כשעובד מקבל רכב חליפי → בצע [[ACTION:addReplacement:...]].
+החלפת רכב לעובד (קיבל רכב חדש במקום הישן) — פעולה אחת שעושה הכל: מעבירה את הישן להחזרות, מוסיפה את החדש עם השלמה ממאגר ממשלתי, מעתיקה את פרטי הנהג (רישיון נהיגה, עבר תעבורתי, נהלים, ת.ז, ילדים — פרטים אישיים שלא משתנים), וקובעת: תאריך קבלה, ביקורת בטיחות (התראה בעוד חצי שנה), טיפול הבא (+15,000 ק"מ):
+[[ACTION:replaceVehicle:רישוי_ישן|רישוי_חדש|תאריך_קבלה(DD/MM/YYYY)|סיבה]]
+דוגמה: [[ACTION:replaceVehicle:34005503|66529004|15/07/2026|רכב חדש]]
+
+כלל חשוב: כשעובד מקבל רכב חדש — השתמש אך ורק ב-replaceVehicle (לא returnVehicle+addVehicle בנפרד). אם המשתמש לא ציין את תאריך קבלת הרכב — שאל אותו לפני הביצוע.
+כשעובד מקבל רכב חליפי זמני → בצע [[ACTION:addReplacement:...]].
 
 ═══ ניתוח תמונות ═══
 כאשר מקבל תמונה של מסמך רכב:
@@ -2723,7 +2727,48 @@ async function agentExecActionAsync(action, param) {
   if (action === 'exportVehicleCard') { exportVehicleCard(param); return { type:'vehicleCard', plate: param }; }
   if (action === 'addVehicle') return await addVehicleWithLookup(param);
   if (action === 'syncVehicle') return await syncVehicleFromGov(param);
+  if (action === 'replaceVehicle') return await replaceVehicleAction(param);
   return agentExecAction(action, param);
+}
+
+// Employee got a new vehicle: archive the old one in returns, add the new one
+// (gov lookup), carry over the driver's personal fields, and set receipt-date
+// defaults (inspection = receipt date → 6-month alert, next service +15,000 km).
+async function replaceVehicleAction(param) {
+  const [oldPlate, newPlate, receivedDate, reason] = param.split('|').map(s => s.trim());
+  const clean = s => (s || '').replace(/\D/g, '');
+  const oldV = VEHICLES.find(v => clean(v.plate) === clean(oldPlate));
+  if (!oldV) return { type: 'vehicle', action: 'לא נמצא', plate: oldPlate };
+  if (!newPlate) return null;
+  const _t = new Date();
+  const recDate = receivedDate || ('0'+_t.getDate()).slice(-2)+'/'+('0'+(_t.getMonth()+1)).slice(-2)+'/'+_t.getFullYear();
+  // 1. archive the old vehicle
+  RETURNS.unshift({ employee: (oldV.driverName||'').split('-')[0].trim(), plate: oldV.plate, make: oldV.make||'', model: oldV.model||'', fromDate: oldV.vehicleFrom||'', toDate: recDate, reason: reason||'החלפת רכב', notes: '' });
+  try { localStorage.setItem('fleet_returns', JSON.stringify(RETURNS)); } catch(e){}
+  saveToFirestore('returns', RETURNS);
+  // 2. remove it from the fleet
+  VEHICLES.splice(VEHICLES.indexOf(oldV), 1);
+  // 3. add the new vehicle (gov lookup fills make/model/year) — or reuse it if already added
+  await addVehicleWithLookup(newPlate);
+  const nv = VEHICLES.find(v => clean(v.plate) === clean(newPlate));
+  if (nv) {
+    nv.driverName = oldV.driverName || '';
+    nv.driverId = oldV.driverId || '';
+    nv.children = oldV.children || '';
+    nv.licenseExpiry = oldV.licenseExpiry || '';
+    nv.trafficRecord = oldV.trafficRecord || '';
+    nv.procedures = oldV.procedures || '';
+    nv.company = nv.company && nv.company !== 'נופר אנרגי' ? nv.company : (oldV.company || 'נופר אנרגי');
+    nv.vehicleFrom = recDate;
+    nv.inspection = recDate;
+    nv.currentKm = nv.currentKm || '0';
+    nv.nextServiceKm = String((parseInt(nv.currentKm) || 0) + 15000);
+  }
+  saveVehicles();
+  renderFleet(); renderDashboard(); renderAlerts();
+  if (typeof renderReturns === 'function') renderReturns();
+  toast(`✓ ${(oldV.driverName||'').split('-')[0].trim()}: ${oldV.plate} הועבר להחזרות, ${newPlate} נוסף`);
+  return { type: 'vehicle', action: 'הוחלף', plate: newPlate, oldPlate: oldV.plate, driver: oldV.driverName };
 }
 
 async function addVehicleWithLookup(param) {
