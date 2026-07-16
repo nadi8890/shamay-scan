@@ -2737,38 +2737,42 @@ async function agentExecActionAsync(action, param) {
 async function replaceVehicleAction(param) {
   const [oldPlate, newPlate, receivedDate, reason] = param.split('|').map(s => s.trim());
   const clean = s => (s || '').replace(/\D/g, '');
-  const oldV = VEHICLES.find(v => clean(v.plate) === clean(oldPlate));
-  if (!oldV) return { type: 'vehicle', action: 'לא נמצא', plate: oldPlate };
+  const oldV0 = VEHICLES.find(v => clean(v.plate) === clean(oldPlate));
+  if (!oldV0) return { type: 'vehicle', action: 'לא נמצא', plate: oldPlate };
   if (!newPlate) return null;
+  const old = { ...oldV0 }; // copy — the realtime snapshot may swap VEHICLES while we await
   const _t = new Date();
   const recDate = receivedDate || ('0'+_t.getDate()).slice(-2)+'/'+('0'+(_t.getMonth()+1)).slice(-2)+'/'+_t.getFullYear();
-  // 1. archive the old vehicle
-  RETURNS.unshift({ employee: (oldV.driverName||'').split('-')[0].trim(), plate: oldV.plate, make: oldV.make||'', model: oldV.model||'', fromDate: oldV.vehicleFrom||'', toDate: recDate, reason: reason||'החלפת רכב', notes: '' });
-  try { localStorage.setItem('fleet_returns', JSON.stringify(RETURNS)); } catch(e){}
-  saveToFirestore('returns', RETURNS);
-  // 2. remove it from the fleet
-  VEHICLES.splice(VEHICLES.indexOf(oldV), 1);
-  // 3. add the new vehicle (gov lookup fills make/model/year) — or reuse it if already added
+  // 1. add the new vehicle first (awaits gov lookup) — or reuse it if already in the fleet
   await addVehicleWithLookup(newPlate);
+  // 2. all mutations synchronously, then one combined write (no snapshot race window)
+  const oldIdx = VEHICLES.findIndex(v => clean(v.plate) === clean(old.plate));
+  if (oldIdx >= 0) VEHICLES.splice(oldIdx, 1);
   const nv = VEHICLES.find(v => clean(v.plate) === clean(newPlate));
   if (nv) {
-    nv.driverName = oldV.driverName || '';
-    nv.driverId = oldV.driverId || '';
-    nv.children = oldV.children || '';
-    nv.licenseExpiry = oldV.licenseExpiry || '';
-    nv.trafficRecord = oldV.trafficRecord || '';
-    nv.procedures = oldV.procedures || '';
-    nv.company = nv.company && nv.company !== 'נופר אנרגי' ? nv.company : (oldV.company || 'נופר אנרגי');
+    nv.driverName = old.driverName || '';
+    nv.driverId = old.driverId || '';
+    nv.children = old.children || '';
+    nv.licenseExpiry = old.licenseExpiry || nv.licenseExpiry || '';
+    nv.trafficRecord = old.trafficRecord || '';
+    nv.procedures = old.procedures || '';
+    nv.company = old.company || nv.company || 'נופר אנרגי';
     nv.vehicleFrom = recDate;
     nv.inspection = recDate;
     nv.currentKm = nv.currentKm || '0';
     nv.nextServiceKm = String((parseInt(nv.currentKm) || 0) + 15000);
   }
-  saveVehicles();
+  RETURNS.unshift({ employee: (old.driverName||'').split('-')[0].trim(), plate: old.plate, make: old.make||'', model: old.model||'', fromDate: old.vehicleFrom||'', toDate: recDate, reason: reason||'החלפת רכב', notes: '' });
+  try {
+    localStorage.setItem('fleet_vehicles', JSON.stringify(VEHICLES));
+    localStorage.setItem('fleet_vehicles_version', VEHICLES_VERSION);
+    localStorage.setItem('fleet_returns', JSON.stringify(RETURNS));
+  } catch(e){}
+  try { await db.collection('fleet').doc('main').set({ vehicles: VEHICLES, returns: RETURNS }, { merge: true }); } catch(e) { console.log('Firestore save error', e); }
   renderFleet(); renderDashboard(); renderAlerts();
   if (typeof renderReturns === 'function') renderReturns();
-  toast(`✓ ${(oldV.driverName||'').split('-')[0].trim()}: ${oldV.plate} הועבר להחזרות, ${newPlate} נוסף`);
-  return { type: 'vehicle', action: 'הוחלף', plate: newPlate, oldPlate: oldV.plate, driver: oldV.driverName };
+  toast(`✓ ${(old.driverName||'').split('-')[0].trim()}: ${old.plate} הועבר להחזרות, ${newPlate} נוסף`);
+  return { type: 'vehicle', action: 'הוחלף', plate: newPlate, oldPlate: old.plate, driver: old.driverName };
 }
 
 async function addVehicleWithLookup(param) {
