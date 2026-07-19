@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FleetSmart — הפרסומת</title>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden}
+body{font-family:'Heebo',sans-serif;background:#0b1120;color:#fff}
+#stage{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:24px}
+.scene{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:28px;opacity:0;pointer-events:none;transition:opacity .5s}
+.scene.on{opacity:1;pointer-events:auto}
+
+/* backgrounds */
+.bg-red{background:radial-gradient(ellipse 90% 70% at 50% 30%,rgba(220,38,38,.25),transparent),#0b1120}
+.bg-blue{background:radial-gradient(ellipse 90% 70% at 50% 20%,rgba(37,99,235,.35),transparent),#0b1120}
+.bg-green{background:radial-gradient(ellipse 90% 70% at 50% 20%,rgba(5,150,105,.3),transparent),#0b1120}
+
+.pop{opacity:0;transform:scale(.7) translateY(30px)}
+.on .pop{animation:pop .6s cubic-bezier(.2,1.4,.4,1) forwards}
+@keyframes pop{to{opacity:1;transform:scale(1) translateY(0)}}
+.d1{animation-delay:.15s!important}.d2{animation-delay:.55s!important}.d3{animation-delay:.95s!important}.d4{animation-delay:1.35s!important}.d5{animation-delay:1.75s!important}
+
+.h-xl{font-size:clamp(2rem,8vw,4.5rem);font-weight:900;line-height:1.2}
+.h-l{font-size:clamp(1.4rem,5.5vw,2.8rem);font-weight:900;line-height:1.35}
+.sub{font-size:clamp(1rem,3.2vw,1.4rem);color:#94a3b8;margin-top:16px;font-weight:400}
+.grad{background:linear-gradient(135deg,#4ade80,#22d3ee);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.gradb{background:linear-gradient(135deg,#93c5fd,#c4b5fd);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+
+.chip{background:rgba(220,38,38,.12);border:1.5px solid rgba(248,113,113,.5);color:#fca5a5;border-radius:14px;padding:14px 22px;font-size:clamp(1rem,3.5vw,1.5rem);font-weight:800;margin:8px}
+.chip.ok{background:rgba(5,150,105,.12);border-color:rgba(74,222,128,.5);color:#86efac}
+
+.feat-line{display:flex;align-items:center;gap:14px;font-size:clamp(1.05rem,3.6vw,1.7rem);font-weight:800;margin:10px 0}
+.feat-line .ic{font-size:clamp(1.5rem,5vw,2.2rem)}
+
+.logo-helm{width:clamp(90px,20vw,140px);filter:drop-shadow(0 10px 40px rgba(74,222,128,.4))}
+.cta-btn{background:linear-gradient(135deg,#2563eb,#4f46e5);color:#fff;border-radius:16px;padding:16px 40px;font-size:clamp(1.1rem,4vw,1.5rem);font-weight:900;margin-top:26px;box-shadow:0 10px 40px rgba(37,99,235,.5);text-decoration:none;display:inline-block}
+
+/* progress bar */
+#bar{position:fixed;bottom:0;left:0;height:4px;background:linear-gradient(90deg,#4ade80,#2563eb);width:0%;z-index:50;transition:width .3s linear}
+#skip{position:fixed;top:14px;left:14px;z-index:50;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.2);color:#94a3b8;border-radius:999px;padding:6px 16px;font-family:'Heebo',sans-serif;font-size:.75rem;cursor:pointer}
+.pulse{animation:pulse 1.6s ease-in-out infinite}
+@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
+.shake{animation:shake .5s ease-in-out .9s 2}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-7px)}75%{transform:translateX(7px)}}
+</style>
+</head>
+<body>
+
+<button id="skip" onclick="location.href='promo.html'">דלג לפרטים ←</button>
+<div id="bar"></div>
+<div id="stage">
+
+  <!-- 1: HOOK -->
+  <div class="scene bg-red" id="s1">
+    <div class="h-xl pop d1 shake">האקסל של הצי שלך<br><span style="color:#f87171">מתפרק?</span></div>
+    <div class="sub pop d3">נשמע מוכר...</div>
+  </div>
+
+  <!-- 2: PAIN -->
+  <div class="scene bg-red" id="s2">
+    <div class="chip pop d1">😱 טסט שפג ואף אחד לא שם לב</div>
+    <div class="chip pop d2">📄 דוח תנועה שלא הוסב בזמן</div>
+    <div class="chip pop d3">✍️ נהג חדש בלי נהלים חתומים</div>
+    <div class="chip pop d4">📞 "מה הק"מ שלך?" ×91 נהגים</div>
+  </div>
+
+  <!-- 3: REVEAL -->
+  <div class="scene bg-blue" id="s3">
+    <svg class="logo-helm pop d1" viewBox="0 0 64 64"><defs><linearGradient id="hg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4ade80"/><stop offset="1" stop-color="#059669"/></linearGradient></defs><path fill="url(#hg)" d="M32 7C17.6 7 6 18.6 6 33v8c0 4.4 3.6 8 8 8h28c9 0 16-7 16-16C58 18.6 46.4 7 32 7z"/><path fill="#fde047" d="M26 7.7C36.5 10.5 44 20.3 44 32v17h6V30C49.4 19 41 9.8 30 7.3c-1.4.1-2.7.2-4 .4z" opacity=".95"/><path fill="#1e293b" d="M10 28h30a7 7 0 0 1 0 14H16a6 6 0 0 1-6-6v-8z"/><rect x="14" y="31" width="18" height="3.2" rx="1.6" fill="#cbd5e1" opacity=".9"/></svg>
+    <div class="h-xl pop d2"><span class="gradb">Fleet</span><span class="grad">Smart</span></div>
+    <div class="h-l pop d3">כל הצי שלך. <span class="grad">שליטה אחת.</span></div>
+  </div>
+
+  <!-- 4: FEATURES -->
+  <div class="scene bg-blue" id="s4">
+    <div class="feat-line pop d1"><span class="ic">🔔</span> התראות על טסט, ביטוח וטיפולים — לבד</div>
+    <div class="feat-line pop d2"><span class="ic">🛡️</span> ביקורת בטיחות מהשטח, עם חתימה באצבע</div>
+    <div class="feat-line pop d3"><span class="ic">✍️</span> נהלים נחתמים בוואטסאפ ומתעדכנים אוטומטית</div>
+    <div class="feat-line pop d4"><span class="ic">🤖</span> סוכן AI שמנהל את הצי בפקודה אחת</div>
+  </div>
+
+  <!-- 5: PROOF -->
+  <div class="scene bg-green" id="s5">
+    <div class="h-l pop d1">נבנה בשטח. 🦺</div>
+    <div class="h-l pop d2">על ידי קצין בטיחות,</div>
+    <div class="h-l pop d3"><span class="grad">בשביל קציני בטיחות.</span></div>
+    <div class="chip ok pop d4" style="margin-top:22px">מעל 20 רכבים? החוק כבר מחייב אותך. אנחנו מקלים עליך.</div>
+  </div>
+
+  <!-- 6: CTA -->
+  <div class="scene bg-green" id="s6">
+    <div class="h-xl pop d1">הצי מנוהל.<br><span class="grad">אתה רגוע.</span></div>
+    <a class="cta-btn pop d2 pulse" href="promo.html">FleetSmart — התחל עכשיו</a>
+    <div class="sub pop d3">📱 054-2840258</div>
+  </div>
+
+</div>
+
+<script>
+const SCENES = [
+  { id: 's1', dur: 3800 },
+  { id: 's2', dur: 5200 },
+  { id: 's3', dur: 4200 },
+  { id: 's4', dur: 5600 },
+  { id: 's5', dur: 5200 },
+  { id: 's6', dur: 6000 }
+];
+const total = SCENES.reduce((a,s)=>a+s.dur,0);
+let idx = -1, elapsed = 0, timer = null;
+
+function show(i) {
+  document.querySelectorAll('.scene').forEach(s => s.classList.remove('on'));
+  const sc = document.getElementById(SCENES[i].id);
+  // restart pop animations
+  sc.querySelectorAll('.pop').forEach(el => { el.style.animation = 'none'; void el.offsetWidth; el.style.animation = ''; });
+  sc.classList.add('on');
+}
+function next() {
+  idx = (idx + 1) % SCENES.length;
+  if (idx === 0) elapsed = 0;
+  show(idx);
+  timer = setTimeout(next, SCENES[idx].dur);
+}
+setInterval(() => {
+  if (idx < 0) return;
+  elapsed += 300;
+  document.getElementById('bar').style.width = Math.min(100, elapsed/total*100) + '%';
+}, 300);
+next();
+// tap to advance
+document.getElementById('stage').addEventListener('click', () => { clearTimeout(timer); next(); });
+</script>
+</body>
+</html>
