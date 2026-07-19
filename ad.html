@@ -64,7 +64,7 @@ body{font-family:'Heebo',sans-serif;background:#0b1120;color:#fff}
     <div class="chip pop d1">😱 טסט שפג ואף אחד לא שם לב</div>
     <div class="chip pop d2">📄 דוח תנועה שלא הוסב בזמן</div>
     <div class="chip pop d3">✍️ נהג חדש בלי נהלים חתומים</div>
-    <div class="chip pop d4">📞 "מה הק"מ שלך?" ×91 נהגים</div>
+    <div class="chip pop d4">📞 "מה הק"מ שלך?" — לכל נהג, כל חודש</div>
   </div>
 
   <!-- 3: REVEAL -->
@@ -79,15 +79,30 @@ body{font-family:'Heebo',sans-serif;background:#0b1120;color:#fff}
     <div class="feat-line pop d1"><span class="ic">🔔</span> התראות על טסט, ביטוח וטיפולים — לבד</div>
     <div class="feat-line pop d2"><span class="ic">🛡️</span> ביקורת בטיחות מהשטח, עם חתימה באצבע</div>
     <div class="feat-line pop d3"><span class="ic">✍️</span> נהלים נחתמים בוואטסאפ ומתעדכנים אוטומטית</div>
-    <div class="feat-line pop d4"><span class="ic">🤖</span> סוכן AI שמנהל את הצי בפקודה אחת</div>
   </div>
 
-  <!-- 5: PROOF -->
+  <!-- 4b: AGENT -->
+  <div class="scene bg-blue" id="s4b">
+    <div class="h-l pop d1">🤖 והקסם האמיתי?</div>
+    <div class="h-l pop d2"><span class="grad">סוכן AI שמבצע לבד.</span></div>
+    <div class="chip ok pop d3">💬 "תוסיף רכב 12-345-67" → נוסף ממאגר הרישוי</div>
+    <div class="chip ok pop d4">💬 "דנה קיבלה רכב חדש" → הוחלף + היסטוריה עברה</div>
+    <div class="chip ok pop d5">📸 צילמת מסמך → הנתונים התעדכנו ברכב</div>
+  </div>
+
+  <!-- 5: MARKET -->
   <div class="scene bg-green" id="s5">
+    <div class="h-l pop d1"><span class="grad">3,500+</span> קציני בטיחות בישראל</div>
+    <div class="h-l pop d2"><span class="grad">2,000+</span> חברות עם ציי רכב</div>
+    <div class="h-l pop d3"><span class="grad">מאות אלפי</span> רכבי צי וליסינג</div>
+    <div class="chip ok pop d4" style="margin-top:22px">מעל 20 רכבים? החוק כבר מחייב אותך. אנחנו מקלים עליך.</div>
+  </div>
+
+  <!-- 5b: PROOF -->
+  <div class="scene bg-green" id="s5b">
     <div class="h-l pop d1">נבנה בשטח. 🦺</div>
     <div class="h-l pop d2">על ידי קצין בטיחות,</div>
     <div class="h-l pop d3"><span class="grad">בשביל קציני בטיחות.</span></div>
-    <div class="chip ok pop d4" style="margin-top:22px">מעל 20 רכבים? החוק כבר מחייב אותך. אנחנו מקלים עליך.</div>
   </div>
 
   <!-- 6: CTA -->
@@ -104,8 +119,10 @@ const SCENES = [
   { id: 's1', dur: 3800 },
   { id: 's2', dur: 5200 },
   { id: 's3', dur: 4200 },
-  { id: 's4', dur: 5600 },
+  { id: 's4', dur: 4600 },
+  { id: 's4b', dur: 6000 },
   { id: 's5', dur: 5200 },
+  { id: 's5b', dur: 4200 },
   { id: 's6', dur: 6000 }
 ];
 const total = SCENES.reduce((a,s)=>a+s.dur,0);
