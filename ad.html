@@ -156,30 +156,30 @@ body{font-family:'Heebo',sans-serif;background:#0b1120;color:#fff}
 </div>
 
 <script>
+// scene narration = pre-recorded neural Hebrew voice files; scene length follows the audio
 const SCENES = [
-  { id:'s1', dur:4200, say:'האקסל של הצי שלך מתפרק?' },
-  { id:'s2', dur:7800, say:'טסטים שפגים. דוחות שלא הוסבו. נהגים בלי נהלים חתומים.' },
-  { id:'s3', dur:5600, say:'תכירו את ר.מזור. ניהול צי רכב חכם.' },
-  { id:'s4', dur:8400, say:'התראות אוטומטיות. ביקורות בטיחות מהשטח. ונהלים שנחתמים בוואטסאפ.' },
-  { id:'s5', dur:8000, say:'וסוכן חכם, שמבצע פעולות לבד. פשוט אומרים לו.' },
-  { id:'s6', dur:6400, say:'אלפי קציני בטיחות ומנהלי ציים כבר מחכים לזה.' },
-  { id:'s7', dur:4800, say:'נבנה בשטח, על ידי קצין בטיחות, בשביל קציני בטיחות.' },
-  { id:'s8', dur:7000, say:'ר.מזור. הצי מנוהל. אתה רגוע.' }
+  { id:'s1', dur:5500,  audio:'audio/ad1.mp3' },
+  { id:'s2', dur:11700, audio:'audio/ad2.mp3' },
+  { id:'s3', dur:9200,  audio:'audio/ad3.mp3' },
+  { id:'s4', dur:15400, audio:'audio/ad4.mp3' },
+  { id:'s5', dur:16700, audio:'audio/ad5.mp3' },
+  { id:'s6', dur:13000, audio:'audio/ad6.mp3' },
+  { id:'s7', dur:9200,  audio:'audio/ad7.mp3' },
+  { id:'s8', dur:8900,  audio:'audio/ad8.mp3' }
 ];
-const total = SCENES.reduce((a,s)=>a+s.dur,0);
+const players = SCENES.map(s => { const a = new Audio(s.audio); a.preload = 'auto'; return a; });
+function sceneDur(i){
+  const a = players[i];
+  return (a && a.duration && isFinite(a.duration)) ? Math.round(a.duration*1000) + 900 : SCENES[i].dur;
+}
 let idx=-1, elapsed=0, timer=null, subTimers=[], muted=false, started=false;
-let AC=null, heVoice=null;
+let AC=null;
 
 /* ---------- audio ---------- */
 function initAudio(){
   try{ AC = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){}
-  // pick a Hebrew voice
-  const pick = () => {
-    const vs = speechSynthesis.getVoices();
-    heVoice = vs.find(v=>v.lang&&v.lang.startsWith('he')) || null;
-  };
-  if ('speechSynthesis' in window){ pick(); speechSynthesis.onvoiceschanged = pick; }
 }
+function stopAllVoice(){ players.forEach(a => { a.pause(); a.currentTime = 0; }); }
 function whoosh(){
   if(!AC||muted) return;
   const t=AC.currentTime, dur=.5;
@@ -197,19 +197,17 @@ function chime(freq){
   const g=AC.createGain(); g.gain.setValueAtTime(.12,t); g.gain.exponentialRampToValueAtTime(.001,t+.7);
   o.connect(g).connect(AC.destination); o.start(t); o.stop(t+.75);
 }
-function narrate(text){
-  if(muted || !('speechSynthesis' in window)) return;
-  speechSynthesis.cancel();
-  const u=new SpeechSynthesisUtterance(text);
-  u.lang='he-IL'; if(heVoice) u.voice=heVoice;
-  u.rate=.95; u.pitch=1;
-  speechSynthesis.speak(u);
+function narrate(i){
+  stopAllVoice();
+  if(muted) return;
+  players[i].play().catch(()=>{});
 }
 function toggleMute(e){
   e.stopPropagation();
   muted=!muted;
   document.getElementById('mute').textContent = muted?'🔇':'🔊';
-  if(muted) speechSynthesis.cancel();
+  if(muted) stopAllVoice();
+  else if(idx>=0) players[idx].play().catch(()=>{});
 }
 
 /* ---------- scenes ---------- */
@@ -221,17 +219,18 @@ function show(i){
   sc.querySelectorAll('.rise,.bub').forEach(el=>{el.style.animation='none';void el.offsetWidth;el.style.animation='';});
   sc.classList.add('on');
   whoosh();
-  narrate(SCENES[i].say);
+  narrate(i);
 
-  // sequential lines (pain/features)
+  // sequential lines (pain/features) — spread evenly across the narration length
   const lines=sc.querySelectorAll('.pain-line');
   if(lines.length){
     lines.forEach(l=>l.classList.remove('show'));
-    lines.forEach(l=>{
+    const D = sceneDur(i) - 900;
+    lines.forEach((l,k)=>{
       subTimers.push(setTimeout(()=>{
         lines.forEach(x=>x.classList.remove('show'));
         l.classList.add('show'); chime(720);
-      }, parseInt(l.dataset.at)));
+      }, Math.round(k*D/lines.length)+150));
     });
   }
   // traffic light sequence
@@ -257,9 +256,14 @@ function next(){
   idx=(idx+1)%SCENES.length;
   if(idx===0) elapsed=0;
   show(idx);
-  timer=setTimeout(next,SCENES[idx].dur);
+  timer=setTimeout(next,sceneDur(idx));
 }
-setInterval(()=>{ if(idx<0)return; elapsed+=300; document.getElementById('bar').style.width=Math.min(100,elapsed/total*100)+'%'; },300);
+setInterval(()=>{
+  if(idx<0)return;
+  elapsed+=300;
+  const tot = SCENES.reduce((a,_,j)=>a+sceneDur(j),0);
+  document.getElementById('bar').style.width=Math.min(100,elapsed/tot*100)+'%';
+},300);
 
 document.getElementById('start').addEventListener('click',()=>{
   if(started) return; started=true;
@@ -267,7 +271,7 @@ document.getElementById('start').addEventListener('click',()=>{
   document.getElementById('start').style.display='none';
   next();
 });
-document.getElementById('stage').addEventListener('click',()=>{ if(!started)return; clearTimeout(timer); speechSynthesis.cancel(); next(); });
+document.getElementById('stage').addEventListener('click',()=>{ if(!started)return; clearTimeout(timer); stopAllVoice(); next(); });
 </script>
 </body>
 </html>
