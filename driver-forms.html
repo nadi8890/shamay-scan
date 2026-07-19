@@ -252,13 +252,17 @@ async function submitForms() {
     // 1. save the declaration
     await db.collection('fleet').doc('decl_' + rec.created).set(rec);
     // 2. auto-update the vehicle: procedures date (+ current km if given)
-    const snap = await db.collection('fleet').doc('main').get();
-    const vehicles = (snap.data() || {}).vehicles || [];
-    const v = vehicles.find(x => (x.plate||'').replace(/\D/g,'') === (rec.plate||'').replace(/\D/g,''));
-    if (v) {
+    // verify after writing and retry — a concurrent save from the manager app can overwrite the array
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const snap = await db.collection('fleet').doc('main').get();
+      const vehicles = (snap.data() || {}).vehicles || [];
+      const v = vehicles.find(x => (x.plate||'').replace(/\D/g,'') === (rec.plate||'').replace(/\D/g,''));
+      if (!v) break;
+      if (v.procedures === today && (!rec.km || v.currentKm === rec.km)) break;
       v.procedures = today;
       if (rec.km) v.currentKm = rec.km;
       await db.collection('fleet').doc('main').set({ vehicles }, { merge: true });
+      await new Promise(res => setTimeout(res, 1500));
     }
     // 3. best-effort email copy to the fleet manager
     if (MAIL.gasUrl) {
