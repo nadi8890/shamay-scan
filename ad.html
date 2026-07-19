@@ -4,84 +4,143 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ר.מזור — הפרסומת</title>
-<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;700;900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;600;800;900&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%;overflow:hidden}
-body{font-family:'Heebo',sans-serif;background:#0b1120;color:#fff}
+body{font-family:'Heebo',sans-serif;background:#070b14;color:#fff}
+
+/* ambient background orbs */
+.orbs{position:fixed;inset:0;overflow:hidden;pointer-events:none}
+.orb{position:absolute;border-radius:50%;filter:blur(90px);opacity:.5;animation:orb 14s ease-in-out infinite alternate}
+.orb.o1{width:44vw;height:44vw;background:#1d4ed8;top:-12%;right:-8%}
+.orb.o2{width:36vw;height:36vw;background:#065f46;bottom:-10%;left:-6%;animation-delay:4s}
+@keyframes orb{from{transform:translateY(0) scale(1)}to{transform:translateY(40px) scale(1.12)}}
+
 #stage{position:fixed;inset:0}
-.scene{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:30px;opacity:0;pointer-events:none;transition:opacity .9s ease}
+.scene{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:26px;opacity:0;pointer-events:none;transition:opacity 1s ease}
 .scene.on{opacity:1;pointer-events:auto}
+.col{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;width:100%}
 
-.bg-red{background:radial-gradient(ellipse 90% 70% at 50% 30%,rgba(220,38,38,.22),transparent),#0b1120}
-.bg-blue{background:radial-gradient(ellipse 90% 70% at 50% 20%,rgba(37,99,235,.3),transparent),#0b1120}
-.bg-green{background:radial-gradient(ellipse 90% 70% at 50% 20%,rgba(5,150,105,.26),transparent),#0b1120}
-
-/* soft entrance — gentle rise + fade, no bounce */
-.rise{opacity:0;transform:translateY(18px)}
-.on .rise{animation:rise 1s ease-out forwards}
+.rise{opacity:0;transform:translateY(22px)}
+.on .rise{animation:rise 1.1s cubic-bezier(.16,.8,.3,1) forwards}
 @keyframes rise{to{opacity:1;transform:translateY(0)}}
-.d1{animation-delay:.2s!important}.d2{animation-delay:.9s!important}.d3{animation-delay:1.6s!important}.d4{animation-delay:2.3s!important}.d5{animation-delay:3s!important}
+.d1{animation-delay:.2s!important}.d2{animation-delay:.8s!important}.d3{animation-delay:1.5s!important}.d4{animation-delay:2.2s!important}
 
-/* slow ken-burns style drift on big visuals */
-.drift{animation:drift 7s ease-in-out infinite alternate}
-@keyframes drift{from{transform:scale(1) translateY(0)}to{transform:scale(1.06) translateY(-8px)}}
-
-.h-xl{font-size:clamp(1.9rem,7.5vw,4.2rem);font-weight:900;line-height:1.25;text-align:center}
-.h-l{font-size:clamp(1.3rem,5vw,2.5rem);font-weight:900;line-height:1.4;text-align:center}
-.sub{font-size:clamp(1rem,3.2vw,1.35rem);color:#94a3b8;margin-top:14px;text-align:center}
+.h-xl{font-size:clamp(1.7rem,6.4vw,3.6rem);font-weight:900;line-height:1.28;text-align:center;letter-spacing:-.5px}
+.h-m{font-size:clamp(1.15rem,4vw,1.9rem);font-weight:800;text-align:center;line-height:1.4}
+.sub{font-size:clamp(.95rem,3vw,1.2rem);color:#8fa3bf;text-align:center;font-weight:400}
 .grad{background:linear-gradient(135deg,#4ade80,#22d3ee);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
 .gradb{background:linear-gradient(135deg,#93c5fd,#c4b5fd);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
 
-.big-emoji{font-size:clamp(4rem,18vw,8rem);filter:drop-shadow(0 12px 40px rgba(0,0,0,.5))}
+/* ---------- phone frame ---------- */
+.phone{width:min(66vw,300px);aspect-ratio:9/18.6;background:#0c1322;border:3px solid #26334d;border-radius:38px;padding:10px;box-shadow:0 40px 90px rgba(0,0,0,.65),inset 0 0 0 1.5px rgba(255,255,255,.05);position:relative;flex-shrink:0}
+.phone::before{content:'';position:absolute;top:12px;left:50%;transform:translateX(-50%);width:88px;height:20px;background:#070b14;border-radius:12px;z-index:5}
+.screen{width:100%;height:100%;background:#f1f5f9;border-radius:28px;overflow:hidden;display:flex;flex-direction:column;color:#0f172a;direction:rtl}
+.appbar{background:linear-gradient(135deg,#1e3a8a,#2563eb);color:#fff;padding:24px 13px 9px;font-size:.72rem;font-weight:800;display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
+.appbar .lt{display:flex;align-items:center;gap:5px}
+.dot3{width:5px;height:5px;border-radius:50%;background:rgba(255,255,255,.5)}
+.body-app{flex:1;padding:9px;overflow:hidden;display:flex;flex-direction:column;gap:6px}
 
-/* pain scene — one line at a time */
-.pain-line{position:absolute;display:flex;flex-direction:column;align-items:center;gap:14px;opacity:0;transition:opacity .7s}
-.pain-line.show{opacity:1}
-.pain-line .t{font-size:clamp(1.2rem,4.5vw,2.1rem);font-weight:800;color:#fca5a5;text-align:center}
+/* alert rows inside screen */
+.arow{background:#fff;border:1px solid #e2e8f0;border-radius:9px;padding:7px 9px;display:flex;justify-content:space-between;align-items:center;font-size:.6rem;font-weight:700;opacity:0;transform:translateX(-14px)}
+.on .arow{animation:slidein .55s ease-out forwards}
+@keyframes slidein{to{opacity:1;transform:translateX(0)}}
+.arow .plate{direction:ltr;color:#2563eb;font-weight:900}
+.abadge{border-radius:999px;padding:2px 8px;font-size:.53rem;font-weight:800}
+.abadge.r{background:#fef2f2;color:#dc2626;border:1px solid #fecaca}
+.abadge.o{background:#fffbeb;color:#b45309;border:1px solid #fde68a}
+.abadge.g{background:#f0fdf4;color:#047857;border:1px solid #bbf7d0}
+.a1{animation-delay:.5s!important}.a2{animation-delay:1.35s!important}.a3{animation-delay:2.2s!important}.a4{animation-delay:3.05s!important}.a5{animation-delay:3.9s!important}
+
+/* checklist inside screen */
+.chk{background:#fff;border:1px solid #e2e8f0;border-radius:9px;padding:7px 9px;display:flex;align-items:center;gap:7px;font-size:.62rem;font-weight:700}
+.box{width:13px;height:13px;border:1.5px solid #cbd5e1;border-radius:4px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:.55rem;color:#fff}
+.on .tick .box{animation:tickbox .3s forwards}
+@keyframes tickbox{to{background:#059669;border-color:#059669}}
+.on .tick .box::after{content:'✓';opacity:0;animation:fadein .2s .25s forwards}
+@keyframes fadein{to{opacity:1}}
+.t1 .box{animation-delay:.8s!important}.t1 .box::after{animation-delay:1s!important}
+.t2 .box{animation-delay:1.7s!important}.t2 .box::after{animation-delay:1.9s!important}
+.t3 .box{animation-delay:2.6s!important}.t3 .box::after{animation-delay:2.8s!important}
+.t4 .box{animation-delay:3.5s!important}.t4 .box::after{animation-delay:3.7s!important}
+
+/* signature draw */
+.sigpad{background:#fff;border:1.5px dashed #94a3b8;border-radius:9px;margin-top:2px;padding:5px;flex-shrink:0}
+.sigpad svg{width:100%;height:44px}
+.sigpath{stroke:#0f172a;stroke-width:2.2;fill:none;stroke-linecap:round;stroke-dasharray:300;stroke-dashoffset:300}
+.on .sigpath{animation:draw 2.2s ease-in-out 4.4s forwards}
+@keyframes draw{to{stroke-dashoffset:0}}
+.sigok{opacity:0;text-align:center;font-size:.6rem;font-weight:900;color:#047857;margin-top:2px}
+.on .sigok{animation:fadein .5s 6.7s forwards}
+
+/* chat inside screen */
+.cbub{max-width:88%;border-radius:11px;padding:6px 9px;font-size:.6rem;font-weight:600;opacity:0;transform:translateY(8px);line-height:1.45}
+.on .cbub{animation:rise .6s ease-out forwards}
+.cbub.me{background:#dbeafe;color:#1e3a8a;align-self:flex-start;border-bottom-left-radius:4px}
+.cbub.bot{background:#d1fae5;color:#065f46;align-self:flex-end;border-bottom-right-radius:4px}
+.c1{animation-delay:.7s!important}.c2{animation-delay:2.2s!important}.c3{animation-delay:4.4s!important}.c4{animation-delay:6.4s!important}.c5{animation-delay:8.6s!important}
+
+/* split layout: caption + phone */
+.split{display:flex;align-items:center;justify-content:center;gap:5vw;width:100%;max-width:900px}
+.split .txt{flex:1;min-width:0}
+.split .txt .h-m{text-align:right}
+@media(max-width:640px){
+  .split{flex-direction:column;gap:18px}
+  .split .txt .h-m{text-align:center;font-size:1.05rem}
+  .phone{width:min(52vw,220px)}
+}
+
+/* excel collapse (scene 1) */
+.sheet{width:min(88vw,420px);border-radius:12px;overflow:hidden;border:1px solid #26334d;box-shadow:0 30px 70px rgba(0,0,0,.55);animation:tilt 4s ease-in-out infinite alternate}
+@keyframes tilt{from{transform:rotate(-.6deg)}to{transform:rotate(.8deg) translateY(-5px)}}
+.srow{display:grid;grid-template-columns:1.3fr 1fr 1fr 1fr;font-size:.62rem;font-weight:700}
+.srow>div{background:#fff;color:#0f172a;padding:6px 8px;border:.5px solid #e2e8f0;white-space:nowrap;overflow:hidden}
+.srow.hd>div{background:#f1f5f9;color:#475569;font-weight:900}
+.srow .bad{color:#dc2626;background:#fef2f2}
+.on .glitch{animation:glitch .5s steps(2) 1.4s 3}
+@keyframes glitch{25%{transform:translateX(-3px)}75%{transform:translateX(3px)}}
+.err-stamp{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none}
+.err-stamp span{background:rgba(220,38,38,.92);color:#fff;font-weight:900;font-size:clamp(1rem,3.6vw,1.5rem);padding:10px 26px;border-radius:12px;transform:rotate(-7deg);opacity:0;box-shadow:0 14px 40px rgba(220,38,38,.5)}
+.on .err-stamp span{animation:stamp .45s cubic-bezier(.2,1.6,.4,1) 2.1s forwards}
+@keyframes stamp{from{opacity:0;transform:rotate(-7deg) scale(1.6)}to{opacity:1;transform:rotate(-7deg) scale(1)}}
 
 /* traffic light */
-.tl{width:clamp(80px,16vw,120px);background:#111827;border:3px solid #1f2937;border-radius:26px;padding:14px;display:flex;flex-direction:column;gap:12px;box-shadow:0 20px 60px rgba(0,0,0,.6)}
-.tl .light{aspect-ratio:1;border-radius:50%;background:#1f2937;transition:all .5s}
-.tl .light.r.on2{background:#ef4444;box-shadow:0 0 30px rgba(239,68,68,.8)}
-.tl .light.y.on2{background:#f59e0b;box-shadow:0 0 30px rgba(245,158,11,.8)}
-.tl .light.g.on2{background:#22c55e;box-shadow:0 0 34px rgba(34,197,94,.9)}
+.tl{width:clamp(66px,13vw,96px);background:#101827;border:2.5px solid #26334d;border-radius:24px;padding:12px;display:flex;flex-direction:column;gap:10px;box-shadow:0 24px 60px rgba(0,0,0,.6)}
+.tl .light{aspect-ratio:1;border-radius:50%;background:#1c2536;transition:all .5s}
+.tl .light.r.on2{background:#ef4444;box-shadow:0 0 26px rgba(239,68,68,.75)}
+.tl .light.y.on2{background:#f59e0b;box-shadow:0 0 26px rgba(245,158,11,.75)}
+.tl .light.g.on2{background:#22c55e;box-shadow:0 0 30px rgba(34,197,94,.85)}
 
-/* chat bubbles (agent scene) */
-.chat{width:min(92vw,460px);display:flex;flex-direction:column;gap:12px}
-.bub{max-width:85%;border-radius:18px;padding:12px 17px;font-size:clamp(.95rem,3.4vw,1.2rem);font-weight:600;opacity:0;transform:translateY(14px);line-height:1.45}
-.on .bub{animation:rise .8s ease-out forwards}
-.bub.me{background:#1d4ed8;color:#fff;align-self:flex-start;border-bottom-left-radius:6px}
-.bub.bot{background:#065f46;color:#d1fae5;align-self:flex-end;border-bottom-right-radius:6px}
+/* counters */
+.cnt-wrap{display:flex;flex-direction:column;gap:24px;align-items:center}
+.cnt{font-size:clamp(2.2rem,9vw,4.2rem);font-weight:900;background:linear-gradient(135deg,#4ade80,#22d3ee);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;line-height:1}
+.cnt-cap{font-size:clamp(.9rem,3.2vw,1.2rem);color:#b6c4d8;font-weight:700;margin-top:6px}
 
-/* counter numbers */
-.cnt-wrap{display:flex;flex-direction:column;gap:22px;align-items:center}
-.cnt-row{text-align:center}
-.cnt{font-size:clamp(2.4rem,10vw,4.5rem);font-weight:900;background:linear-gradient(135deg,#4ade80,#22d3ee);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
-.cnt-cap{font-size:clamp(.95rem,3.4vw,1.3rem);color:#cbd5e1;font-weight:700}
+/* shield (proof) */
+.shield{width:clamp(84px,17vw,120px);filter:drop-shadow(0 14px 40px rgba(74,222,128,.35))}
 
-.cta-btn{background:linear-gradient(135deg,#2563eb,#4f46e5);color:#fff;border-radius:16px;padding:16px 40px;font-size:clamp(1.05rem,4vw,1.45rem);font-weight:900;margin-top:26px;box-shadow:0 10px 40px rgba(37,99,235,.5);text-decoration:none;display:inline-block}
-.pulse{animation:pulse 2s ease-in-out infinite}
-@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.04)}}
+.cta-btn{background:linear-gradient(135deg,#2563eb,#4f46e5);color:#fff;border-radius:16px;padding:15px 42px;font-size:clamp(1rem,3.8vw,1.4rem);font-weight:900;margin-top:24px;box-shadow:0 12px 44px rgba(37,99,235,.5);text-decoration:none;display:inline-block}
+.pulse{animation:pulse 2.2s ease-in-out infinite}
+@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.035)}}
 
 #bar{position:fixed;bottom:0;left:0;height:4px;background:linear-gradient(90deg,#4ade80,#2563eb);width:0%;z-index:50;transition:width .3s linear}
-#skip{position:fixed;top:14px;left:14px;z-index:50;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.2);color:#94a3b8;border-radius:999px;padding:6px 16px;font-family:'Heebo',sans-serif;font-size:.75rem;cursor:pointer}
-#mute{position:fixed;top:14px;right:14px;z-index:50;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.2);color:#e2e8f0;border-radius:999px;padding:6px 14px;font-family:'Heebo',sans-serif;font-size:.85rem;cursor:pointer}
+#skip{position:fixed;top:14px;left:14px;z-index:50;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.18);color:#8fa3bf;border-radius:999px;padding:6px 16px;font-family:'Heebo',sans-serif;font-size:.75rem;cursor:pointer}
+#mute{position:fixed;top:14px;right:14px;z-index:50;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.18);color:#e2e8f0;border-radius:999px;padding:6px 14px;font-family:'Heebo',sans-serif;font-size:.85rem;cursor:pointer}
 
-/* start overlay */
-#start{position:fixed;inset:0;z-index:100;background:radial-gradient(ellipse 80% 60% at 50% 30%,rgba(37,99,235,.35),transparent),#0b1120;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;cursor:pointer}
-#start .play{width:100px;height:100px;border-radius:50%;background:linear-gradient(135deg,#2563eb,#4f46e5);display:flex;align-items:center;justify-content:center;font-size:2.4rem;box-shadow:0 15px 50px rgba(37,99,235,.55);animation:pulse 2s infinite}
-#start h1{font-size:clamp(1.6rem,6vw,2.6rem);font-weight:900}
-#start p{color:#94a3b8}
+#start{position:fixed;inset:0;z-index:100;background:#070b14;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;cursor:pointer}
+#start .play{width:96px;height:96px;border-radius:50%;background:linear-gradient(135deg,#2563eb,#4f46e5);display:flex;align-items:center;justify-content:center;font-size:2.1rem;box-shadow:0 16px 55px rgba(37,99,235,.55);animation:pulse 2s infinite}
+#start h1{font-size:clamp(1.5rem,5.5vw,2.4rem);font-weight:900}
+#start p{color:#8fa3bf}
 </style>
 </head>
 <body>
+<div class="orbs"><div class="orb o1"></div><div class="orb o2"></div></div>
 
-<!-- start gate (unlocks audio) -->
 <div id="start">
-  <div class="play">▶️</div>
-  <h1><span class="grad">ר.מ</span><span class="gradb">זור</span> — הפרסומת</h1>
-  <p>לחץ להפעלה עם קול 🔊</p>
+  <div class="play">▶</div>
+  <h1><span class="grad">ר.מ</span><span class="gradb">זור</span></h1>
+  <p>לחצו לצפייה בסאונד מלא</p>
 </div>
 
 <button id="skip" onclick="location.href='promo.html'">דלג לפרטים ←</button>
@@ -89,96 +148,149 @@ body{font-family:'Heebo',sans-serif;background:#0b1120;color:#fff}
 <div id="bar"></div>
 <div id="stage">
 
-  <!-- 1: HOOK -->
-  <div class="scene bg-red" id="s1">
-    <div class="big-emoji rise d1 drift">📉</div>
-    <div class="h-xl rise d2">האקסל של הצי שלך<br><span style="color:#f87171">מתפרק?</span></div>
-  </div>
-
-  <!-- 2: PAIN — one at a time -->
-  <div class="scene bg-red" id="s2">
-    <div class="pain-line" data-at="0"><div class="big-emoji">⏰</div><div class="t">טסט שפג — ואף אחד לא שם לב</div></div>
-    <div class="pain-line" data-at="2600"><div class="big-emoji">📄</div><div class="t">דוח תנועה שלא הוסב בזמן</div></div>
-    <div class="pain-line" data-at="5200"><div class="big-emoji">✍️</div><div class="t">נהג חדש — בלי נהלים חתומים</div></div>
-  </div>
-
-  <!-- 3: REVEAL — traffic light -->
-  <div class="scene bg-blue" id="s3">
-    <div class="tl rise d1">
-      <div class="light r" id="li-r"></div>
-      <div class="light y" id="li-y"></div>
-      <div class="light g" id="li-g"></div>
-    </div>
-    <div class="h-xl rise d2" style="margin-top:22px"><span class="grad">ר.מ</span><span class="gradb">זור</span></div>
-    <div class="sub rise d3">ניהול צי רכב חכם — כל הצי שלך, שליטה אחת</div>
-  </div>
-
-  <!-- 4: FEATURES — one big visual each -->
-  <div class="scene bg-blue" id="s4">
-    <div class="pain-line" data-at="0"><div class="big-emoji">🔔</div><div class="t" style="color:#93c5fd">התראות על טסט, ביטוח וטיפולים — לבד</div></div>
-    <div class="pain-line" data-at="2800"><div class="big-emoji">🛡️</div><div class="t" style="color:#93c5fd">ביקורת בטיחות מהשטח, עם חתימה באצבע</div></div>
-    <div class="pain-line" data-at="5600"><div class="big-emoji">💬</div><div class="t" style="color:#93c5fd">נהלים נחתמים בוואטסאפ — ומתעדכנים אוטומטית</div></div>
-  </div>
-
-  <!-- 5: AGENT — chat -->
-  <div class="scene bg-blue" id="s5">
-    <div class="h-l rise d1" style="margin-bottom:22px">🤖 <span class="grad">סוכן AI שמבצע לבד</span></div>
-    <div class="chat">
-      <div class="bub me d2">תוסיף את רכב 12-345-67 לצי</div>
-      <div class="bub bot d3">✓ נוסף! משכתי את הפרטים ממאגר הרישוי הממשלתי</div>
-      <div class="bub me d4">דנה קיבלה רכב חדש במקום הישן</div>
-      <div class="bub bot d5">✓ הוחלף. ההיסטוריה והמסמכים עברו איתה</div>
+  <!-- 1: HOOK — collapsing excel -->
+  <div class="scene" id="s1">
+    <div class="col">
+      <div style="position:relative" class="rise d1">
+        <div class="sheet glitch">
+          <div class="srow hd"><div>נהג</div><div>רכב</div><div>טסט</div><div>ביטוח</div></div>
+          <div class="srow"><div>יוסי כהן</div><div>12-345-67</div><div>???</div><div>05/24</div></div>
+          <div class="srow"><div>דנה לוי</div><div>98-765-43</div><div class="bad">פג!</div><div>—</div></div>
+          <div class="srow"><div>אבי מזרחי</div><div>—</div><div>04/26</div><div class="bad">#REF!</div></div>
+          <div class="srow"><div>שרה כץ</div><div>55-443-32</div><div class="bad">#VALUE!</div><div>??</div></div>
+        </div>
+        <div class="err-stamp"><span>ככה מנהלים צי ב-2026?</span></div>
+      </div>
+      <div class="h-xl rise d3" style="margin-top:24px">האקסל של הצי שלך <span style="color:#f87171">מתפרק.</span></div>
     </div>
   </div>
 
-  <!-- 6: MARKET — counting numbers -->
-  <div class="scene bg-green" id="s6">
+  <!-- 2: PAIN — alerts screen -->
+  <div class="scene" id="s2">
+    <div class="split">
+      <div class="txt rise d1">
+        <div class="h-m">כל יום בלי מערכת —<br><span style="color:#f87171">עוד משהו נופל בין הכיסאות.</span></div>
+      </div>
+      <div class="phone rise d2">
+        <div class="screen">
+          <div class="appbar"><span>התראות הצי</span><div class="lt"><span class="dot3"></span><span class="dot3"></span><span class="dot3"></span></div></div>
+          <div class="body-app">
+            <div class="arow a1"><span>טסט פג <b class="plate">12-345-67</b></span><span class="abadge r">באיחור 6 ימים</span></div>
+            <div class="arow a2"><span>ביטוח חובה <b class="plate">98-765-43</b></span><span class="abadge r">פג היום</span></div>
+            <div class="arow a3"><span>דוח תנועה — לא הוסב</span><span class="abadge o">ממתין 12 יום</span></div>
+            <div class="arow a4"><span>נהלים לא חתומים — נהג חדש</span><span class="abadge o">חסר</span></div>
+            <div class="arow a5"><span>טיפול 30,000 <b class="plate">55-443-32</b></span><span class="abadge r">חריגה</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3: REVEAL -->
+  <div class="scene" id="s3">
+    <div class="col">
+      <div class="tl rise d1">
+        <div class="light r" id="li-r"></div>
+        <div class="light y" id="li-y"></div>
+        <div class="light g" id="li-g"></div>
+      </div>
+      <div class="h-xl rise d2" style="margin-top:18px"><span class="grad">ר.מ</span><span class="gradb">זור</span></div>
+      <div class="sub rise d3">ניהול צי רכב חכם · כל הצי שלך, שליטה אחת</div>
+    </div>
+  </div>
+
+  <!-- 4: PRODUCT — inspection with live signature -->
+  <div class="scene" id="s4">
+    <div class="split">
+      <div class="txt rise d1">
+        <div class="h-m">ביקורת בטיחות מהשטח.<br>נהלים נחתמים בטלפון.<br><span class="grad">והכל מתעדכן לבד.</span></div>
+      </div>
+      <div class="phone rise d2">
+        <div class="screen">
+          <div class="appbar"><span>ביקורת קצין בטיחות</span><span style="font-weight:400;font-size:.6rem">12-345-67</span></div>
+          <div class="body-app">
+            <div class="chk tick t1"><div class="box"></div>תוקף רישיון רכב ונספח</div>
+            <div class="chk tick t2"><div class="box"></div>תקינות צמיגים ואופנים</div>
+            <div class="chk tick t3"><div class="box"></div>אורות, פנסים ומצבורים</div>
+            <div class="chk tick t4"><div class="box"></div>אביזרי בטיחות ונסיעת מבחן</div>
+            <div class="sigpad">
+              <svg viewBox="0 0 200 44"><path class="sigpath" d="M12 30 C 28 8, 40 38, 56 24 S 84 10, 96 26 S 122 40, 138 20 S 168 14, 188 26"/></svg>
+            </div>
+            <div class="sigok">✓ נחתם · נשלח למייל · הרכב עודכן</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 5: AGENT — chat in phone -->
+  <div class="scene" id="s5">
+    <div class="split">
+      <div class="txt rise d1">
+        <div class="h-m">סוכן AI שמבצע לבד.<br><span class="grad">פשוט אומרים לו.</span></div>
+      </div>
+      <div class="phone rise d2">
+        <div class="screen">
+          <div class="appbar"><span>הסוכן החכם</span><span style="font-weight:400;font-size:.6rem">מקוון</span></div>
+          <div class="body-app">
+            <div class="cbub me c1">תוסיף את רכב 12-345-67 לצי</div>
+            <div class="cbub bot c2">נוסף ✓ משכתי יצרן, דגם ותוקף רישוי ממאגר הרישוי הממשלתי</div>
+            <div class="cbub me c3">דנה קיבלה רכב חדש במקום הישן</div>
+            <div class="cbub bot c4">בוצע ✓ הישן הועבר להחזרות, הפרטים והמסמכים עברו לרכב החדש</div>
+            <div class="cbub bot c5">קבעתי ביקורת בטיחות בעוד חצי שנה ותזכורת טיפול ב-15,000 ק"מ</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 6: MARKET -->
+  <div class="scene" id="s6">
     <div class="cnt-wrap">
-      <div class="cnt-row rise d1"><div class="cnt" data-to="3500">0</div><div class="cnt-cap">קציני בטיחות בתעבורה בישראל</div></div>
-      <div class="cnt-row rise d2"><div class="cnt" data-to="2000">0</div><div class="cnt-cap">חברות עם ציי רכב מנוהלים</div></div>
-      <div class="cnt-row rise d3"><div class="cnt" data-to="400000">0</div><div class="cnt-cap">רכבי צי וליסינג על הכביש</div></div>
+      <div class="rise d1" style="text-align:center"><div class="cnt" data-to="3500">0</div><div class="cnt-cap">קציני בטיחות בתעבורה בישראל</div></div>
+      <div class="rise d2" style="text-align:center"><div class="cnt" data-to="2000">0</div><div class="cnt-cap">חברות עם ציי רכב מנוהלים</div></div>
+      <div class="rise d3" style="text-align:center"><div class="cnt" data-to="400000">0</div><div class="cnt-cap">רכבי צי וליסינג על הכביש</div></div>
     </div>
   </div>
 
   <!-- 7: PROOF -->
-  <div class="scene bg-green" id="s7">
-    <div class="big-emoji rise d1 drift">🦺</div>
-    <div class="h-l rise d2">נבנה בשטח, על ידי קצין בטיחות,<br><span class="grad">בשביל קציני בטיחות.</span></div>
+  <div class="scene" id="s7">
+    <div class="col">
+      <svg class="shield rise d1" viewBox="0 0 64 64"><defs><linearGradient id="sg2" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4ade80"/><stop offset="1" stop-color="#059669"/></linearGradient></defs><path fill="url(#sg2)" d="M32 4 54 12v16c0 14.6-9.4 26.4-22 32C19.4 54.4 10 42.6 10 28V12z"/><path fill="none" stroke="#fff" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" d="M21 32l8 8 14-16"/></svg>
+      <div class="h-m rise d2" style="margin-top:16px">נבנה בשטח, על ידי קצין בטיחות,<br><span class="grad">בשביל קציני בטיחות.</span></div>
+    </div>
   </div>
 
   <!-- 8: CTA -->
-  <div class="scene bg-green" id="s8">
-    <div class="h-xl rise d1">הצי מנוהל.<br><span class="grad">אתה רגוע.</span></div>
-    <a class="cta-btn rise d2 pulse" href="promo.html"><span style="color:#86efac">ר.מ</span>זור — התחל עכשיו</a>
-    <div class="sub rise d3">📱 054-2840258</div>
+  <div class="scene" id="s8">
+    <div class="col">
+      <div class="h-xl rise d1">הצי מנוהל.<br><span class="grad">אתה רגוע.</span></div>
+      <a class="cta-btn rise d2 pulse" href="promo.html"><span style="color:#86efac">ר.מ</span>זור — לתיאום הדגמה</a>
+      <div class="sub rise d3" style="margin-top:14px">054-2840258</div>
+    </div>
   </div>
 
 </div>
 
 <script>
-// scene narration = pre-recorded neural Hebrew voice files; scene length follows the audio
 const SCENES = [
-  { id:'s1', dur:5500,  audio:'audio/ad1.mp3' },
-  { id:'s2', dur:11700, audio:'audio/ad2.mp3' },
-  { id:'s3', dur:9200,  audio:'audio/ad3.mp3' },
-  { id:'s4', dur:15400, audio:'audio/ad4.mp3' },
-  { id:'s5', dur:16700, audio:'audio/ad5.mp3' },
-  { id:'s6', dur:13000, audio:'audio/ad6.mp3' },
-  { id:'s7', dur:9200,  audio:'audio/ad7.mp3' },
-  { id:'s8', dur:8900,  audio:'audio/ad8.mp3' }
+  { id:'s1', dur:4600,  audio:'audio/ad1.mp3' },
+  { id:'s2', dur:9100,  audio:'audio/ad2.mp3' },
+  { id:'s3', dur:7300,  audio:'audio/ad3.mp3' },
+  { id:'s4', dur:12200, audio:'audio/ad4.mp3' },
+  { id:'s5', dur:12900, audio:'audio/ad5.mp3' },
+  { id:'s6', dur:10200, audio:'audio/ad6.mp3' },
+  { id:'s7', dur:7100,  audio:'audio/ad7.mp3' },
+  { id:'s8', dur:7100,  audio:'audio/ad8.mp3' }
 ];
-const players = SCENES.map(s => { const a = new Audio(s.audio); a.preload = 'auto'; return a; });
+const players = SCENES.map(s => { const a = new Audio(s.audio); a.preload='auto'; return a; });
 function sceneDur(i){
   const a = players[i];
-  return (a && a.duration && isFinite(a.duration)) ? Math.round(a.duration*1000) + 900 : SCENES[i].dur;
+  return (a && a.duration && isFinite(a.duration)) ? Math.round(a.duration*1000)+900 : SCENES[i].dur;
 }
-let idx=-1, elapsed=0, timer=null, subTimers=[], muted=false, started=false;
-let AC=null;
+let idx=-1, elapsed=0, timer=null, subTimers=[], muted=false, started=false, AC=null;
 
-/* ---------- audio ---------- */
-function initAudio(){
-  try{ AC = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){}
-}
+function initAudio(){ try{ AC = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} }
 function stopAllVoice(){ players.forEach(a => { a.pause(); a.currentTime = 0; }); }
 function whoosh(){
   if(!AC||muted) return;
@@ -186,64 +298,37 @@ function whoosh(){
   const buf=AC.createBuffer(1,AC.sampleRate*dur,AC.sampleRate), d=buf.getChannelData(0);
   for(let i=0;i<d.length;i++) d[i]=(Math.random()*2-1)*(1-i/d.length);
   const src=AC.createBufferSource(); src.buffer=buf;
-  const f=AC.createBiquadFilter(); f.type='bandpass'; f.frequency.setValueAtTime(300,t); f.frequency.exponentialRampToValueAtTime(1400,t+dur);
-  const g=AC.createGain(); g.gain.setValueAtTime(.18,t); g.gain.exponentialRampToValueAtTime(.001,t+dur);
+  const f=AC.createBiquadFilter(); f.type='bandpass'; f.frequency.setValueAtTime(280,t); f.frequency.exponentialRampToValueAtTime(1200,t+dur);
+  const g=AC.createGain(); g.gain.setValueAtTime(.12,t); g.gain.exponentialRampToValueAtTime(.001,t+dur);
   src.connect(f).connect(g).connect(AC.destination); src.start();
 }
-function chime(freq){
-  if(!AC||muted) return;
-  const t=AC.currentTime;
-  const o=AC.createOscillator(); o.type='sine'; o.frequency.value=freq||660;
-  const g=AC.createGain(); g.gain.setValueAtTime(.12,t); g.gain.exponentialRampToValueAtTime(.001,t+.7);
-  o.connect(g).connect(AC.destination); o.start(t); o.stop(t+.75);
-}
-function narrate(i){
-  stopAllVoice();
-  if(muted) return;
-  players[i].play().catch(()=>{});
-}
+function narrate(i){ stopAllVoice(); if(!muted) players[i].play().catch(()=>{}); }
 function toggleMute(e){
   e.stopPropagation();
   muted=!muted;
   document.getElementById('mute').textContent = muted?'🔇':'🔊';
-  if(muted) stopAllVoice();
-  else if(idx>=0) players[idx].play().catch(()=>{});
+  if(muted) stopAllVoice(); else if(idx>=0) players[idx].play().catch(()=>{});
 }
 
-/* ---------- scenes ---------- */
 function clearSub(){ subTimers.forEach(clearTimeout); subTimers=[]; }
 function show(i){
   clearSub();
   document.querySelectorAll('.scene').forEach(s=>s.classList.remove('on'));
   const sc=document.getElementById(SCENES[i].id);
-  sc.querySelectorAll('.rise,.bub').forEach(el=>{el.style.animation='none';void el.offsetWidth;el.style.animation='';});
+  sc.querySelectorAll('.rise,.arow,.cbub,.sigpath,.box,.sigok,.glitch,.err-stamp span').forEach(el=>{el.style.animation='none';void el.offsetWidth;el.style.animation='';});
   sc.classList.add('on');
   whoosh();
   narrate(i);
 
-  // sequential lines (pain/features) — spread evenly across the narration length
-  const lines=sc.querySelectorAll('.pain-line');
-  if(lines.length){
-    lines.forEach(l=>l.classList.remove('show'));
-    const D = sceneDur(i) - 900;
-    lines.forEach((l,k)=>{
-      subTimers.push(setTimeout(()=>{
-        lines.forEach(x=>x.classList.remove('show'));
-        l.classList.add('show'); chime(720);
-      }, Math.round(k*D/lines.length)+150));
-    });
-  }
-  // traffic light sequence
   if(SCENES[i].id==='s3'){
     const r=document.getElementById('li-r'),y=document.getElementById('li-y'),g=document.getElementById('li-g');
     [r,y,g].forEach(x=>x.classList.remove('on2'));
-    subTimers.push(setTimeout(()=>{r.classList.add('on2');chime(440);},600));
-    subTimers.push(setTimeout(()=>{y.classList.add('on2');chime(550);},1600));
-    subTimers.push(setTimeout(()=>{g.classList.add('on2');chime(880);},2600));
+    subTimers.push(setTimeout(()=>r.classList.add('on2'),700));
+    subTimers.push(setTimeout(()=>y.classList.add('on2'),1700));
+    subTimers.push(setTimeout(()=>g.classList.add('on2'),2700));
   }
-  // counters
   sc.querySelectorAll('.cnt').forEach(c=>{
-    const to=parseInt(c.dataset.to), t0=performance.now(), dur=2200;
+    const to=parseInt(c.dataset.to), t0=performance.now(), dur=2400;
     function tick(now){
       const p=Math.min(1,(now-t0)/dur), v=Math.round(to*(1-Math.pow(1-p,3)));
       c.textContent=v.toLocaleString()+(p===1?'+':'');
@@ -261,7 +346,7 @@ function next(){
 setInterval(()=>{
   if(idx<0)return;
   elapsed+=300;
-  const tot = SCENES.reduce((a,_,j)=>a+sceneDur(j),0);
+  const tot=SCENES.reduce((a,_,j)=>a+sceneDur(j),0);
   document.getElementById('bar').style.width=Math.min(100,elapsed/tot*100)+'%';
 },300);
 
