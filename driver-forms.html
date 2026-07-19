@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>נופר אנרגיה — טפסי קבלת רכב</title>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;600;700;900&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Heebo',sans-serif;background:#f0f4f8;color:#1e293b;padding:14px;max-width:640px;margin:0 auto;font-size:0.9rem}
+.hdr{background:linear-gradient(135deg,#1e3a8a,#2563eb);color:#fff;border-radius:14px;padding:16px;text-align:center;margin-bottom:14px}
+.hdr h1{font-size:1.15rem;font-weight:900}
+.hdr .sub{font-size:0.78rem;opacity:.9;margin-top:4px}
+.card{background:#fff;border:1.5px solid #dde3ed;border-radius:14px;margin-bottom:14px;overflow:hidden;box-shadow:0 1px 5px rgba(0,0,0,.05)}
+.card-hdr{background:#f8fafc;padding:10px 14px;font-weight:800;font-size:0.9rem;border-bottom:1px solid #e2e8f0}
+.card-body{padding:12px 14px}
+.clause{font-size:0.8rem;line-height:1.55;margin-bottom:8px;color:#334155}
+.frow{margin-bottom:10px}
+.frow label{display:block;font-size:0.75rem;font-weight:700;color:#475569;margin-bottom:3px}
+.frow input,.frow select{width:100%;border:1.5px solid #dde3ed;border-radius:9px;padding:9px 10px;font-family:'Heebo',sans-serif;font-size:0.9rem;background:#fff}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.agree{display:flex;align-items:flex-start;gap:9px;background:#eff6ff;border:1.5px solid #bfdbfe;border-radius:10px;padding:10px;margin-top:10px;cursor:pointer}
+.agree input{width:20px;height:20px;flex-shrink:0;margin-top:1px}
+.agree span{font-size:0.82rem;font-weight:700;color:#1e40af}
+.btn{border:none;border-radius:11px;padding:13px;font-family:'Heebo',sans-serif;font-size:1rem;font-weight:800;cursor:pointer;width:100%}
+.btn-green{background:#059669;color:#fff}
+.btn-gray{background:#e2e8f0;color:#334155;font-size:0.8rem;padding:7px;width:auto}
+canvas.sig{width:100%;height:130px;border:1.5px dashed #94a3b8;border-radius:10px;background:#fff;touch-action:none}
+.veh-box{background:#f0fdf4;border:1.5px solid #86efac;border-radius:10px;padding:10px;font-size:0.85rem;margin-bottom:10px}
+.err{color:#dc2626;font-size:0.8rem;font-weight:700;margin-top:8px;display:none}
+#done{display:none;text-align:center;padding:40px 16px}
+#done .big{font-size:3rem}
+.toggle-extra{background:none;border:1.5px dashed #94a3b8;border-radius:10px;padding:9px;width:100%;font-family:'Heebo',sans-serif;font-size:0.82rem;color:#475569;cursor:pointer}
+</style>
+</head>
+<body>
+
+<div id="form-wrap">
+  <div class="hdr">
+    <h1>🚗 נופר אנרגיה — טפסי קבלת רכב</h1>
+    <div class="sub">הצהרות והתחייבויות מחזיק/ת רכב חברה | מחלקת הרכב</div>
+  </div>
+
+  <div class="veh-box" id="veh-box">טוען פרטי רכב...</div>
+
+  <!-- פרטי העובד -->
+  <div class="card">
+    <div class="card-hdr">👤 פרטי העובד/ת</div>
+    <div class="card-body">
+      <div class="grid2">
+        <div class="frow"><label>שם מלא *</label><input id="f-name"></div>
+        <div class="frow"><label>תעודת זהות *</label><input id="f-id" inputmode="numeric"></div>
+        <div class="frow"><label>טלפון *</label><input id="f-phone" inputmode="tel"></div>
+        <div class="frow"><label>מס' רישיון נהיגה</label><input id="f-lic" inputmode="numeric"></div>
+        <div class="frow"><label>ק"מ נוכחי ברכב</label><input id="f-km" inputmode="numeric"></div>
+        <div class="frow"><label>כתובת עדכנית</label><input id="f-address"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- הצהרה והתחייבות מחזיק ברכב -->
+  <div class="card">
+    <div class="card-hdr">📄 הצהרה והתחייבות מחזיק/ה ברכב</div>
+    <div class="card-body">
+      <div class="clause">1. הריני מאשר/ת כי קראתי את נהלי הרכב, האחזקה והשימוש ברכב, הבנתי אותם ומתחייב/ת לפעול על פי הכתוב.</div>
+      <div class="clause">2. הנני מתחייב/ת לשלם לחברה כל סכום שיגיע לה ממני בהקשר רכב החברה שהועמד לרשותי (לרבות בהתאם לנוהל שימוש ברכב חברה), ונותן/ת בזאת לחברה הרשאה לנכות משכרי כל סכום כאמור. התחייבותי זאת לשיפוי החברה תעמוד בתוקפה גם לאחר החזרת הרכב לחברה או סיום העסקתי בחברה מכל סיבה שהיא, ובלבד שתאריך הדו"ח תקף לתקופה שהרכב היה באחריותי.</div>
+      <div class="clause">3. אני מצהיר/ה בזאת שלא נתגלו אצלי, למיטב ידיעתי, מגבלות במערכת העצבים, הראיה או השמיעה, ומצב בריאותי הנוכחי כשיר לנהיגה.</div>
+      <div class="clause">4. אני מצהיר/ה בזאת כי לא נפסלתי מלקבל רישיון נהיגה או מלהחזיק בו ע"י רשות מוסמכת, ידוע לי ואני נותן/ת את הסכמתי לבצע בדיקה במשרד התחבורה לנושא רישיון הנהיגה.</div>
+      <div class="clause">5. אני מצהיר/ה בזאת כי לא נפתח לי תיק פלילי.</div>
+      <div class="clause">6. אני מצהיר/ה בזאת כי לא חל שינוי במצב בריאותי בשנתיים האחרונות. כמו כן, במידה ויחולו שינויים במצב בריאותי או של מי מבני משפחתי שנוהגים ברכב בעתיד, או ישונה תוקף רישיון הנהיגה — אדווח מיידית לממונה עליי ולקצין הבטיחות בתעבורה.</div>
+      <div class="clause">7. אינני צורך/ת סמים או אלכוהול מעבר לכמות המותרת על פי דין.</div>
+      <div class="clause">8. הנני מאשר/ת כי קיבלתי הדרכה בתפעול הרכב על פי תקנה 25 ואני בקיא/ה בהפעלתו.</div>
+      <label class="agree"><input type="checkbox" id="agree1"><span>קראתי, הבנתי ואני מאשר/ת את כל האמור לעיל</span></label>
+    </div>
+  </div>
+
+  <!-- אחריות אישית בגין עבירות -->
+  <div class="card">
+    <div class="card-hdr">🚔 אישור מחזיק/ת הרכב — אחריות אישית בגין עבירות</div>
+    <div class="card-body">
+      <div class="clause">1. החל ממועד קבלת הרכב לחזקתי, אשא באופן אישי ובלעדי בכל תוצאה הנובעת מעבירות תנועה ותעבורה שבוצעו ברכב, ולכן אני פוטר/ת את החברה מכל אחריות בקשר לכך.</div>
+      <div class="clause">2. הנני מתחייב/ת לדווח על כל דו"ח או עבירה שקיבלתי בזמן שהרכב היה ברשותי, מתחייב/ת לטפל בדו"ח במיידי ועל חשבוני. דו"חות שיגיעו לחברה יוסבו על שמי, ואשתף פעולה עם החברה לשם כך ככל שיידרש.</div>
+      <div class="clause">3. התחייבויותיי אלו יחולו בין אם הרכב ברשותי או בשליטתי בעת ביצוע העבירה המיוחסת ובין אם לא, אלא אם הוכחתי אחרת לחברה לשביעות רצונה.</div>
+      <div class="clause">4. הנני מייפה את כוחה של החברה להודיע לכל רשות וערכאה על דבר אחריותי דלעיל, ולבקש לייחס לי כל דו"ח או עבירה שהגיעה למשרדי החברה.</div>
+      <div class="clause">5. החברה תפעל בזמן קבלת דו"חות מכל ערכאה: א. תסב על שמי כל דו"ח שיגיע לחברה, ורק שהרכב רשום על שמי. ב. במידה ולא מועסק בחברה או הרכב הוחזר מכל סיבה שהיא — החברה תסב את הדו"ח על שמי במידה והתאריך תואם לתאריכים שהרכב היה ברשותי.</div>
+      <div class="clause">6. הריני מתחייב/ת לעדכן את החברה על שינוי בכתובתי הנזכרת לעיל, ואשא בכל האחריות במידה ולא אעשה כך.</div>
+      <div class="clause">7. התחייבות זו תעמוד בתוקפה גם לאחר סיום עבודתי בחברה, ובלבד שהרכב היה בחזקתי או בשליטתי.</div>
+      <div class="clause" style="font-weight:700">אישור זה נחתם לאחר שביררתי את כל זכויותיי, והם עונים לצרכיי.</div>
+      <label class="agree"><input type="checkbox" id="agree2"><span>קראתי, הבנתי ואני מאשר/ת את כל האמור לעיל</span></label>
+    </div>
+  </div>
+
+  <!-- שימוש בני משפחה -->
+  <div class="card">
+    <div class="card-hdr">👨‍👩‍👧 הצהרה בדבר שימוש בני משפחה ברכב</div>
+    <div class="card-body">
+      <div class="clause">אני מצהיר/ה כי ידוע לי שעל פי נהלי החברה, המורשים לנהוג ברכב החברה הם בני משפחתי מקרבה ראשונה המתגוררים עימי תחת אותה קורת גג, אלא אם כן יינתן אישור מיוחד מהגורמים הרלוונטיים בחברה וקיים הסדר ביטוחי בהתאם לנהג הנוסף.</div>
+      <div class="clause">אני מאשר/ת בזאת שבריאותם של כל הנוהגים ברכב שברשותי ובהסכמתי תקינה, הם בעלי רישיון נהיגה מתאים בתוקף והם לא נפסלו ע"י כל גורם מוסמך מלהחזיק ברישיון הנהיגה. אני מתחייב/ת להודיע למנהל/ת מחלקת הרכב על כל שינוי במצב המשפחתי.</div>
+      <div class="clause">הנני מצהיר/ה שהאחריות על הרכב היא באחריותי המלאה והבלעדית עד להחזרתו לחברה, והאחריות הבלעדית להדרכה על הכרת הרכב לנהג/ת הנוסף/ת היא שלי. ידוע לי שאם לא אעמוד בהנחיות, החברה עלולה לשלול ממני את הזכות לקבלת הרכב.</div>
+      <label class="agree"><input type="checkbox" id="agree3"><span>קראתי, הבנתי ואני מאשר/ת את כל האמור לעיל</span></label>
+
+      <div style="margin-top:12px">
+        <button class="toggle-extra" id="extra-toggle" onclick="toggleExtra()">➕ יש נהג/ת נוסף/ת מבני המשפחה? לחץ להוספת הצהרת בריאות עבורו/ה</button>
+        <div id="extra-driver" style="display:none;margin-top:10px;border-top:1px dashed #cbd5e1;padding-top:10px">
+          <div style="font-weight:800;font-size:0.85rem;margin-bottom:8px">הצהרת בריאות של הנהג/ת הנוסף/ת</div>
+          <div class="grid2">
+            <div class="frow"><label>שם מלא</label><input id="x-name"></div>
+            <div class="frow"><label>ת.ז</label><input id="x-id" inputmode="numeric"></div>
+            <div class="frow"><label>מס' רישיון נהיגה</label><input id="x-lic" inputmode="numeric"></div>
+            <div class="frow"><label>קרבה לעובד</label><input id="x-rel" placeholder="בן/בת זוג, בן/בת..."></div>
+          </div>
+          <div class="clause">הנהג/ת הנוסף/ת מצהיר/ה: לא התגלו אצלי למיטב ידיעתי מגבלות בריאותיות, מגבלות במערכת העצבים, הראיה והשמיעה, ומצב בריאותי הנוכחי כשיר לנהיגה. ידוע לי שעל פי תקנה 26/2 לתקנות התעבורה אינני רשאי/ת לנהוג תחת השפעת אלכוהול/סמים. לא נפסלתי מלקבל רישיון נהיגה או מלהחזיק בו ע"י בית משפט / רשות הרישוי / קצין משטרה או כל גורם מוסמך אחר. במידה ויוטלו הגבלות על רישיוני או יחול שינוי במצב בריאותי באופן המונע נהיגה — אדווח מיידית לקצין הרכב.</div>
+          <label class="agree"><input type="checkbox" id="agreeX"><span>הנהג/ת הנוסף/ת קרא/ה ומאשר/ת את הצהרת הבריאות</span></label>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- חתימה -->
+  <div class="card">
+    <div class="card-hdr" style="display:flex;justify-content:space-between;align-items:center">✍️ חתימת העובד/ת
+      <button class="btn btn-gray" onclick="clearSig()">🗑️ נקה</button>
+    </div>
+    <div class="card-body">
+      <div class="clause" style="font-weight:700">הנני מצהיר/ה בזאת כי כל הצהרותיי לעיל אמת.</div>
+      <canvas id="sig" class="sig" width="560" height="170"></canvas>
+      <div style="font-size:0.7rem;color:#64748b;margin-top:4px">חתום/חתמי עם האצבע</div>
+    </div>
+  </div>
+
+  <div class="err" id="err"></div>
+  <button class="btn btn-green" id="submit-btn" onclick="submitForms()">✅ אישור ושליחת הטפסים</button>
+  <div style="height:30px"></div>
+</div>
+
+<div id="done">
+  <div class="big">✅</div>
+  <h2 style="margin:10px 0 6px">הטפסים נשלחו בהצלחה!</h2>
+  <p style="color:#64748b;font-size:0.9rem">ההצהרות נקלטו במערכת מחלקת הרכב.<br>נסיעה בטוחה! 🚗</p>
+</div>
+
+<script>
+firebase.initializeApp({
+  apiKey: "AIzaSyDW6mzShTVBgHH-c5f0hb7FvIRophpgp78",
+  authDomain: "niholrechev.firebaseapp.com",
+  projectId: "niholrechev",
+  storageBucket: "niholrechev.firebasestorage.app",
+  messagingSenderId: "347809967171",
+  appId: "1:347809967171:web:af3eb5cdeefc827b41f8f6"
+});
+const db = firebase.firestore();
+const params = new URLSearchParams(location.search);
+const PLATE = (params.get('plate') || '').trim();
+let VEH = null, MAIL = {};
+
+(async function init() {
+  try {
+    const snap = await db.collection('fleet').doc('main').get();
+    const d = snap.data() || {};
+    MAIL = d.mailSettings || {};
+    VEH = (d.vehicles || []).find(v => (v.plate||'').replace(/\D/g,'') === PLATE.replace(/\D/g,''));
+    const box = document.getElementById('veh-box');
+    if (VEH) {
+      box.innerHTML = `🚗 <b>${VEH.make||''} ${VEH.model||''}</b> | מספר רכב: <b dir="ltr">${VEH.plate}</b> | חברה: ${VEH.company||''}`;
+      const nm = (VEH.driverName||'').split('-')[0].trim();
+      if (nm) document.getElementById('f-name').value = nm;
+      if (VEH.currentKm && VEH.currentKm !== '0') document.getElementById('f-km').value = VEH.currentKm;
+    } else {
+      box.innerHTML = PLATE ? `🚗 מספר רכב: <b dir="ltr">${PLATE}</b>` : '🚗 טפסי קבלת רכב';
+    }
+  } catch(e) { document.getElementById('veh-box').textContent = '🚗 טפסי קבלת רכב'; }
+})();
+
+// signature pad
+let sigDrawn = false;
+(function () {
+  const c = document.getElementById('sig');
+  const ctx = c.getContext('2d');
+  ctx.lineWidth = 2.5; ctx.lineCap = 'round'; ctx.strokeStyle = '#1e293b';
+  let drawing = false;
+  const pos = e => { const r = c.getBoundingClientRect(); return { x:(e.clientX-r.left)*(c.width/r.width), y:(e.clientY-r.top)*(c.height/r.height) }; };
+  c.addEventListener('pointerdown', e => { drawing = true; sigDrawn = true; const p = pos(e); ctx.beginPath(); ctx.moveTo(p.x,p.y); c.setPointerCapture(e.pointerId); e.preventDefault(); });
+  c.addEventListener('pointermove', e => { if(!drawing) return; const p = pos(e); ctx.lineTo(p.x,p.y); ctx.stroke(); e.preventDefault(); });
+  c.addEventListener('pointerup', () => drawing = false);
+  c.addEventListener('pointercancel', () => drawing = false);
+})();
+function clearSig() { const c = document.getElementById('sig'); c.getContext('2d').clearRect(0,0,c.width,c.height); sigDrawn = false; }
+function toggleExtra() {
+  const el = document.getElementById('extra-driver');
+  const open = el.style.display !== 'none';
+  el.style.display = open ? 'none' : 'block';
+  document.getElementById('extra-toggle').textContent = open ? '➕ יש נהג/ת נוסף/ת מבני המשפחה? לחץ להוספת הצהרת בריאות עבורו/ה' : '➖ הסתר נהג/ת נוסף/ת';
+}
+
+function buildSummaryText(r) {
+  const L = [];
+  L.push(`טפסי קבלת רכב — נופר אנרגיה`);
+  L.push(`תאריך: ${r.dateStr}`);
+  L.push(`רכב: ${r.model||''} | מספר: ${r.plate||''}`);
+  L.push('');
+  L.push(`עובד/ת: ${r.name} | ת.ז: ${r.idNum} | טלפון: ${r.phone||'-'}`);
+  L.push(`רישיון נהיגה: ${r.licNum||'-'} | כתובת: ${r.address||'-'} | ק"מ: ${r.km||'-'}`);
+  L.push('');
+  L.push('✓ הצהרה והתחייבות מחזיק/ה ברכב — אושר');
+  L.push('✓ אישור אחריות אישית בגין עבירות — אושר');
+  L.push('✓ הצהרת שימוש בני משפחה — אושר');
+  if (r.extraDriver) {
+    L.push('');
+    L.push(`נהג/ת נוסף/ת: ${r.extraDriver.name} | ת.ז: ${r.extraDriver.idNum} | רישיון: ${r.extraDriver.licNum||'-'} | קרבה: ${r.extraDriver.relation||'-'}`);
+    L.push('✓ הצהרת בריאות נהג/ת נוסף/ת — אושרה');
+  }
+  L.push('');
+  L.push('נחתם דיגיטלית ✍');
+  return L.join('\n');
+}
+
+async function submitForms() {
+  const err = document.getElementById('err');
+  const val = id => document.getElementById(id).value.trim();
+  const chk = id => document.getElementById(id).checked;
+  err.style.display = 'none';
+  const fail = m => { err.textContent = m; err.style.display = 'block'; window.scrollTo({top: document.body.scrollHeight, behavior: 'smooth'}); };
+  if (!val('f-name')) return fail('נא למלא שם מלא');
+  if (!val('f-id')) return fail('נא למלא תעודת זהות');
+  if (!val('f-phone')) return fail('נא למלא טלפון');
+  if (!chk('agree1') || !chk('agree2') || !chk('agree3')) return fail('יש לאשר את כל שלוש ההצהרות (סמן ✔ בכל סעיף)');
+  const extraOpen = document.getElementById('extra-driver').style.display !== 'none';
+  if (extraOpen && val('x-name') && !chk('agreeX')) return fail('יש לאשר את הצהרת הבריאות של הנהג/ת הנוסף/ת');
+  if (!sigDrawn) return fail('חסרה חתימה — חתום/חתמי בריבוע');
+
+  const btn = document.getElementById('submit-btn');
+  btn.disabled = true; btn.textContent = 'שולח...';
+  const now = new Date();
+  const p2 = n => String(n).padStart(2,'0');
+  const today = `${p2(now.getDate())}/${p2(now.getMonth()+1)}/${now.getFullYear()}`;
+  const rec = {
+    type: 'declaration',
+    created: Date.now(),
+    dateStr: `${today} ${p2(now.getHours())}:${p2(now.getMinutes())}`,
+    plate: (VEH && VEH.plate) || PLATE,
+    model: VEH ? `${VEH.make||''} ${VEH.model||''}`.trim() : '',
+    name: val('f-name'), idNum: val('f-id'), phone: val('f-phone'),
+    licNum: val('f-lic'), address: val('f-address'), km: val('f-km'),
+    agreed: { holder: true, violations: true, family: true },
+    extraDriver: (extraOpen && val('x-name')) ? { name: val('x-name'), idNum: val('x-id'), licNum: val('x-lic'), relation: val('x-rel'), healthApproved: chk('agreeX') } : null,
+    signature: document.getElementById('sig').toDataURL('image/png')
+  };
+  try {
+    // 1. save the declaration
+    await db.collection('fleet').doc('decl_' + rec.created).set(rec);
+    // 2. auto-update the vehicle: procedures date (+ current km if given)
+    const snap = await db.collection('fleet').doc('main').get();
+    const vehicles = (snap.data() || {}).vehicles || [];
+    const v = vehicles.find(x => (x.plate||'').replace(/\D/g,'') === (rec.plate||'').replace(/\D/g,''));
+    if (v) {
+      v.procedures = today;
+      if (rec.km) v.currentKm = rec.km;
+      await db.collection('fleet').doc('main').set({ vehicles }, { merge: true });
+    }
+    // 3. best-effort email copy to the fleet manager
+    if (MAIL.gasUrl) {
+      try {
+        await fetch(MAIL.gasUrl, { method:'POST', mode:'no-cors', headers:{'Content-Type':'text/plain'},
+          body: JSON.stringify({ subject: `טפסי קבלת רכב — ${rec.name} (${rec.plate})`, body: buildSummaryText(rec), files: [{ base64: rec.signature.split(',')[1], mimeType: 'image/png', filename: `חתימה ${rec.name}.png` }] }) });
+      } catch(e) {}
+    }
+    document.getElementById('form-wrap').style.display = 'none';
+    document.getElementById('done').style.display = 'block';
+    window.scrollTo(0,0);
+  } catch(e) {
+    btn.disabled = false; btn.textContent = '✅ אישור ושליחת הטפסים';
+    fail('שגיאה בשליחה — בדוק חיבור לאינטרנט ונסה שוב');
+  }
+}
+</script>
+</body>
+</html>
