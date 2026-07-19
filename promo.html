@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FleetSmart — ניהול צי רכב חכם</title>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;600;800;900&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Heebo',sans-serif;background:#0b1120;color:#e2e8f0;overflow-x:hidden}
+.wrap{max-width:1100px;margin:0 auto;padding:0 22px}
+
+/* HERO */
+.hero{position:relative;padding:70px 0 60px;text-align:center;background:
+  radial-gradient(ellipse 80% 60% at 50% -10%,rgba(37,99,235,.35),transparent),
+  radial-gradient(ellipse 40% 40% at 85% 20%,rgba(5,150,105,.25),transparent)}
+.badge-top{display:inline-block;background:rgba(37,99,235,.15);border:1px solid rgba(96,165,250,.4);color:#93c5fd;border-radius:999px;padding:7px 18px;font-size:0.85rem;font-weight:600;margin-bottom:22px}
+.hero h1{font-size:clamp(2.2rem,6vw,3.8rem);font-weight:900;line-height:1.15;background:linear-gradient(135deg,#fff 30%,#93c5fd);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.hero h1 .green{background:linear-gradient(135deg,#4ade80,#059669);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.hero p.sub{font-size:clamp(1rem,2.5vw,1.25rem);color:#94a3b8;max-width:640px;margin:18px auto 0;line-height:1.6}
+.cta-row{display:flex;gap:14px;justify-content:center;margin-top:32px;flex-wrap:wrap}
+.btn{border:none;border-radius:14px;padding:15px 34px;font-family:'Heebo',sans-serif;font-size:1.05rem;font-weight:800;cursor:pointer;text-decoration:none;display:inline-block}
+.btn-main{background:linear-gradient(135deg,#2563eb,#4f46e5);color:#fff;box-shadow:0 8px 30px rgba(37,99,235,.45)}
+.btn-ghost{background:transparent;color:#e2e8f0;border:1.5px solid #334155}
+
+/* mock dashboard */
+.mock{margin:52px auto 0;max-width:760px;background:#0f172a;border:1px solid #1e293b;border-radius:20px;padding:18px;box-shadow:0 30px 80px rgba(0,0,0,.5);text-align:right}
+.mock-bar{display:flex;gap:6px;margin-bottom:14px}
+.mock-bar span{width:10px;height:10px;border-radius:50%;background:#334155}
+.mock-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+.mock-tile{background:#1e293b;border-radius:12px;padding:14px 12px}
+.mock-tile .n{font-size:1.5rem;font-weight:900}
+.mock-tile .l{font-size:0.7rem;color:#94a3b8;margin-top:2px}
+.mock-rows{margin-top:12px;display:flex;flex-direction:column;gap:7px}
+.mock-row{display:flex;justify-content:space-between;align-items:center;background:#16213a;border-radius:9px;padding:9px 13px;font-size:0.78rem}
+.pill{border-radius:999px;padding:2px 11px;font-size:0.7rem;font-weight:700}
+.pill.r{background:rgba(239,68,68,.15);color:#fca5a5}
+.pill.o{background:rgba(245,158,11,.15);color:#fcd34d}
+.pill.g{background:rgba(34,197,94,.15);color:#86efac}
+@media(max-width:640px){.mock-grid{grid-template-columns:repeat(2,1fr)}}
+
+/* stats band */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;padding:56px 0}
+.stat{text-align:center}
+.stat .big{font-size:clamp(1.7rem,4vw,2.6rem);font-weight:900;background:linear-gradient(135deg,#4ade80,#22d3ee);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.stat .cap{color:#94a3b8;font-size:0.85rem;margin-top:6px;line-height:1.45}
+@media(max-width:700px){.stats{grid-template-columns:repeat(2,1fr)}}
+
+.sec-title{text-align:center;font-size:clamp(1.5rem,4vw,2.2rem);font-weight:900;margin-bottom:8px}
+.sec-sub{text-align:center;color:#94a3b8;margin-bottom:38px;font-size:1rem}
+
+/* features */
+.features{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;padding-bottom:60px}
+.feat{background:#0f172a;border:1px solid #1e293b;border-radius:16px;padding:22px;transition:transform .2s,border-color .2s}
+.feat:hover{transform:translateY(-4px);border-color:#2563eb}
+.feat .ic{font-size:1.9rem}
+.feat h3{font-size:1.02rem;font-weight:800;margin:10px 0 6px;color:#fff}
+.feat p{font-size:0.83rem;color:#94a3b8;line-height:1.55}
+
+/* audience */
+.aud-band{background:linear-gradient(180deg,#0d1526,#0b1120);padding:60px 0;border-top:1px solid #1e293b;border-bottom:1px solid #1e293b}
+.auds{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:16px}
+.aud{background:#111c33;border:1px solid #24324f;border-radius:16px;padding:24px 20px}
+.aud .ic{font-size:2.1rem}
+.aud h3{font-size:1.05rem;font-weight:800;margin:10px 0 8px;color:#fff}
+.aud p{font-size:0.82rem;color:#94a3b8;line-height:1.6}
+.aud .pain{margin-top:10px;font-size:0.78rem;color:#4ade80;font-weight:700}
+
+/* steps */
+.steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;padding:60px 0}
+.step{text-align:center;padding:10px}
+.step .num{width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#2563eb,#4f46e5);color:#fff;font-weight:900;font-size:1.3rem;display:flex;align-items:center;justify-content:center;margin:0 auto 14px;box-shadow:0 6px 20px rgba(37,99,235,.4)}
+.step h3{font-size:1rem;font-weight:800;margin-bottom:6px}
+.step p{font-size:0.82rem;color:#94a3b8;line-height:1.55}
+
+/* footer cta */
+.final{background:linear-gradient(135deg,#1e3a8a,#312e81);border-radius:24px;text-align:center;padding:52px 26px;margin:20px auto 70px;position:relative;overflow:hidden}
+.final::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse 60% 80% at 70% 0%,rgba(74,222,128,.15),transparent)}
+.final h2{font-size:clamp(1.5rem,4.5vw,2.4rem);font-weight:900;color:#fff;position:relative}
+.final p{color:#c7d2fe;margin:12px 0 26px;position:relative;font-size:1rem}
+footer{color:#475569;text-align:center;font-size:0.75rem;padding-bottom:30px}
+</style>
+</head>
+<body>
+
+<section class="hero">
+  <div class="wrap">
+    <div class="badge-top">⚡ מערכת ניהול צי + סוכן AI — בטלפון ובמחשב</div>
+    <h1>כל הצי שלך.<br><span class="green">שליטה אחת.</span> אפס ניירת.</h1>
+    <p class="sub">FleetSmart מרכזת רכבים, נהגים, ביקורות בטיחות, נהלים חתומים, דוחות והתראות — במערכת אחת שעובדת לבד, כדי שאתה תנהל צי ולא ניירות.</p>
+    <div class="cta-row">
+      <a class="btn btn-main" href="#contact">התחל ניסיון חינם</a>
+      <a class="btn btn-ghost" href="#features">מה בפנים ←</a>
+    </div>
+
+    <div class="mock">
+      <div class="mock-bar"><span></span><span></span><span></span></div>
+      <div class="mock-grid">
+        <div class="mock-tile"><div class="n" style="color:#60a5fa">91</div><div class="l">רכבים בצי</div></div>
+        <div class="mock-tile"><div class="n" style="color:#f87171">4</div><div class="l">מסמכים שפגו</div></div>
+        <div class="mock-tile"><div class="n" style="color:#fbbf24">7</div><div class="l">טיפולים מתקרבים</div></div>
+        <div class="mock-tile"><div class="n" style="color:#4ade80">89%</div><div class="l">עדכנו ק"מ החודש</div></div>
+      </div>
+      <div class="mock-rows">
+        <div class="mock-row"><span>🚗 83945203 — מיצובישי אאוטלנדר</span><span class="pill r">ביטוח פג בעוד 4 ימים</span></div>
+        <div class="mock-row"><span>🔧 14104704 — צ'רי טיגו 7</span><span class="pill o">הגיע לטיפול 55,000</span></div>
+        <div class="mock-row"><span>✍️ יפתח ש. חתם על נוהלי רכב</span><span class="pill g">עודכן אוטומטית</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="wrap">
+  <div class="stats">
+    <div class="stat"><div class="big">20+</div><div class="cap">רכבים בצי? החוק מחייב קצין בטיחות בתעבורה — והוא צריך כלים</div></div>
+    <div class="stat"><div class="big">שעות</div><div class="cap">של אקסלים, טלפונים וניירת בשבוע — נחסכות באוטומציה</div></div>
+    <div class="stat"><div class="big">100%</div><div class="cap">דיגיטלי: ביקורות, חתימות ונהלים — מהשטח, בלי מדפסת</div></div>
+    <div class="stat"><div class="big">0</div><div class="cap">מסמכים שנופלים בין הכיסאות — הכל מתועד, מתוזכר ומגובה בענן</div></div>
+  </div>
+</div>
+
+<div class="wrap" id="features">
+  <h2 class="sec-title">מערכת אחת. <span style="color:#4ade80">הכל בפנים.</span></h2>
+  <p class="sec-sub">כל מה שמחלקת רכב עושה ביום-יום — הפך לאוטומטי</p>
+  <div class="features">
+    <div class="feat"><div class="ic">🔔</div><h3>התראות חכמות</h3><p>טסט, ביטוח, רישיון נהיגה, ביקורת בטיחות, עבר תעבורתי ונהלים — המערכת סופרת לאחור ומתריעה לפני שזה פג.</p></div>
+    <div class="feat"><div class="ic">🛡️</div><h3>ביקורת בטיחות בשטח</h3><p>צ'קליסט דיגיטלי מלא בטלפון: זיהוי נהג אוטומטי, חתימה באצבע, ו-PDF מסודר שנשלח למייל — ישר מהחניון.</p></div>
+    <div class="feat"><div class="ic">✍️</div><h3>נהלים בחתימה דיגיטלית</h3><p>שולחים לעובד קישור בוואטסאפ, הוא חותם בטלפון — והנהלים מתעדכנים ברכב אוטומטית, עם ארכיון PDF לתיק נהג.</p></div>
+    <div class="feat"><div class="ic">🛣️</div><h3>סבב ק"מ חודשי</h3><p>הנהגים מעדכנים קילומטראז' בקישור אחד, המערכת מצליבה מול טיפולים — ואתה רואה מי עדכן, מי לא, ומי צריך מוסך.</p></div>
+    <div class="feat"><div class="ic">🤖</div><h3>סוכן AI מובנה</h3><p>"תוסיף רכב 1234567", "מי צריך טסט החודש?" — הסוכן מבצע, מעדכן ומושך נתונים ממאגר הרישוי הממשלתי.</p></div>
+    <div class="feat"><div class="ic">💬</div><h3>בוט שירות לנהגים</h3><p>הנהגים שואלים את הבוט — תקלה, תדלוק, כביש 6, שטיפה — ואתה מפסיק לענות על אותה שאלה בפעם המאה.</p></div>
+    <div class="feat"><div class="ic">💥</div><h3>אירועים, דוחות ומוסכים</h3><p>תאונות, דוחות תנועה עם מעקב טיפול/הסבה, חשבוניות מוסך והחזרות רכב — היסטוריה מלאה לכל רכב.</p></div>
+    <div class="feat"><div class="ic">☁️</div><h3>ענן מסונכרן</h3><p>טלפון, טאבלט ומחשב — אותם נתונים, באותה שנייה. גיבוי אוטומטי, ייצוא לאקסל בלחיצה.</p></div>
+  </div>
+</div>
+
+<section class="aud-band">
+  <div class="wrap">
+    <h2 class="sec-title">למי זה בדיוק?</h2>
+    <p class="sec-sub">נבנה מהשטח, על ידי מי שמנהל צי באמת</p>
+    <div class="auds">
+      <div class="aud"><div class="ic">🦺</div><h3>קציני בטיחות בתעבורה</h3><p>אחריות אישית על עשרות רכבים, רגולציה צפופה, וביקורות שחייבות תיעוד. המערכת הופכת כל דרישת חוק לתהליך דיגיטלי מתועד.</p><div class="pain">✓ ביקורות חתומות + ארכיון אוטומטי</div></div>
+      <div class="aud"><div class="ic">🏢</div><h3>מנהלי מחלקות רכב</h3><p>עשרות נהגים, החלפות רכב, ליסינג מכמה חברות ואקסל שמתפרק. תמונת מצב אחת של כל הצי — בזמן אמת.</p><div class="pain">✓ שליטה מלאה בלי אקסלים</div></div>
+      <div class="aud"><div class="ic">🎧</div><h3>נציגי שירות בציי רכב</h3><p>הנהגים מתקשרים על כל דבר. הבוט עונה על השאלות החוזרות, והמערכת שולחת טפסים ותזכורות לבד.</p><div class="pain">✓ פחות שיחות, יותר שירות</div></div>
+      <div class="aud"><div class="ic">🚙</div><h3>מגרשים וסוכנויות</h3><p>עשרות כלי רכב במלאי מתחלף — טסטים, ביטוחים, מסירות והחזרות. מעקב מסודר לכל רכב מרגע הכניסה ועד המסירה.</p><div class="pain">✓ אפס רכבים עם טסט שפג</div></div>
+    </div>
+  </div>
+</section>
+
+<div class="wrap">
+  <div class="steps">
+    <div class="step"><div class="num">1</div><h3>מזינים את הצי</h3><p>מקלידים מספר רכב — הפרטים נמשכים אוטומטית ממאגר הרישוי הממשלתי.</p></div>
+    <div class="step"><div class="num">2</div><h3>המערכת עובדת</h3><p>התראות, טפסים, סבבי ק"מ ותזכורות — רצים לבד. אתה רק מאשר.</p></div>
+    <div class="step"><div class="num">3</div><h3>אתה בשליטה</h3><p>דשבורד אחד בטלפון: מי צריך טסט, מי חתם, מי בטיפול — בכל רגע.</p></div>
+  </div>
+
+  <div class="final" id="contact">
+    <h2>הצי שלך מנוהל. אתה רגוע.</h2>
+    <p>הצטרף למערכת שנבנתה בשטח — על ידי קצין בטיחות, בשביל קציני בטיחות.</p>
+    <a class="btn btn-main" href="tel:0542840258" style="position:relative">📱 דברו איתנו — 054-2840258</a>
+  </div>
+</div>
+
+<footer>FleetSmart © 2026 — ניהול צי רכב חכם</footer>
+</body>
+</html>
