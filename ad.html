@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="he" dir="rtl">
 <head>
 <meta charset="UTF-8">
@@ -9,146 +9,265 @@
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{height:100%;overflow:hidden}
 body{font-family:'Heebo',sans-serif;background:#0b1120;color:#fff}
-#stage{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:24px}
-.scene{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:28px;opacity:0;pointer-events:none;transition:opacity .5s}
+#stage{position:fixed;inset:0}
+.scene{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:30px;opacity:0;pointer-events:none;transition:opacity .9s ease}
 .scene.on{opacity:1;pointer-events:auto}
 
-/* backgrounds */
-.bg-red{background:radial-gradient(ellipse 90% 70% at 50% 30%,rgba(220,38,38,.25),transparent),#0b1120}
-.bg-blue{background:radial-gradient(ellipse 90% 70% at 50% 20%,rgba(37,99,235,.35),transparent),#0b1120}
-.bg-green{background:radial-gradient(ellipse 90% 70% at 50% 20%,rgba(5,150,105,.3),transparent),#0b1120}
+.bg-red{background:radial-gradient(ellipse 90% 70% at 50% 30%,rgba(220,38,38,.22),transparent),#0b1120}
+.bg-blue{background:radial-gradient(ellipse 90% 70% at 50% 20%,rgba(37,99,235,.3),transparent),#0b1120}
+.bg-green{background:radial-gradient(ellipse 90% 70% at 50% 20%,rgba(5,150,105,.26),transparent),#0b1120}
 
-.pop{opacity:0;transform:scale(.7) translateY(30px)}
-.on .pop{animation:pop .6s cubic-bezier(.2,1.4,.4,1) forwards}
-@keyframes pop{to{opacity:1;transform:scale(1) translateY(0)}}
-.d1{animation-delay:.15s!important}.d2{animation-delay:.55s!important}.d3{animation-delay:.95s!important}.d4{animation-delay:1.35s!important}.d5{animation-delay:1.75s!important}
+/* soft entrance — gentle rise + fade, no bounce */
+.rise{opacity:0;transform:translateY(18px)}
+.on .rise{animation:rise 1s ease-out forwards}
+@keyframes rise{to{opacity:1;transform:translateY(0)}}
+.d1{animation-delay:.2s!important}.d2{animation-delay:.9s!important}.d3{animation-delay:1.6s!important}.d4{animation-delay:2.3s!important}.d5{animation-delay:3s!important}
 
-.h-xl{font-size:clamp(2rem,8vw,4.5rem);font-weight:900;line-height:1.2}
-.h-l{font-size:clamp(1.4rem,5.5vw,2.8rem);font-weight:900;line-height:1.35}
-.sub{font-size:clamp(1rem,3.2vw,1.4rem);color:#94a3b8;margin-top:16px;font-weight:400}
+/* slow ken-burns style drift on big visuals */
+.drift{animation:drift 7s ease-in-out infinite alternate}
+@keyframes drift{from{transform:scale(1) translateY(0)}to{transform:scale(1.06) translateY(-8px)}}
+
+.h-xl{font-size:clamp(1.9rem,7.5vw,4.2rem);font-weight:900;line-height:1.25;text-align:center}
+.h-l{font-size:clamp(1.3rem,5vw,2.5rem);font-weight:900;line-height:1.4;text-align:center}
+.sub{font-size:clamp(1rem,3.2vw,1.35rem);color:#94a3b8;margin-top:14px;text-align:center}
 .grad{background:linear-gradient(135deg,#4ade80,#22d3ee);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
 .gradb{background:linear-gradient(135deg,#93c5fd,#c4b5fd);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
 
-.chip{background:rgba(220,38,38,.12);border:1.5px solid rgba(248,113,113,.5);color:#fca5a5;border-radius:14px;padding:14px 22px;font-size:clamp(1rem,3.5vw,1.5rem);font-weight:800;margin:8px}
-.chip.ok{background:rgba(5,150,105,.12);border-color:rgba(74,222,128,.5);color:#86efac}
+.big-emoji{font-size:clamp(4rem,18vw,8rem);filter:drop-shadow(0 12px 40px rgba(0,0,0,.5))}
 
-.feat-line{display:flex;align-items:center;gap:14px;font-size:clamp(1.05rem,3.6vw,1.7rem);font-weight:800;margin:10px 0}
-.feat-line .ic{font-size:clamp(1.5rem,5vw,2.2rem)}
+/* pain scene — one line at a time */
+.pain-line{position:absolute;display:flex;flex-direction:column;align-items:center;gap:14px;opacity:0;transition:opacity .7s}
+.pain-line.show{opacity:1}
+.pain-line .t{font-size:clamp(1.2rem,4.5vw,2.1rem);font-weight:800;color:#fca5a5;text-align:center}
 
-.logo-helm{width:clamp(90px,20vw,140px);filter:drop-shadow(0 10px 40px rgba(74,222,128,.4))}
-.cta-btn{background:linear-gradient(135deg,#2563eb,#4f46e5);color:#fff;border-radius:16px;padding:16px 40px;font-size:clamp(1.1rem,4vw,1.5rem);font-weight:900;margin-top:26px;box-shadow:0 10px 40px rgba(37,99,235,.5);text-decoration:none;display:inline-block}
+/* traffic light */
+.tl{width:clamp(80px,16vw,120px);background:#111827;border:3px solid #1f2937;border-radius:26px;padding:14px;display:flex;flex-direction:column;gap:12px;box-shadow:0 20px 60px rgba(0,0,0,.6)}
+.tl .light{aspect-ratio:1;border-radius:50%;background:#1f2937;transition:all .5s}
+.tl .light.r.on2{background:#ef4444;box-shadow:0 0 30px rgba(239,68,68,.8)}
+.tl .light.y.on2{background:#f59e0b;box-shadow:0 0 30px rgba(245,158,11,.8)}
+.tl .light.g.on2{background:#22c55e;box-shadow:0 0 34px rgba(34,197,94,.9)}
 
-/* progress bar */
+/* chat bubbles (agent scene) */
+.chat{width:min(92vw,460px);display:flex;flex-direction:column;gap:12px}
+.bub{max-width:85%;border-radius:18px;padding:12px 17px;font-size:clamp(.95rem,3.4vw,1.2rem);font-weight:600;opacity:0;transform:translateY(14px);line-height:1.45}
+.on .bub{animation:rise .8s ease-out forwards}
+.bub.me{background:#1d4ed8;color:#fff;align-self:flex-start;border-bottom-left-radius:6px}
+.bub.bot{background:#065f46;color:#d1fae5;align-self:flex-end;border-bottom-right-radius:6px}
+
+/* counter numbers */
+.cnt-wrap{display:flex;flex-direction:column;gap:22px;align-items:center}
+.cnt-row{text-align:center}
+.cnt{font-size:clamp(2.4rem,10vw,4.5rem);font-weight:900;background:linear-gradient(135deg,#4ade80,#22d3ee);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+.cnt-cap{font-size:clamp(.95rem,3.4vw,1.3rem);color:#cbd5e1;font-weight:700}
+
+.cta-btn{background:linear-gradient(135deg,#2563eb,#4f46e5);color:#fff;border-radius:16px;padding:16px 40px;font-size:clamp(1.05rem,4vw,1.45rem);font-weight:900;margin-top:26px;box-shadow:0 10px 40px rgba(37,99,235,.5);text-decoration:none;display:inline-block}
+.pulse{animation:pulse 2s ease-in-out infinite}
+@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.04)}}
+
 #bar{position:fixed;bottom:0;left:0;height:4px;background:linear-gradient(90deg,#4ade80,#2563eb);width:0%;z-index:50;transition:width .3s linear}
 #skip{position:fixed;top:14px;left:14px;z-index:50;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.2);color:#94a3b8;border-radius:999px;padding:6px 16px;font-family:'Heebo',sans-serif;font-size:.75rem;cursor:pointer}
-.pulse{animation:pulse 1.6s ease-in-out infinite}
-@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.05)}}
-.shake{animation:shake .5s ease-in-out .9s 2}
-@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-7px)}75%{transform:translateX(7px)}}
+#mute{position:fixed;top:14px;right:14px;z-index:50;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.2);color:#e2e8f0;border-radius:999px;padding:6px 14px;font-family:'Heebo',sans-serif;font-size:.85rem;cursor:pointer}
+
+/* start overlay */
+#start{position:fixed;inset:0;z-index:100;background:radial-gradient(ellipse 80% 60% at 50% 30%,rgba(37,99,235,.35),transparent),#0b1120;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;cursor:pointer}
+#start .play{width:100px;height:100px;border-radius:50%;background:linear-gradient(135deg,#2563eb,#4f46e5);display:flex;align-items:center;justify-content:center;font-size:2.4rem;box-shadow:0 15px 50px rgba(37,99,235,.55);animation:pulse 2s infinite}
+#start h1{font-size:clamp(1.6rem,6vw,2.6rem);font-weight:900}
+#start p{color:#94a3b8}
 </style>
 </head>
 <body>
 
+<!-- start gate (unlocks audio) -->
+<div id="start">
+  <div class="play">▶️</div>
+  <h1><span class="grad">ר.מ</span><span class="gradb">זור</span> — הפרסומת</h1>
+  <p>לחץ להפעלה עם קול 🔊</p>
+</div>
+
 <button id="skip" onclick="location.href='promo.html'">דלג לפרטים ←</button>
+<button id="mute" onclick="toggleMute(event)">🔊</button>
 <div id="bar"></div>
 <div id="stage">
 
   <!-- 1: HOOK -->
   <div class="scene bg-red" id="s1">
-    <div class="h-xl pop d1 shake">האקסל של הצי שלך<br><span style="color:#f87171">מתפרק?</span></div>
-    <div class="sub pop d3">נשמע מוכר...</div>
+    <div class="big-emoji rise d1 drift">📉</div>
+    <div class="h-xl rise d2">האקסל של הצי שלך<br><span style="color:#f87171">מתפרק?</span></div>
   </div>
 
-  <!-- 2: PAIN -->
+  <!-- 2: PAIN — one at a time -->
   <div class="scene bg-red" id="s2">
-    <div class="chip pop d1">😱 טסט שפג ואף אחד לא שם לב</div>
-    <div class="chip pop d2">📄 דוח תנועה שלא הוסב בזמן</div>
-    <div class="chip pop d3">✍️ נהג חדש בלי נהלים חתומים</div>
-    <div class="chip pop d4">📞 "מה הק"מ שלך?" — לכל נהג, כל חודש</div>
+    <div class="pain-line" data-at="0"><div class="big-emoji">⏰</div><div class="t">טסט שפג — ואף אחד לא שם לב</div></div>
+    <div class="pain-line" data-at="2600"><div class="big-emoji">📄</div><div class="t">דוח תנועה שלא הוסב בזמן</div></div>
+    <div class="pain-line" data-at="5200"><div class="big-emoji">✍️</div><div class="t">נהג חדש — בלי נהלים חתומים</div></div>
   </div>
 
-  <!-- 3: REVEAL -->
+  <!-- 3: REVEAL — traffic light -->
   <div class="scene bg-blue" id="s3">
-    <svg class="logo-helm pop d1" viewBox="0 0 64 64"><defs><linearGradient id="hg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4ade80"/><stop offset="1" stop-color="#059669"/></linearGradient></defs><path fill="url(#hg)" d="M32 7C17.6 7 6 18.6 6 33v8c0 4.4 3.6 8 8 8h28c9 0 16-7 16-16C58 18.6 46.4 7 32 7z"/><path fill="#fde047" d="M26 7.7C36.5 10.5 44 20.3 44 32v17h6V30C49.4 19 41 9.8 30 7.3c-1.4.1-2.7.2-4 .4z" opacity=".95"/><path fill="#1e293b" d="M10 28h30a7 7 0 0 1 0 14H16a6 6 0 0 1-6-6v-8z"/><rect x="14" y="31" width="18" height="3.2" rx="1.6" fill="#cbd5e1" opacity=".9"/></svg>
-    <div class="h-xl pop d2"><span class="grad">ר.מ</span><span class="gradb">זור</span></div>
-    <div class="h-l pop d3">כל הצי שלך. <span class="grad">שליטה אחת.</span></div>
+    <div class="tl rise d1">
+      <div class="light r" id="li-r"></div>
+      <div class="light y" id="li-y"></div>
+      <div class="light g" id="li-g"></div>
+    </div>
+    <div class="h-xl rise d2" style="margin-top:22px"><span class="grad">ר.מ</span><span class="gradb">זור</span></div>
+    <div class="sub rise d3">ניהול צי רכב חכם — כל הצי שלך, שליטה אחת</div>
   </div>
 
-  <!-- 4: FEATURES -->
+  <!-- 4: FEATURES — one big visual each -->
   <div class="scene bg-blue" id="s4">
-    <div class="feat-line pop d1"><span class="ic">🔔</span> התראות על טסט, ביטוח וטיפולים — לבד</div>
-    <div class="feat-line pop d2"><span class="ic">🛡️</span> ביקורת בטיחות מהשטח, עם חתימה באצבע</div>
-    <div class="feat-line pop d3"><span class="ic">✍️</span> נהלים נחתמים בוואטסאפ ומתעדכנים אוטומטית</div>
+    <div class="pain-line" data-at="0"><div class="big-emoji">🔔</div><div class="t" style="color:#93c5fd">התראות על טסט, ביטוח וטיפולים — לבד</div></div>
+    <div class="pain-line" data-at="2800"><div class="big-emoji">🛡️</div><div class="t" style="color:#93c5fd">ביקורת בטיחות מהשטח, עם חתימה באצבע</div></div>
+    <div class="pain-line" data-at="5600"><div class="big-emoji">💬</div><div class="t" style="color:#93c5fd">נהלים נחתמים בוואטסאפ — ומתעדכנים אוטומטית</div></div>
   </div>
 
-  <!-- 4b: AGENT -->
-  <div class="scene bg-blue" id="s4b">
-    <div class="h-l pop d1">🤖 והקסם האמיתי?</div>
-    <div class="h-l pop d2"><span class="grad">סוכן AI שמבצע לבד.</span></div>
-    <div class="chip ok pop d3">💬 "תוסיף רכב 12-345-67" → נוסף ממאגר הרישוי</div>
-    <div class="chip ok pop d4">💬 "דנה קיבלה רכב חדש" → הוחלף + היסטוריה עברה</div>
-    <div class="chip ok pop d5">📸 צילמת מסמך → הנתונים התעדכנו ברכב</div>
+  <!-- 5: AGENT — chat -->
+  <div class="scene bg-blue" id="s5">
+    <div class="h-l rise d1" style="margin-bottom:22px">🤖 <span class="grad">סוכן AI שמבצע לבד</span></div>
+    <div class="chat">
+      <div class="bub me d2">תוסיף את רכב 12-345-67 לצי</div>
+      <div class="bub bot d3">✓ נוסף! משכתי את הפרטים ממאגר הרישוי הממשלתי</div>
+      <div class="bub me d4">דנה קיבלה רכב חדש במקום הישן</div>
+      <div class="bub bot d5">✓ הוחלף. ההיסטוריה והמסמכים עברו איתה</div>
+    </div>
   </div>
 
-  <!-- 5: MARKET -->
-  <div class="scene bg-green" id="s5">
-    <div class="h-l pop d1"><span class="grad">3,500+</span> קציני בטיחות בישראל</div>
-    <div class="h-l pop d2"><span class="grad">2,000+</span> חברות עם ציי רכב</div>
-    <div class="h-l pop d3"><span class="grad">מאות אלפי</span> רכבי צי וליסינג</div>
-    <div class="chip ok pop d4" style="margin-top:22px">מעל 20 רכבים? החוק כבר מחייב אותך. אנחנו מקלים עליך.</div>
-  </div>
-
-  <!-- 5b: PROOF -->
-  <div class="scene bg-green" id="s5b">
-    <div class="h-l pop d1">נבנה בשטח. 🦺</div>
-    <div class="h-l pop d2">על ידי קצין בטיחות,</div>
-    <div class="h-l pop d3"><span class="grad">בשביל קציני בטיחות.</span></div>
-  </div>
-
-  <!-- 6: CTA -->
+  <!-- 6: MARKET — counting numbers -->
   <div class="scene bg-green" id="s6">
-    <div class="h-xl pop d1">הצי מנוהל.<br><span class="grad">אתה רגוע.</span></div>
-    <a class="cta-btn pop d2 pulse" href="promo.html">ר.מזור — התחל עכשיו</a>
-    <div class="sub pop d3">📱 054-2840258</div>
+    <div class="cnt-wrap">
+      <div class="cnt-row rise d1"><div class="cnt" data-to="3500">0</div><div class="cnt-cap">קציני בטיחות בתעבורה בישראל</div></div>
+      <div class="cnt-row rise d2"><div class="cnt" data-to="2000">0</div><div class="cnt-cap">חברות עם ציי רכב מנוהלים</div></div>
+      <div class="cnt-row rise d3"><div class="cnt" data-to="400000">0</div><div class="cnt-cap">רכבי צי וליסינג על הכביש</div></div>
+    </div>
+  </div>
+
+  <!-- 7: PROOF -->
+  <div class="scene bg-green" id="s7">
+    <div class="big-emoji rise d1 drift">🦺</div>
+    <div class="h-l rise d2">נבנה בשטח, על ידי קצין בטיחות,<br><span class="grad">בשביל קציני בטיחות.</span></div>
+  </div>
+
+  <!-- 8: CTA -->
+  <div class="scene bg-green" id="s8">
+    <div class="h-xl rise d1">הצי מנוהל.<br><span class="grad">אתה רגוע.</span></div>
+    <a class="cta-btn rise d2 pulse" href="promo.html"><span style="color:#86efac">ר.מ</span>זור — התחל עכשיו</a>
+    <div class="sub rise d3">📱 054-2840258</div>
   </div>
 
 </div>
 
 <script>
 const SCENES = [
-  { id: 's1', dur: 3800 },
-  { id: 's2', dur: 5200 },
-  { id: 's3', dur: 4200 },
-  { id: 's4', dur: 4600 },
-  { id: 's4b', dur: 6000 },
-  { id: 's5', dur: 5200 },
-  { id: 's5b', dur: 4200 },
-  { id: 's6', dur: 6000 }
+  { id:'s1', dur:4200, say:'האקסל של הצי שלך מתפרק?' },
+  { id:'s2', dur:7800, say:'טסטים שפגים. דוחות שלא הוסבו. נהגים בלי נהלים חתומים.' },
+  { id:'s3', dur:5600, say:'תכירו את ר.מזור. ניהול צי רכב חכם.' },
+  { id:'s4', dur:8400, say:'התראות אוטומטיות. ביקורות בטיחות מהשטח. ונהלים שנחתמים בוואטסאפ.' },
+  { id:'s5', dur:8000, say:'וסוכן חכם, שמבצע פעולות לבד. פשוט אומרים לו.' },
+  { id:'s6', dur:6400, say:'אלפי קציני בטיחות ומנהלי ציים כבר מחכים לזה.' },
+  { id:'s7', dur:4800, say:'נבנה בשטח, על ידי קצין בטיחות, בשביל קציני בטיחות.' },
+  { id:'s8', dur:7000, say:'ר.מזור. הצי מנוהל. אתה רגוע.' }
 ];
 const total = SCENES.reduce((a,s)=>a+s.dur,0);
-let idx = -1, elapsed = 0, timer = null;
+let idx=-1, elapsed=0, timer=null, subTimers=[], muted=false, started=false;
+let AC=null, heVoice=null;
 
-function show(i) {
-  document.querySelectorAll('.scene').forEach(s => s.classList.remove('on'));
-  const sc = document.getElementById(SCENES[i].id);
-  // restart pop animations
-  sc.querySelectorAll('.pop').forEach(el => { el.style.animation = 'none'; void el.offsetWidth; el.style.animation = ''; });
+/* ---------- audio ---------- */
+function initAudio(){
+  try{ AC = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){}
+  // pick a Hebrew voice
+  const pick = () => {
+    const vs = speechSynthesis.getVoices();
+    heVoice = vs.find(v=>v.lang&&v.lang.startsWith('he')) || null;
+  };
+  if ('speechSynthesis' in window){ pick(); speechSynthesis.onvoiceschanged = pick; }
+}
+function whoosh(){
+  if(!AC||muted) return;
+  const t=AC.currentTime, dur=.5;
+  const buf=AC.createBuffer(1,AC.sampleRate*dur,AC.sampleRate), d=buf.getChannelData(0);
+  for(let i=0;i<d.length;i++) d[i]=(Math.random()*2-1)*(1-i/d.length);
+  const src=AC.createBufferSource(); src.buffer=buf;
+  const f=AC.createBiquadFilter(); f.type='bandpass'; f.frequency.setValueAtTime(300,t); f.frequency.exponentialRampToValueAtTime(1400,t+dur);
+  const g=AC.createGain(); g.gain.setValueAtTime(.18,t); g.gain.exponentialRampToValueAtTime(.001,t+dur);
+  src.connect(f).connect(g).connect(AC.destination); src.start();
+}
+function chime(freq){
+  if(!AC||muted) return;
+  const t=AC.currentTime;
+  const o=AC.createOscillator(); o.type='sine'; o.frequency.value=freq||660;
+  const g=AC.createGain(); g.gain.setValueAtTime(.12,t); g.gain.exponentialRampToValueAtTime(.001,t+.7);
+  o.connect(g).connect(AC.destination); o.start(t); o.stop(t+.75);
+}
+function narrate(text){
+  if(muted || !('speechSynthesis' in window)) return;
+  speechSynthesis.cancel();
+  const u=new SpeechSynthesisUtterance(text);
+  u.lang='he-IL'; if(heVoice) u.voice=heVoice;
+  u.rate=.95; u.pitch=1;
+  speechSynthesis.speak(u);
+}
+function toggleMute(e){
+  e.stopPropagation();
+  muted=!muted;
+  document.getElementById('mute').textContent = muted?'🔇':'🔊';
+  if(muted) speechSynthesis.cancel();
+}
+
+/* ---------- scenes ---------- */
+function clearSub(){ subTimers.forEach(clearTimeout); subTimers=[]; }
+function show(i){
+  clearSub();
+  document.querySelectorAll('.scene').forEach(s=>s.classList.remove('on'));
+  const sc=document.getElementById(SCENES[i].id);
+  sc.querySelectorAll('.rise,.bub').forEach(el=>{el.style.animation='none';void el.offsetWidth;el.style.animation='';});
   sc.classList.add('on');
+  whoosh();
+  narrate(SCENES[i].say);
+
+  // sequential lines (pain/features)
+  const lines=sc.querySelectorAll('.pain-line');
+  if(lines.length){
+    lines.forEach(l=>l.classList.remove('show'));
+    lines.forEach(l=>{
+      subTimers.push(setTimeout(()=>{
+        lines.forEach(x=>x.classList.remove('show'));
+        l.classList.add('show'); chime(720);
+      }, parseInt(l.dataset.at)));
+    });
+  }
+  // traffic light sequence
+  if(SCENES[i].id==='s3'){
+    const r=document.getElementById('li-r'),y=document.getElementById('li-y'),g=document.getElementById('li-g');
+    [r,y,g].forEach(x=>x.classList.remove('on2'));
+    subTimers.push(setTimeout(()=>{r.classList.add('on2');chime(440);},600));
+    subTimers.push(setTimeout(()=>{y.classList.add('on2');chime(550);},1600));
+    subTimers.push(setTimeout(()=>{g.classList.add('on2');chime(880);},2600));
+  }
+  // counters
+  sc.querySelectorAll('.cnt').forEach(c=>{
+    const to=parseInt(c.dataset.to), t0=performance.now(), dur=2200;
+    function tick(now){
+      const p=Math.min(1,(now-t0)/dur), v=Math.round(to*(1-Math.pow(1-p,3)));
+      c.textContent=v.toLocaleString()+(p===1?'+':'');
+      if(p<1) requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+  });
 }
-function next() {
-  idx = (idx + 1) % SCENES.length;
-  if (idx === 0) elapsed = 0;
+function next(){
+  idx=(idx+1)%SCENES.length;
+  if(idx===0) elapsed=0;
   show(idx);
-  timer = setTimeout(next, SCENES[idx].dur);
+  timer=setTimeout(next,SCENES[idx].dur);
 }
-setInterval(() => {
-  if (idx < 0) return;
-  elapsed += 300;
-  document.getElementById('bar').style.width = Math.min(100, elapsed/total*100) + '%';
-}, 300);
-next();
-// tap to advance
-document.getElementById('stage').addEventListener('click', () => { clearTimeout(timer); next(); });
+setInterval(()=>{ if(idx<0)return; elapsed+=300; document.getElementById('bar').style.width=Math.min(100,elapsed/total*100)+'%'; },300);
+
+document.getElementById('start').addEventListener('click',()=>{
+  if(started) return; started=true;
+  initAudio();
+  document.getElementById('start').style.display='none';
+  next();
+});
+document.getElementById('stage').addEventListener('click',()=>{ if(!started)return; clearTimeout(timer); speechSynthesis.cancel(); next(); });
 </script>
 </body>
 </html>
