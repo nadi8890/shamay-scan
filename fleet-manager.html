@@ -2171,7 +2171,7 @@ ${RETURNS.slice(0,5).map(r=>`• ${r.employee} | ${r.plate} | ${r.fromDate||'?'}
 הסרת רכב חליפי (כשמחזירים אותו):
 [[ACTION:removeReplacement:רישוי_או_שם_עובד]]
 
-החלפת רכב לעובד (קיבל רכב חדש במקום הישן) — פעולה אחת שעושה הכל: מעבירה את הישן להחזרות, מוסיפה את החדש עם השלמה ממאגר ממשלתי, מעתיקה את פרטי הנהג (רישיון נהיגה, עבר תעבורתי, נהלים, ת.ז, ילדים — פרטים אישיים שלא משתנים), וקובעת: תאריך קבלה, ביקורת בטיחות (התראה בעוד חצי שנה), טיפול הבא (+15,000 ק"מ):
+החלפת רכב לעובד (קיבל רכב חדש במקום הישן) — פעולה אחת שעושה הכל: מעבירה את הישן להחזרות, מוסיפה את החדש עם השלמה ממאגר ממשלתי, מעתיקה את פרטי הנהג (רישיון נהיגה, עבר תעבורתי, ת.ז, ילדים — פרטים אישיים שלא משתנים; נהלים לא מועתקים — נחתמים מחדש בכל רכב), וקובעת: תאריך קבלה, ביקורת בטיחות (התראה בעוד חצי שנה), טיפול הבא (+15,000 ק"מ):
 [[ACTION:replaceVehicle:רישוי_ישן|רישוי_חדש|תאריך_קבלה(DD/MM/YYYY)|סיבה]]
 דוגמה: [[ACTION:replaceVehicle:34005503|66529004|15/07/2026|רכב חדש]]
 
@@ -2755,7 +2755,7 @@ async function replaceVehicleAction(param) {
     nv.children = old.children || '';
     nv.licenseExpiry = old.licenseExpiry || nv.licenseExpiry || '';
     nv.trafficRecord = old.trafficRecord || '';
-    nv.procedures = old.procedures || '';
+    nv.procedures = ''; // procedures are signed per vehicle — must be re-signed on the new one
     nv.company = old.company || nv.company || 'נופר אנרגי';
     nv.vehicleFrom = recDate;
     nv.inspection = recDate;
