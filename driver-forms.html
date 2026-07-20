@@ -121,6 +121,17 @@ canvas.sig{width:100%;height:130px;border:1.5px dashed #94a3b8;border-radius:10p
     </div>
   </div>
 
+  <!-- אישור בדיקת עבר תעבורתי -->
+  <div class="card">
+    <div class="card-hdr">🚔 אישור בדיקת רישיון נהיגה (מידע תעבורתי)</div>
+    <div class="card-body" id="sec-traffic">
+      <div class="clause">1. על פי תקנה 585א' לתקנות התעבורה, התשכ"א-1961 (להלן "התקנות"), חובתו של קצין הבטיחות של החברה לבדוק את רישיון הנהיגה של נהג/נוהג בחברה במאגר הממוחשב של רשות הרישוי, בעת קבלתו לעבודה ובמועדים כמפורט בתקנות.</div>
+      <div class="clause">2. המידע המתקבל לעיונו של קצין הבטיחות בהתאם לתקנות הוא: א. דרגות הרישיון ושנת ההוצאה של כל דרגה. ב. היתרים והגבלות ברישיון הנהיגה. ג. תוקף הרישיון. ד. פסילות בתוקף או פסילות בעבר (עד חמש שנים לאחור) וזהות הגורם שהטיל את הפסילה. ה. מידע על נקודות שנרשמו לחובת הנהג ומועד ביצוע העבירות.</div>
+      <div class="clause">3. לאחר הבדיקה, יקבל הנהג מכתב מרשות הרישוי ובו הודעה לנהג על כך שקצין הבטיחות בדק את המידע התעבורתי כאמור בתקנות ותאריך הבדיקה.</div>
+      <label class="agree"><input type="checkbox" id="agree4"><span>הובא לידיעתי והבנתי את האמור לעיל, ואני מאשר/ת את ביצוע הבדיקה</span></label>
+    </div>
+  </div>
+
   <!-- חתימה -->
   <div class="card">
     <div class="card-hdr" style="display:flex;justify-content:space-between;align-items:center">✍️ חתימת העובד/ת
@@ -209,6 +220,7 @@ function buildSummaryText(r) {
   L.push('✓ הצהרה והתחייבות מחזיק/ה ברכב — אושר');
   L.push('✓ אישור אחריות אישית בגין עבירות — אושר');
   L.push('✓ הצהרת שימוש בני משפחה — אושר');
+  L.push('✓ אישור בדיקת עבר תעבורתי (תקנה 585א) — אושר');
   if (r.extraDriver) {
     L.push('');
     L.push(`נהג/ת נוסף/ת: ${r.extraDriver.name} | ת.ז: ${r.extraDriver.idNum} | רישיון: ${r.extraDriver.licNum||'-'} | קרבה: ${r.extraDriver.relation||'-'}`);
@@ -251,8 +263,9 @@ function buildDocHtml(r) {
     ${secHtml('sec-holder','1','הצהרה והתחייבות מחזיק/ה ברכב')}
     ${secHtml('sec-viol','2','אישור מחזיק/ת הרכב — אחריות אישית בגין עבירות')}
     ${secHtml('sec-family','3','הצהרה בדבר שימוש בני משפחה ברכב')}
+    ${secHtml('sec-traffic','4','אישור בדיקת רישיון נהיגה — מידע תעבורתי (תקנה 585א)')}
     ${xd ? `<div style="page-break-inside:avoid;border:1px solid #cbd5e1;border-radius:8px;padding:14px 16px;margin-top:14px">
-      <div style="font-weight:800;font-size:14px;border-bottom:2px solid #1e3a8a;padding-bottom:6px;margin-bottom:10px;color:#1e3a8a">4. הצהרת בריאות — נהג/ת נוסף/ת <span style="float:left;color:#047857;font-size:12px">✔ אושרה</span></div>
+      <div style="font-weight:800;font-size:14px;border-bottom:2px solid #1e3a8a;padding-bottom:6px;margin-bottom:10px;color:#1e3a8a">5. הצהרת בריאות — נהג/ת נוסף/ת <span style="float:left;color:#047857;font-size:12px">✔ אושרה</span></div>
       <p style="font-size:12px;margin:0 0 6px"><b>שם:</b> ${xd.name} | <b>ת.ז:</b> ${xd.idNum||'-'} | <b>רישיון:</b> ${xd.licNum||'-'} | <b>קרבה:</b> ${xd.relation||'-'}</p>
       <p style="font-size:11.5px;line-height:1.6;margin:0;color:#1e293b">הנהג/ת הנוסף/ת הצהיר/ה כי לא התגלו אצלו/ה מגבלות בריאותיות המונעות נהיגה, כי לא נפסל/ה מלקבל או להחזיק רישיון נהיגה, וכי ידווח/תדווח מיידית על כל שינוי במצב הבריאותי או ברישיון.</p>
     </div>` : ''}
@@ -336,7 +349,7 @@ async function submitForms() {
   if (!val('f-name')) return fail('נא למלא שם מלא');
   if (!val('f-id')) return fail('נא למלא תעודת זהות');
   if (!val('f-phone')) return fail('נא למלא טלפון');
-  if (!chk('agree1') || !chk('agree2') || !chk('agree3')) return fail('יש לאשר את כל שלוש ההצהרות (סמן ✔ בכל סעיף)');
+  if (!chk('agree1') || !chk('agree2') || !chk('agree3') || !chk('agree4')) return fail('יש לאשר את כל ארבע ההצהרות (סמן ✔ בכל סעיף)');
   const extraOpen = document.getElementById('extra-driver').style.display !== 'none';
   if (extraOpen && val('x-name') && !chk('agreeX')) return fail('יש לאשר את הצהרת הבריאות של הנהג/ת הנוסף/ת');
   if (!sigDrawn) return fail('חסרה חתימה — חתום/חתמי בריבוע');
@@ -354,7 +367,7 @@ async function submitForms() {
     model: VEH ? `${VEH.make||''} ${VEH.model||''}`.trim() : '',
     name: val('f-name'), idNum: val('f-id'), phone: val('f-phone'),
     licNum: val('f-lic'), address: val('f-address'), km: val('f-km'),
-    agreed: { holder: true, violations: true, family: true },
+    agreed: { holder: true, violations: true, family: true, traffic: true },
     extraDriver: (extraOpen && val('x-name')) ? { name: val('x-name'), idNum: val('x-id'), licNum: val('x-lic'), relation: val('x-rel'), healthApproved: chk('agreeX') } : null,
     signature: document.getElementById('sig').toDataURL('image/png')
   };

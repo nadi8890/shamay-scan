@@ -1581,6 +1581,7 @@ function buildDeclText(r) {
   L.push('✓ הצהרה והתחייבות מחזיק/ה ברכב — אושר');
   L.push('✓ אישור אחריות אישית בגין עבירות — אושר');
   L.push('✓ הצהרת שימוש בני משפחה — אושר');
+  if (r.agreed && r.agreed.traffic) L.push('✓ אישור בדיקת עבר תעבורתי (תקנה 585א) — אושר');
   if (r.extraDriver) {
     L.push('');
     L.push(`נהג/ת נוסף/ת: ${r.extraDriver.name||''} | ת.ז: ${r.extraDriver.idNum||''} | רישיון: ${r.extraDriver.licNum||'-'} | קרבה: ${r.extraDriver.relation||'-'}`);
