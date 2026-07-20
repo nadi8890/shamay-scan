@@ -2360,7 +2360,18 @@ ${VEHICLES.map(v=>`• ${v.plate} | ${v.make} ${v.model} ${v.year||''} | נהג:
 הוספת דוח תנועה (לשונית דוחות):
 [[ACTION:addViolation:רישוי|נהג|תאריך_עבירה(DD/MM/YYYY)|תיאור_עבירה|נקודות|קנס|מס_דוח]]
 דוגמה: [[ACTION:addViolation:12345678|ישראל ישראלי|15/07/2026|מהירות מופרזת|8|750|987654]]
-(שדות לא ידועים — השאר ריק. אם השם חסר — יימשך אוטומטית לפי הרכב. הדוח ייכנס כ"לא טופל" עד שיעודכן סטטוס בכפתור העריכה)
+(שדות לא ידועים — השאר ריק. אם השם חסר — יימשך אוטומטית לפי הרכב. הדוח ייכנס כ"לא טופל" עד שיעודכן סטטוס)
+
+עדכון סטטוס טיפול בדוח (הוסב / שולם / טופל):
+[[ACTION:violationStatus:מס_דוח_או_רישוי|הוסב/שולם/טופל|כן/לא|תאריך(DD/MM/YYYY)]]
+דוגמה: [[ACTION:violationStatus:987654|שולם|כן|20/07/2026]]
+דוגמה: [[ACTION:violationStatus:12345678|הוסב|כן|]]
+(אם ניתן מספר רישוי — יעודכן הדוח האחרון של אותו רכב. בלי תאריך — יירשם היום. "לא" מבטל סימון)
+
+מחיקת דוח תנועה: [[ACTION:deleteViolation:מס_דוח_או_רישוי]]
+מחיקת אירוע נזק: [[ACTION:deleteIncident:רישוי]] (מוחק את האירוע האחרון של הרכב)
+
+כלל חשוב: יש לך יכולות ביצוע מלאות דרך הפעולות שלמעלה — לעולם אל תגיד למשתמש "אין לי יכולת". אם המשתמש מבקש משהו שאין לו פעולה מתאימה ברשימה, אמור בדיוק מה כן אפשרי והצע את הדרך הקרובה ביותר.
 
 הוספת רכב עם מספר רישוי בלבד — מולא אוטומטית ממאגר ממשלתי (יצרן/דגם/שנה/תוקף רישוי):
 [[ACTION:addVehicle:מספר_רישוי]]
@@ -2929,6 +2940,47 @@ function agentExecAction(action, param) {
     if (typeof renderViolations === 'function') renderViolations();
     toast(`✓ דוח תנועה נוסף — ${rec.plate||rec.driver}`);
     return { type:'violation', action:'נוסף', plate: rec.plate, driver: rec.driver, offense: rec.offense };
+
+  } else if (action === 'violationStatus') {
+    const p = param.split('|').map(s=>s.trim());
+    const [ident, statusType, yesNo, date] = p;
+    const cleanNum = s => (s||'').replace(/\D/g,'');
+    let v = ident ? VIOLATIONS.find(x => (x.reportNum||'') === ident) : null;
+    if (!v && ident) v = VIOLATIONS.find(x => cleanNum(x.plate) === cleanNum(ident));
+    if (!v) return { type:'violation', action:'לא נמצא', ident };
+    const on = (yesNo||'כן') !== 'לא';
+    const _t = new Date();
+    const d = on ? (date || ('0'+_t.getDate()).slice(-2)+'/'+('0'+(_t.getMonth()+1)).slice(-2)+'/'+_t.getFullYear()) : '';
+    if ((statusType||'').includes('הוסב')) { v.stHosav = on; v.stHosavDate = d; }
+    else if ((statusType||'').includes('שולם')) { v.stPaid = on; v.stPaidDate = d; }
+    else { v.stHandled = on; v.stHandledDate = d; }
+    persistViolations();
+    if (typeof renderViolations === 'function') renderViolations();
+    toast(`✓ סטטוס דוח עודכן — ${statusType}`);
+    return { type:'violation', action:'סטטוס עודכן', plate: v.plate, driver: v.driver, status: statusType, value: on?'כן':'לא', date: d };
+
+  } else if (action === 'deleteViolation') {
+    const ident = param.trim();
+    const cleanNum = s => (s||'').replace(/\D/g,'');
+    let idx = VIOLATIONS.findIndex(x => (x.reportNum||'') === ident);
+    if (idx < 0) idx = VIOLATIONS.findIndex(x => cleanNum(x.plate) === cleanNum(ident));
+    if (idx < 0) return { type:'violation', action:'לא נמצא', ident };
+    const rem = VIOLATIONS.splice(idx, 1)[0];
+    persistViolations();
+    if (typeof renderViolations === 'function') renderViolations();
+    toast(`✓ דוח נמחק — ${rem.plate||rem.driver}`);
+    return { type:'violation', action:'נמחק', plate: rem.plate, offense: rem.offense };
+
+  } else if (action === 'deleteIncident') {
+    const cleanNum = s => (s||'').replace(/\D/g,'');
+    const idx = INCIDENTS.findIndex(x => cleanNum(x.plate) === cleanNum(param));
+    if (idx < 0) return { type:'incident', action:'לא נמצא', plate: param };
+    const rem = INCIDENTS.splice(idx, 1)[0];
+    try{ localStorage.setItem('fleet_incidents', JSON.stringify(INCIDENTS)); }catch(e){}
+    saveToFirestore('incidents', INCIDENTS);
+    if (typeof renderIncidents === 'function') renderIncidents();
+    toast(`✓ אירוע נמחק — ${rem.plate}`);
+    return { type:'incident', action:'נמחק', plate: rem.plate };
 
   } else if (action === 'addReplacement') {
     const p = param.split('|').map(s=>s.trim());
