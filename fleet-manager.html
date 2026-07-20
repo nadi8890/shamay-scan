@@ -2357,6 +2357,11 @@ ${VEHICLES.map(v=>`• ${v.plate} | ${v.make} ${v.model} ${v.year||''} | נהג:
 [[ACTION:addIncident:רישוי|נהג|תאריך(DD/MM/YYYY)|סכום_נזק|הערות]]
 דוגמה: [[ACTION:addIncident:12345678|ישראל ישראלי|15/07/2026|5000|פגיעה קדמית]]
 
+הוספת דוח תנועה (לשונית דוחות):
+[[ACTION:addViolation:רישוי|נהג|תאריך_עבירה(DD/MM/YYYY)|תיאור_עבירה|נקודות|קנס|מס_דוח]]
+דוגמה: [[ACTION:addViolation:12345678|ישראל ישראלי|15/07/2026|מהירות מופרזת|8|750|987654]]
+(שדות לא ידועים — השאר ריק. אם השם חסר — יימשך אוטומטית לפי הרכב. הדוח ייכנס כ"לא טופל" עד שיעודכן סטטוס בכפתור העריכה)
+
 הוספת רכב עם מספר רישוי בלבד — מולא אוטומטית ממאגר ממשלתי (יצרן/דגם/שנה/תוקף רישוי):
 [[ACTION:addVehicle:מספר_רישוי]]
 דוגמה: [[ACTION:addVehicle:83945203]]
@@ -2904,6 +2909,26 @@ function agentExecAction(action, param) {
     saveIncidents(); if(typeof renderIncidents==='function') renderIncidents();
     toast(`✓ אירוע נוסף לרכב ${plate}`);
     return { type:'incident', action:'נוסף', plate, date };
+
+  } else if (action === 'addViolation') {
+    const p = param.split('|').map(s=>s.trim());
+    const [plate, driver, date, offense, points, fine, reportNum] = p;
+    if (!plate && !driver) return null;
+    const rec = {
+      id: Math.max(0, ...VIOLATIONS.map(v=>v.id||0)) + 1,
+      date: date||'', offense: offense||'', driver: driver||'', plate: plate||'',
+      reportNum: reportNum||'', points: points||'', fine: fine||'', notes: ''
+    };
+    if (!rec.driver && rec.plate) {
+      const v = VEHICLES.find(x => (x.plate||'').replace(/\D/g,'') === rec.plate.replace(/\D/g,''));
+      if (v) rec.driver = (v.driverName||'').split('-')[0].trim();
+    }
+    VIOLATIONS.unshift(rec);
+    try{ localStorage.setItem('fleet_violations', JSON.stringify(VIOLATIONS)); }catch(e){}
+    saveToFirestore('violations', VIOLATIONS);
+    if (typeof renderViolations === 'function') renderViolations();
+    toast(`✓ דוח תנועה נוסף — ${rec.plate||rec.driver}`);
+    return { type:'violation', action:'נוסף', plate: rec.plate, driver: rec.driver, offense: rec.offense };
 
   } else if (action === 'addReplacement') {
     const p = param.split('|').map(s=>s.trim());
