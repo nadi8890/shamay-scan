@@ -265,6 +265,67 @@ function buildDocHtml(r) {
   </div>`;
 }
 
+// Render the doc with the browser's own text engine (perfect Hebrew/RTL),
+// then slice to A4 pages at section boundaries.
+async function docToPdfBlob(rec) {
+  const holder = document.createElement('div');
+  holder.style.cssText = 'position:absolute;left:-9999px;top:0';
+  holder.innerHTML = buildDocHtml(rec);
+  document.body.appendChild(holder);
+  const el = holder.firstElementChild;
+  const W = 740;
+  const H = el.scrollHeight;
+  // section boundaries for clean page cuts
+  const cuts = [...el.children].map(ch => ch.offsetTop);
+  cuts.push(H);
+  const xhtml = new XMLSerializer().serializeToString(el);
+  document.body.removeChild(holder);
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}"><foreignObject width="100%" height="100%">${xhtml}</foreignObject></svg>`;
+  const img = new Image();
+  await new Promise((res, rej) => {
+    img.onload = res; img.onerror = rej;
+    img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+  });
+  const scale = 2;
+  const full = document.createElement('canvas');
+  full.width = W * scale; full.height = H * scale;
+  const fctx = full.getContext('2d');
+  fctx.fillStyle = '#ffffff'; fctx.fillRect(0, 0, full.width, full.height);
+  fctx.drawImage(img, 0, 0, full.width, full.height);
+  // sanity: if the render came out blank (some browsers), bail to fallback
+  const probe = fctx.getImageData(0, 0, full.width, Math.min(80*scale, full.height)).data;
+  let nonWhite = 0;
+  for (let i = 0; i < probe.length; i += 4) { if (probe[i] < 245 || probe[i+1] < 245 || probe[i+2] < 245) nonWhite++; }
+  if (nonWhite < 50) throw new Error('blank render');
+  // paginate: A4 with 10mm top/bottom + 8mm side margins → content 194x277mm
+  const pagePx = Math.floor(W * 277 / 194);
+  const pages = [];
+  let start = 0;
+  while (start < H - 2) {
+    const limit = start + pagePx;
+    let end = limit >= H ? H : (() => {
+      const c = cuts.filter(x => x > start + 120 && x <= limit);
+      return c.length ? c[c.length - 1] : limit;
+    })();
+    pages.push([start, Math.min(end, H)]);
+    start = end;
+  }
+  const { jsPDF } = window.jspdf;
+  const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+  pages.forEach((pg, n) => {
+    const [y0, y1] = pg;
+    const sliceH = (y1 - y0) * scale;
+    const pc = document.createElement('canvas');
+    pc.width = W * scale; pc.height = sliceH;
+    const ctx = pc.getContext('2d');
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, pc.width, pc.height);
+    ctx.drawImage(full, 0, y0 * scale, pc.width, sliceH, 0, 0, pc.width, sliceH);
+    if (n > 0) pdf.addPage();
+    pdf.addImage(pc.toDataURL('image/jpeg', 0.92), 'JPEG', 8, 10, 194, (y1 - y0) * 194 / W);
+  });
+  return pdf.output('blob');
+}
+
 async function submitForms() {
   const err = document.getElementById('err');
   const val = id => document.getElementById(id).value.trim();
@@ -317,22 +378,29 @@ async function submitForms() {
       try {
         btn.textContent = 'מכין מסמך...';
         const files = [];
-        try {
-          const holder = document.createElement('div');
-          holder.style.cssText = 'position:absolute;left:-9999px;top:0';
-          holder.innerHTML = buildDocHtml(rec);
-          document.body.appendChild(holder);
-          const pdfBlob = await html2pdf().set({
-            margin: [10, 8],
-            image: { type: 'jpeg', quality: 0.9 },
-            html2canvas: { scale: 2, backgroundColor: '#ffffff' },
-            jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-            pagebreak: { mode: ['css', 'legacy'] }
-          }).from(holder.firstElementChild).outputPdf('blob');
-          document.body.removeChild(holder);
+        let pdfBlob = null;
+        try { pdfBlob = await docToPdfBlob(rec); } catch(e) {}
+        if (!pdfBlob) {
+          // fallback engine for browsers without foreignObject rendering
+          try {
+            const holder = document.createElement('div');
+            holder.style.cssText = 'position:absolute;left:-9999px;top:0';
+            holder.innerHTML = buildDocHtml(rec);
+            document.body.appendChild(holder);
+            pdfBlob = await html2pdf().set({
+              margin: [10, 8],
+              image: { type: 'jpeg', quality: 0.9 },
+              html2canvas: { scale: 2, backgroundColor: '#ffffff' },
+              jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+              pagebreak: { mode: ['css', 'legacy'] }
+            }).from(holder.firstElementChild).outputPdf('blob');
+            document.body.removeChild(holder);
+          } catch(e) {}
+        }
+        if (pdfBlob) {
           const pdfB64 = await new Promise(res => { const fr = new FileReader(); fr.onload = () => res(String(fr.result).split(',')[1]); fr.readAsDataURL(pdfBlob); });
           files.push({ base64: pdfB64, mimeType: 'application/pdf', filename: `טפסי קבלת רכב ${rec.name} ${rec.plate}.pdf` });
-        } catch(e) {}
+        }
         if (!files.length) files.push({ base64: rec.signature.split(',')[1], mimeType: 'image/png', filename: `חתימה ${rec.name}.png` });
         await fetch(MAIL.gasUrl, { method:'POST', mode:'no-cors', headers:{'Content-Type':'text/plain'},
           body: JSON.stringify({ subject: `טפסי קבלת רכב — ${rec.name} (${rec.plate})`, body: buildSummaryText(rec), files }) });
