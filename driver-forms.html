@@ -65,7 +65,7 @@ canvas.sig{width:100%;height:130px;border:1.5px dashed #94a3b8;border-radius:10p
   <!-- הצהרה והתחייבות מחזיק ברכב -->
   <div class="card">
     <div class="card-hdr">📄 הצהרה והתחייבות מחזיק/ה ברכב</div>
-    <div class="card-body">
+    <div class="card-body" id="sec-holder">
       <div class="clause">1. הריני מאשר/ת כי קראתי את נהלי הרכב, האחזקה והשימוש ברכב, הבנתי אותם ומתחייב/ת לפעול על פי הכתוב.</div>
       <div class="clause">2. הנני מתחייב/ת לשלם לחברה כל סכום שיגיע לה ממני בהקשר רכב החברה שהועמד לרשותי (לרבות בהתאם לנוהל שימוש ברכב חברה), ונותן/ת בזאת לחברה הרשאה לנכות משכרי כל סכום כאמור. התחייבותי זאת לשיפוי החברה תעמוד בתוקפה גם לאחר החזרת הרכב לחברה או סיום העסקתי בחברה מכל סיבה שהיא, ובלבד שתאריך הדו"ח תקף לתקופה שהרכב היה באחריותי.</div>
       <div class="clause">3. אני מצהיר/ה בזאת שלא נתגלו אצלי, למיטב ידיעתי, מגבלות במערכת העצבים, הראיה או השמיעה, ומצב בריאותי הנוכחי כשיר לנהיגה.</div>
@@ -81,7 +81,7 @@ canvas.sig{width:100%;height:130px;border:1.5px dashed #94a3b8;border-radius:10p
   <!-- אחריות אישית בגין עבירות -->
   <div class="card">
     <div class="card-hdr">🚔 אישור מחזיק/ת הרכב — אחריות אישית בגין עבירות</div>
-    <div class="card-body">
+    <div class="card-body" id="sec-viol">
       <div class="clause">1. החל ממועד קבלת הרכב לחזקתי, אשא באופן אישי ובלעדי בכל תוצאה הנובעת מעבירות תנועה ותעבורה שבוצעו ברכב, ולכן אני פוטר/ת את החברה מכל אחריות בקשר לכך.</div>
       <div class="clause">2. הנני מתחייב/ת לדווח על כל דו"ח או עבירה שקיבלתי בזמן שהרכב היה ברשותי, מתחייב/ת לטפל בדו"ח במיידי ועל חשבוני. דו"חות שיגיעו לחברה יוסבו על שמי, ואשתף פעולה עם החברה לשם כך ככל שיידרש.</div>
       <div class="clause">3. התחייבויותיי אלו יחולו בין אם הרכב ברשותי או בשליטתי בעת ביצוע העבירה המיוחסת ובין אם לא, אלא אם הוכחתי אחרת לחברה לשביעות רצונה.</div>
@@ -97,7 +97,7 @@ canvas.sig{width:100%;height:130px;border:1.5px dashed #94a3b8;border-radius:10p
   <!-- שימוש בני משפחה -->
   <div class="card">
     <div class="card-hdr">👨‍👩‍👧 הצהרה בדבר שימוש בני משפחה ברכב</div>
-    <div class="card-body">
+    <div class="card-body" id="sec-family">
       <div class="clause">אני מצהיר/ה כי ידוע לי שעל פי נהלי החברה, המורשים לנהוג ברכב החברה הם בני משפחתי מקרבה ראשונה המתגוררים עימי תחת אותה קורת גג, אלא אם כן יינתן אישור מיוחד מהגורמים הרלוונטיים בחברה וקיים הסדר ביטוחי בהתאם לנהג הנוסף.</div>
       <div class="clause">אני מאשר/ת בזאת שבריאותם של כל הנוהגים ברכב שברשותי ובהסכמתי תקינה, הם בעלי רישיון נהיגה מתאים בתוקף והם לא נפסלו ע"י כל גורם מוסמך מלהחזיק ברישיון הנהיגה. אני מתחייב/ת להודיע למנהל/ת מחלקת הרכב על כל שינוי במצב המשפחתי.</div>
       <div class="clause">הנני מצהיר/ה שהאחריות על הרכב היא באחריותי המלאה והבלעדית עד להחזרתו לחברה, והאחריות הבלעדית להדרכה על הכרת הרכב לנהג/ת הנוסף/ת היא שלי. ידוע לי שאם לא אעמוד בהנחיות, החברה עלולה לשלול ממני את הזכות לקבלת הרכב.</div>
@@ -218,6 +218,53 @@ function buildSummaryText(r) {
   return L.join('\n');
 }
 
+// clean A4 archive document built from the data + the actual clause texts on the page
+function buildDocHtml(r) {
+  const secHtml = (elId, num, title) => {
+    const clauses = [...document.getElementById(elId).querySelectorAll('.clause')]
+      .map(c => `<p style="margin:0 0 7px;font-size:11.5px;line-height:1.6;color:#1e293b">${c.innerHTML}</p>`).join('');
+    return `<div style="page-break-inside:avoid;border:1px solid #cbd5e1;border-radius:8px;padding:14px 16px;margin-top:14px">
+      <div style="font-weight:800;font-size:14px;border-bottom:2px solid #1e3a8a;padding-bottom:6px;margin-bottom:10px;color:#1e3a8a">${num}. ${title}
+        <span style="float:left;color:#047857;font-size:12px">✔ קראתי ואישרתי</span></div>
+      ${clauses}</div>`;
+  };
+  const xd = r.extraDriver;
+  return `<div dir="rtl" style="width:740px;background:#fff;color:#0f172a;font-family:Arial,'Heebo',sans-serif;padding:28px 32px">
+    <div style="text-align:center;border-bottom:3px solid #1e3a8a;padding-bottom:12px">
+      <div style="font-size:21px;font-weight:900;color:#1e3a8a">טפסי קבלת רכב — הצהרות והתחייבויות</div>
+      <div style="font-size:12px;color:#475569;margin-top:4px">נופר אנרגיה · מחלקת הרכב · ${r.dateStr}</div>
+    </div>
+    <table style="width:100%;border-collapse:collapse;font-size:12px;margin-top:14px">
+      <tr>
+        <td style="border:1px solid #cbd5e1;padding:6px 10px"><b>שם העובד/ת:</b> ${r.name}</td>
+        <td style="border:1px solid #cbd5e1;padding:6px 10px"><b>ת.ז:</b> ${r.idNum}</td>
+        <td style="border:1px solid #cbd5e1;padding:6px 10px"><b>טלפון:</b> ${r.phone}</td>
+      </tr>
+      <tr>
+        <td style="border:1px solid #cbd5e1;padding:6px 10px"><b>רכב:</b> ${r.model||'-'} <span dir="ltr">${r.plate||''}</span></td>
+        <td style="border:1px solid #cbd5e1;padding:6px 10px"><b>רישיון נהיגה:</b> ${r.licNum||'-'}</td>
+        <td style="border:1px solid #cbd5e1;padding:6px 10px"><b>ק"מ בקבלה:</b> ${r.km||'-'}</td>
+      </tr>
+      ${r.address ? `<tr><td colspan="3" style="border:1px solid #cbd5e1;padding:6px 10px"><b>כתובת:</b> ${r.address}</td></tr>` : ''}
+    </table>
+    ${secHtml('sec-holder','1','הצהרה והתחייבות מחזיק/ה ברכב')}
+    ${secHtml('sec-viol','2','אישור מחזיק/ת הרכב — אחריות אישית בגין עבירות')}
+    ${secHtml('sec-family','3','הצהרה בדבר שימוש בני משפחה ברכב')}
+    ${xd ? `<div style="page-break-inside:avoid;border:1px solid #cbd5e1;border-radius:8px;padding:14px 16px;margin-top:14px">
+      <div style="font-weight:800;font-size:14px;border-bottom:2px solid #1e3a8a;padding-bottom:6px;margin-bottom:10px;color:#1e3a8a">4. הצהרת בריאות — נהג/ת נוסף/ת <span style="float:left;color:#047857;font-size:12px">✔ אושרה</span></div>
+      <p style="font-size:12px;margin:0 0 6px"><b>שם:</b> ${xd.name} | <b>ת.ז:</b> ${xd.idNum||'-'} | <b>רישיון:</b> ${xd.licNum||'-'} | <b>קרבה:</b> ${xd.relation||'-'}</p>
+      <p style="font-size:11.5px;line-height:1.6;margin:0;color:#1e293b">הנהג/ת הנוסף/ת הצהיר/ה כי לא התגלו אצלו/ה מגבלות בריאותיות המונעות נהיגה, כי לא נפסל/ה מלקבל או להחזיק רישיון נהיגה, וכי ידווח/תדווח מיידית על כל שינוי במצב הבריאותי או ברישיון.</p>
+    </div>` : ''}
+    <div style="page-break-inside:avoid;margin-top:18px;border-top:2px solid #1e3a8a;padding-top:12px">
+      <p style="font-size:13px;font-weight:800;margin:0 0 8px">הנני מצהיר/ה בזאת כי כל הצהרותיי לעיל אמת.</p>
+      <table style="width:100%;font-size:12px"><tr>
+        <td><b>שם:</b> ${r.name}<br><br><b>תאריך:</b> ${r.dateStr}</td>
+        <td style="text-align:left"><div style="font-size:11px;color:#475569">חתימת העובד/ת:</div><img src="${r.signature}" style="width:190px;border-bottom:1.5px solid #0f172a"></td>
+      </tr></table>
+    </div>
+  </div>`;
+}
+
 async function submitForms() {
   const err = document.getElementById('err');
   const val = id => document.getElementById(id).value.trim();
@@ -265,27 +312,26 @@ async function submitForms() {
       await db.collection('fleet').doc('main').set({ vehicles }, { merge: true });
       await new Promise(res => setTimeout(res, 1500));
     }
-    // 3. email the manager a full archive of the signed form: PDF + image snapshot
+    // 3. email the manager one clean A4 PDF of the signed declarations
     if (MAIL.gasUrl) {
       try {
         btn.textContent = 'מכין מסמך...';
-        const el = document.getElementById('form-wrap');
         const files = [];
         try {
+          const holder = document.createElement('div');
+          holder.style.cssText = 'position:absolute;left:-9999px;top:0';
+          holder.innerHTML = buildDocHtml(rec);
+          document.body.appendChild(holder);
           const pdfBlob = await html2pdf().set({
-            margin: 5,
-            image: { type: 'jpeg', quality: 0.85 },
-            html2canvas: { scale: 1.5, backgroundColor: '#ffffff' },
+            margin: [10, 8],
+            image: { type: 'jpeg', quality: 0.9 },
+            html2canvas: { scale: 2, backgroundColor: '#ffffff' },
             jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
             pagebreak: { mode: ['css', 'legacy'] }
-          }).from(el).outputPdf('blob');
+          }).from(holder.firstElementChild).outputPdf('blob');
+          document.body.removeChild(holder);
           const pdfB64 = await new Promise(res => { const fr = new FileReader(); fr.onload = () => res(String(fr.result).split(',')[1]); fr.readAsDataURL(pdfBlob); });
           files.push({ base64: pdfB64, mimeType: 'application/pdf', filename: `טפסי קבלת רכב ${rec.name} ${rec.plate}.pdf` });
-        } catch(e) {}
-        try {
-          const canvas = await html2canvas(el, { scale: 1.5, backgroundColor: '#ffffff' });
-          const imgB64 = canvas.toDataURL('image/jpeg', 0.85).split(',')[1];
-          files.push({ base64: imgB64, mimeType: 'image/jpeg', filename: `טפסי קבלת רכב ${rec.name} ${rec.plate}.jpg` });
         } catch(e) {}
         if (!files.length) files.push({ base64: rec.signature.split(',')[1], mimeType: 'image/png', filename: `חתימה ${rec.name}.png` });
         await fetch(MAIL.gasUrl, { method:'POST', mode:'no-cors', headers:{'Content-Type':'text/plain'},
