@@ -230,7 +230,7 @@ function buildDocHtml(r) {
       ${clauses}</div>`;
   };
   const xd = r.extraDriver;
-  return `<div dir="rtl" style="width:740px;background:#fff;color:#0f172a;font-family:Arial,'Heebo',sans-serif;padding:28px 32px">
+  return `<div dir="rtl" style="box-sizing:border-box;width:740px;background:#fff;color:#0f172a;font-family:Arial,'Heebo',sans-serif;padding:28px 32px">
     <div style="text-align:center;border-bottom:3px solid #1e3a8a;padding-bottom:12px">
       <div style="font-size:21px;font-weight:900;color:#1e3a8a">טפסי קבלת רכב — הצהרות והתחייבויות</div>
       <div style="font-size:12px;color:#475569;margin-top:4px">נופר אנרגיה · מחלקת הרכב · ${r.dateStr}</div>
@@ -274,7 +274,7 @@ async function docToPdfBlob(rec) {
   holder.innerHTML = buildDocHtml(rec);
   document.body.appendChild(holder);
   const el = holder.firstElementChild;
-  const W = 740;
+  const W = el.offsetWidth || 740;
   const H = el.scrollHeight;
   // section boundaries for clean page cuts
   const cuts = [...el.children].map(ch => ch.offsetTop);
