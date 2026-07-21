@@ -630,11 +630,13 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
 <!-- ══ DECLARATION SHARE MODAL ══ -->
 <div class="modal-overlay" id="decl-share-modal">
   <div class="modal">
-    <h3>📨 שליחת טפסי קבלת רכב</h3>
+    <h3>📨 שליחת טפסי נהג</h3>
     <p id="dsm-info" style="font-size:0.85rem;color:var(--muted);margin:8px 0 12px"></p>
-    <a id="dsm-wa" href="#" target="_blank" class="btn btn-green" style="display:block;text-align:center;text-decoration:none;margin-bottom:8px">💬 שלח בוואטסאפ</a>
-    <button class="btn btn-secondary" style="width:100%;margin-bottom:8px" onclick="declCopyLink()">📋 העתק קישור</button>
-    <p style="font-size:0.72rem;color:var(--muted)">כשהעובד ימלא ויחתום — תאריך הנהלים ברכב יתעדכן אוטומטית, וההצהרה תישמר בלשונית "טפסים".</p>
+    <button class="btn btn-green" style="width:100%;margin-bottom:7px" onclick="sendDeclForm('procedures')">💬 📄 נהלים ואחריות (+ צילום רישיון)</button>
+    <button class="btn btn-green" style="width:100%;margin-bottom:7px" onclick="sendDeclForm('family')">💬 👨‍👩‍👧 הצהרת בני משפחה</button>
+    <button class="btn btn-green" style="width:100%;margin-bottom:7px" onclick="sendDeclForm('traffic')">💬 🚔 אישור עבר תעבורתי</button>
+    <button class="btn btn-secondary" style="width:100%;margin-bottom:8px" onclick="declCopyLink()">📋 העתק קישור כללי (כל הטפסים)</button>
+    <p style="font-size:0.72rem;color:var(--muted)">כל טופס נחתם ונשלח בנפרד. טופס הנהלים מעדכן אוטומטית את תאריך הנהלים ברכב, וכולם נשמרים בלשונית "טפסים" ומגיעים אליך למייל כ-PDF.</p>
     <div class="btn-row">
       <button class="btn btn-secondary" onclick="document.getElementById('decl-share-modal').classList.remove('open')">סגור</button>
     </div>
@@ -1529,22 +1531,32 @@ function remindKmDriver(i) {
 }
 
 // ── DRIVER DECLARATION FORMS (driver-forms.html) ──
+const DECL_FORM_META = {
+  procedures: { label: '📄 נהלים ואחריות', msgName: 'טפסי הנהלים והאחריות (כולל צירוף צילום רישיון נהיגה)' },
+  family:     { label: '👨‍👩‍👧 בני משפחה', msgName: 'הצהרת שימוש בני משפחה ברכב' },
+  traffic:    { label: '🚔 עבר תעבורתי', msgName: 'אישור בדיקת עבר תעבורתי' }
+};
 function openDeclShare(plate) {
   const v = VEHICLES.find(x => x.plate === plate);
   const driver = v ? (v.driverName||'').split('-')[0].trim() : '';
-  const link = `https://nadi8890.github.io/shamay-scan/driver-forms.html?plate=${encodeURIComponent(plate)}`;
-  const msg = `שלום ${driver || ''},\nלקראת קבלת הרכב ${v ? (v.make+' '+v.model) : ''} (${plate}) נא למלא ולחתום על טפסי קבלת הרכב בקישור:\n${link}\n\nתודה, מחלקת הרכב — נופר אנרגיה`;
-  window._declLink = link;
-  // direct chat when the driver's phone is stored on the vehicle
+  window._declPlate = plate;
+  window._declDriver = driver;
+  window._declLink = `https://nadi8890.github.io/shamay-scan/driver-forms.html?plate=${encodeURIComponent(plate)}`;
   const digits = (v && v.driverPhone ? v.driverPhone : '').replace(/\D/g,'');
-  const intl = digits ? (digits.startsWith('972') ? digits : '972' + digits.replace(/^0/,'')) : '';
-  document.getElementById('dsm-info').innerHTML = intl
-    ? `${esc(driver || 'נהג')} — רכב ${esc(plate)} | 📱 <b dir="ltr">${esc(v.driverPhone)}</b><br><span style="font-size:0.72rem">ההודעה תיפתח ישירות בצ'אט עם הנהג</span>`
+  window._declIntl = digits ? (digits.startsWith('972') ? digits : '972' + digits.replace(/^0/,'')) : '';
+  document.getElementById('dsm-info').innerHTML = window._declIntl
+    ? `${esc(driver || 'נהג')} — רכב ${esc(plate)} | 📱 <b dir="ltr">${esc(v.driverPhone)}</b><br><span style="font-size:0.72rem">בחר איזה טופס לשלוח — ההודעה תיפתח ישירות בצ'אט עם הנהג</span>`
     : `${esc(driver || 'נהג')} — רכב ${esc(plate)}<br><span style="font-size:0.72rem;color:#d97706">⚠ אין מספר נייד שמור לנהג — ייפתח וואטסאפ לבחירת איש קשר. אפשר להוסיף מספר בעריכת הרכב (✏️)</span>`;
-  document.getElementById('dsm-wa').href = intl
-    ? `https://wa.me/${intl}?text=${encodeURIComponent(msg)}`
-    : 'https://wa.me/?text=' + encodeURIComponent(msg);
   document.getElementById('decl-share-modal').classList.add('open');
+}
+function sendDeclForm(formKey) {
+  const meta = DECL_FORM_META[formKey];
+  const link = `${window._declLink}&form=${formKey}`;
+  const msg = `שלום ${window._declDriver || ''},\nנא למלא ולחתום על ${meta.msgName} עבור רכב ${window._declPlate} בקישור:\n${link}\n\nלוקח 2 דקות בטלפון. תודה!\nמחלקת הרכב — נופר אנרגיה`;
+  const url = window._declIntl
+    ? `https://wa.me/${window._declIntl}?text=${encodeURIComponent(msg)}`
+    : 'https://wa.me/?text=' + encodeURIComponent(msg);
+  window.open(url, '_blank');
 }
 async function declCopyLink() {
   try { await navigator.clipboard.writeText(window._declLink || ''); toast('הקישור הועתק ✓'); }
@@ -1563,8 +1575,10 @@ async function loadDeclarations() {
     wrap.innerHTML = list.map((r,i) => `<div class="insp-hist-row" onclick="viewDeclaration(${i})">
         <span style="font-weight:700">${esc(r.name||'')}</span>
         <span style="font-weight:700;color:var(--accent);direction:ltr">${esc(r.plate||'')}</span>
+        <span class="badge badge-gray">${r.formType && DECL_FORM_META[r.formType] ? DECL_FORM_META[r.formType].label : '📋 טפסים מלאים'}</span>
         <span style="color:var(--muted)">${esc(r.dateStr||'')}</span>
         ${r.extraDriver ? '<span class="badge badge-orange">+ נהג נוסף</span>' : ''}
+        ${r.photosCount ? `<span class="badge badge-orange">📷 ${r.photosCount}</span>` : ''}
         <span class="badge badge-green">✓ נחתם</span>
         <button class="btn btn-secondary" style="padding:3px 8px;font-size:0.72rem" onclick="event.stopPropagation();deleteDeclaration(${i})">🗑️</button>
       </div>`).join('');
@@ -1572,16 +1586,27 @@ async function loadDeclarations() {
 }
 function buildDeclText(r) {
   const L = [];
-  L.push(`טפסי קבלת רכב — ${r.dateStr||''}`);
+  const titles = {
+    procedures: ['✓ הצהרה והתחייבות מחזיק/ה ברכב — אושר', '✓ אישור אחריות אישית בגין עבירות — אושר'],
+    family: ['✓ הצהרת שימוש בני משפחה — אושר'],
+    traffic: ['✓ אישור בדיקת עבר תעבורתי (תקנה 585א) — אושר']
+  };
+  const hdr = r.formType && DECL_FORM_META[r.formType] ? DECL_FORM_META[r.formType].label.replace(/^[^\s]+\s/, '') : 'טפסי קבלת רכב';
+  L.push(`${hdr} — ${r.dateStr||''}`);
   L.push(`רכב: ${r.model||''} | מספר: ${r.plate||''}`);
   L.push('');
   L.push(`עובד/ת: ${r.name||''} | ת.ז: ${r.idNum||''} | טלפון: ${r.phone||'-'}`);
-  L.push(`רישיון נהיגה: ${r.licNum||'-'} | כתובת: ${r.address||'-'} | ק"מ בקבלה: ${r.km||'-'}`);
+  L.push(`רישיון נהיגה: ${r.licNum||'-'}` + (r.address ? ` | כתובת: ${r.address}` : '') + (r.km ? ` | ק"מ בקבלה: ${r.km}` : ''));
   L.push('');
-  L.push('✓ הצהרה והתחייבות מחזיק/ה ברכב — אושר');
-  L.push('✓ אישור אחריות אישית בגין עבירות — אושר');
-  L.push('✓ הצהרת שימוש בני משפחה — אושר');
-  if (r.agreed && r.agreed.traffic) L.push('✓ אישור בדיקת עבר תעבורתי (תקנה 585א) — אושר');
+  if (r.formType && titles[r.formType]) {
+    titles[r.formType].forEach(t => L.push(t));
+  } else {
+    L.push('✓ הצהרה והתחייבות מחזיק/ה ברכב — אושר');
+    L.push('✓ אישור אחריות אישית בגין עבירות — אושר');
+    L.push('✓ הצהרת שימוש בני משפחה — אושר');
+    if (r.agreed && r.agreed.traffic) L.push('✓ אישור בדיקת עבר תעבורתי (תקנה 585א) — אושר');
+  }
+  if (r.photosCount) L.push(`📷 צורפו ${r.photosCount} צילומי רישיון נהיגה (בקובץ ה-PDF שבמייל)`);
   if (r.extraDriver) {
     L.push('');
     L.push(`נהג/ת נוסף/ת: ${r.extraDriver.name||''} | ת.ז: ${r.extraDriver.idNum||''} | רישיון: ${r.extraDriver.licNum||'-'} | קרבה: ${r.extraDriver.relation||'-'}`);
