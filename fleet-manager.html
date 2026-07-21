@@ -460,6 +460,44 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
   </div>
 </div>
 
+<!-- ══════════════ TAB: DASHBOARD ══════════════ -->
+<div class="tab-content" id="tab-dashboard">
+  <style>
+    .dash-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px}
+    .dash-tile{background:#fff;border:1.5px solid #e2e8f0;border-radius:12px;padding:12px 10px;text-align:center}
+    .dash-tile .n{font-size:1.5rem;font-weight:900;line-height:1.1}
+    .dash-tile .l{font-size:0.68rem;color:var(--muted);margin-top:3px}
+    .dash-sec{background:#fff;border:1.5px solid #e2e8f0;border-radius:14px;margin-bottom:14px;overflow:hidden}
+    .dash-sec-hdr{background:#f8fafc;padding:10px 14px;font-weight:800;font-size:0.88rem;border-bottom:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center}
+    .dash-row{display:flex;align-items:center;gap:10px;padding:8px 14px;border-bottom:1px solid #f1f5f9;font-size:0.8rem}
+    .dash-row:last-child{border-bottom:none}
+    .dash-rank{width:22px;height:22px;border-radius:50%;background:#eef2f7;color:#475569;font-weight:800;font-size:0.72rem;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+    .dash-rank.top{background:#fef3c7;color:#b45309}
+    .dash-name{font-weight:700;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .dash-bar-wrap{flex:1.4;background:#f1f5f9;border-radius:6px;height:9px;overflow:hidden;min-width:40px}
+    .dash-bar{height:100%;border-radius:6px}
+    .dash-val{font-weight:800;font-size:0.78rem;white-space:nowrap;min-width:52px;text-align:left}
+    .dash-2col{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+    @media(max-width:760px){.dash-grid{grid-template-columns:repeat(2,1fr)}.dash-2col{grid-template-columns:1fr}}
+    .co-seg{display:flex;height:26px;border-radius:8px;overflow:hidden;margin:10px 14px 4px}
+    .co-seg div{display:flex;align-items:center;justify-content:center;color:#fff;font-size:0.68rem;font-weight:800}
+    .empty-note{padding:14px;text-align:center;color:var(--muted);font-size:0.8rem}
+  </style>
+  <div class="section-hdr"><span class="section-title">📊 דשבורד ניהולי</span><span style="font-size:0.72rem;color:var(--muted)" id="dash-updated"></span></div>
+  <div class="dash-grid" id="dash-kpis"></div>
+  <div class="dash-2col">
+    <div class="dash-sec"><div class="dash-sec-hdr">🛣️ נהגים — הכי הרבה ק"מ<span style="font-size:0.68rem;color:var(--muted)">נוכחי</span></div><div id="dash-topkm"></div></div>
+    <div class="dash-sec"><div class="dash-sec-hdr">💥 תאונות לפי נהג<span style="font-size:0.68rem;color:var(--muted)">מס׳ אירועים</span></div><div id="dash-accidents"></div></div>
+  </div>
+  <div class="dash-2col">
+    <div class="dash-sec"><div class="dash-sec-hdr">📄 דוחות תנועה לפי נהג<span style="font-size:0.68rem;color:var(--muted)">נקודות · דוחות</span></div><div id="dash-viol"></div></div>
+    <div class="dash-sec"><div class="dash-sec-hdr">⚠️ הכי הרבה חוסרים/התראות<span style="font-size:0.68rem;color:var(--muted)">פתוחים</span></div><div id="dash-alerts"></div></div>
+  </div>
+  <div class="dash-sec"><div class="dash-sec-hdr">🏢 התפלגות הצי לפי חברת ליסינג</div><div id="dash-companies"></div></div>
+  <div class="dash-sec"><div class="dash-sec-hdr">💰 עלויות ותחזוקה</div><div id="dash-costs"></div></div>
+  <div style="height:20px"></div>
+</div>
+
 <!-- ══════════════ TAB: ALERTS ══════════════ -->
 <div class="tab-content active" id="tab-alerts">
   <div id="km-banner" style="display:none;background:linear-gradient(135deg,#7c3aed,#4f46e5);color:#fff;border-radius:12px;padding:12px 16px;margin-bottom:14px;display:none;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
@@ -495,6 +533,7 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
 <nav class="bottom-nav">
   <button class="nav-btn" onclick="showTab('fleet',this)"><span class="icon">🚗</span>ציי רכב</button>
   <button class="nav-btn active" onclick="showTab('alerts',this)"><span class="icon">🔔</span>התראות</button>
+  <button class="nav-btn" onclick="showTab('dashboard',this)"><span class="icon">📊</span>דשבורד</button>
   <button class="nav-btn" onclick="showTab('incidents',this)"><span class="icon">💥</span>אירועים</button>
   <button class="nav-btn" onclick="showTab('violations',this)"><span class="icon">📄</span>דוחות</button>
   <button class="nav-btn" onclick="showTab('invoices',this)"><span class="icon">🔧</span>מוסכים</button>
@@ -1107,6 +1146,90 @@ function showTab(name, btn) {
   if (name==='tasks') renderTasks();
   if (name==='returns') renderReturns();
   if (name==='forms') renderFormsTab();
+  if (name==='dashboard') renderManagerDashboard();
+}
+
+// ── MANAGER DASHBOARD ──
+function renderManagerDashboard() {
+  const cleanName = s => (s||'').split('-')[0].replace(/['"׳]/g,'').trim();
+  const active = VEHICLES.filter(v => { const n = cleanName(v.driverName); return n && n!=='נגרר' && n!=='ללא נהג'; });
+
+  // ── KPI tiles ──
+  const alerts = buildDynamicAlerts();
+  const overdueDocs = alerts.filter(a => a.daysLeft !== null && a.daysLeft < 0).length;
+  const serviceDue = VEHICLES.filter(v => { const c=parseKm(v.currentKm), n=parseKm(v.nextServiceKm); return c>0 && n>0 && c>=n; }).length;
+  const openViol = VIOLATIONS.filter(v => !v.stHosav && !v.stPaid && !v.stHandled).length;
+  const totalPoints = VIOLATIONS.reduce((s,v)=>s + (parseInt(v.points)||0), 0);
+  const totalDamage = INCIDENTS.reduce((s,i)=>s + (parseInt(String(i.damage||'').replace(/\D/g,''))||0), 0);
+  document.getElementById('dash-kpis').innerHTML = [
+    {n: VEHICLES.length, l:'רכבים בצי', c:'var(--blue)'},
+    {n: overdueDocs, l:'מסמכים שפגו', c:'var(--red)'},
+    {n: serviceDue, l:'רכבים בחריגת טיפול', c:'var(--orange)'},
+    {n: INCIDENTS.length, l:'תאונות בסה״כ', c:'#7c3aed'},
+    {n: openViol, l:'דוחות לא מטופלים', c:'var(--red)'},
+    {n: totalPoints, l:'נקודות פעילות בצי', c:'var(--orange)'},
+    {n: alerts.length, l:'התראות פתוחות', c:'#d97706'},
+    {n: '₪'+totalDamage.toLocaleString(), l:'סך נזקי תאונות', c:'#059669'}
+  ].map(t => `<div class="dash-tile"><div class="n" style="color:${t.c}">${t.n}</div><div class="l">${t.l}</div></div>`).join('');
+
+  const bars = (rows, color, fmt) => {
+    if (!rows.length) return '<div class="empty-note">אין נתונים</div>';
+    const max = Math.max(...rows.map(r=>r.val), 1);
+    return rows.map((r,i)=>`<div class="dash-row">
+      <div class="dash-rank ${i<3?'top':''}">${i+1}</div>
+      <div class="dash-name">${esc(r.name)}${r.sub?` <span style="color:var(--muted);font-weight:400;font-size:0.7rem">${esc(r.sub)}</span>`:''}</div>
+      <div class="dash-bar-wrap"><div class="dash-bar" style="width:${Math.round(r.val/max*100)}%;background:${color}"></div></div>
+      <div class="dash-val">${fmt(r.val, r)}</div></div>`).join('');
+  };
+
+  // ── top km drivers ──
+  const kmRows = active.map(v=>({name:cleanName(v.driverName), sub:v.plate, val:parseKm(v.currentKm)}))
+    .filter(r=>r.val>0).sort((a,b)=>b.val-a.val).slice(0,8);
+  document.getElementById('dash-topkm').innerHTML = bars(kmRows, 'linear-gradient(90deg,#60a5fa,#2563eb)', v=>v.toLocaleString());
+
+  // ── accidents per driver ──
+  const accMap = {};
+  INCIDENTS.forEach(i=>{ const n = cleanName(i.driver) || (VEHICLES.find(v=>(v.plate||'').replace(/\D/g,'')===String(i.plate||'').replace(/\D/g,''))?cleanName(VEHICLES.find(v=>(v.plate||'').replace(/\D/g,'')===String(i.plate||'').replace(/\D/g,'')).driverName):'') || 'לא ידוע'; accMap[n]=(accMap[n]||0)+1; });
+  const accRows = Object.entries(accMap).map(([name,val])=>({name,val})).sort((a,b)=>b.val-a.val).slice(0,8);
+  document.getElementById('dash-accidents').innerHTML = bars(accRows, 'linear-gradient(90deg,#c4b5fd,#7c3aed)', v=>v+' תאונות');
+
+  // ── violations per driver (by points) ──
+  const vMap = {};
+  VIOLATIONS.forEach(v=>{ const n=cleanName(v.driver)||'לא ידוע'; if(!vMap[n]) vMap[n]={pts:0,cnt:0}; vMap[n].pts+=(parseInt(v.points)||0); vMap[n].cnt++; });
+  const vRows = Object.entries(vMap).map(([name,o])=>({name,val:o.pts,cnt:o.cnt})).sort((a,b)=>b.val-a.val||b.cnt-a.cnt).slice(0,8);
+  document.getElementById('dash-viol').innerHTML = bars(vRows, 'linear-gradient(90deg,#fca5a5,#dc2626)', (v,r)=>`${v} נק׳ · ${r.cnt}`);
+
+  // ── most alerts per vehicle/driver ──
+  const alMap = {};
+  alerts.forEach(a=>{ const n = cleanName(a.driver) + ' · ' + a.plate; alMap[n]=(alMap[n]||0)+1; });
+  const alRows = Object.entries(alMap).map(([name,val])=>({name,val})).sort((a,b)=>b.val-a.val).slice(0,8);
+  document.getElementById('dash-alerts').innerHTML = bars(alRows, 'linear-gradient(90deg,#fdba74,#d97706)', v=>v+' התראות');
+
+  // ── company distribution ──
+  const coMap = {};
+  VEHICLES.forEach(v=>{ let c=String(v.company||'אחר').trim(); if(c.includes('נופר'))c='נופר אנרגי'; else if(c.includes('ליסקאר'))c='ליסקאר'; else if(c.includes('שלמה')||c.includes('סיקסט'))c='שלמה סיקסט'; else if(c.includes('הרץ'))c='הרץ'; else if(!c)c='אחר'; coMap[c]=(coMap[c]||0)+1; });
+  const coColors = {'נופר אנרגי':'#2563eb','ליסקאר':'#059669','שלמה סיקסט':'#d97706','הרץ':'#dc2626','אחר':'#64748b'};
+  const coEntries = Object.entries(coMap).sort((a,b)=>b[1]-a[1]);
+  const coTotal = VEHICLES.length || 1;
+  document.getElementById('dash-companies').innerHTML =
+    `<div class="co-seg">${coEntries.map(([c,n])=>`<div style="width:${n/coTotal*100}%;background:${coColors[c]||'#64748b'}" title="${c}: ${n}">${n/coTotal>0.08?n:''}</div>`).join('')}</div>` +
+    coEntries.map(([c,n])=>`<div class="dash-row"><span style="width:12px;height:12px;border-radius:3px;background:${coColors[c]||'#64748b'};flex-shrink:0"></span><div class="dash-name">${esc(c)}</div><div class="dash-val">${n} רכב · ${Math.round(n/coTotal*100)}%</div></div>`).join('');
+
+  // ── costs / maintenance ──
+  const avgDamage = INCIDENTS.length ? Math.round(totalDamage/INCIDENTS.length) : 0;
+  const worstDriver = accRows[0] ? `${accRows[0].name} (${accRows[0].val})` : '—';
+  const garageCount = (typeof INVOICES!=='undefined' ? INVOICES.length : 0);
+  document.getElementById('dash-costs').innerHTML = [
+    ['סך נזקי תאונות', '₪'+totalDamage.toLocaleString()],
+    ['נזק ממוצע לתאונה', '₪'+avgDamage.toLocaleString()],
+    ['הנהג עם הכי הרבה תאונות', worstDriver],
+    ['סה״כ ביקורי מוסך מתועדים', garageCount],
+    ['סה״כ דוחות תנועה', VIOLATIONS.length],
+    ['ק״מ ממוצע לרכב', (active.length ? Math.round(active.reduce((s,v)=>s+parseKm(v.currentKm),0)/active.length) : 0).toLocaleString()]
+  ].map(([l,v])=>`<div class="dash-row"><div class="dash-name">${l}</div><div class="dash-val" style="min-width:auto">${v}</div></div>`).join('');
+
+  const now = new Date();
+  document.getElementById('dash-updated').textContent = 'עודכן ' + ('0'+now.getHours()).slice(-2)+':'+('0'+now.getMinutes()).slice(-2);
 }
 
 // ── DASHBOARD ──
