@@ -243,16 +243,32 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
 <!-- Firebase SDK -->
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.2/html2pdf.bundle.min.js"></script>
 </head>
 <body>
+
+<!-- ══ LOGIN GATE ══ -->
+<div id="login-gate" style="position:fixed;inset:0;z-index:9999;background:linear-gradient(135deg,#0f172a,#1e3a8a);display:flex;align-items:center;justify-content:center;padding:24px;font-family:'Heebo',sans-serif">
+  <div style="background:#fff;border-radius:20px;padding:30px 26px;width:100%;max-width:380px;box-shadow:0 30px 80px rgba(0,0,0,.5);text-align:center">
+    <div style="font-size:2.4rem">🚗</div>
+    <div style="font-size:1.3rem;font-weight:900;color:#1e3a8a;margin-top:4px"><span style="color:#059669">ר.מ</span>זור</div>
+    <div style="font-size:0.8rem;color:#64748b;margin-bottom:20px">מערכת ניהול צי רכב · כניסת מנהל</div>
+    <input id="lg-email" type="email" placeholder="אימייל" autocomplete="username" style="width:100%;border:1.5px solid #dde3ed;border-radius:10px;padding:12px;font-family:'Heebo',sans-serif;font-size:0.95rem;margin-bottom:9px;direction:ltr;text-align:right">
+    <input id="lg-pass" type="password" placeholder="סיסמה" autocomplete="current-password" style="width:100%;border:1.5px solid #dde3ed;border-radius:10px;padding:12px;font-family:'Heebo',sans-serif;font-size:0.95rem;margin-bottom:9px;direction:ltr;text-align:right" onkeydown="if(event.key==='Enter')doLogin()">
+    <div id="lg-err" style="color:#dc2626;font-size:0.8rem;font-weight:700;min-height:18px;margin-bottom:6px"></div>
+    <button id="lg-btn" onclick="doLogin()" style="width:100%;background:linear-gradient(135deg,#2563eb,#4f46e5);color:#fff;border:none;border-radius:11px;padding:13px;font-family:'Heebo',sans-serif;font-size:1rem;font-weight:800;cursor:pointer">התחברות</button>
+    <div style="margin-top:12px"><a href="#" onclick="doReset();return false" style="font-size:0.75rem;color:#64748b;text-decoration:underline">שכחתי סיסמה</a></div>
+  </div>
+</div>
 
 <header>
   <div class="logo">🚗 נופר<span> | ניהול ציי רכב</span></div>
   <div style="display:flex;align-items:center;gap:10px">
     <span id="save-indicator">💾 לא נשמר</span>
     <button class="btn" style="padding:7px 14px;font-size:0.82rem;background:#fff;color:#1e40af;font-weight:700;border-radius:8px" onclick="openAddVehicle()">+ רכב חדש</button>
+    <button class="btn" style="padding:7px 12px;font-size:0.82rem;background:rgba(255,255,255,.18);color:#fff;font-weight:700;border-radius:8px" onclick="doLogout()" title="התנתקות">🚪</button>
   </div>
 </header>
 
@@ -2529,8 +2545,13 @@ function saveVehicle() {
 }
 
 // ── INIT ──
-window.onload = () => {
-  // Show that data is loaded from storage
+// ══ AUTHENTICATION GATE ══
+const auth = firebase.auth();
+let _appBooted = false;
+function bootApp() {
+  if (_appBooted) return;
+  _appBooted = true;
+  document.getElementById('login-gate').style.display = 'none';
   const ind = document.getElementById('save-indicator');
   if (ind) { ind.textContent = '✓ נתונים טעונים'; ind.className = 'saved'; }
   loadFromFirestore().then(() => {
@@ -2544,7 +2565,44 @@ window.onload = () => {
   renderInvoices();
   renderTasks();
   agentInit();
-};
+}
+function doLogin() {
+  const email = document.getElementById('lg-email').value.trim();
+  const pass = document.getElementById('lg-pass').value;
+  const err = document.getElementById('lg-err');
+  const btn = document.getElementById('lg-btn');
+  err.textContent = '';
+  if (!email || !pass) { err.textContent = 'נא למלא אימייל וסיסמה'; return; }
+  btn.disabled = true; btn.textContent = 'מתחבר...';
+  auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL)
+    .then(() => auth.signInWithEmailAndPassword(email, pass))
+    .catch(e => {
+      btn.disabled = false; btn.textContent = 'התחברות';
+      const m = { 'auth/wrong-password':'סיסמה שגויה', 'auth/user-not-found':'משתמש לא קיים', 'auth/invalid-email':'אימייל לא תקין', 'auth/invalid-credential':'אימייל או סיסמה שגויים', 'auth/too-many-requests':'יותר מדי ניסיונות — נסה שוב בעוד כמה דקות' };
+      err.textContent = m[e.code] || 'שגיאת התחברות';
+    });
+}
+function doReset() {
+  const email = document.getElementById('lg-email').value.trim();
+  const err = document.getElementById('lg-err');
+  if (!email) { err.textContent = 'הזן אימייל ואז לחץ שוב על "שכחתי סיסמה"'; return; }
+  auth.sendPasswordResetEmail(email)
+    .then(() => { err.style.color = '#059669'; err.textContent = 'נשלח מייל לאיפוס סיסמה ✓'; })
+    .catch(() => { err.textContent = 'לא ניתן לשלוח — בדוק את האימייל'; });
+}
+function doLogout() {
+  if (confirm('להתנתק מהמערכת?')) auth.signOut().then(() => location.reload());
+}
+auth.onAuthStateChanged(user => {
+  if (user) {
+    bootApp();
+  } else {
+    document.getElementById('login-gate').style.display = 'flex';
+    const btn = document.getElementById('lg-btn');
+    if (btn) { btn.disabled = false; btn.textContent = 'התחברות'; }
+  }
+});
+window.onload = () => {};
 
 // ══════════════════════════════════════
 // ── AI AGENT ──
