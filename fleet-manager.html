@@ -892,11 +892,50 @@ async function loadFromFirestore() {
       if (Array.isArray(d.returns)) { RETURNS = d.returns; localStorage.setItem('fleet_returns', JSON.stringify(RETURNS)); }
       if (d.mailSettings) { MAIL_SETTINGS = d.mailSettings; localStorage.setItem('fleet_mailSettings', JSON.stringify(MAIL_SETTINGS)); }
       if (d.kmRound && typeof KMROUND !== 'undefined') { KMROUND = d.kmRound; }
+      if (d.serviceNotified) { SERVICE_NOTIFIED = d.serviceNotified; }
       if (typeof updateKmBanner === 'function') updateKmBanner();
       if (typeof maybeSendKmReminder === 'function') maybeSendKmReminder();
       _firestoreLoaded = true;
+      if (typeof checkServiceOverages === 'function') checkServiceOverages();
     }
   } catch(e) { console.log('Firestore load error', e); }
+}
+
+// ── PROACTIVE SERVICE-OVERAGE ALERT ──
+// Fires once per vehicle each time it crosses its next-service km, from ANY source
+// (manual edit, agent, or the drivers' monthly km round). Re-arms when the service
+// target is bumped after a service is done. State is shared via Firestore so it
+// alerts on one device only.
+let SERVICE_NOTIFIED = {};
+let _serviceSeeded = false;
+function _svcKey(v) { return String(parseKm(v.nextServiceKm)); }
+function checkServiceOverages() {
+  const overdue = VEHICLES.filter(v => {
+    const cur = parseKm(v.currentKm), nxt = parseKm(v.nextServiceKm);
+    return cur > 0 && nxt > 0 && cur >= nxt;
+  });
+  const firstEver = !_serviceSeeded && Object.keys(SERVICE_NOTIFIED).length === 0;
+  _serviceSeeded = true;
+  if (firstEver) {
+    overdue.forEach(v => { SERVICE_NOTIFIED[v.plate] = _svcKey(v); });
+    saveToFirestore('serviceNotified', SERVICE_NOTIFIED);
+    return;
+  }
+  const fresh = overdue.filter(v => SERVICE_NOTIFIED[v.plate] !== _svcKey(v));
+  if (!fresh.length) return;
+  fresh.forEach(v => { SERVICE_NOTIFIED[v.plate] = _svcKey(v); });
+  saveToFirestore('serviceNotified', SERVICE_NOTIFIED);
+  const lines = fresh.map(v => {
+    const nm = (v.driverName||'').split('-')[0].trim();
+    return `• ${nm} (${v.plate}) — ${parseKm(v.currentKm).toLocaleString()} ק"מ / טיפול ב-${parseKm(v.nextServiceKm).toLocaleString()} (חריגה ${(parseKm(v.currentKm)-parseKm(v.nextServiceKm)).toLocaleString()} ק"מ)`;
+  });
+  toast(`🔧 ${fresh.length} רכב בחריגת טיפול — ראה לשונית התראות`, false);
+  if (MAIL_SETTINGS.gasUrl) {
+    try {
+      fetch(MAIL_SETTINGS.gasUrl, { method:'POST', mode:'no-cors', headers:{'Content-Type':'text/plain'},
+        body: JSON.stringify({ subject: `🔧 חריגת טיפול — ${fresh.length} רכב`, body: 'הרכבים הבאים הגיעו/עברו את ק"מ הטיפול:\n\n' + lines.join('\n') + '\n\n(נשלח אוטומטית ע"י מערכת ר.מזור)', files: [] }) });
+    } catch(e) {}
+  }
 }
 
 async function saveToFirestore(key, value) {
@@ -919,7 +958,9 @@ function setupRealtimeSync() {
     if (Array.isArray(d.returns)) { RETURNS = d.returns; }
     if (d.mailSettings) { MAIL_SETTINGS = d.mailSettings; }
     if (d.kmRound && typeof KMROUND !== 'undefined') { KMROUND = d.kmRound; if (typeof updateKmBanner === 'function') updateKmBanner(); }
+    if (d.serviceNotified) { SERVICE_NOTIFIED = d.serviceNotified; }
     if (changed && typeof renderFleet === 'function') { renderFleet(); renderAlerts(); }
+    if (changed && typeof checkServiceOverages === 'function') checkServiceOverages();
   });
 }
 
@@ -2276,6 +2317,7 @@ function saveVehicle() {
   renderDashboard();
   renderAlerts();
   renderFleet();
+  checkServiceOverages();
   toast(editingPlate ? 'רכב עודכן ✓' : 'רכב נוסף ✓');
 }
 
