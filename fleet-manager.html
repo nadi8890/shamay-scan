@@ -485,8 +485,9 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
   </style>
   <div class="section-hdr"><span class="section-title">📊 דשבורד ניהולי</span><span style="font-size:0.72rem;color:var(--muted)" id="dash-updated"></span></div>
   <div class="dash-grid" id="dash-kpis"></div>
+  <div class="dash-sec"><div class="dash-sec-hdr">🏁 נסועה חודשית — הכי הרבה ק"מ<span style="font-size:0.68rem;color:var(--muted)" id="dash-mileage-sub">בין דיווחי הנהגים</span></div><div id="dash-mileage"></div></div>
   <div class="dash-2col">
-    <div class="dash-sec"><div class="dash-sec-hdr">🛣️ נהגים — הכי הרבה ק"מ<span style="font-size:0.68rem;color:var(--muted)">נוכחי</span></div><div id="dash-topkm"></div></div>
+    <div class="dash-sec"><div class="dash-sec-hdr">🛣️ נהגים — הכי הרבה ק"מ<span style="font-size:0.68rem;color:var(--muted)">נוכחי (מצטבר)</span></div><div id="dash-topkm"></div></div>
     <div class="dash-sec"><div class="dash-sec-hdr">💥 תאונות לפי נהג<span style="font-size:0.68rem;color:var(--muted)">מס׳ אירועים</span></div><div id="dash-accidents"></div></div>
   </div>
   <div class="dash-2col">
@@ -1256,6 +1257,47 @@ function renderManagerDashboard() {
 
   const now = new Date();
   document.getElementById('dash-updated').textContent = 'עודכן ' + ('0'+now.getHours()).slice(-2)+':'+('0'+now.getMinutes()).slice(-2);
+
+  loadMonthlyMileage(active, cleanName, bars);
+}
+
+// monthly mileage = difference between a driver's two most recent km reports
+async function loadMonthlyMileage(active, cleanName, bars) {
+  const wrap = document.getElementById('dash-mileage');
+  wrap.innerHTML = '<div class="empty-note">טוען...</div>';
+  try {
+    const snap = await db.collection('fleet').where('type','==','kmreport').get();
+    const byPlate = {};
+    snap.docs.forEach(d => {
+      const r = d.data();
+      const p = (r.plate||'').replace(/\D/g,'');
+      if (!p) return;
+      (byPlate[p] = byPlate[p] || []).push(r);
+    });
+    const activePlates = new Set(active.map(v => (v.plate||'').replace(/\D/g,'')));
+    const rows = [];
+    Object.entries(byPlate).forEach(([p, reps]) => {
+      if (!activePlates.has(p)) return;
+      reps.sort((a,b) => String(b.monthKey||'').localeCompare(String(a.monthKey||'')) || (b.created||0)-(a.created||0));
+      if (reps.length < 2) return;
+      const cur = parseKm(reps[0].km), prev = parseKm(reps[1].km);
+      const diff = cur - prev;
+      if (diff <= 0) return;
+      const v = active.find(x => (x.plate||'').replace(/\D/g,'') === p);
+      rows.push({ name: cleanName(reps[0].driver) || (v?cleanName(v.driverName):'') || p, sub: reps[0].plate, val: diff, months: reps[0].monthKey + ' ← ' + reps[1].monthKey });
+    });
+    rows.sort((a,b) => b.val - a.val);
+    const withData = Object.entries(byPlate).filter(([p]) => activePlates.has(p) && byPlate[p].length >= 2).length;
+    const totalReports = snap.size;
+    if (!rows.length) {
+      wrap.innerHTML = `<div class="empty-note">אין עדיין מספיק נתונים 🏁<br><span style="font-size:0.72rem">הנסועה החודשית מחושבת מ-2 סבבי ק"מ ומעלה של אותו נהג.<br>נאספו עד כה ${totalReports} דיווחי ק"מ. שלח סבב נוסף בחודש הבא כדי לראות מי נוסע הכי הרבה.</span></div>`;
+      return;
+    }
+    document.getElementById('dash-mileage-sub').textContent = `${rows.length} נהגים עם 2+ דיווחים`;
+    wrap.innerHTML = bars(rows.slice(0,10), 'linear-gradient(90deg,#34d399,#059669)', v => v.toLocaleString() + ' ק"מ');
+  } catch(e) {
+    wrap.innerHTML = '<div class="empty-note">שגיאה בטעינת נסועה</div>';
+  }
 }
 
 // ── DASHBOARD ──
