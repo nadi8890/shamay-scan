@@ -1177,14 +1177,21 @@ function renderManagerDashboard() {
   const serviceDue = active.filter(v => { const c=parseKm(v.currentKm), n=parseKm(v.nextServiceKm); return c>0 && n>0 && c>=n; }).length;
   const openViol = violAll.filter(v => !v.stHosav && !v.stPaid && !v.stHandled).length;
   const totalDamage = incAll.reduce((s,i)=>s + parseMoney(i.damage), 0);
-  const replCount = (typeof REPLACEMENTS !== 'undefined' ? REPLACEMENTS.length : 0);
+  // documents expiring within the next 30 days (proactive renewal planning)
+  let soonRenew = 0;
+  active.forEach(v => {
+    [v.registrationExpiry, v.insuranceExpiry, v.licenseExpiry, nextInspectionStr(v)].forEach(d => {
+      const days = daysUntil(d);
+      if (days !== null && days >= 0 && days <= 30) soonRenew++;
+    });
+  });
   document.getElementById('dash-kpis').innerHTML = [
     {n: active.length, l:'רכבים פעילים בצי', c:'var(--blue)'},
     {n: overdueDocs, l:'מסמכים שפגו', c:'var(--red)'},
     {n: serviceDue, l:'רכבים בחריגת טיפול', c:'var(--orange)'},
     {n: incAll.length, l:'תאונות (נהגים פעילים)', c:'#7c3aed'},
     {n: openViol, l:'דוחות לא מטופלים', c:'var(--red)'},
-    {n: replCount, l:'רכבים חליפיים פעילים', c:'var(--orange)'},
+    {n: soonRenew, l:'מסמכים לחידוש (30 יום)', c:'var(--orange)'},
     {n: alerts.length, l:'התראות פתוחות', c:'#d97706'},
     {n: '₪'+totalDamage.toLocaleString(), l:'סך נזקי תאונות', c:'#059669'}
   ].map(t => `<div class="dash-tile"><div class="n" style="color:${t.c}">${t.n}</div><div class="l">${t.l}</div></div>`).join('');
