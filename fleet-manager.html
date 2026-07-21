@@ -635,7 +635,11 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
     <button class="btn btn-green" style="width:100%;margin-bottom:7px" onclick="sendDeclForm('procedures')">💬 📄 נהלים ואחריות (+ צילום רישיון)</button>
     <button class="btn btn-green" style="width:100%;margin-bottom:7px" onclick="sendDeclForm('family')">💬 👨‍👩‍👧 הצהרת בני משפחה</button>
     <button class="btn btn-green" style="width:100%;margin-bottom:7px" onclick="sendDeclForm('traffic')">💬 🚔 אישור עבר תעבורתי</button>
-    <button class="btn btn-secondary" style="width:100%;margin-bottom:8px" onclick="declCopyLink()">📋 העתק קישור כללי (כל הטפסים)</button>
+    <button class="btn btn-secondary" style="width:100%;margin-bottom:10px" onclick="declCopyLink()">📋 העתק קישור כללי (3 טפסי קבלת רכב)</button>
+    <div style="border-top:1px dashed var(--border);padding-top:10px;margin-bottom:2px">
+      <button class="btn" style="width:100%;background:var(--orange);color:#fff" onclick="sendDeclForm('accident')">💬 🚧 תחקיר תאונת דרכים</button>
+      <p style="font-size:0.68rem;color:var(--muted);margin-top:4px">נשלח בנפרד — לאירוע תאונה, לא חלק מטפסי קבלת הרכב</p>
+    </div>
     <p style="font-size:0.72rem;color:var(--muted)">כל טופס נחתם ונשלח בנפרד. טופס הנהלים מעדכן אוטומטית את תאריך הנהלים ברכב, וכולם נשמרים בלשונית "טפסים" ומגיעים אליך למייל כ-PDF.</p>
     <div class="btn-row">
       <button class="btn btn-secondary" onclick="document.getElementById('decl-share-modal').classList.remove('open')">סגור</button>
@@ -1575,7 +1579,8 @@ function remindKmDriver(i) {
 const DECL_FORM_META = {
   procedures: { label: '📄 נהלים ואחריות', msgName: 'טפסי הנהלים והאחריות (כולל צירוף צילום רישיון נהיגה)' },
   family:     { label: '👨‍👩‍👧 בני משפחה', msgName: 'הצהרת שימוש בני משפחה ברכב' },
-  traffic:    { label: '🚔 עבר תעבורתי', msgName: 'אישור בדיקת עבר תעבורתי' }
+  traffic:    { label: '🚔 עבר תעבורתי', msgName: 'אישור בדיקת עבר תעבורתי' },
+  accident:   { label: '🚧 תחקיר תאונה', msgName: 'תחקיר תאונת דרכים (למילוי לאחר אירוע)' }
 };
 function openDeclShare(plate) {
   const v = VEHICLES.find(x => x.plate === plate);
@@ -1626,6 +1631,17 @@ async function loadDeclarations() {
   } catch(e) { wrap.innerHTML = '<div style="color:#dc2626;font-size:0.8rem;padding:8px">שגיאה בטעינה</div>'; }
 }
 function buildDeclText(r) {
+  if (r.accident) {
+    const a = r.accident;
+    return [
+      `תחקיר תאונת דרכים — נשלח ${r.dateStr||''}`,
+      `נהג: ${r.name||''} | רכב: ${r.plate||'-'}`,
+      `תאריך התאונה: ${a.date||'-'} | מקום: ${a.location||'-'}`, '',
+      `תיאור: ${a.desc||'-'}`, '',
+      `גורם אנושי: ${a.human||'-'}`, `גורם טכני: ${a.tech||'-'}`, `תנאי דרך/סביבה: ${a.road||'-'}`, '',
+      'המלצות:', `1. ${a.rec1||'-'}`, `2. ${a.rec2||'-'}`, `3. ${a.rec3||'-'}`
+    ].join('\n');
+  }
   const L = [];
   const titles = {
     procedures: ['✓ הצהרה והתחייבות מחזיק/ה ברכב — אושר', '✓ אישור אחריות אישית בגין עבירות — אושר'],

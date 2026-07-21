@@ -20,7 +20,9 @@ body{font-family:'Heebo',sans-serif;background:#f0f4f8;color:#1e293b;padding:14p
 .clause{font-size:0.8rem;line-height:1.55;margin-bottom:8px;color:#334155}
 .frow{margin-bottom:10px}
 .frow label{display:block;font-size:0.75rem;font-weight:700;color:#475569;margin-bottom:3px}
-.frow input{width:100%;border:1.5px solid #dde3ed;border-radius:9px;padding:9px 10px;font-family:'Heebo',sans-serif;font-size:0.9rem;background:#fff}
+.frow input,.frow textarea{width:100%;border:1.5px solid #dde3ed;border-radius:9px;padding:9px 10px;font-family:'Heebo',sans-serif;font-size:0.9rem;background:#fff}
+.frow textarea{resize:vertical}
+.sec-title2{font-weight:800;font-size:0.85rem;color:#1e3a8a;margin:12px 0 6px}
 .grid2{display:grid;grid-template-columns:1fr 1fr;gap:9px}
 .agree{display:flex;align-items:flex-start;gap:9px;background:#eff6ff;border:1.5px solid #bfdbfe;border-radius:10px;padding:10px;margin-top:10px;cursor:pointer}
 .agree input{width:20px;height:20px;flex-shrink:0;margin-top:1px}
@@ -169,6 +171,26 @@ canvas.sig{width:100%;height:130px;border:1.5px dashed #94a3b8;border-radius:10p
     </div>
   </div>
 
+  <!-- ═ accident investigation (standalone, not in the menu) ═ -->
+  <div class="card only-accident">
+    <div class="card-hdr">🚧 תחקיר תאונת דרכים</div>
+    <div class="card-body">
+      <div class="grid2">
+        <div class="frow"><label>תאריך התאונה *</label><input id="acc-date" type="date"></div>
+        <div class="frow"><label>מקום התאונה *</label><input id="acc-location" placeholder="כתובת / צומת / כביש"></div>
+      </div>
+      <div class="frow"><label>תיאור התאונה *</label><textarea id="acc-desc" rows="4" placeholder="מה קרה, סדר האירועים, נזקים ומעורבים..."></textarea></div>
+      <div class="sec-title2">גורמים אפשריים לתאונה</div>
+      <div class="frow"><label>גורם אנושי</label><input id="acc-human" placeholder="חוסר ריכוז, מהירות, עייפות..."></div>
+      <div class="frow"><label>גורם טכני</label><input id="acc-tech" placeholder="תקלה ברכב, בלמים, צמיגים..."></div>
+      <div class="frow"><label>תנאי דרך / סביבה</label><input id="acc-road" placeholder="מזג אוויר, כביש רטוב, תאורה..."></div>
+      <div class="sec-title2">המלצות לשיפור ומניעת הישנות</div>
+      <div class="frow"><label>המלצה 1</label><input id="acc-rec1"></div>
+      <div class="frow"><label>המלצה 2</label><input id="acc-rec2"></div>
+      <div class="frow"><label>המלצה 3</label><input id="acc-rec3"></div>
+    </div>
+  </div>
+
   <!-- signature -->
   <div class="card">
     <div class="card-hdr">✍️ חתימת העובד/ת
@@ -210,7 +232,8 @@ let VEH = null, MAIL = {}, CURRENT = null, licPhotos = [];
 const FORMS = {
   procedures: { title: 'נהלים ואחריות אישית', doc: 'טפסי נהלים ואחריות — הצהרות מחזיק רכב', agrees: ['agree-holder','agree-viol'], secs: [['sec-holder','הצהרה והתחייבות מחזיק/ה ברכב'],['sec-viol','אחריות אישית בגין עבירות']], cls: 'only-procedures', updatesProcedures: true, photos: true },
   family:     { title: 'הצהרת שימוש בני משפחה', doc: 'הצהרה בדבר שימוש בני משפחה ברכב', agrees: ['agree-family'], secs: [['sec-family','הצהרה בדבר שימוש בני משפחה ברכב']], cls: 'only-family', extraDriver: true },
-  traffic:    { title: 'אישור בדיקת עבר תעבורתי', doc: 'אישור בדיקת רישיון נהיגה — מידע תעבורתי (תקנה 585א)', agrees: ['agree-traffic'], secs: [['sec-traffic','אישור בדיקת רישיון נהיגה — מידע תעבורתי (תקנה 585א)']], cls: 'only-traffic' }
+  traffic:    { title: 'אישור בדיקת עבר תעבורתי', doc: 'אישור בדיקת רישיון נהיגה — מידע תעבורתי (תקנה 585א)', agrees: ['agree-traffic'], secs: [['sec-traffic','אישור בדיקת רישיון נהיגה — מידע תעבורתי (תקנה 585א)']], cls: 'only-traffic' },
+  accident:   { title: 'תחקיר תאונת דרכים', doc: 'תחקיר תאונת דרכים — קצין בטיחות בתעבורה', agrees: [], secs: [], cls: 'only-accident', isAccident: true, hideFromMenu: true }
 };
 
 (async function init() {
@@ -239,7 +262,7 @@ function openForm(key) {
   document.getElementById('menu').style.display = 'none';
   document.getElementById('done').style.display = 'none';
   document.getElementById('form-wrap').style.display = 'block';
-  document.querySelectorAll('.only-procedures,.only-family,.only-traffic').forEach(el => el.style.display = 'none');
+  document.querySelectorAll('.only-procedures,.only-family,.only-traffic,.only-accident').forEach(el => el.style.display = 'none');
   document.querySelectorAll('.' + FORMS[key].cls).forEach(el => el.style.display = '');
   clearSig();
   document.getElementById('err').style.display = 'none';
@@ -305,6 +328,33 @@ function renderThumbs() {
 /* ---------- document (PDF) ---------- */
 function buildDocHtml(r) {
   const F = FORMS[r.formType];
+  if (r.accident) {
+    const a = r.accident;
+    const field = (lbl, v) => `<div style="page-break-inside:avoid;border:1px solid #cbd5e1;border-radius:8px;padding:9px 12px;margin-top:9px"><div style="font-weight:800;color:#1e3a8a;font-size:11.5px;margin-bottom:3px">${lbl}</div><div style="font-size:12px;white-space:pre-wrap;min-height:15px">${(v||'—').replace(/</g,'&lt;')}</div></div>`;
+    return `<div dir="rtl" style="box-sizing:border-box;width:740px;background:#fff;color:#0f172a;font-family:Arial,'Heebo',sans-serif;padding:28px 32px">
+      <div style="text-align:center;border-bottom:3px solid #1e3a8a;padding-bottom:12px">
+        <div style="font-size:20px;font-weight:900;color:#1e3a8a">תחקיר תאונת דרכים</div>
+        <div style="font-size:12px;color:#475569;margin-top:4px">נופר אנרגיה · קצין בטיחות בתעבורה · נשלח ${r.dateStr}</div>
+      </div>
+      <table style="width:100%;border-collapse:collapse;font-size:12px;margin-top:14px">
+        <tr><td style="border:1px solid #cbd5e1;padding:6px 10px"><b>תאריך התאונה:</b> ${a.date||'-'}</td>
+            <td style="border:1px solid #cbd5e1;padding:6px 10px"><b>מקום התאונה:</b> ${a.location||'-'}</td></tr>
+        <tr><td style="border:1px solid #cbd5e1;padding:6px 10px"><b>מספר רכב:</b> <span dir="ltr">${r.plate||'-'}</span></td>
+            <td style="border:1px solid #cbd5e1;padding:6px 10px"><b>שם הנהג:</b> ${r.name}</td></tr>
+      </table>
+      ${field('תיאור התאונה', a.desc)}
+      <div style="font-weight:800;color:#1e3a8a;margin-top:14px;font-size:13px">גורמים אפשריים לתאונה</div>
+      ${field('גורם אנושי', a.human)}${field('גורם טכני', a.tech)}${field('תנאי דרך / סביבה', a.road)}
+      <div style="font-weight:800;color:#1e3a8a;margin-top:14px;font-size:13px">המלצות לשיפור ומניעת הישנות</div>
+      ${field('1', a.rec1)}${field('2', a.rec2)}${field('3', a.rec3)}
+      <div style="page-break-inside:avoid;margin-top:18px;border-top:2px solid #1e3a8a;padding-top:12px">
+        <table style="width:100%;font-size:12px"><tr>
+          <td><b>שם הנהג:</b> ${r.name}<br><br><b>תאריך:</b> ${r.dateStr}</td>
+          <td style="text-align:left"><div style="font-size:11px;color:#475569">חתימת נהג:</div><img src="${r.signature}" style="width:190px;border-bottom:1.5px solid #0f172a"></td>
+        </tr></table>
+      </div>
+    </div>`;
+  }
   const secHtml = (elId, num, title) => {
     const clauses = [...document.getElementById(elId).querySelectorAll('.clause')]
       .map(c => `<p style="margin:0 0 7px;font-size:11.5px;line-height:1.6;color:#1e293b">${c.innerHTML}</p>`).join('');
@@ -417,6 +467,18 @@ async function docToPdfBlob(rec) {
 
 function buildSummaryText(r) {
   const F = FORMS[r.formType];
+  if (r.accident) {
+    const a = r.accident;
+    return [
+      'תחקיר תאונת דרכים', `נשלח: ${r.dateStr}`, '',
+      `נהג: ${r.name} | רכב: ${r.plate||'-'}`,
+      `תאריך התאונה: ${a.date||'-'} | מקום: ${a.location||'-'}`, '',
+      `תיאור: ${a.desc||'-'}`, '',
+      `גורם אנושי: ${a.human||'-'}`, `גורם טכני: ${a.tech||'-'}`, `תנאי דרך/סביבה: ${a.road||'-'}`, '',
+      'המלצות:', `1. ${a.rec1||'-'}`, `2. ${a.rec2||'-'}`, `3. ${a.rec3||'-'}`, '',
+      'התחקיר המלא מצורף כ-PDF · נחתם דיגיטלית ✍'
+    ].join('\n');
+  }
   const L = [];
   L.push(`${F.doc}`);
   L.push(`תאריך: ${r.dateStr}`);
@@ -438,10 +500,16 @@ async function submitForm() {
   const chk = id => document.getElementById(id).checked;
   err.style.display = 'none';
   const fail = m => { err.textContent = m; err.style.display = 'block'; window.scrollTo({top: document.body.scrollHeight, behavior: 'smooth'}); };
-  if (!val('f-name')) return fail('נא למלא שם מלא');
-  if (!val('f-id')) return fail('נא למלא תעודת זהות');
-  if (!val('f-phone')) return fail('נא למלא טלפון');
-  for (const a of F.agrees) if (!chk(a)) return fail('יש לאשר את ההצהרה (סמן ✔)');
+  if (!val('f-name')) return fail('נא למלא שם הנהג');
+  if (F.isAccident) {
+    if (!val('acc-date')) return fail('נא למלא תאריך התאונה');
+    if (!val('acc-location')) return fail('נא למלא מקום התאונה');
+    if (!val('acc-desc')) return fail('נא למלא תיאור התאונה');
+  } else {
+    if (!val('f-id')) return fail('נא למלא תעודת זהות');
+    if (!val('f-phone')) return fail('נא למלא טלפון');
+    for (const a of F.agrees) if (!chk(a)) return fail('יש לאשר את ההצהרה (סמן ✔)');
+  }
   const extraOpen = F.extraDriver && document.getElementById('extra-driver').style.display !== 'none';
   if (extraOpen && val('x-name') && !chk('agreeX')) return fail('יש לאשר את הצהרת הבריאות של הנהג/ת הנוסף/ת');
   if (!sigDrawn) return fail('חסרה חתימה — חתום/חתמי בריבוע');
@@ -466,6 +534,14 @@ async function submitForm() {
     photosCount: F.photos ? licPhotos.length : 0,
     signature: document.getElementById('sig').toDataURL('image/png')
   };
+  if (F.isAccident) {
+    rec.accident = {
+      date: val('acc-date') ? val('acc-date').split('-').reverse().join('/') : '',
+      location: val('acc-location'), desc: val('acc-desc'),
+      human: val('acc-human'), tech: val('acc-tech'), road: val('acc-road'),
+      rec1: val('acc-rec1'), rec2: val('acc-rec2'), rec3: val('acc-rec3')
+    };
+  }
   try {
     // 1. store the declaration (photos are not stored in Firestore — they go into the emailed PDF)
     await db.collection('fleet').doc('decl_' + rec.created).set(rec);
@@ -498,7 +574,7 @@ async function submitForm() {
           body: JSON.stringify({ subject: `${F.title} — ${rec.name} (${rec.plate})`, body: buildSummaryText(rec), files }) });
       } catch(e) {}
     }
-    document.getElementById('done-' + CURRENT).style.display = '';
+    const di = document.getElementById('done-' + CURRENT); if (di) di.style.display = '';
     document.getElementById('done-title').textContent = `"${F.title}" נשלח בהצלחה!`;
     document.getElementById('form-wrap').style.display = 'none';
     document.getElementById('done').style.display = 'block';
