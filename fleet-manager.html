@@ -985,7 +985,7 @@ async function loadFromFirestore() {
       _firestoreLoaded = true;
       if (typeof checkServiceOverages === 'function') checkServiceOverages();
       // one-time: move legacy arrays out of main, then backfill inspections, then back up
-      migrateArchivesToSubdocs().then(() => { backfillInspections(); applyHertzFleet(); reconcileDeclarations(); dailyBackup(); });
+      migrateArchivesToSubdocs().then(runStartupSync); // one coordinated, race-free write
     }
   } catch(e) { console.log('Firestore load error', e); }
 }
@@ -993,9 +993,12 @@ async function loadFromFirestore() {
 // A safety inspection is due 6 months after a driver receives a vehicle. For
 // vehicles received in the last 6 months that have no recorded inspection, anchor
 // the inspection to the receipt date so "next due" lands ~6 months out (not yellow).
+// Mutates the shared VEHICLES array in place and returns how many changed — the
+// single startup writer (runStartupSync) persists everything together to avoid
+// concurrent full-array writes clobbering each other.
 let _inspBackfilled = false;
 function backfillInspections() {
-  if (_inspBackfilled || !auth.currentUser) return;
+  if (_inspBackfilled || !auth.currentUser) return 0;
   _inspBackfilled = true;
   const now = new Date();
   const cutoff = new Date(now); cutoff.setMonth(now.getMonth() - 6);
@@ -1009,21 +1012,17 @@ function backfillInspections() {
     v.inspection = v.vehicleFrom;                 // next inspection = receipt + 6 months
     changed++;
   });
-  if (changed) {
-    localStorage.setItem('fleet_vehicles', JSON.stringify(VEHICLES));
-    saveToFirestore('vehicles', VEHICLES);
-    if (typeof renderFleet === 'function') renderFleet();
-    if (typeof renderAlerts === 'function') renderAlerts();
-    if (typeof toast === 'function') toast(`✓ עודכנה ביקורת בטיחות ל-${changed} רכבים (חצי שנה מקבלת הרכב)`);
-  }
+  return changed;
 }
 
 // One-time: mark this known set of plates as Hertz vehicles. Idempotent — after it
 // persists, every plate already reads 'הרץ' so it makes no further writes.
 const HERTZ_PLATES = ['72242604','37169103','75392504','75392604','58649404','22738403','30803603','18744204','43863903','88580302','40158103','79977403'];
+// Mutates the shared VEHICLES array in place; returns how many changed. The single
+// startup writer persists it (see runStartupSync).
 let _hertzApplied = false;
 function applyHertzFleet() {
-  if (_hertzApplied || !auth.currentUser) return;
+  if (_hertzApplied || !auth.currentUser) return 0;
   _hertzApplied = true;
   const want = new Set(HERTZ_PLATES.map(p => p.replace(/\D/g, '')));
   let changed = 0;
@@ -1031,57 +1030,51 @@ function applyHertzFleet() {
     const pd = String(v.plate || '').replace(/\D/g, '');
     if (want.has(pd) && !String(v.company || '').includes('הרץ')) { v.company = 'הרץ'; changed++; }
   });
-  if (changed) {
-    localStorage.setItem('fleet_vehicles', JSON.stringify(VEHICLES));
-    saveToFirestore('vehicles', VEHICLES);
-    if (typeof renderFleet === 'function') renderFleet();
-    if (typeof toast === 'function') toast(`✓ ${changed} רכבים סומנו כחברת הרץ`);
-  }
+  return changed;
 }
 
 // Drivers can't write fleet/main. When a driver signs the procedures form or sends
 // a monthly km reading, it leaves a flagged record (applyProcedures / applyKm). The
-// signed-in manager applies those to the matching vehicle here and marks them applied.
+// signed-in manager applies those to the matching vehicle here. Mutates the shared
+// VEHICLES array; the caller persists once. Returns {procN, kmN, appliedRefs} — only
+// records whose vehicle was found are marked applied (others stay pending).
 async function reconcileDeclarations() {
-  if (!auth.currentUser) return;
+  const out = { procN: 0, kmN: 0, appliedRefs: [] };
+  if (!auth.currentUser) return out;
   try {
     const [qProc, qKm] = await Promise.all([
       db.collection('fleet').where('applyProcedures', '==', true).get(),
       db.collection('fleet').where('applyKm', '==', true).get()
     ]);
+    const plateProc = p => VEHICLES.find(x => String(x.plate || '').replace(/\D/g, '') === String(p || '').replace(/\D/g, ''));
     const pending = [];
-    qProc.forEach(doc => { const r = doc.data(); if (!r.applied) pending.push({ ref: doc.ref, r, kind: 'proc' }); });
+    qProc.forEach(doc => {
+      const r = doc.data();
+      const v = plateProc(r.plate);
+      // pending if not yet applied, OR self-heal: marked applied but the vehicle's
+      // procedures are still empty (a lost write) — reapply only when empty so a
+      // manager's later manual change is never reverted
+      if (!r.applied || (v && !String(v.procedures || '').trim())) pending.push({ ref: doc.ref, r, kind: 'proc' });
+    });
     qKm.forEach(doc => { const r = doc.data(); if (!r.applied) pending.push({ ref: doc.ref, r, kind: 'km' }); });
-    if (!pending.length) return;
+    if (!pending.length) return out;
     // oldest first so the newest km reading wins
     pending.sort((a, b) => (a.r.created || 0) - (b.r.created || 0));
-    const snap = await db.collection('fleet').doc('main').get();
-    const vehicles = (snap.data() || {}).vehicles || [];
-    let procN = 0, kmN = 0;
-    pending.forEach(({ r, kind }) => {
-      const v = vehicles.find(x => String(x.plate || '').replace(/\D/g, '') === String(r.plate || '').replace(/\D/g, ''));
-      if (!v) return;
+    pending.forEach(({ ref, r, kind }) => {
+      const v = VEHICLES.find(x => String(x.plate || '').replace(/\D/g, '') === String(r.plate || '').replace(/\D/g, ''));
+      if (!v) return; // vehicle not in fleet — leave the record pending for a later load
       if (kind === 'proc') {
         if (r.proceduresDate) v.procedures = r.proceduresDate;
-        if (r.km && parseKm(r.km) >= parseKm(v.currentKm)) v.currentKm = r.km;
-        procN++;
+        if (r.km && parseKm(r.km) >= parseKm(v.currentKm)) v.currentKm = String(parseKm(r.km));
+        out.procN++;
       } else {
-        if (r.km && parseKm(r.km) >= parseKm(v.currentKm)) { v.currentKm = String(parseKm(r.km)); kmN++; }
+        if (r.km && parseKm(r.km) >= parseKm(v.currentKm)) v.currentKm = String(parseKm(r.km));
+        out.kmN++;
       }
+      out.appliedRefs.push(ref);
     });
-    if (procN || kmN) await db.collection('fleet').doc('main').set({ vehicles: stripUndef(vehicles) }, { merge: true });
-    for (const p of pending) { try { await p.ref.set({ applied: true }, { merge: true }); } catch(e) {} }
-    if (procN || kmN) {
-      VEHICLES = vehicles;
-      localStorage.setItem('fleet_vehicles', JSON.stringify(VEHICLES));
-      if (typeof renderFleet === 'function') renderFleet();
-      if (typeof checkServiceOverages === 'function') checkServiceOverages();
-      const parts = [];
-      if (procN) parts.push(`נהלים ל-${procN} רכבים`);
-      if (kmN) parts.push(`ק"מ ל-${kmN} רכבים`);
-      if (typeof toast === 'function') toast('✓ עודכנו ' + parts.join(' ו-') + ' מטפסי נהגים');
-    }
   } catch(e) { console.log('reconcile declarations error', e); }
+  return out;
 }
 
 // SAFETY NET: once per day, snapshot all vehicles + the driver directory into a
@@ -1106,6 +1099,38 @@ async function dailyBackup() {
     }));
     console.log('daily backup saved:', key, VEHICLES.length, 'vehicles');
   } catch(e) { console.log('daily backup error', e); }
+}
+
+// Single coordinator for all startup data tasks. Each task mutates the SHARED
+// VEHICLES array in memory; we then persist it to main exactly ONCE. This prevents
+// the earlier race where separate tasks each wrote their own full-array copy and
+// clobbered one another (e.g. inspection backfill wiping a just-applied procedures date).
+let _startupSyncRan = false;
+async function runStartupSync() {
+  if (_startupSyncRan || !auth.currentUser) return;
+  _startupSyncRan = true;
+  try {
+    const inspN  = backfillInspections() || 0;
+    const hertzN = applyHertzFleet() || 0;
+    const rec    = await reconcileDeclarations();
+    const changed = inspN || hertzN || rec.procN || rec.kmN;
+    if (changed) {
+      localStorage.setItem('fleet_vehicles', JSON.stringify(VEHICLES));
+      await db.collection('fleet').doc('main').set({ vehicles: stripUndef(VEHICLES) }, { merge: true });
+      if (typeof renderFleet === 'function') renderFleet();
+      if (typeof renderAlerts === 'function') renderAlerts();
+      if (typeof checkServiceOverages === 'function') checkServiceOverages();
+      const parts = [];
+      if (rec.procN) parts.push(`נהלים ל-${rec.procN} רכבים`);
+      if (rec.kmN)   parts.push(`ק"מ ל-${rec.kmN} רכבים`);
+      if (inspN)     parts.push(`ביקורת ל-${inspN} רכבים`);
+      if (hertzN)    parts.push(`${hertzN} רכבי הרץ`);
+      if (parts.length && typeof toast === 'function') toast('✓ עודכנו: ' + parts.join(' · '));
+    }
+    // only mark declarations applied AFTER their change is safely persisted
+    for (const ref of rec.appliedRefs) { try { await ref.set({ applied: true }, { merge: true }); } catch(e) {} }
+  } catch(e) { console.log('startup sync error', e); }
+  dailyBackup();
 }
 
 // Read one archive doc (fleet/<name> with an {items:[...]} field). Calls assign
