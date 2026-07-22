@@ -1140,8 +1140,21 @@ function checkServiceOverages() {
 // small and well under Firestore's 1 MiB per-document limit (writing the whole
 // main doc on every edit was overflowing and silently dropping saves).
 const ARCHIVE_DOCS = { incidents: 1, violations: 1, replacements: 1, returns: 1 };
+// Firestore rejects any document containing an `undefined` value with a hard
+// error (misreported as a network failure). Strip undefined recursively before
+// every write so a single missing field can never block a whole save.
+function stripUndef(x) {
+  if (Array.isArray(x)) return x.map(stripUndef);
+  if (x && typeof x === 'object') {
+    const o = {};
+    for (const k in x) if (x[k] !== undefined) o[k] = stripUndef(x[k]);
+    return o;
+  }
+  return x;
+}
 async function saveToFirestore(key, value) {
   try {
+    value = stripUndef(value);
     if (ARCHIVE_DOCS[key]) {
       await db.collection('fleet').doc(key).set({ items: value }, { merge: true });
     } else {
@@ -1177,7 +1190,9 @@ async function saveVehiclesSafely(editedPlate, dk) {
     });
     VEHICLES = cloud;
     localStorage.setItem('fleet_vehicles', JSON.stringify(VEHICLES));
-    await db.collection('fleet').doc('main').set({ vehicles: cloud }, { merge: true });
+    // drop any undefined values — Firestore rejects them and it surfaces as a
+    // generic "save failed" (this was the real cause of vanishing edits)
+    await db.collection('fleet').doc('main').set({ vehicles: stripUndef(cloud) }, { merge: true });
     // read back to confirm it actually persisted
     const verify = await db.collection('fleet').doc('main').get();
     const saved = (verify.data() || {}).vehicles || [];
@@ -2741,7 +2756,7 @@ function saveVehicle() {
     trafficRecord: document.getElementById('m-traffic').value.trim(),
     procedures: document.getElementById('m-procedures').value.trim(),
     notes: document.getElementById('m-notes').value.trim(),
-    id: editingPlate ? (VEHICLES.find(x=>x.plate===editingPlate)||{}).id : Date.now(),
+    id: (editingPlate ? (VEHICLES.find(x=>x.plate===editingPlate)||{}).id : Date.now()) || Date.now(),
   };
   if (editingPlate) {
     const idx = VEHICLES.findIndex(x=>x.plate===editingPlate);
