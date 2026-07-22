@@ -985,7 +985,7 @@ async function loadFromFirestore() {
       _firestoreLoaded = true;
       if (typeof checkServiceOverages === 'function') checkServiceOverages();
       // one-time: move legacy arrays out of main, then backfill inspections, then back up
-      migrateArchivesToSubdocs().then(() => { backfillInspections(); dailyBackup(); });
+      migrateArchivesToSubdocs().then(() => { backfillInspections(); applyHertzFleet(); dailyBackup(); });
     }
   } catch(e) { console.log('Firestore load error', e); }
 }
@@ -1015,6 +1015,27 @@ function backfillInspections() {
     if (typeof renderFleet === 'function') renderFleet();
     if (typeof renderAlerts === 'function') renderAlerts();
     if (typeof toast === 'function') toast(`✓ עודכנה ביקורת בטיחות ל-${changed} רכבים (חצי שנה מקבלת הרכב)`);
+  }
+}
+
+// One-time: mark this known set of plates as Hertz vehicles. Idempotent — after it
+// persists, every plate already reads 'הרץ' so it makes no further writes.
+const HERTZ_PLATES = ['72242604','37169103','75392504','75392604','58649404','22738403','30803603','18744204','43863903','88580302','40158103','79977403'];
+let _hertzApplied = false;
+function applyHertzFleet() {
+  if (_hertzApplied || !auth.currentUser) return;
+  _hertzApplied = true;
+  const want = new Set(HERTZ_PLATES.map(p => p.replace(/\D/g, '')));
+  let changed = 0;
+  VEHICLES.forEach(v => {
+    const pd = String(v.plate || '').replace(/\D/g, '');
+    if (want.has(pd) && !String(v.company || '').includes('הרץ')) { v.company = 'הרץ'; changed++; }
+  });
+  if (changed) {
+    localStorage.setItem('fleet_vehicles', JSON.stringify(VEHICLES));
+    saveToFirestore('vehicles', VEHICLES);
+    if (typeof renderFleet === 'function') renderFleet();
+    if (typeof toast === 'function') toast(`✓ ${changed} רכבים סומנו כחברת הרץ`);
   }
 }
 
