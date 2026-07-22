@@ -573,6 +573,7 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
       <strong>סוכן ניהול ציי רכב</strong>
       <span id="agent-status">מוכן לסייע</span>
     </div>
+    <span id="agent-model-badge" title="המודל שהסוכן משתמש בו" style="background:rgba(255,255,255,.22);color:#fff;font-size:0.62rem;font-weight:800;padding:2px 8px;border-radius:999px;white-space:nowrap;margin-inline-start:auto">⚡ טוען...</span>
     <button class="agent-close" onclick="toggleAgent()">✕</button>
   </div>
   <div class="agent-msgs" id="agent-msgs"></div>
@@ -2671,9 +2672,22 @@ let agentOpen = false;
 let agentMessages = [];
 let agentTyping = false;
 let agentApiKey = localStorage.getItem('ai_key') || localStorage.getItem('nofar_agent_key') || '';
+// The model the agent runs on. Haiku = cheapest, Sonnet = balanced, Opus = smartest/priciest.
+const AGENT_MODEL = 'claude-haiku-4-5-20251001';
+const AGENT_MODEL_LABEL = (m => {
+  if (m.includes('haiku')) return '⚡ Haiku · חסכוני';
+  if (m.includes('sonnet')) return '⚖️ Sonnet · מאוזן';
+  if (m.includes('opus')) return '🧠 Opus · חכם (יקר)';
+  return m;
+})(AGENT_MODEL);
+function updateAgentModelBadge() {
+  const b = document.getElementById('agent-model-badge');
+  if (b) b.textContent = AGENT_MODEL_LABEL;
+}
 let agentPendingImage = null; // {data, mime, dataUrl}
 
 function agentInit() {
+  updateAgentModelBadge();
   if (agentApiKey) {
     document.getElementById('agent-key-input').value = agentApiKey;
   }
@@ -3205,7 +3219,7 @@ async function agentSend() {
         'anthropic-dangerous-direct-browser-access':'true'
       },
       body: JSON.stringify({
-        model:'claude-haiku-4-5-20251001',
+        model: AGENT_MODEL,
         max_tokens:2000,
         system: buildSystemPrompt(),
         messages:[...historyMsgs, { role:'user', content: currentContent }]
