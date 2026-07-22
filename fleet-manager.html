@@ -748,7 +748,7 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
       <div class="modal-row"><label>יצרן</label><input id="m-make" type="text" placeholder="מיצובישי"></div>
       <div class="modal-row"><label>דגם</label><input id="m-model" type="text" placeholder="אאוטלנדר"></div>
       <div class="modal-row"><label>שנתון</label><input id="m-year" type="text" placeholder="2024"></div>
-      <div class="modal-row"><label>שם נהג</label><input id="m-driver" type="text" placeholder="ישראל ישראלי"></div>
+      <div class="modal-row"><label>שם נהג</label><input id="m-driver" type="text" placeholder="ישראל ישראלי" onchange="autoFillDriverFields()"></div>
       <div class="modal-row"><label>נייד נהג</label><input id="m-phone" type="tel" placeholder="050-0000000" style="direction:ltr"></div>
       <div class="modal-row"><label>תוקף רישוי (טסט)</label><input id="m-regExpiry" type="text" placeholder="יי.חח.שש" inputmode="numeric" oninput="dateAutoMask(this)"></div>
       <div class="modal-row"><label>תוקף ביטוח חובה</label><input id="m-insExpiry" type="text" placeholder="יי.חח.שש" inputmode="numeric" oninput="dateAutoMask(this)"></div>
@@ -953,6 +953,8 @@ async function loadFromFirestore() {
       if (d.mailSettings) { MAIL_SETTINGS = d.mailSettings; localStorage.setItem('fleet_mailSettings', JSON.stringify(MAIL_SETTINGS)); }
       if (d.kmRound && typeof KMROUND !== 'undefined') { KMROUND = d.kmRound; }
       if (d.serviceNotified) { SERVICE_NOTIFIED = d.serviceNotified; }
+      if (d.drivers) { DRIVERS = d.drivers; }
+      rebuildDriversDirectory();
       if (typeof updateKmBanner === 'function') updateKmBanner();
       if (typeof maybeSendKmReminder === 'function') maybeSendKmReminder();
       _firestoreLoaded = true;
@@ -969,6 +971,42 @@ async function loadFromFirestore() {
 let SERVICE_NOTIFIED = {};
 let _serviceSeeded = false;
 function _svcKey(v) { return String(parseKm(v.nextServiceKm)); }
+
+// ── DRIVER DIRECTORY ──
+// License expiry and traffic-record date belong to the driver, not the vehicle,
+// so they follow the driver across vehicles. Keyed by the clean driver name.
+let DRIVERS = {};
+function driverKey(s) { return String(s||'').split('-')[0].replace(/['"׳]/g,'').replace(/\s+/g,' ').trim(); }
+// learn each driver's personal fields from the current fleet (last non-empty wins)
+function rebuildDriversDirectory() {
+  VEHICLES.forEach(v => {
+    const n = driverKey(v.driverName);
+    if (!n) return;
+    DRIVERS[n] = DRIVERS[n] || {};
+    if (v.licenseExpiry) DRIVERS[n].licenseExpiry = v.licenseExpiry;
+    if (v.trafficRecord) DRIVERS[n].trafficRecord = v.trafficRecord;
+  });
+}
+// push a driver's known values onto every vehicle that driver holds
+function syncDriverToVehicles(n) {
+  const d = DRIVERS[n]; if (!d) return;
+  VEHICLES.forEach(v => {
+    if (driverKey(v.driverName) === n) {
+      if (d.licenseExpiry) v.licenseExpiry = d.licenseExpiry;
+      if (d.trafficRecord) v.trafficRecord = d.trafficRecord;
+    }
+  });
+}
+// auto-fill the license/traffic fields in the vehicle modal when a known driver is entered
+function autoFillDriverFields() {
+  const n = driverKey(document.getElementById('m-driver').value);
+  const d = DRIVERS[n];
+  if (!d) return;
+  const lic = document.getElementById('m-licExpiry');
+  const trf = document.getElementById('m-traffic');
+  if (d.licenseExpiry && !lic.value) lic.value = d.licenseExpiry;
+  if (d.trafficRecord && !trf.value) trf.value = d.trafficRecord;
+}
 function checkServiceOverages() {
   const overdue = VEHICLES.filter(v => {
     const cur = parseKm(v.currentKm), nxt = parseKm(v.nextServiceKm);
@@ -1019,6 +1057,8 @@ function setupRealtimeSync() {
     if (d.mailSettings) { MAIL_SETTINGS = d.mailSettings; }
     if (d.kmRound && typeof KMROUND !== 'undefined') { KMROUND = d.kmRound; if (typeof updateKmBanner === 'function') updateKmBanner(); }
     if (d.serviceNotified) { SERVICE_NOTIFIED = d.serviceNotified; }
+    if (d.drivers) { DRIVERS = d.drivers; }
+    if (changed) rebuildDriversDirectory();
     if (changed && typeof renderFleet === 'function') { renderFleet(); renderAlerts(); }
     if (changed && typeof checkServiceOverages === 'function') checkServiceOverages();
   });
@@ -2533,6 +2573,20 @@ function saveVehicle() {
   } else {
     VEHICLES.unshift(v);
   }
+  // driver directory: license expiry + traffic record follow the driver
+  const _dk = driverKey(v.driverName);
+  if (_dk) {
+    DRIVERS[_dk] = DRIVERS[_dk] || {};
+    // form values are canonical; if left blank, inherit the driver's known values
+    if (v.licenseExpiry) DRIVERS[_dk].licenseExpiry = v.licenseExpiry;
+    else if (DRIVERS[_dk].licenseExpiry) v.licenseExpiry = DRIVERS[_dk].licenseExpiry;
+    if (v.trafficRecord) DRIVERS[_dk].trafficRecord = v.trafficRecord;
+    else if (DRIVERS[_dk].trafficRecord) v.trafficRecord = DRIVERS[_dk].trafficRecord;
+    // reflect onto the saved record too
+    if (editingPlate) { const i2 = VEHICLES.findIndex(x=>x.plate===v.plate); if (i2>=0) { VEHICLES[i2].licenseExpiry = v.licenseExpiry; VEHICLES[i2].trafficRecord = v.trafficRecord; } }
+    syncDriverToVehicles(_dk);
+    saveToFirestore('drivers', DRIVERS);
+  }
   localStorage.setItem('fleet_vehicles', JSON.stringify(VEHICLES));
   localStorage.setItem('fleet_vehicles_version', VEHICLES_VERSION);
   saveToFirestore('vehicles', VEHICLES);
@@ -3399,12 +3453,19 @@ async function replaceVehicleAction(param) {
     nv.nextServiceKm = String((parseInt(nv.currentKm) || 0) + 15000);
   }
   RETURNS.unshift({ employee: (old.driverName||'').split('-')[0].trim(), plate: old.plate, make: old.make||'', model: old.model||'', fromDate: old.vehicleFrom||'', toDate: recDate, reason: reason||'החלפת רכב', notes: '' });
+  // record the driver's personal fields so they follow to any future vehicle too
+  const _dk = driverKey(old.driverName);
+  if (_dk) {
+    DRIVERS[_dk] = DRIVERS[_dk] || {};
+    if (old.licenseExpiry) DRIVERS[_dk].licenseExpiry = old.licenseExpiry;
+    if (old.trafficRecord) DRIVERS[_dk].trafficRecord = old.trafficRecord;
+  }
   try {
     localStorage.setItem('fleet_vehicles', JSON.stringify(VEHICLES));
     localStorage.setItem('fleet_vehicles_version', VEHICLES_VERSION);
     localStorage.setItem('fleet_returns', JSON.stringify(RETURNS));
   } catch(e){}
-  try { await db.collection('fleet').doc('main').set({ vehicles: VEHICLES, returns: RETURNS }, { merge: true }); } catch(e) { console.log('Firestore save error', e); }
+  try { await db.collection('fleet').doc('main').set({ vehicles: VEHICLES, returns: RETURNS, drivers: DRIVERS }, { merge: true }); } catch(e) { console.log('Firestore save error', e); }
   renderFleet(); renderDashboard(); renderAlerts();
   if (typeof renderReturns === 'function') renderReturns();
   toast(`✓ ${(old.driverName||'').split('-')[0].trim()}: ${old.plate} הועבר להחזרות, ${newPlate} נוסף`);
