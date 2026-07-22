@@ -1069,15 +1069,19 @@ async function saveToFirestore(key, value) {
 // can never delete other vehicles. The edited vehicle (from the form) wins;
 // all other vehicles keep their freshest cloud values.
 async function saveVehiclesSafely(editedPlate, dk) {
+  // must be signed in to write (rules require auth) — surface the problem loudly
+  if (!auth.currentUser) {
+    toast('⚠ לא מחובר — התחבר מחדש כדי לשמור! הנתונים לא נשמרו', true);
+    return;
+  }
   try {
     const snap = await db.collection('fleet').doc('main').get();
     let cloud = (snap.data() || {}).vehicles;
-    if (!Array.isArray(cloud)) { saveToFirestore('vehicles', VEHICLES); return; }
+    if (!Array.isArray(cloud)) cloud = VEHICLES.slice();
     const edited = VEHICLES.find(v => v.plate === editedPlate);
-    if (!edited) { saveToFirestore('vehicles', VEHICLES); return; }
+    if (!edited) { toast('⚠ שגיאה: הרכב לא נמצא', true); return; }
     const idx = cloud.findIndex(v => v.plate === editedPlate);
     if (idx >= 0) cloud[idx] = edited; else cloud.unshift(edited);
-    // re-apply driver-directory values onto the fresh cloud array
     if (dk) cloud.forEach(v => {
       if (driverKey(v.driverName) === dk) {
         const d = DRIVERS[dk] || {};
@@ -1089,9 +1093,18 @@ async function saveVehiclesSafely(editedPlate, dk) {
     VEHICLES = cloud;
     localStorage.setItem('fleet_vehicles', JSON.stringify(VEHICLES));
     await db.collection('fleet').doc('main').set({ vehicles: cloud }, { merge: true });
+    // read back to confirm it actually persisted
+    const verify = await db.collection('fleet').doc('main').get();
+    const saved = (verify.data() || {}).vehicles || [];
+    const ok = saved.find(v => v.plate === editedPlate);
+    if (ok) toast('✓ נשמר בענן');
+    else toast('⚠ השמירה לא אומתה — נסה שוב', true);
   } catch(e) {
-    console.log('safe save failed, falling back', e);
-    saveToFirestore('vehicles', VEHICLES);
+    console.log('safe save failed', e);
+    const msg = e.code === 'permission-denied'
+      ? '⚠ אין הרשאה לשמור — התחבר מחדש! הנתונים לא נשמרו'
+      : '⚠ השמירה נכשלה — בדוק חיבור לאינטרנט';
+    toast(msg, true);
   }
 }
 
