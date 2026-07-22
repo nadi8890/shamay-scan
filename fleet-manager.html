@@ -982,9 +982,38 @@ async function loadFromFirestore() {
       if (typeof maybeSendKmReminder === 'function') maybeSendKmReminder();
       _firestoreLoaded = true;
       if (typeof checkServiceOverages === 'function') checkServiceOverages();
-      migrateArchivesToSubdocs(); // one-time: move legacy arrays out of main
+      // one-time: move legacy arrays out of main, THEN backfill inspection dates
+      migrateArchivesToSubdocs().then(() => backfillInspections());
     }
   } catch(e) { console.log('Firestore load error', e); }
+}
+
+// A safety inspection is due 6 months after a driver receives a vehicle. For
+// vehicles received in the last 6 months that have no recorded inspection, anchor
+// the inspection to the receipt date so "next due" lands ~6 months out (not yellow).
+let _inspBackfilled = false;
+function backfillInspections() {
+  if (_inspBackfilled || !auth.currentUser) return;
+  _inspBackfilled = true;
+  const now = new Date();
+  const cutoff = new Date(now); cutoff.setMonth(now.getMonth() - 6);
+  let changed = 0;
+  VEHICLES.forEach(v => {
+    const drv = (v.driverName || '').trim();
+    if (!drv || drv.includes('נגרר') || drv.includes('ללא נהג')) return; // trailers have no driver/inspection
+    if ((v.inspection || '').trim()) return;      // already recorded
+    const recv = parseDate(v.vehicleFrom);
+    if (!recv || recv < cutoff) return;           // only vehicles received in the last 6 months
+    v.inspection = v.vehicleFrom;                 // next inspection = receipt + 6 months
+    changed++;
+  });
+  if (changed) {
+    localStorage.setItem('fleet_vehicles', JSON.stringify(VEHICLES));
+    saveToFirestore('vehicles', VEHICLES);
+    if (typeof renderFleet === 'function') renderFleet();
+    if (typeof renderAlerts === 'function') renderAlerts();
+    if (typeof toast === 'function') toast(`✓ עודכנה ביקורת בטיחות ל-${changed} רכבים (חצי שנה מקבלת הרכב)`);
+  }
 }
 
 // Read one archive doc (fleet/<name> with an {items:[...]} field). Calls assign
