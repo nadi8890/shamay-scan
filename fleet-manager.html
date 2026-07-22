@@ -982,8 +982,8 @@ async function loadFromFirestore() {
       if (typeof maybeSendKmReminder === 'function') maybeSendKmReminder();
       _firestoreLoaded = true;
       if (typeof checkServiceOverages === 'function') checkServiceOverages();
-      // one-time: move legacy arrays out of main, THEN backfill inspection dates
-      migrateArchivesToSubdocs().then(() => backfillInspections());
+      // one-time: move legacy arrays out of main, then backfill inspections, then back up
+      migrateArchivesToSubdocs().then(() => { backfillInspections(); dailyBackup(); });
     }
   } catch(e) { console.log('Firestore load error', e); }
 }
@@ -1014,6 +1014,30 @@ function backfillInspections() {
     if (typeof renderAlerts === 'function') renderAlerts();
     if (typeof toast === 'function') toast(`✓ עודכנה ביקורת בטיחות ל-${changed} רכבים (חצי שנה מקבלת הרכב)`);
   }
+}
+
+// SAFETY NET: once per day, snapshot all vehicles + the driver directory into a
+// dated document (fleet/backup_YYYY-MM-DD). If data is ever wiped, any recent day
+// is a full restore point. Never writes an empty snapshot, so it can't destroy one.
+let _backupDone = false;
+async function dailyBackup() {
+  if (_backupDone || !auth.currentUser) return;
+  _backupDone = true;
+  try {
+    if (!Array.isArray(VEHICLES) || VEHICLES.length === 0) return; // never back up nothing
+    const t = new Date();
+    const p2 = n => ('0' + n).slice(-2);
+    const key = `backup_${t.getFullYear()}-${p2(t.getMonth() + 1)}-${p2(t.getDate())}`;
+    const ref = db.collection('fleet').doc(key);
+    if ((await ref.get()).exists) return; // already backed up today
+    await ref.set(stripUndef({
+      vehicles: VEHICLES,
+      drivers: DRIVERS,
+      count: VEHICLES.length,
+      savedAt: t.toISOString()
+    }));
+    console.log('daily backup saved:', key, VEHICLES.length, 'vehicles');
+  } catch(e) { console.log('daily backup error', e); }
 }
 
 // Read one archive doc (fleet/<name> with an {items:[...]} field). Calls assign
@@ -1109,6 +1133,8 @@ function autoFillDriverFields() {
 }
 function checkServiceOverages() {
   const overdue = VEHICLES.filter(v => {
+    const drv = (v.driverName || '').trim();
+    if (!drv || drv.includes('נגרר') || drv.includes('ללא נהג')) return false; // trailers aren't serviced
     const cur = parseKm(v.currentKm), nxt = parseKm(v.nextServiceKm);
     return cur > 0 && nxt > 0 && cur >= nxt;
   });
@@ -1201,9 +1227,10 @@ async function saveVehiclesSafely(editedPlate, dk) {
     else toast('⚠ השמירה לא אומתה — נסה שוב', true);
   } catch(e) {
     console.log('safe save failed', e);
-    const msg = e.code === 'permission-denied'
-      ? '⚠ אין הרשאה לשמור — התחבר מחדש! הנתונים לא נשמרו'
-      : '⚠ השמירה נכשלה — בדוק חיבור לאינטרנט';
+    let msg;
+    if (e.code === 'permission-denied') msg = '⚠ אין הרשאה לשמור — התחבר מחדש! הנתונים לא נשמרו';
+    else if (e.code === 'unavailable') msg = '⚠ אין חיבור לאינטרנט — נסה שוב';
+    else msg = '⚠ שגיאת שמירה: ' + (e.code || e.message || e); // show the real reason
     toast(msg, true);
   }
 }
@@ -1409,7 +1436,7 @@ function renderManagerDashboard() {
   // ── KPI tiles ──
   const alerts = buildDynamicAlerts();
   const overdueDocs = alerts.filter(a => a.daysLeft !== null && a.daysLeft < 0).length;
-  const serviceDue = active.filter(v => { const c=parseKm(v.currentKm), n=parseKm(v.nextServiceKm); return c>0 && n>0 && c>=n; }).length;
+  const serviceDue = active.filter(v => { const dr=(v.driverName||'').trim(); if(!dr||dr.includes('נגרר')||dr.includes('ללא נהג'))return false; const c=parseKm(v.currentKm), n=parseKm(v.nextServiceKm); return c>0 && n>0 && c>=n; }).length;
   const openViol = violAll.filter(v => !v.stHosav && !v.stPaid && !v.stHandled).length;
   const totalDamage = incAll.reduce((s,i)=>s + parseMoney(i.damage), 0);
   // documents expiring within the next 30 days (proactive renewal planning)
@@ -1687,7 +1714,9 @@ function renderFleet() {
       <td class="${yc(v.registrationExpiry, cellCls(regDays))}">${statusBadge(regDays)}<br><span style="color:var(--muted);font-size:0.63rem">${esc(v.registrationExpiry)||'—'}</span></td>
       <td class="${yc(v.insuranceExpiry, cellCls(insDays))}">${statusBadge(insDays)}<br><span style="color:var(--muted);font-size:0.63rem">${esc(v.insuranceExpiry)||'—'}</span></td>
       <td class="${isTrailer?'':yc(v.licenseExpiry, cellCls(licDays))}">${statusBadge(licDays)}<br><span style="color:var(--muted);font-size:0.63rem">${esc(v.licenseExpiry)||'—'}</span></td>
-      <td class="${yc(v.nextServiceKm)}">${kmStatus(v.currentKm, v.nextServiceKm)}<br><span style="color:var(--muted);font-size:0.63rem">${esc(v.nextServiceKm)||'—'} ק"מ</span></td>
+      ${isTrailer
+        ? `<td><span class="badge badge-gray">—</span></td>`
+        : `<td class="${yc(v.nextServiceKm)}">${kmStatus(v.currentKm, v.nextServiceKm)}<br><span style="color:var(--muted);font-size:0.63rem">${esc(v.nextServiceKm)||'—'} ק"מ</span></td>`}
       <td class="${yc(v.inspection, cellCls(inspDays))}">${statusBadge(inspDays)}<br><span style="color:var(--muted);font-size:0.63rem">הבאה: ${nextInspectionStr(v)||'—'}</span><br><span style="color:var(--muted);font-size:0.58rem">אחרונה: ${esc(v.inspection)||'—'}</span></td>
       <td class="${isTrailer?'':yc(v.trafficRecord, cellCls(daysUntil(dateAddYears(v.trafficRecord,3))))}">${statusBadge(daysUntil(dateAddYears(v.trafficRecord,3)))}<br><span style="color:var(--muted);font-size:0.63rem">בוצע: ${esc(v.trafficRecord)||'—'}</span><br><span style="color:var(--muted);font-size:0.58rem">תוקף: ${dateAddYears(v.trafficRecord,3)||'—'}</span></td>
       ${(() => {
@@ -2503,10 +2532,12 @@ function buildDynamicAlerts() {
       const label = ageYrs <= 3 ? 'ביקורת בטיחות חציונית' : 'ביקורת בטיחות רבעונית';
       alerts.push({ plate:v.plate, driver:v.driverName, type:label, dueDate:nextInspectionStr(v), daysLeft:inspDays, prevKm:null, kmAlert:null, currentKm:null, kmDiff:null });
     }
-    // KM service — alert within 2000 km of next service or overdue
+    // KM service — alert within 2000 km of next service or overdue (trailers aren't serviced)
+    const _drv = (v.driverName || '').trim();
+    const _isTrailer = !_drv || _drv.includes('נגרר') || _drv.includes('ללא נהג');
     const cur = parseKm(v.currentKm);
     const nxt = parseKm(v.nextServiceKm);
-    if (cur > 0 && nxt > 0 && cur >= nxt - 2000)
+    if (!_isTrailer && cur > 0 && nxt > 0 && cur >= nxt - 2000)
       alerts.push({ plate:v.plate, driver:v.driverName, type:'טיפול הבא', dueDate:'—', daysLeft:null, prevKm:null, kmAlert:2000, currentKm:cur, kmDiff: cur - nxt + 2000 });
   }
   alerts.sort((a,b) => {
