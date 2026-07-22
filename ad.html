@@ -273,25 +273,25 @@ body{font-family:'Heebo',sans-serif;background:#070b14;color:#fff}
 </div>
 
 <script>
+// Scenes are driven off ONE continuous narration file. `at` = the second in the
+// full recording where each scene's line begins (measured from audio/ad-full.mp3),
+// so the visuals stay perfectly in sync with the voice.
 const SCENES = [
-  { id:'s1', dur:4600,  audio:'audio/ad1.mp3' },
-  { id:'s2', dur:9100,  audio:'audio/ad2.mp3' },
-  { id:'s3', dur:7300,  audio:'audio/ad3.mp3' },
-  { id:'s4', dur:12200, audio:'audio/ad4.mp3' },
-  { id:'s5', dur:12900, audio:'audio/ad5.mp3' },
-  { id:'s6', dur:10200, audio:'audio/ad6.mp3' },
-  { id:'s7', dur:7100,  audio:'audio/ad7.mp3' },
-  { id:'s8', dur:7100,  audio:'audio/ad8.mp3' }
+  { id:'s1', at:0.00  },
+  { id:'s2', at:6.26  },
+  { id:'s3', at:15.53 },
+  { id:'s4', at:22.61 },
+  { id:'s5', at:36.12 },
+  { id:'s6', at:49.97 },
+  { id:'s7', at:60.24 },
+  { id:'s8', at:67.27 }
 ];
-const players = SCENES.map(s => { const a = new Audio(s.audio); a.preload='auto'; return a; });
-function sceneDur(i){
-  const a = players[i];
-  return (a && a.duration && isFinite(a.duration)) ? Math.round(a.duration*1000)+900 : SCENES[i].dur;
-}
-let idx=-1, elapsed=0, timer=null, subTimers=[], muted=false, started=false, AC=null;
+const TOTAL = 73.37;
+const voice = new Audio('audio/ad-full.mp3'); voice.preload='auto';
+let idx=-1, subTimers=[], muted=false, started=false, AC=null;
 
 function initAudio(){ try{ AC = new (window.AudioContext||window.webkitAudioContext)(); }catch(e){} }
-function stopAllVoice(){ players.forEach(a => { a.pause(); a.currentTime = 0; }); }
+function sceneIndexAt(t){ let i=0; for(let j=0;j<SCENES.length;j++){ if(t>=SCENES[j].at) i=j; } return i; }
 function whoosh(){
   if(!AC||muted) return;
   const t=AC.currentTime, dur=.5;
@@ -302,12 +302,11 @@ function whoosh(){
   const g=AC.createGain(); g.gain.setValueAtTime(.12,t); g.gain.exponentialRampToValueAtTime(.001,t+dur);
   src.connect(f).connect(g).connect(AC.destination); src.start();
 }
-function narrate(i){ stopAllVoice(); if(!muted) players[i].play().catch(()=>{}); }
 function toggleMute(e){
   e.stopPropagation();
   muted=!muted;
+  voice.muted=muted;
   document.getElementById('mute').textContent = muted?'🔇':'🔊';
-  if(muted) stopAllVoice(); else if(idx>=0) players[idx].play().catch(()=>{});
 }
 
 function clearSub(){ subTimers.forEach(clearTimeout); subTimers=[]; }
@@ -318,7 +317,6 @@ function show(i){
   sc.querySelectorAll('.rise,.arow,.cbub,.sigpath,.box,.sigok,.glitch,.err-stamp span').forEach(el=>{el.style.animation='none';void el.offsetWidth;el.style.animation='';});
   sc.classList.add('on');
   whoosh();
-  narrate(i);
 
   if(SCENES[i].id==='s3'){
     const r=document.getElementById('li-r'),y=document.getElementById('li-y'),g=document.getElementById('li-g');
@@ -337,26 +335,31 @@ function show(i){
     requestAnimationFrame(tick);
   });
 }
-function next(){
-  idx=(idx+1)%SCENES.length;
-  if(idx===0) elapsed=0;
-  show(idx);
-  timer=setTimeout(next,sceneDur(idx));
-}
-setInterval(()=>{
-  if(idx<0)return;
-  elapsed+=300;
-  const tot=SCENES.reduce((a,_,j)=>a+sceneDur(j),0);
-  document.getElementById('bar').style.width=Math.min(100,elapsed/tot*100)+'%';
-},300);
+// The narration timeline is the single source of truth: whenever the voice crosses
+// into a new scene's window, swap the visual to match. Progress bar tracks the audio.
+voice.addEventListener('timeupdate',()=>{
+  if(!started) return;
+  const i=sceneIndexAt(voice.currentTime);
+  if(i!==idx){ idx=i; show(i); }
+  document.getElementById('bar').style.width=Math.min(100,voice.currentTime/(voice.duration||TOTAL)*100)+'%';
+});
+voice.addEventListener('ended',()=>{ // loop
+  idx=-1; document.getElementById('bar').style.width='0%';
+  voice.currentTime=0; voice.play().catch(()=>{});
+});
 
 document.getElementById('start').addEventListener('click',()=>{
   if(started) return; started=true;
   initAudio();
   document.getElementById('start').style.display='none';
-  next();
+  voice.currentTime=0; voice.play().catch(()=>{});
 });
-document.getElementById('stage').addEventListener('click',()=>{ if(!started)return; clearTimeout(timer); stopAllVoice(); next(); });
+// click the stage to skip to the next scene (seeks the narration too)
+document.getElementById('stage').addEventListener('click',()=>{
+  if(!started)return;
+  const n=(sceneIndexAt(voice.currentTime)+1)%SCENES.length;
+  voice.currentTime = n===0 ? 0 : SCENES[n].at;
+});
 </script>
 </body>
 </html>
