@@ -985,6 +985,7 @@ function rebuildDriversDirectory() {
     DRIVERS[n] = DRIVERS[n] || {};
     if (v.licenseExpiry) DRIVERS[n].licenseExpiry = v.licenseExpiry;
     if (v.trafficRecord) DRIVERS[n].trafficRecord = v.trafficRecord;
+    if (v.driverPhone) DRIVERS[n].driverPhone = v.driverPhone;
   });
 }
 // push a driver's known values onto every vehicle that driver holds
@@ -994,18 +995,21 @@ function syncDriverToVehicles(n) {
     if (driverKey(v.driverName) === n) {
       if (d.licenseExpiry) v.licenseExpiry = d.licenseExpiry;
       if (d.trafficRecord) v.trafficRecord = d.trafficRecord;
+      if (d.driverPhone) v.driverPhone = d.driverPhone;
     }
   });
 }
-// auto-fill the license/traffic fields in the vehicle modal when a known driver is entered
+// auto-fill the license/traffic/phone fields in the vehicle modal when a known driver is entered
 function autoFillDriverFields() {
   const n = driverKey(document.getElementById('m-driver').value);
   const d = DRIVERS[n];
   if (!d) return;
   const lic = document.getElementById('m-licExpiry');
   const trf = document.getElementById('m-traffic');
+  const ph = document.getElementById('m-phone');
   if (d.licenseExpiry && !lic.value) lic.value = d.licenseExpiry;
   if (d.trafficRecord && !trf.value) trf.value = d.trafficRecord;
+  if (d.driverPhone && ph && !ph.value) ph.value = d.driverPhone;
 }
 function checkServiceOverages() {
   const overdue = VEHICLES.filter(v => {
@@ -1507,7 +1511,7 @@ function renderFleet() {
       <td>${kmStatus(v.currentKm, v.nextServiceKm)}<br><span style="color:var(--muted);font-size:0.63rem">${esc(v.nextServiceKm)||'—'} ק"מ</span></td>
       <td class="${cellCls(inspDays)}">${statusBadge(inspDays)}<br><span style="color:var(--muted);font-size:0.63rem">הבאה: ${nextInspectionStr(v)||'—'}</span><br><span style="color:var(--muted);font-size:0.58rem">אחרונה: ${esc(v.inspection)||'—'}</span></td>
       <td class="${cellCls(daysUntil(dateAddYears(v.trafficRecord,3)))}">${statusBadge(daysUntil(dateAddYears(v.trafficRecord,3)))}<br><span style="color:var(--muted);font-size:0.63rem">בוצע: ${esc(v.trafficRecord)||'—'}</span><br><span style="color:var(--muted);font-size:0.58rem">תוקף: ${dateAddYears(v.trafficRecord,3)||'—'}</span></td>
-      <td class="${cellCls(daysUntil(dateAddYears(v.procedures,5)))}">${statusBadge(daysUntil(dateAddYears(v.procedures,5)))}<br><span style="color:var(--muted);font-size:0.63rem">בוצע: ${esc(v.procedures)||'—'}</span><br><span style="color:var(--muted);font-size:0.58rem">תוקף: ${dateAddYears(v.procedures,5)||'—'}</span></td>
+      <td class="${(v.procedures||'').trim() ? cellCls(daysUntil(dateAddYears(v.procedures,5))) : 'cell-yellow'}">${(v.procedures||'').trim() ? `${statusBadge(daysUntil(dateAddYears(v.procedures,5)))}<br><span style="color:var(--muted);font-size:0.63rem">בוצע: ${esc(v.procedures)}</span><br><span style="color:var(--muted);font-size:0.58rem">תוקף: ${dateAddYears(v.procedures,5)||'—'}</span>` : '<span class="badge badge-yellow" style="background:#fefce8;color:#713f12;border:1px solid #fde68a">📝 למילוי</span><br><span style="color:#b45309;font-size:0.58rem">הנהג צריך לחתום</span>'}</td>
       <td style="font-size:0.73rem;white-space:nowrap">${esc(v.vehicleFrom)||'—'}</td>
       <td style="white-space:nowrap">
         <button class="btn btn-gray" style="padding:3px 8px;font-size:0.7rem" onclick="editVehicle('${esc(v.plate)}')">✏️</button>
@@ -2582,8 +2586,10 @@ function saveVehicle() {
     else if (DRIVERS[_dk].licenseExpiry) v.licenseExpiry = DRIVERS[_dk].licenseExpiry;
     if (v.trafficRecord) DRIVERS[_dk].trafficRecord = v.trafficRecord;
     else if (DRIVERS[_dk].trafficRecord) v.trafficRecord = DRIVERS[_dk].trafficRecord;
+    if (v.driverPhone) DRIVERS[_dk].driverPhone = v.driverPhone;
+    else if (DRIVERS[_dk].driverPhone) v.driverPhone = DRIVERS[_dk].driverPhone;
     // reflect onto the saved record too
-    if (editingPlate) { const i2 = VEHICLES.findIndex(x=>x.plate===v.plate); if (i2>=0) { VEHICLES[i2].licenseExpiry = v.licenseExpiry; VEHICLES[i2].trafficRecord = v.trafficRecord; } }
+    if (editingPlate) { const i2 = VEHICLES.findIndex(x=>x.plate===v.plate); if (i2>=0) { VEHICLES[i2].licenseExpiry = v.licenseExpiry; VEHICLES[i2].trafficRecord = v.trafficRecord; VEHICLES[i2].driverPhone = v.driverPhone; } }
     syncDriverToVehicles(_dk);
     saveToFirestore('drivers', DRIVERS);
   }
@@ -3442,6 +3448,7 @@ async function replaceVehicleAction(param) {
   if (nv) {
     nv.driverName = old.driverName || '';
     nv.driverId = old.driverId || '';
+    nv.driverPhone = old.driverPhone || '';
     nv.children = old.children || '';
     nv.licenseExpiry = old.licenseExpiry || nv.licenseExpiry || '';
     nv.trafficRecord = old.trafficRecord || '';
@@ -3459,6 +3466,7 @@ async function replaceVehicleAction(param) {
     DRIVERS[_dk] = DRIVERS[_dk] || {};
     if (old.licenseExpiry) DRIVERS[_dk].licenseExpiry = old.licenseExpiry;
     if (old.trafficRecord) DRIVERS[_dk].trafficRecord = old.trafficRecord;
+    if (old.driverPhone) DRIVERS[_dk].driverPhone = old.driverPhone;
   }
   try {
     localStorage.setItem('fleet_vehicles', JSON.stringify(VEHICLES));
