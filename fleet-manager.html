@@ -966,6 +966,12 @@ async function loadFromFirestore() {
       if (Array.isArray(d.violations)) { VIOLATIONS = d.violations; localStorage.setItem('fleet_violations', JSON.stringify(VIOLATIONS)); }
       if (Array.isArray(d.replacements)) { REPLACEMENTS = d.replacements; localStorage.setItem('fleet_replacements', JSON.stringify(REPLACEMENTS)); }
       if (Array.isArray(d.returns)) { RETURNS = d.returns; localStorage.setItem('fleet_returns', JSON.stringify(RETURNS)); }
+      // large historical logs now live in their own docs — override the (possibly
+      // legacy) copies from main when the dedicated docs exist
+      await loadArchiveDoc('incidents',    a => { INCIDENTS = a;    localStorage.setItem('fleet_incidents', JSON.stringify(a)); });
+      await loadArchiveDoc('violations',   a => { VIOLATIONS = a;   localStorage.setItem('fleet_violations', JSON.stringify(a)); });
+      await loadArchiveDoc('replacements', a => { REPLACEMENTS = a; localStorage.setItem('fleet_replacements', JSON.stringify(a)); });
+      await loadArchiveDoc('returns',      a => { RETURNS = a;      localStorage.setItem('fleet_returns', JSON.stringify(a)); });
       if (d.mailSettings) { MAIL_SETTINGS = d.mailSettings; localStorage.setItem('fleet_mailSettings', JSON.stringify(MAIL_SETTINGS)); }
       if (d.kmRound && typeof KMROUND !== 'undefined') { KMROUND = d.kmRound; }
       if (d.serviceNotified) { SERVICE_NOTIFIED = d.serviceNotified; }
@@ -976,8 +982,50 @@ async function loadFromFirestore() {
       if (typeof maybeSendKmReminder === 'function') maybeSendKmReminder();
       _firestoreLoaded = true;
       if (typeof checkServiceOverages === 'function') checkServiceOverages();
+      migrateArchivesToSubdocs(); // one-time: move legacy arrays out of main
     }
   } catch(e) { console.log('Firestore load error', e); }
+}
+
+// Read one archive doc (fleet/<name> with an {items:[...]} field). Calls assign
+// only when the dedicated doc exists, so legacy data in main is used until migrated.
+async function loadArchiveDoc(name, assign) {
+  try {
+    const s = await db.collection('fleet').doc(name).get();
+    if (s.exists) {
+      const items = (s.data() || {}).items;
+      if (Array.isArray(items)) { assign(items); return true; }
+    }
+  } catch(e) { console.log('archive load error', name, e); }
+  return false;
+}
+
+// One-time migration: copy the big historical arrays out of fleet/main into their
+// own docs and delete them from main, shrinking main far below the 1 MiB limit.
+// Requires auth (rules), runs at most once — after it, main no longer has the fields.
+let _archiveMigrated = false;
+async function migrateArchivesToSubdocs() {
+  if (_archiveMigrated || !auth.currentUser) return;
+  _archiveMigrated = true;
+  try {
+    const main = await db.collection('fleet').doc('main').get();
+    const d = main.data() || {};
+    const names = Object.keys(ARCHIVE_DOCS);
+    const toDelete = {};
+    for (const n of names) {
+      if (!Array.isArray(d[n])) continue; // nothing legacy to move
+      const sub = await db.collection('fleet').doc(n).get();
+      if (!sub.exists || !Array.isArray((sub.data() || {}).items)) {
+        await db.collection('fleet').doc(n).set({ items: d[n] });
+      }
+      toDelete[n] = firebase.firestore.FieldValue.delete();
+    }
+    if (Object.keys(toDelete).length) {
+      await db.collection('fleet').doc('main').set(toDelete, { merge: true });
+      console.log('archive migration complete — moved out of main:', Object.keys(toDelete));
+      if (typeof toast === 'function') toast('✓ מסד הנתונים אורגן מחדש — שמירות יפעלו כרגיל');
+    }
+  } catch(e) { console.log('archive migration error', e); }
 }
 
 // ── PROACTIVE SERVICE-OVERAGE ALERT ──
@@ -1059,9 +1107,17 @@ function checkServiceOverages() {
   }
 }
 
+// The large historical logs live in their OWN documents so fleet/main stays
+// small and well under Firestore's 1 MiB per-document limit (writing the whole
+// main doc on every edit was overflowing and silently dropping saves).
+const ARCHIVE_DOCS = { incidents: 1, violations: 1, replacements: 1, returns: 1 };
 async function saveToFirestore(key, value) {
   try {
-    await db.collection('fleet').doc('main').set({ [key]: value }, { merge: true });
+    if (ARCHIVE_DOCS[key]) {
+      await db.collection('fleet').doc(key).set({ items: value }, { merge: true });
+    } else {
+      await db.collection('fleet').doc('main').set({ [key]: value }, { merge: true });
+    }
   } catch(e) { console.log('Firestore save error', e); }
 }
 
@@ -1129,6 +1185,17 @@ function setupRealtimeSync() {
     if (changed && typeof renderFleet === 'function') { renderFleet(); renderAlerts(); }
     if (changed && typeof checkServiceOverages === 'function') checkServiceOverages();
   });
+  // dedicated listeners for the archive docs (kept out of main to stay under 1 MiB)
+  const watchArchive = (name, assign, render) =>
+    db.collection('fleet').doc(name).onSnapshot(snap => {
+      if (!_firestoreLoaded || !snap.exists) return;
+      const items = (snap.data() || {}).items;
+      if (Array.isArray(items)) { assign(items); if (typeof render === 'function') render(); }
+    });
+  watchArchive('incidents',    a => { INCIDENTS = a; localStorage.setItem('fleet_incidents', JSON.stringify(a)); },    () => { if (typeof renderIncidents === 'function') renderIncidents(); });
+  watchArchive('violations',   a => { VIOLATIONS = a; localStorage.setItem('fleet_violations', JSON.stringify(a)); },   () => { if (typeof renderViolations === 'function') renderViolations(); });
+  watchArchive('replacements', a => { REPLACEMENTS = a; localStorage.setItem('fleet_replacements', JSON.stringify(a)); }, () => { if (typeof renderReturns === 'function') renderReturns(); });
+  watchArchive('returns',      a => { RETURNS = a; localStorage.setItem('fleet_returns', JSON.stringify(a)); },      () => { if (typeof renderReturns === 'function') renderReturns(); });
 }
 
 // ── UTILS ──
@@ -3599,7 +3666,8 @@ async function replaceVehicleAction(param) {
     localStorage.setItem('fleet_vehicles_version', VEHICLES_VERSION);
     localStorage.setItem('fleet_returns', JSON.stringify(RETURNS));
   } catch(e){}
-  try { await db.collection('fleet').doc('main').set({ vehicles: VEHICLES, returns: RETURNS, drivers: DRIVERS }, { merge: true }); } catch(e) { console.log('Firestore save error', e); }
+  try { await db.collection('fleet').doc('main').set({ vehicles: VEHICLES, drivers: DRIVERS }, { merge: true }); } catch(e) { console.log('Firestore save error', e); }
+  saveToFirestore('returns', RETURNS); // returns live in their own doc now
   renderFleet(); renderDashboard(); renderAlerts();
   if (typeof renderReturns === 'function') renderReturns();
   toast(`✓ ${(old.driverName||'').split('-')[0].trim()}: ${old.plate} הועבר להחזרות, ${newPlate} נוסף`);
