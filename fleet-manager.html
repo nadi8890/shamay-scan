@@ -1563,17 +1563,22 @@ function renderFleet() {
     const hasSoon = [regDays,insDays,licDays,inspDays].some(d=>d!==null&&d>=0&&d<=14);
     const hasWarn = false;
     const rowCls = hasExpired ? 'row-expired' : hasSoon ? 'row-soon' : hasWarn ? 'row-warn' : '';
+    // empty-field highlighting: any missing value gets a yellow cell so it's easy to spot what to fill
+    const drvNm = (v.driverName||'').trim();
+    const isTrailer = drvNm.includes('נגרר') || drvNm.includes('ללא נהג');
+    const blank = s => !String(s==null?'':s).trim();
+    const yc = (val, cls) => blank(val) ? 'cell-yellow' : (cls||''); // yellow if empty, else keep existing color class
     return `<tr class="${rowCls}">
-      <td style="font-weight:700;color:var(--accent);direction:ltr;font-size:0.78rem;white-space:nowrap">${esc(v.plate)}</td>
-      <td style="font-size:0.73rem">${esc(v.make)} ${esc(v.model)}<br><span style="color:var(--muted);font-size:0.65rem">${esc(v.year)}</span></td>
-      <td style="font-size:0.73rem">${esc((v.driverName||'').split('-')[0])}</td>
-      <td>${companyBadge(v.company)}</td>
-      <td class="${cellCls(regDays)}">${statusBadge(regDays)}<br><span style="color:var(--muted);font-size:0.63rem">${esc(v.registrationExpiry)}</span></td>
-      <td class="${cellCls(insDays)}">${statusBadge(insDays)}<br><span style="color:var(--muted);font-size:0.63rem">${esc(v.insuranceExpiry)}</span></td>
-      <td class="${cellCls(licDays)}">${statusBadge(licDays)}<br><span style="color:var(--muted);font-size:0.63rem">${esc(v.licenseExpiry)}</span></td>
-      <td>${kmStatus(v.currentKm, v.nextServiceKm)}<br><span style="color:var(--muted);font-size:0.63rem">${esc(v.nextServiceKm)||'—'} ק"מ</span></td>
-      <td class="${cellCls(inspDays)}">${statusBadge(inspDays)}<br><span style="color:var(--muted);font-size:0.63rem">הבאה: ${nextInspectionStr(v)||'—'}</span><br><span style="color:var(--muted);font-size:0.58rem">אחרונה: ${esc(v.inspection)||'—'}</span></td>
-      <td class="${cellCls(daysUntil(dateAddYears(v.trafficRecord,3)))}">${statusBadge(daysUntil(dateAddYears(v.trafficRecord,3)))}<br><span style="color:var(--muted);font-size:0.63rem">בוצע: ${esc(v.trafficRecord)||'—'}</span><br><span style="color:var(--muted);font-size:0.58rem">תוקף: ${dateAddYears(v.trafficRecord,3)||'—'}</span></td>
+      <td class="${yc(v.plate)}" style="font-weight:700;color:var(--accent);direction:ltr;font-size:0.78rem;white-space:nowrap">${esc(v.plate)||'—'}</td>
+      <td class="${yc((v.make||'')+(v.model||''))}" style="font-size:0.73rem">${esc(v.make)} ${esc(v.model)}<br><span style="color:var(--muted);font-size:0.65rem">${esc(v.year)}</span></td>
+      <td class="${isTrailer?'':yc(drvNm)}" style="font-size:0.73rem">${esc((v.driverName||'').split('-')[0])||'—'}</td>
+      <td class="${yc(v.company)}">${companyBadge(v.company)}</td>
+      <td class="${yc(v.registrationExpiry, cellCls(regDays))}">${statusBadge(regDays)}<br><span style="color:var(--muted);font-size:0.63rem">${esc(v.registrationExpiry)||'—'}</span></td>
+      <td class="${yc(v.insuranceExpiry, cellCls(insDays))}">${statusBadge(insDays)}<br><span style="color:var(--muted);font-size:0.63rem">${esc(v.insuranceExpiry)||'—'}</span></td>
+      <td class="${isTrailer?'':yc(v.licenseExpiry, cellCls(licDays))}">${statusBadge(licDays)}<br><span style="color:var(--muted);font-size:0.63rem">${esc(v.licenseExpiry)||'—'}</span></td>
+      <td class="${yc(v.nextServiceKm)}">${kmStatus(v.currentKm, v.nextServiceKm)}<br><span style="color:var(--muted);font-size:0.63rem">${esc(v.nextServiceKm)||'—'} ק"מ</span></td>
+      <td class="${yc(v.inspection, cellCls(inspDays))}">${statusBadge(inspDays)}<br><span style="color:var(--muted);font-size:0.63rem">הבאה: ${nextInspectionStr(v)||'—'}</span><br><span style="color:var(--muted);font-size:0.58rem">אחרונה: ${esc(v.inspection)||'—'}</span></td>
+      <td class="${isTrailer?'':yc(v.trafficRecord, cellCls(daysUntil(dateAddYears(v.trafficRecord,3))))}">${statusBadge(daysUntil(dateAddYears(v.trafficRecord,3)))}<br><span style="color:var(--muted);font-size:0.63rem">בוצע: ${esc(v.trafficRecord)||'—'}</span><br><span style="color:var(--muted);font-size:0.58rem">תוקף: ${dateAddYears(v.trafficRecord,3)||'—'}</span></td>
       ${(() => {
         const drv = (v.driverName||'').trim();
         // trailers / unassigned vehicles are not driven — no procedures needed
@@ -1583,7 +1588,7 @@ function renderFleet() {
           return `<td class="${cellCls(daysUntil(dateAddYears(v.procedures,5)))}">${statusBadge(daysUntil(dateAddYears(v.procedures,5)))}<br><span style="color:var(--muted);font-size:0.63rem">בוצע: ${esc(v.procedures)}</span><br><span style="color:var(--muted);font-size:0.58rem">תוקף: ${dateAddYears(v.procedures,5)||'—'}</span></td>`;
         return `<td class="cell-yellow"><span class="badge badge-yellow" style="background:#fefce8;color:#713f12;border:1px solid #fde68a">📝 למילוי</span><br><span style="color:#b45309;font-size:0.58rem">הנהג צריך לחתום</span></td>`;
       })()}
-      <td style="font-size:0.73rem;white-space:nowrap">${esc(v.vehicleFrom)||'—'}</td>
+      <td class="${yc(v.vehicleFrom)}" style="font-size:0.73rem;white-space:nowrap">${esc(v.vehicleFrom)||'—'}</td>
       <td style="white-space:nowrap">
         <button class="btn btn-gray" style="padding:3px 8px;font-size:0.7rem" onclick="editVehicle('${esc(v.plate)}')">✏️</button>
         <button class="btn btn-gray" style="padding:3px 8px;font-size:0.7rem" title="שלח טפסי קבלת רכב לנהג" onclick="openDeclShare('${esc(v.plate)}')">📨</button>
