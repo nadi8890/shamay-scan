@@ -2635,10 +2635,10 @@ function startHeaderClock() {
   const tick = () => {
     const n = new Date();
     const p2 = x => String(x).padStart(2,'0');
-    el.textContent = `יום ${days[n.getDay()]} · ${p2(n.getDate())}/${p2(n.getMonth()+1)}/${n.getFullYear()} · ${p2(n.getHours())}:${p2(n.getMinutes())}`;
+    el.textContent = `יום ${days[n.getDay()]} · ${p2(n.getDate())}/${p2(n.getMonth()+1)}/${n.getFullYear()} · ${p2(n.getHours())}:${p2(n.getMinutes())}:${p2(n.getSeconds())}`;
   };
   tick();
-  setInterval(tick, 1000 * 30);
+  setInterval(tick, 1000);
 }
 function bootApp() {
   if (_appBooted) return;
