@@ -985,7 +985,7 @@ async function loadFromFirestore() {
       _firestoreLoaded = true;
       if (typeof checkServiceOverages === 'function') checkServiceOverages();
       // one-time: move legacy arrays out of main, then backfill inspections, then back up
-      migrateArchivesToSubdocs().then(() => { backfillInspections(); applyHertzFleet(); dailyBackup(); });
+      migrateArchivesToSubdocs().then(() => { backfillInspections(); applyHertzFleet(); reconcileDeclarations(); dailyBackup(); });
     }
   } catch(e) { console.log('Firestore load error', e); }
 }
@@ -1037,6 +1037,51 @@ function applyHertzFleet() {
     if (typeof renderFleet === 'function') renderFleet();
     if (typeof toast === 'function') toast(`✓ ${changed} רכבים סומנו כחברת הרץ`);
   }
+}
+
+// Drivers can't write fleet/main. When a driver signs the procedures form or sends
+// a monthly km reading, it leaves a flagged record (applyProcedures / applyKm). The
+// signed-in manager applies those to the matching vehicle here and marks them applied.
+async function reconcileDeclarations() {
+  if (!auth.currentUser) return;
+  try {
+    const [qProc, qKm] = await Promise.all([
+      db.collection('fleet').where('applyProcedures', '==', true).get(),
+      db.collection('fleet').where('applyKm', '==', true).get()
+    ]);
+    const pending = [];
+    qProc.forEach(doc => { const r = doc.data(); if (!r.applied) pending.push({ ref: doc.ref, r, kind: 'proc' }); });
+    qKm.forEach(doc => { const r = doc.data(); if (!r.applied) pending.push({ ref: doc.ref, r, kind: 'km' }); });
+    if (!pending.length) return;
+    // oldest first so the newest km reading wins
+    pending.sort((a, b) => (a.r.created || 0) - (b.r.created || 0));
+    const snap = await db.collection('fleet').doc('main').get();
+    const vehicles = (snap.data() || {}).vehicles || [];
+    let procN = 0, kmN = 0;
+    pending.forEach(({ r, kind }) => {
+      const v = vehicles.find(x => String(x.plate || '').replace(/\D/g, '') === String(r.plate || '').replace(/\D/g, ''));
+      if (!v) return;
+      if (kind === 'proc') {
+        if (r.proceduresDate) v.procedures = r.proceduresDate;
+        if (r.km && parseKm(r.km) >= parseKm(v.currentKm)) v.currentKm = r.km;
+        procN++;
+      } else {
+        if (r.km && parseKm(r.km) >= parseKm(v.currentKm)) { v.currentKm = String(parseKm(r.km)); kmN++; }
+      }
+    });
+    if (procN || kmN) await db.collection('fleet').doc('main').set({ vehicles: stripUndef(vehicles) }, { merge: true });
+    for (const p of pending) { try { await p.ref.set({ applied: true }, { merge: true }); } catch(e) {} }
+    if (procN || kmN) {
+      VEHICLES = vehicles;
+      localStorage.setItem('fleet_vehicles', JSON.stringify(VEHICLES));
+      if (typeof renderFleet === 'function') renderFleet();
+      if (typeof checkServiceOverages === 'function') checkServiceOverages();
+      const parts = [];
+      if (procN) parts.push(`נהלים ל-${procN} רכבים`);
+      if (kmN) parts.push(`ק"מ ל-${kmN} רכבים`);
+      if (typeof toast === 'function') toast('✓ עודכנו ' + parts.join(' ו-') + ' מטפסי נהגים');
+    }
+  } catch(e) { console.log('reconcile declarations error', e); }
 }
 
 // SAFETY NET: once per day, snapshot all vehicles + the driver directory into a

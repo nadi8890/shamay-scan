@@ -542,22 +542,34 @@ async function submitForm() {
       rec1: val('acc-rec1'), rec2: val('acc-rec2'), rec3: val('acc-rec3')
     };
   }
+  // The driver can't write fleet/main (locked to signed-in manager). When this form
+  // updates the vehicle's procedures date, flag it on the record so the manager's
+  // app applies it on load. proceduresDate/km travel with the declaration.
+  if (F.updatesProcedures) {
+    rec.applyProcedures = true;
+    rec.applied = false;
+    rec.proceduresDate = today;
+  }
   try {
     // 1. store the declaration (photos are not stored in Firestore — they go into the emailed PDF)
     await db.collection('fleet').doc('decl_' + rec.created).set(rec);
-    // 2. procedures form updates the vehicle (verify + retry against concurrent saves)
+    // 2. best-effort: try to update the vehicle directly. Drivers aren't signed in
+    // so this write is blocked by the rules — that's fine, the manager's app applies
+    // the change from the declaration (applyProcedures flag). Never fail the form here.
     if (F.updatesProcedures) {
-      for (let attempt = 0; attempt < 3; attempt++) {
-        const snap = await db.collection('fleet').doc('main').get();
-        const vehicles = (snap.data() || {}).vehicles || [];
-        const v = vehicles.find(x => (x.plate||'').replace(/\D/g,'') === (rec.plate||'').replace(/\D/g,''));
-        if (!v) break;
-        if (v.procedures === today && (!rec.km || v.currentKm === rec.km)) break;
-        v.procedures = today;
-        if (rec.km) v.currentKm = rec.km;
-        await db.collection('fleet').doc('main').set({ vehicles }, { merge: true });
-        await new Promise(res => setTimeout(res, 1500));
-      }
+      try {
+        for (let attempt = 0; attempt < 3; attempt++) {
+          const snap = await db.collection('fleet').doc('main').get();
+          const vehicles = (snap.data() || {}).vehicles || [];
+          const v = vehicles.find(x => (x.plate||'').replace(/\D/g,'') === (rec.plate||'').replace(/\D/g,''));
+          if (!v) break;
+          if (v.procedures === today && (!rec.km || v.currentKm === rec.km)) break;
+          v.procedures = today;
+          if (rec.km) v.currentKm = rec.km;
+          await db.collection('fleet').doc('main').set({ vehicles }, { merge: true });
+          await new Promise(res => setTimeout(res, 1500));
+        }
+      } catch(e) { console.log('vehicle update deferred to manager', e); }
     }
     // 3. email the manager the archive PDF (license photos appended as pages)
     if (MAIL.gasUrl) {

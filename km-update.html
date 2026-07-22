@@ -122,24 +122,29 @@ async function submitKm() {
   const serviceDue = next > 0 && km >= next;
   const serviceSoon = next > 0 && !serviceDue && (next - km) <= 1000;
   try {
-    // 1. km report (one per vehicle per month — overwrites on repeat fill)
+    // 1. km report (one per vehicle per month — overwrites on repeat fill).
+    // applyKm flags it so the signed-in manager writes the km onto the vehicle.
     await db.collection('fleet').doc(`kmr_${monthKey}_${VEH.plate}`).set({
       type: 'kmreport', created: Date.now(), monthKey,
       dateStr: `${p2(now.getDate())}/${p2(now.getMonth()+1)}/${now.getFullYear()} ${p2(now.getHours())}:${p2(now.getMinutes())}`,
       plate: VEH.plate, driver: (VEH.driverName||'').split('-')[0].trim(),
-      km: String(km), prevKm: String(prev||''), nextServiceKm: String(next||''), serviceDue, serviceSoon
+      km: String(km), prevKm: String(prev||''), nextServiceKm: String(next||''), serviceDue, serviceSoon,
+      applyKm: true, applied: false
     });
-    // 2. update the vehicle's current km (verify + retry against concurrent saves)
-    for (let attempt = 0; attempt < 3; attempt++) {
-      const snap = await db.collection('fleet').doc('main').get();
-      const vehicles = (snap.data()||{}).vehicles || [];
-      const v = vehicles.find(x => (x.plate||'').replace(/\D/g,'') === (VEH.plate||'').replace(/\D/g,''));
-      if (!v) break;
-      if (parseKmNum(v.currentKm) === km) break;
-      v.currentKm = String(km);
-      await db.collection('fleet').doc('main').set({ vehicles }, { merge: true });
-      await new Promise(res => setTimeout(res, 1500));
-    }
+    // 2. best-effort direct update — drivers aren't signed in so the rules block
+    // this; the manager's app applies the km from the report. Never fail the form.
+    try {
+      for (let attempt = 0; attempt < 3; attempt++) {
+        const snap = await db.collection('fleet').doc('main').get();
+        const vehicles = (snap.data()||{}).vehicles || [];
+        const v = vehicles.find(x => (x.plate||'').replace(/\D/g,'') === (VEH.plate||'').replace(/\D/g,''));
+        if (!v) break;
+        if (parseKmNum(v.currentKm) === km) break;
+        v.currentKm = String(km);
+        await db.collection('fleet').doc('main').set({ vehicles }, { merge: true });
+        await new Promise(res => setTimeout(res, 1500));
+      }
+    } catch(e) { console.log('km update deferred to manager', e); }
     // 3. alert the manager by email when a service is due
     if ((serviceDue || serviceSoon) && MAIL.gasUrl) {
       try {
