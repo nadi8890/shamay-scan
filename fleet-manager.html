@@ -213,6 +213,7 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
 .co-nofar{background:#eff6ff;color:#1d4ed8;padding:2px 7px;border-radius:5px;font-size:0.65rem;font-weight:700;border:1px solid #bfdbfe}
 .co-liscar{background:#faf5ff;color:#7e22ce;padding:2px 7px;border-radius:5px;font-size:0.65rem;font-weight:700;border:1px solid #e9d5ff}
 .co-shlomo{background:#f0fdf4;color:#15803d;padding:2px 7px;border-radius:5px;font-size:0.65rem;font-weight:700;border:1px solid #bbf7d0}
+.co-hertz{background:#fefce8;color:#a16207;padding:2px 7px;border-radius:5px;font-size:0.65rem;font-weight:700;border:1px solid #fde68a}
 .co-other{background:#f8fafc;color:#475569;padding:2px 7px;border-radius:5px;font-size:0.65rem;font-weight:700;border:1px solid #e2e8f0}
 @media(max-width:480px){
   .stats-row{grid-template-columns:repeat(2,1fr)}
@@ -282,6 +283,7 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
       <option>נופר אנרגי</option>
       <option>ליסקאר</option>
       <option>שלמה סיקסט</option>
+      <option>הרץ</option>
     </select>
     <select class="filter-select" id="fleet-status" onchange="renderFleet()">
       <option value="">כל הסטטוסים</option>
@@ -758,7 +760,7 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
       <div class="modal-row"><label>מס׳ רישוי</label><div style="display:flex;gap:5px;align-items:center"><input id="m-plate" type="text" placeholder="12345678" style="flex:1" onblur="autoFillFromGov(this.value)"><span id="m-gov-status" style="font-size:0.7rem;color:#64748b;white-space:nowrap"></span></div></div>
       <div class="modal-row"><label>חברה</label>
         <select id="m-company">
-          <option>נופר אנרגי</option><option>ליסקאר</option><option>שלמה סיקסט</option><option>אחר</option>
+          <option>נופר אנרגי</option><option>ליסקאר</option><option>שלמה סיקסט</option><option>הרץ</option><option>אחר</option>
         </select>
       </div>
       <div class="modal-row"><label>יצרן</label><input id="m-make" type="text" placeholder="מיצובישי"></div>
@@ -1370,6 +1372,7 @@ function companyBadge(co) {
   if (c.includes('נופר')) return `<span class="co-nofar">נופר</span>`;
   if (c.includes('ליסקאר')) return `<span class="co-liscar">ליסקאר</span>`;
   if (c.includes('שלמה')) return `<span class="co-shlomo">שלמה</span>`;
+  if (c.includes('הרץ')) return `<span class="co-hertz">הרץ</span>`;
   return `<span class="co-other">${c||'—'}</span>`;
 }
 function esc(s){ return String(s||'').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
