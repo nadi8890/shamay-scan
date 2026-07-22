@@ -574,6 +574,7 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
       <span id="agent-status">מוכן לסייע</span>
     </div>
     <span id="agent-model-badge" title="המודל שהסוכן משתמש בו" style="background:rgba(255,255,255,.22);color:#fff;font-size:0.62rem;font-weight:800;padding:2px 8px;border-radius:999px;white-space:nowrap;margin-inline-start:auto">⚡ טוען...</span>
+    <button class="agent-close" onclick="openAgentRules()" title="הכללים שלי — הנחיות קבועות לסוכן">⚙️</button>
     <button class="agent-close" onclick="toggleAgent()">✕</button>
   </div>
   <div class="agent-msgs" id="agent-msgs"></div>
@@ -680,6 +681,19 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
     <div class="btn-row" style="margin-bottom:30px">
       <button class="btn btn-secondary" onclick="closeInspectionForm()">ביטול</button>
       <button class="btn btn-green" id="if-submit-btn" onclick="submitInspection()">✅ סיים ביקורת ושלח</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ AGENT RULES (MEMORY) MODAL ══ -->
+<div class="modal-overlay" id="agent-rules-modal">
+  <div class="modal">
+    <h3>⚙️ הכללים שלי — זיכרון קבוע לסוכן</h3>
+    <p style="font-size:0.8rem;color:var(--muted);margin:6px 0 10px">כתוב כאן הנחיות והעדפות קבועות. הסוכן יקרא ויכבד אותן <b>בכל שיחה</b>, גם אחרי רענון. שורה לכל כלל.</p>
+    <textarea id="ar-text" rows="9" style="width:100%;border:1.5px solid var(--border);border-radius:10px;padding:10px;font-family:'Heebo',sans-serif;font-size:0.85rem;line-height:1.6" placeholder="לדוגמה:&#10;• כשעובד מקבל רכב חדש — תמיד תזכיר לי לשלוח לו טופס נהלים&#10;• דוחות של חברת ליסקאר — סמן אותם כדחופים&#10;• אל תמחק אף פעם רכב בלי לשאול אותי קודם&#10;• כשאני מבקש להוסיף רכב — תמיד תמשוך פרטים מהמאגר הממשלתי"></textarea>
+    <div class="btn-row">
+      <button class="btn btn-secondary" onclick="document.getElementById('agent-rules-modal').classList.remove('open')">ביטול</button>
+      <button class="btn btn-primary" onclick="saveAgentRules()">💾 שמור כללים</button>
     </div>
   </div>
 </div>
@@ -955,6 +969,7 @@ async function loadFromFirestore() {
       if (d.kmRound && typeof KMROUND !== 'undefined') { KMROUND = d.kmRound; }
       if (d.serviceNotified) { SERVICE_NOTIFIED = d.serviceNotified; }
       if (d.drivers) { DRIVERS = d.drivers; }
+      if (typeof d.agentRules === 'string') { AGENT_RULES = d.agentRules; }
       rebuildDriversDirectory();
       if (typeof updateKmBanner === 'function') updateKmBanner();
       if (typeof maybeSendKmReminder === 'function') maybeSendKmReminder();
@@ -977,6 +992,8 @@ function _svcKey(v) { return String(parseKm(v.nextServiceKm)); }
 // License expiry and traffic-record date belong to the driver, not the vehicle,
 // so they follow the driver across vehicles. Keyed by the clean driver name.
 let DRIVERS = {};
+// standing rules/preferences the manager teaches the agent once — injected into every prompt
+let AGENT_RULES = '';
 function driverKey(s) { return String(s||'').split('-')[0].replace(/['"׳]/g,'').replace(/\s+/g,' ').trim(); }
 // learn each driver's personal fields from the current fleet (last non-empty wins)
 function rebuildDriversDirectory() {
@@ -1063,6 +1080,7 @@ function setupRealtimeSync() {
     if (d.kmRound && typeof KMROUND !== 'undefined') { KMROUND = d.kmRound; if (typeof updateKmBanner === 'function') updateKmBanner(); }
     if (d.serviceNotified) { SERVICE_NOTIFIED = d.serviceNotified; }
     if (d.drivers) { DRIVERS = d.drivers; }
+    if (typeof d.agentRules === 'string') { AGENT_RULES = d.agentRules; }
     if (changed) rebuildDriversDirectory();
     if (changed && typeof renderFleet === 'function') { renderFleet(); renderAlerts(); }
     if (changed && typeof checkServiceOverages === 'function') checkServiceOverages();
@@ -2686,6 +2704,16 @@ function updateAgentModelBadge() {
 }
 let agentPendingImage = null; // {data, mime, dataUrl}
 
+function openAgentRules() {
+  document.getElementById('ar-text').value = AGENT_RULES || '';
+  document.getElementById('agent-rules-modal').classList.add('open');
+}
+function saveAgentRules() {
+  AGENT_RULES = document.getElementById('ar-text').value.trim();
+  saveToFirestore('agentRules', AGENT_RULES);
+  document.getElementById('agent-rules-modal').classList.remove('open');
+  toast('הכללים נשמרו — הסוכן יכבד אותם מעכשיו ✓');
+}
 function agentInit() {
   updateAgentModelBadge();
   if (agentApiKey) {
@@ -2718,9 +2746,12 @@ function buildSystemPrompt() {
   const expiredAlerts = activeAlerts.filter(a => a.daysLeft !== null ? a.daysLeft < 0 : a.kmDiff >= a.kmAlert);
   const soonAlerts    = activeAlerts.filter(a => a.daysLeft !== null && a.daysLeft >= 0 && a.daysLeft <= 14);
 
+  const rulesBlock = (AGENT_RULES && AGENT_RULES.trim())
+    ? `\n═══ הכללים וההעדפות של מנהל הצי (חשוב! עליך לכבד אותם תמיד) ═══\n${AGENT_RULES.trim()}\n`
+    : '';
   return `אתה סוכן AI מקצועי לניהול ציי רכב של חברת נופר אנרגי. אתה עוזר לקציני רכב ופקידים לנהל את הצי ביעילות.
 תמיד ענה בעברית, בצורה תמציתית ומקצועית.
-
+${rulesBlock}
 ═══ נתוני הצי (עדכני) ═══
 סה"כ רכבים: ${VEHICLES.length}
 אירועי נזק: ${INCIDENTS.length}
@@ -2814,8 +2845,9 @@ ${RETURNS.slice(0,5).map(r=>`• ${r.employee} | ${r.plate} | ${r.fromDate||'?'}
 דוגמה: [[ACTION:addReplacement:ישראל ישראלי|12345678|שכור/מונזה|01/07/2026|31/07/2026|]]
 
 רישום החזרת רכב / תיעוד תקופת אחזקה (מעביר רכב ישן לטבלת ההיסטוריה):
-[[ACTION:returnVehicle:שם_עובד|רישוי|מתאריך|עד_תאריך|סיבת_החזרה|הערות]]
-דוגמה: [[ACTION:returnVehicle:ישראל ישראלי|83945203|01/01/2026|01/07/2026|רכב חדש|]]
+[[ACTION:returnVehicle:שם_עובד|רישוי|תאריך_החזרה(DD/MM/YYYY)|סיבה|הערות]]
+דוגמה: [[ACTION:returnVehicle:ישראל ישראלי|83945203|20/07/2026|עזב את החברה|]]
+חשוב: אתה מספק רק את תאריך ההחזרה. תאריך קבלת הרכב נמשך אוטומטית מהרכב עצמו — אל תחשב אותו. אם לא צוין תאריך החזרה — יירשם היום.
 
 הסרת רכב חליפי (כשמחזירים אותו):
 [[ACTION:removeReplacement:רישוי_או_שם_עובד]]
@@ -3405,18 +3437,26 @@ function agentExecAction(action, param) {
 
   } else if (action === 'returnVehicle') {
     const p = param.split('|').map(s=>s.trim());
-    const [employee, plate, fromDate, toDate, reason, notes] = p;
+    const [employee, plate, returnDate, reason, notes] = p;
     if (!employee || !plate) return null;
     const v = VEHICLES.find(v => v.plate === plate || v.plate.replace(/\D/g,'') === plate.replace(/\D/g,''));
     const make  = v ? (v.make||'') : '';
     const model = v ? (v.model||'') : '';
-    RETURNS.unshift({ employee, plate, make, model, fromDate:fromDate||'', toDate:toDate||new Date().toLocaleDateString('he-IL'), reason:reason||'', notes:notes||'' });
+    // מתאריך = תאריך קבלת הרכב שנשמר ברכב (לא הסוכן מחשב); עד תאריך = תאריך ההחזרה
+    const p2 = n => String(n).padStart(2,'0');
+    const _t = new Date();
+    const today = `${p2(_t.getDate())}/${p2(_t.getMonth()+1)}/${_t.getFullYear()}`;
+    const receivedDate = v ? (v.vehicleFrom||'') : '';
+    const retDate = returnDate || today;
+    RETURNS.unshift({ employee, plate, make, model, fromDate: receivedDate, toDate: retDate, reason: reason||'החזרת רכב', notes: notes||'' });
+    // remove the returned vehicle from the active fleet (it is no longer held by the employee)
+    if (v) { const idx = VEHICLES.indexOf(v); if (idx >= 0) VEHICLES.splice(idx, 1); saveVehicles(); }
     try { localStorage.setItem('fleet_returns', JSON.stringify(RETURNS)); saveToFirestore('returns', RETURNS); } catch(e){}
-    renderReturns();
+    renderReturns(); renderFleet(); renderDashboard(); renderAlerts();
     const btn = document.querySelector(".nav-btn[onclick*=\"'returns'\"]");
     if (btn) showTab('returns', btn);
-    toast(`✓ רכב ${plate} נרשם בתיעוד אחזקה`);
-    return { type:'returnRecord', action:'נוסף', employee, plate };
+    toast(`✓ ${employee}: ${plate} הוחזר (${receivedDate||'?'} → ${retDate})`);
+    return { type:'returnRecord', action:'הוחזר', employee, plate, from: receivedDate, to: retDate };
 
   } else if (action === 'removeReplacement') {
     const key = param.trim();
