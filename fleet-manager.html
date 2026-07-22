@@ -1065,6 +1065,36 @@ async function saveToFirestore(key, value) {
   } catch(e) { console.log('Firestore save error', e); }
 }
 
+// Upsert a single vehicle into the LATEST cloud array so a stale local array
+// can never delete other vehicles. The edited vehicle (from the form) wins;
+// all other vehicles keep their freshest cloud values.
+async function saveVehiclesSafely(editedPlate, dk) {
+  try {
+    const snap = await db.collection('fleet').doc('main').get();
+    let cloud = (snap.data() || {}).vehicles;
+    if (!Array.isArray(cloud)) { saveToFirestore('vehicles', VEHICLES); return; }
+    const edited = VEHICLES.find(v => v.plate === editedPlate);
+    if (!edited) { saveToFirestore('vehicles', VEHICLES); return; }
+    const idx = cloud.findIndex(v => v.plate === editedPlate);
+    if (idx >= 0) cloud[idx] = edited; else cloud.unshift(edited);
+    // re-apply driver-directory values onto the fresh cloud array
+    if (dk) cloud.forEach(v => {
+      if (driverKey(v.driverName) === dk) {
+        const d = DRIVERS[dk] || {};
+        if (d.licenseExpiry) v.licenseExpiry = d.licenseExpiry;
+        if (d.trafficRecord) v.trafficRecord = d.trafficRecord;
+        if (d.driverPhone) v.driverPhone = d.driverPhone;
+      }
+    });
+    VEHICLES = cloud;
+    localStorage.setItem('fleet_vehicles', JSON.stringify(VEHICLES));
+    await db.collection('fleet').doc('main').set({ vehicles: cloud }, { merge: true });
+  } catch(e) {
+    console.log('safe save failed, falling back', e);
+    saveToFirestore('vehicles', VEHICLES);
+  }
+}
+
 function setupRealtimeSync() {
   db.collection('fleet').doc('main').onSnapshot(snap => {
     if (!_firestoreLoaded) return;
@@ -2623,7 +2653,9 @@ function saveVehicle() {
   }
   localStorage.setItem('fleet_vehicles', JSON.stringify(VEHICLES));
   localStorage.setItem('fleet_vehicles_version', VEHICLES_VERSION);
-  saveToFirestore('vehicles', VEHICLES);
+  // SAFE SAVE: read the latest cloud array and upsert only this vehicle, so a
+  // stale in-memory array can never wipe other vehicles' data.
+  saveVehiclesSafely(v.plate, _dk);
   closeModal();
   renderDashboard();
   renderAlerts();
