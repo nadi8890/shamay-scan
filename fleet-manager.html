@@ -1241,6 +1241,18 @@ let DRIVERS = {};
 let AGENT_RULES = '';
 function driverKey(s) { return String(s||'').split('-')[0].replace(/['"׳]/g,'').replace(/\s+/g,' ').trim(); }
 // learn each driver's personal fields from the current fleet (last non-empty wins)
+// The part after the dash in a driver name is their affiliation (ישראל / מטה).
+// It belongs to the person, not the vehicle, so it travels with them.
+function driverAffiliation(s) {
+  const parts = String(s || '').split('-');
+  return parts.length > 1 ? parts.slice(1).join('-').trim() : '';
+}
+// Re-attach a driver's affiliation to a bare name ("דני חנצינסקי" → "דני חנצינסקי-ישראל")
+function withAffiliation(name, aff) {
+  const base = String(name || '').split('-')[0].trim();
+  if (!base) return name;
+  return aff ? `${base}-${aff}` : base;
+}
 function rebuildDriversDirectory() {
   VEHICLES.forEach(v => {
     const n = driverKey(v.driverName);
@@ -1249,6 +1261,8 @@ function rebuildDriversDirectory() {
     if (v.licenseExpiry) DRIVERS[n].licenseExpiry = v.licenseExpiry;
     if (v.trafficRecord) DRIVERS[n].trafficRecord = v.trafficRecord;
     if (v.driverPhone) DRIVERS[n].driverPhone = v.driverPhone;
+    const aff = driverAffiliation(v.driverName);
+    if (aff) DRIVERS[n].affiliation = aff;
   });
 }
 // push a driver's known values onto every vehicle that driver holds
@@ -1259,14 +1273,19 @@ function syncDriverToVehicles(n) {
       if (d.licenseExpiry) v.licenseExpiry = d.licenseExpiry;
       if (d.trafficRecord) v.trafficRecord = d.trafficRecord;
       if (d.driverPhone) v.driverPhone = d.driverPhone;
+      // keep the affiliation on the name if it was dropped somewhere along the way
+      if (d.affiliation && !driverAffiliation(v.driverName)) v.driverName = withAffiliation(v.driverName, d.affiliation);
     }
   });
 }
 // auto-fill the license/traffic/phone fields in the vehicle modal when a known driver is entered
 function autoFillDriverFields() {
-  const n = driverKey(document.getElementById('m-driver').value);
+  const drvInp = document.getElementById('m-driver');
+  const n = driverKey(drvInp.value);
   const d = DRIVERS[n];
   if (!d) return;
+  // restore the driver's affiliation (ישראל / מטה) if the name was typed without it
+  if (d.affiliation && !driverAffiliation(drvInp.value)) drvInp.value = withAffiliation(drvInp.value, d.affiliation);
   const lic = document.getElementById('m-licExpiry');
   const trf = document.getElementById('m-traffic');
   const ph = document.getElementById('m-phone');
@@ -3236,8 +3255,13 @@ function saveVehicle() {
     else if (DRIVERS[_dk].trafficRecord) v.trafficRecord = DRIVERS[_dk].trafficRecord;
     if (v.driverPhone) DRIVERS[_dk].driverPhone = v.driverPhone;
     else if (DRIVERS[_dk].driverPhone) v.driverPhone = DRIVERS[_dk].driverPhone;
+    // affiliation (ישראל / מטה) belongs to the driver — keep it on the name even
+    // when the name was typed without it
+    const _aff = driverAffiliation(v.driverName);
+    if (_aff) DRIVERS[_dk].affiliation = _aff;
+    else if (DRIVERS[_dk].affiliation) v.driverName = withAffiliation(v.driverName, DRIVERS[_dk].affiliation);
     // reflect onto the saved record too
-    if (editingPlate) { const i2 = VEHICLES.findIndex(x=>x.plate===v.plate); if (i2>=0) { VEHICLES[i2].licenseExpiry = v.licenseExpiry; VEHICLES[i2].trafficRecord = v.trafficRecord; VEHICLES[i2].driverPhone = v.driverPhone; } }
+    if (editingPlate) { const i2 = VEHICLES.findIndex(x=>x.plate===v.plate); if (i2>=0) { VEHICLES[i2].licenseExpiry = v.licenseExpiry; VEHICLES[i2].trafficRecord = v.trafficRecord; VEHICLES[i2].driverPhone = v.driverPhone; VEHICLES[i2].driverName = v.driverName; } }
     syncDriverToVehicles(_dk);
     saveToFirestore('drivers', DRIVERS);
   }
@@ -3555,6 +3579,7 @@ ${RETURNS.slice(0,5).map(r=>`• ${r.employee} | ${r.plate} | ${r.fromDate||'?'}
 [[ACTION:replaceVehicle:רישוי_ישן|רישוי_חדש|תאריך_קבלה(DD/MM/YYYY)|סיבה]]
 דוגמה: [[ACTION:replaceVehicle:34005503|66529004|15/07/2026|רכב חדש]]
 
+שייכות הנהג: בשמות הנהגים יש סיומת אחרי מקף — השייכות שלהם (למשל "דני חנצינסקי-ישראל", "סופי בלקסטון-מטה"). השייכות היא חלק בלתי נפרד מהנהג ועוברת איתו מרכב לרכב. כשאתה כותב שם נהג בפעולה — כלול תמיד את הסיומת כפי שהיא מופיעה בצי. לעולם אל תשמיט אותה ואל תמציא שייכות חדשה.
 כלל חשוב: כשעובד מקבל רכב חדש — השתמש אך ורק ב-replaceVehicle (לא returnVehicle+addVehicle בנפרד).
 תאריך קבלה: אם המשתמש ציין תאריך מפורש — כתוב אותו. אם לא ציין (או אמר "היום"/"עכשיו") — השאר את השדה ריק לגמרי, והמערכת תמלא את תאריך היום אוטומטית. אל תנחש תאריך ואל תשאל.
 כשעובד מקבל רכב חליפי זמני → בצע [[ACTION:addReplacement:...]].
