@@ -647,6 +647,17 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
       </div>
     </div>
     <div id="kmround-panel"></div>
+    <div class="section-hdr" style="margin-top:18px"><span class="section-title">🛡️ החתימה הקבועה שלך (קצין בטיחות)</span></div>
+    <div style="background:var(--card);border:1.5px solid var(--border);border-radius:12px;padding:14px;margin-bottom:6px">
+      <div style="font-size:0.78rem;color:var(--muted);margin-bottom:8px">חתום/חתמי כאן פעם אחת — החתימה תיחתם אוטומטית על כל טופס "מבחן נהיגה מעשי" שעובד ממלא.</div>
+      <canvas id="officer-sig" width="560" height="150" style="width:100%;max-width:420px;border:1.5px dashed var(--border);border-radius:10px;background:#fff;touch-action:none"></canvas>
+      <div class="btn-row" style="margin-top:8px">
+        <button class="btn btn-green" onclick="saveOfficerSignature()">💾 שמור חתימה</button>
+        <button class="btn btn-secondary" onclick="clearOfficerSignature()">🗑️ נקה</button>
+      </div>
+      <div id="officer-sig-status" style="font-size:0.75rem;color:var(--muted);margin-top:6px"></div>
+    </div>
+
     <div class="section-hdr" style="margin-top:18px"><div style="display:flex;align-items:center;gap:8px"><span class="section-title">🚗 מסמכי רכב שהעלו נהגים</span><span class="count-badge" id="vdocs-count">0</span></div></div>
     <div id="vdocs-panel"></div>
 
@@ -744,7 +755,8 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
     <button class="btn btn-green" style="width:100%;margin-bottom:7px" onclick="sendDeclForm('procedures')">💬 📄 נהלים ואחריות (+ צילום רישיון)</button>
     <button class="btn btn-green" style="width:100%;margin-bottom:7px" onclick="sendDeclForm('family')">💬 👨‍👩‍👧 הצהרת בני משפחה</button>
     <button class="btn btn-green" style="width:100%;margin-bottom:7px" onclick="sendDeclForm('traffic')">💬 🚔 אישור עבר תעבורתי</button>
-    <button class="btn btn-green" style="width:100%;margin-bottom:7px" onclick="sendDeclAll()">💬 📋 כל 3 טפסי קבלת הרכב יחד</button>
+    <button class="btn btn-green" style="width:100%;margin-bottom:7px" onclick="sendDeclForm('testdrive')">💬 🚙 מבחן נהיגה מעשי (נסיעת מבחן)</button>
+    <button class="btn btn-green" style="width:100%;margin-bottom:7px" onclick="sendDeclAll()">💬 📋 כל טפסי קבלת הרכב יחד</button>
     <button class="btn btn-secondary" style="width:100%;margin-bottom:10px" onclick="declCopyLink()">📋 העתק קישור כללי</button>
     <div style="border-top:1px dashed var(--border);padding-top:10px;margin-bottom:2px">
       <button class="btn" style="width:100%;background:var(--orange);color:#fff" onclick="sendDeclForm('accident')">💬 🚧 תחקיר תאונת דרכים</button>
@@ -1015,6 +1027,7 @@ async function loadFromFirestore() {
       if (d.serviceNotified) { SERVICE_NOTIFIED = d.serviceNotified; }
       if (d.drivers) { DRIVERS = d.drivers; }
       if (typeof d.agentRules === 'string') { AGENT_RULES = d.agentRules; }
+      if (typeof d.officerSignature === 'string') { window.OFFICER_SIGNATURE = d.officerSignature; }
       rebuildDriversDirectory();
       if (typeof updateKmBanner === 'function') updateKmBanner();
       if (typeof maybeSendKmReminder === 'function') maybeSendKmReminder();
@@ -1439,6 +1452,7 @@ function setupRealtimeSync() {
     if (d.serviceNotified) { SERVICE_NOTIFIED = d.serviceNotified; }
     if (d.drivers) { DRIVERS = d.drivers; }
     if (typeof d.agentRules === 'string') { AGENT_RULES = d.agentRules; }
+    if (typeof d.officerSignature === 'string') { window.OFFICER_SIGNATURE = d.officerSignature; }
     if (changed) rebuildDriversDirectory();
     if (changed && typeof renderFleet === 'function') { renderFleet(); renderAlerts(); }
     if (changed && typeof checkServiceOverages === 'function') checkServiceOverages();
@@ -2127,6 +2141,7 @@ function renderFormsTab() {
   loadInspectionHistory();
   loadDeclarations();
   loadVehicleDocs();
+  initOfficerSigPad();
   loadKmRound();
 }
 
@@ -2238,6 +2253,7 @@ const DECL_FORM_META = {
   procedures: { label: '📄 נהלים ואחריות', msgName: 'טפסי הנהלים והאחריות (כולל צירוף צילום רישיון נהיגה)' },
   family:     { label: '👨‍👩‍👧 בני משפחה', msgName: 'הצהרת שימוש בני משפחה ברכב' },
   traffic:    { label: '🚔 עבר תעבורתי', msgName: 'אישור בדיקת עבר תעבורתי' },
+  testdrive:  { label: '🚙 מבחן נהיגה מעשי', msgName: 'טופס מבחן נהיגה מעשי (נסיעת מבחן — תקנה 25)' },
   accident:   { label: '🚧 תחקיר תאונה', msgName: 'תחקיר תאונת דרכים (למילוי לאחר אירוע)' }
 };
 function openDeclShare(plate) {
@@ -2265,7 +2281,7 @@ function sendDeclForm(formKey) {
 // Send the general link (the menu with all 3 receipt forms) straight to WhatsApp,
 // same behaviour as the per-form buttons.
 function sendDeclAll() {
-  const msg = `שלום ${window._declDriver || ''},\nלקראת קבלת רכב ${window._declPlate} נא למלא ולחתום על 3 טפסי קבלת הרכב בקישור:\n${window._declLink}\n\nלוקח כמה דקות בטלפון. תודה!\nמחלקת הרכב — נופר אנרגיה`;
+  const msg = `שלום ${window._declDriver || ''},\nלקראת קבלת רכב ${window._declPlate} נא למלא ולחתום על טפסי קבלת הרכב בקישור:\n${window._declLink}\n\nלוקח כמה דקות בטלפון. תודה!\nמחלקת הרכב — נופר אנרגיה`;
   const url = window._declIntl
     ? `https://wa.me/${window._declIntl}?text=${encodeURIComponent(msg)}`
     : 'https://wa.me/?text=' + encodeURIComponent(msg);
@@ -2275,6 +2291,54 @@ async function declCopyLink() {
   try { await navigator.clipboard.writeText(window._declLink || ''); toast('הקישור הועתק ✓'); }
   catch(e) { toast('ההעתקה נכשלה', true); }
 }
+// ══ SAFETY-OFFICER SIGNATURE ══
+// Drawn once here and stored on the fleet doc; the driver's practical-driving-test
+// form stamps it automatically so the officer doesn't re-sign for every employee.
+let _officerSigDrawn = false;
+function initOfficerSigPad() {
+  const c = document.getElementById('officer-sig');
+  if (!c || c._init) return;
+  c._init = true;
+  const ctx = c.getContext('2d');
+  ctx.lineWidth = 2.5; ctx.lineCap = 'round'; ctx.strokeStyle = '#1e293b';
+  let drawing = false;
+  const pos = e => { const r = c.getBoundingClientRect(); return { x:(e.clientX-r.left)*(c.width/r.width), y:(e.clientY-r.top)*(c.height/r.height) }; };
+  c.addEventListener('pointerdown', e => { drawing = true; _officerSigDrawn = true; const p = pos(e); ctx.beginPath(); ctx.moveTo(p.x,p.y); c.setPointerCapture(e.pointerId); e.preventDefault(); });
+  c.addEventListener('pointermove', e => { if(!drawing) return; const p = pos(e); ctx.lineTo(p.x,p.y); ctx.stroke(); e.preventDefault(); });
+  c.addEventListener('pointerup', () => drawing = false);
+  c.addEventListener('pointercancel', () => drawing = false);
+  // show the existing saved signature, if any
+  const saved = (window.OFFICER_SIGNATURE || '');
+  const st = document.getElementById('officer-sig-status');
+  if (saved) {
+    const img = new Image();
+    img.onload = () => {
+      const ratio = Math.min(c.width/img.width, c.height/img.height);
+      const w = img.width*ratio, h = img.height*ratio;
+      ctx.drawImage(img, (c.width-w)/2, (c.height-h)/2, w, h);
+    };
+    img.src = saved;
+    if (st) st.textContent = '✓ קיימת חתימה שמורה — צייר/י מחדש ושמור/י כדי להחליף';
+  } else if (st) st.textContent = 'עדיין לא נשמרה חתימה';
+}
+function clearOfficerSignature() {
+  const c = document.getElementById('officer-sig');
+  if (!c) return;
+  c.getContext('2d').clearRect(0,0,c.width,c.height);
+  _officerSigDrawn = false;
+}
+async function saveOfficerSignature() {
+  const c = document.getElementById('officer-sig');
+  if (!c) return;
+  if (!_officerSigDrawn) { toast('חתום/חתמי במסגרת לפני השמירה', true); return; }
+  const dataUrl = c.toDataURL('image/png');
+  window.OFFICER_SIGNATURE = dataUrl;
+  await saveToFirestore('officerSignature', dataUrl);
+  const st = document.getElementById('officer-sig-status');
+  if (st) st.textContent = '✓ החתימה נשמרה — תיחתם אוטומטית על מבחני נהיגה מעשיים';
+  toast('✓ החתימה נשמרה');
+}
+
 // ══ RESTORE: bring back a vehicle that was deleted, from the daily backup ══
 // Lists every vehicle that exists in a recent backup but is missing from the fleet
 // now, newest backup first, so a mistaken delete is always recoverable.

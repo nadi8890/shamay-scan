@@ -75,6 +75,11 @@ canvas.sig{width:100%;height:130px;border:1.5px dashed #94a3b8;border-radius:10p
     <div><div class="tt">אישור בדיקת עבר תעבורתי</div><div class="dd">הסכמה לבדיקת רישיון הנהיגה לפי תקנה 585א</div></div>
     <span class="done" id="done-traffic">✓ נשלח</span>
   </div>
+  <div class="menu-card" onclick="openForm('testdrive')">
+    <span class="ic">🚙</span>
+    <div><div class="tt">מבחן נהיגה מעשי (נסיעת מבחן)</div><div class="dd">הדרכת תפעול הרכב לפי תקנה 25 — נחתם מול קצין הבטיחות</div></div>
+    <span class="done" id="done-testdrive">✓ נשלח</span>
+  </div>
 </div>
 
 <!-- ═════ form wrap ═════ -->
@@ -203,6 +208,22 @@ canvas.sig{width:100%;height:130px;border:1.5px dashed #94a3b8;border-radius:10p
     </div>
   </div>
 
+  <!-- ═ practical driving test (regulation 25) ═ -->
+  <div class="card only-testdrive">
+    <div class="card-hdr">🚙 מבחן נהיגה מעשי</div>
+    <div class="card-body" id="sec-testdrive">
+      <div class="clause">עובד/ת המקבל/ת רכב חברה מחויב/ת לעבור הדרכה מקצועית ע״י קצין בטיחות בתעבורה של החברה, על פי תקנה 25 לדיני התעבורה: <b>״לא ינהג אדם רכב אלא אם הוא בקיא בהפעלתו ובשימוש בו״</b>. הדרכת שימוש ברכב תכלול מבדק בנהיגה מעשית.</div>
+      <div class="sec-title2">מבחן מעשי — סמן/י את הסעיפים שבוצעו</div>
+      <label class="agree"><input type="checkbox" id="td-1"><span>התחלת נסיעה</span></label>
+      <label class="agree"><input type="checkbox" id="td-2"><span>שליטה מלאה ברכב</span></label>
+      <label class="agree"><input type="checkbox" id="td-3"><span>נסיעה לאחור</span></label>
+      <label class="agree"><input type="checkbox" id="td-4"><span>עצירת הרכב וחנייתו</span></label>
+      <div class="frow" style="margin-top:10px"><label>מס׳ עובד</label><input id="td-empno" inputmode="numeric"></div>
+      <div class="frow"><label>הערות קצין הבטיחות</label><input id="td-notes" placeholder="לא חובה"></div>
+      <label class="agree" style="margin-top:8px"><input type="checkbox" id="agree-testdrive"><span>מצהיר/ה בזאת כי עברתי הדרכה הכוללת תפעול הרכב, ואני בקיא/ה בהפעלתו</span></label>
+    </div>
+  </div>
+
   <!-- signature -->
   <div class="card">
     <div class="card-hdr">✍️ חתימת העובד/ת
@@ -212,6 +233,18 @@ canvas.sig{width:100%;height:130px;border:1.5px dashed #94a3b8;border-radius:10p
       <div class="clause" style="font-weight:700">הנני מצהיר/ה בזאת כי כל הצהרותיי לעיל אמת.</div>
       <canvas id="sig" class="sig" width="560" height="170"></canvas>
       <div style="font-size:0.7rem;color:#64748b;margin-top:4px">חתום/חתמי עם האצבע</div>
+    </div>
+  </div>
+
+  <!-- safety officer signature — only on the practical driving test -->
+  <div class="card only-testdrive">
+    <div class="card-hdr">🛡️ חתימת קצין הבטיחות בתעבורה
+      <button class="btn btn-gray" onclick="clearSig2()">🗑️ נקה</button>
+    </div>
+    <div class="card-body">
+      <div class="clause" style="font-weight:700">אני מאשר/ת כי העברתי לעובד/ת את ההדרכה והמבדק המעשי כמפורט לעיל.</div>
+      <canvas id="sig2" class="sig" width="560" height="170"></canvas>
+      <div id="sig2-note" style="font-size:0.7rem;color:#64748b;margin-top:4px">חתימת קצין הבטיחות</div>
     </div>
   </div>
 
@@ -248,12 +281,13 @@ async function ensureAnonAuth() {
 }
 const params = new URLSearchParams(location.search);
 const PLATE = (params.get('plate') || '').trim();
-let VEH = null, MAIL = {}, CURRENT = null, licPhotos = [], docPhotos = [], docPhotosSmall = [];
+let VEH = null, MAIL = {}, CURRENT = null, licPhotos = [], docPhotos = [], docPhotosSmall = [], OFFICER_SIG = '';
 
 const FORMS = {
   procedures: { title: 'נהלים ואחריות אישית', doc: 'טפסי נהלים ואחריות — הצהרות מחזיק רכב', agrees: ['agree-holder','agree-viol'], secs: [['sec-holder','הצהרה והתחייבות מחזיק/ה ברכב'],['sec-viol','אחריות אישית בגין עבירות']], cls: 'only-procedures', updatesProcedures: true, photos: true, photoHint: 'צרף/י צילום רישיון נהיגה שלך, וגם של בן/בת זוג או בן משפחה שנוהגים ברכב (אפשר כמה תמונות)' },
   family:     { title: 'הצהרת שימוש בני משפחה', doc: 'הצהרה בדבר שימוש בני משפחה ברכב', agrees: ['agree-family'], secs: [['sec-family','הצהרה בדבר שימוש בני משפחה ברכב']], cls: 'only-family', extraDriver: true, photos: true, photoHint: 'צרף/י צילום רישיון נהיגה של בן/בת המשפחה שנוהג/ת ברכב (אפשר כמה תמונות)' },
   traffic:    { title: 'אישור בדיקת עבר תעבורתי', doc: 'אישור בדיקת רישיון נהיגה — מידע תעבורתי (תקנה 585א)', agrees: ['agree-traffic'], secs: [['sec-traffic','אישור בדיקת רישיון נהיגה — מידע תעבורתי (תקנה 585א)']], cls: 'only-traffic' },
+  testdrive:  { title: 'מבחן נהיגה מעשי', doc: 'מבחן נהיגה מעשי — הדרכת תפעול רכב (תקנה 25)', agrees: ['agree-testdrive'], secs: [['sec-testdrive','מבחן נהיגה מעשי']], cls: 'only-testdrive', officerSig: true },
   accident:   { title: 'תחקיר תאונת דרכים', doc: 'תחקיר תאונת דרכים — קצין בטיחות בתעבורה', agrees: [], secs: [], cls: 'only-accident', isAccident: true, hideFromMenu: true }
 };
 
@@ -263,6 +297,7 @@ const FORMS = {
     const snap = await db.collection('fleet').doc('main').get();
     const d = snap.data() || {};
     MAIL = d.mailSettings || {};
+    OFFICER_SIG = d.officerSignature || ''; // saved safety-officer signature
     VEH = (d.vehicles || []).find(v => (v.plate||'').replace(/\D/g,'') === PLATE.replace(/\D/g,''));
     const box = document.getElementById('veh-box');
     if (VEH) {
@@ -291,9 +326,29 @@ function openForm(key) {
   renderThumbs(); renderDocThumbs();
   const hint = document.getElementById('lic-hint');
   if (hint) hint.textContent = FORMS[key].photoHint || '';
-  clearSig();
+  clearSig(); clearSig2();
+  // stamp the safety officer's saved signature so they don't re-sign every time
+  if (FORMS[key].officerSig && OFFICER_SIG) applySavedOfficerSig();
   document.getElementById('err').style.display = 'none';
   window.scrollTo(0, 0);
+}
+// Draw the stored officer signature onto its pad. "נקה" wipes it so it can be
+// signed by hand instead whenever that's preferred.
+function applySavedOfficerSig() {
+  const c = document.getElementById('sig2');
+  if (!c || !OFFICER_SIG) return;
+  const img = new Image();
+  img.onload = () => {
+    const ctx = c.getContext('2d');
+    ctx.clearRect(0, 0, c.width, c.height);
+    const ratio = Math.min(c.width / img.width, c.height / img.height);
+    const w = img.width * ratio, h = img.height * ratio;
+    ctx.drawImage(img, (c.width - w) / 2, (c.height - h) / 2, w, h);
+    sig2Drawn = true;
+    const note = document.getElementById('sig2-note');
+    if (note) note.textContent = '✓ נחתם אוטומטית בחתימה השמורה של קצין הבטיחות — "נקה" כדי לחתום ידנית';
+  };
+  img.src = OFFICER_SIG;
 }
 function backToMenu() {
   document.getElementById('form-wrap').style.display = 'none';
@@ -302,20 +357,24 @@ function backToMenu() {
   window.scrollTo(0, 0);
 }
 
-/* signature pad */
-let sigDrawn = false;
-(function () {
-  const c = document.getElementById('sig');
+/* signature pads — #sig is the employee, #sig2 the safety officer (test drive only) */
+let sigDrawn = false, sig2Drawn = false;
+function initSigPad(id, onDraw) {
+  const c = document.getElementById(id);
+  if (!c) return;
   const ctx = c.getContext('2d');
   ctx.lineWidth = 2.5; ctx.lineCap = 'round'; ctx.strokeStyle = '#1e293b';
   let drawing = false;
   const pos = e => { const r = c.getBoundingClientRect(); return { x:(e.clientX-r.left)*(c.width/r.width), y:(e.clientY-r.top)*(c.height/r.height) }; };
-  c.addEventListener('pointerdown', e => { drawing = true; sigDrawn = true; const p = pos(e); ctx.beginPath(); ctx.moveTo(p.x,p.y); c.setPointerCapture(e.pointerId); e.preventDefault(); });
+  c.addEventListener('pointerdown', e => { drawing = true; onDraw(); const p = pos(e); ctx.beginPath(); ctx.moveTo(p.x,p.y); c.setPointerCapture(e.pointerId); e.preventDefault(); });
   c.addEventListener('pointermove', e => { if(!drawing) return; const p = pos(e); ctx.lineTo(p.x,p.y); ctx.stroke(); e.preventDefault(); });
   c.addEventListener('pointerup', () => drawing = false);
   c.addEventListener('pointercancel', () => drawing = false);
-})();
+}
+initSigPad('sig',  () => { sigDrawn = true; });
+initSigPad('sig2', () => { sig2Drawn = true; });
 function clearSig() { const c = document.getElementById('sig'); c.getContext('2d').clearRect(0,0,c.width,c.height); sigDrawn = false; }
+function clearSig2() { const c = document.getElementById('sig2'); if(!c) return; c.getContext('2d').clearRect(0,0,c.width,c.height); sig2Drawn = false; }
 function toggleExtra() {
   const el = document.getElementById('extra-driver');
   const open = el.style.display !== 'none';
@@ -437,12 +496,25 @@ function buildDocHtml(r) {
       ${r.address ? `<tr><td colspan="3" style="border:1px solid #cbd5e1;padding:6px 10px"><b>כתובת:</b> ${r.address}</td></tr>` : ''}
     </table>
     ${secs}
+    ${r.testDrive ? `
+    <table style="width:100%;border-collapse:collapse;font-size:12.5px;margin-top:14px">
+      <tr><th colspan="2" style="border:1px solid #64748b;padding:7px;background:#e0e7ff;text-align:center">מבחן מעשי</th></tr>
+      ${r.testDrive.items.map(it => `<tr>
+        <td style="border:1px solid #64748b;padding:7px 10px;width:70%">${it.name}</td>
+        <td style="border:1px solid #64748b;padding:7px 10px;text-align:center;font-weight:800">${it.ok ? '✓ בוצע' : '—'}</td>
+      </tr>`).join('')}
+      ${r.testDrive.notes ? `<tr><td colspan="2" style="border:1px solid #64748b;padding:7px 10px"><b>הערות קצין הבטיחות:</b> ${r.testDrive.notes}</td></tr>` : ''}
+    </table>` : ''}
     <div style="page-break-inside:avoid;margin-top:18px;border-top:2px solid #1e3a8a;padding-top:12px">
-      <p style="font-size:13px;font-weight:800;margin:0 0 8px">הנני מצהיר/ה בזאת כי כל הצהרותיי לעיל אמת.</p>
+      <p style="font-size:13px;font-weight:800;margin:0 0 8px">${r.testDrive ? 'מצהיר/ה בזאת כי עברתי הדרכה הכוללת תפעול הרכב, ואני בקיא/ה בהפעלתו.' : 'הנני מצהיר/ה בזאת כי כל הצהרותיי לעיל אמת.'}</p>
       <table style="width:100%;font-size:12px"><tr>
-        <td><b>שם:</b> ${r.name}<br><br><b>תאריך:</b> ${r.dateStr}</td>
+        <td><b>שם:</b> ${r.name}${r.testDrive ? `<br><b>מס׳ עובד:</b> ${r.testDrive.empNo || '-'}` : ''}<br><br><b>תאריך:</b> ${r.dateStr}</td>
         <td style="text-align:left"><div style="font-size:11px;color:#475569">חתימת העובד/ת:</div><img src="${r.signature}" style="width:190px;border-bottom:1.5px solid #0f172a"></td>
       </tr></table>
+      ${r.officerSignature ? `<table style="width:100%;font-size:12px;margin-top:14px"><tr>
+        <td style="width:55%"></td>
+        <td style="text-align:left"><div style="font-size:11px;color:#475569">חתימת קצין הבטיחות בתעבורה:</div><img src="${r.officerSignature}" style="width:190px;border-bottom:1.5px solid #0f172a"></td>
+      </tr></table>` : ''}
     </div>
   </div>`;
 }
@@ -532,6 +604,14 @@ function buildSummaryText(r) {
   L.push('');
   L.push(`עובד/ת: ${r.name} | ת.ז: ${r.idNum} | טלפון: ${r.phone||'-'} | רישיון: ${r.licNum||'-'}`);
   F.secs.forEach(s => L.push(`✓ ${s[1]} — אושר`));
+  if (r.testDrive) {
+    L.push('');
+    L.push(`מס׳ עובד: ${r.testDrive.empNo || '-'}`);
+    L.push('סעיפי המבדק המעשי:');
+    r.testDrive.items.forEach(it => L.push(`  ${it.ok ? '✓' : '✗'} ${it.name}`));
+    if (r.testDrive.notes) L.push(`הערות קצין הבטיחות: ${r.testDrive.notes}`);
+    L.push('חתום ע"י העובד/ת וע"י קצין הבטיחות בתעבורה ✍');
+  }
   if (r.extraDriver) L.push(`✓ הצהרת בריאות נהג/ת נוסף/ת (${r.extraDriver.name}) — אושרה`);
   if (r.photosCount) L.push(`📷 צורפו ${r.photosCount} צילומי רישיון נהיגה (בתוך ה-PDF)`);
   if (r.docsCount) L.push(`🚗 צורפו ${r.docsCount} צילומי מסמכי רכב — ביטוח חובה / רישיון רכב (בתוך ה-PDF)`);
@@ -560,6 +640,7 @@ async function submitForm() {
   const extraOpen = F.extraDriver && document.getElementById('extra-driver').style.display !== 'none';
   if (extraOpen && val('x-name') && !chk('agreeX')) return fail('יש לאשר את הצהרת הבריאות של הנהג/ת הנוסף/ת');
   if (!sigDrawn) return fail('חסרה חתימה — חתום/חתמי בריבוע');
+  if (F.officerSig && !sig2Drawn) return fail('חסרה חתימת קצין הבטיחות בתעבורה');
 
   const btn = document.getElementById('submit-btn');
   btn.disabled = true; btn.textContent = 'שולח...';
@@ -582,6 +663,19 @@ async function submitForm() {
     docsCount: docPhotos.length, // insurance + vehicle licence photos
     signature: document.getElementById('sig').toDataURL('image/png')
   };
+  if (F.officerSig) {
+    rec.officerSignature = document.getElementById('sig2').toDataURL('image/png');
+    rec.testDrive = {
+      empNo: val('td-empno'),
+      notes: val('td-notes'),
+      items: [
+        { name: 'התחלת נסיעה',        ok: chk('td-1') },
+        { name: 'שליטה מלאה ברכב',     ok: chk('td-2') },
+        { name: 'נסיעה לאחור',         ok: chk('td-3') },
+        { name: 'עצירת הרכב וחנייתו',  ok: chk('td-4') }
+      ]
+    };
+  }
   if (F.isAccident) {
     rec.accident = {
       date: val('acc-date') ? val('acc-date').split('-').reverse().join('/') : '',
