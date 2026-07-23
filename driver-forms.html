@@ -125,12 +125,12 @@ canvas.sig{width:100%;height:130px;border:1.5px dashed #94a3b8;border-radius:10p
       <label class="agree"><input type="checkbox" id="agree-viol"><span>קראתי, הבנתי ואני מאשר/ת את כל האמור לעיל</span></label>
     </div>
   </div>
-  <div class="card only-procedures">
+  <div class="card only-procedures only-family">
     <div class="card-hdr">📷 צילומי רישיון נהיגה
       <button class="btn btn-gray" onclick="document.getElementById('lic-files').click()">+ הוסף תמונות</button>
     </div>
     <div class="card-body">
-      <div style="font-size:0.76rem;color:#64748b">צרף/י צילום רישיון נהיגה שלך, וגם של בן/בת זוג או בן משפחה שנוהגים ברכב (אפשר כמה תמונות)</div>
+      <div id="lic-hint" style="font-size:0.76rem;color:#64748b"></div>
       <input type="file" id="lic-files" accept="image/*" multiple style="display:none" onchange="licFilesChanged(this)">
       <div class="thumbs" id="lic-thumbs"></div>
     </div>
@@ -240,8 +240,8 @@ const PLATE = (params.get('plate') || '').trim();
 let VEH = null, MAIL = {}, CURRENT = null, licPhotos = [];
 
 const FORMS = {
-  procedures: { title: 'נהלים ואחריות אישית', doc: 'טפסי נהלים ואחריות — הצהרות מחזיק רכב', agrees: ['agree-holder','agree-viol'], secs: [['sec-holder','הצהרה והתחייבות מחזיק/ה ברכב'],['sec-viol','אחריות אישית בגין עבירות']], cls: 'only-procedures', updatesProcedures: true, photos: true },
-  family:     { title: 'הצהרת שימוש בני משפחה', doc: 'הצהרה בדבר שימוש בני משפחה ברכב', agrees: ['agree-family'], secs: [['sec-family','הצהרה בדבר שימוש בני משפחה ברכב']], cls: 'only-family', extraDriver: true },
+  procedures: { title: 'נהלים ואחריות אישית', doc: 'טפסי נהלים ואחריות — הצהרות מחזיק רכב', agrees: ['agree-holder','agree-viol'], secs: [['sec-holder','הצהרה והתחייבות מחזיק/ה ברכב'],['sec-viol','אחריות אישית בגין עבירות']], cls: 'only-procedures', updatesProcedures: true, photos: true, photoHint: 'צרף/י צילום רישיון נהיגה שלך, וגם של בן/בת זוג או בן משפחה שנוהגים ברכב (אפשר כמה תמונות)' },
+  family:     { title: 'הצהרת שימוש בני משפחה', doc: 'הצהרה בדבר שימוש בני משפחה ברכב', agrees: ['agree-family'], secs: [['sec-family','הצהרה בדבר שימוש בני משפחה ברכב']], cls: 'only-family', extraDriver: true, photos: true, photoHint: 'צרף/י צילום רישיון נהיגה של בן/בת המשפחה שנוהג/ת ברכב (אפשר כמה תמונות)' },
   traffic:    { title: 'אישור בדיקת עבר תעבורתי', doc: 'אישור בדיקת רישיון נהיגה — מידע תעבורתי (תקנה 585א)', agrees: ['agree-traffic'], secs: [['sec-traffic','אישור בדיקת רישיון נהיגה — מידע תעבורתי (תקנה 585א)']], cls: 'only-traffic' },
   accident:   { title: 'תחקיר תאונת דרכים', doc: 'תחקיר תאונת דרכים — קצין בטיחות בתעבורה', agrees: [], secs: [], cls: 'only-accident', isAccident: true, hideFromMenu: true }
 };
@@ -275,6 +275,11 @@ function openForm(key) {
   document.getElementById('form-wrap').style.display = 'block';
   document.querySelectorAll('.only-procedures,.only-family,.only-traffic,.only-accident').forEach(el => el.style.display = 'none');
   document.querySelectorAll('.' + FORMS[key].cls).forEach(el => el.style.display = '');
+  // license photos: each form starts clean and explains what to attach
+  licPhotos = [];
+  renderThumbs();
+  const hint = document.getElementById('lic-hint');
+  if (hint) hint.textContent = FORMS[key].photoHint || '';
   clearSig();
   document.getElementById('err').style.display = 'none';
   window.scrollTo(0, 0);
