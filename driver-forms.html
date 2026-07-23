@@ -218,8 +218,7 @@ canvas.sig{width:100%;height:130px;border:1.5px dashed #94a3b8;border-radius:10p
       <label class="agree"><input type="checkbox" id="td-2"><span>שליטה מלאה ברכב</span></label>
       <label class="agree"><input type="checkbox" id="td-3"><span>נסיעה לאחור</span></label>
       <label class="agree"><input type="checkbox" id="td-4"><span>עצירת הרכב וחנייתו</span></label>
-      <div class="frow" style="margin-top:10px"><label>מס׳ עובד</label><input id="td-empno" inputmode="numeric"></div>
-      <div class="frow"><label>הערות קצין הבטיחות</label><input id="td-notes" placeholder="לא חובה"></div>
+      <div class="frow" style="margin-top:10px"><label>הערות קצין הבטיחות</label><input id="td-notes" placeholder="לא חובה"></div>
       <label class="agree" style="margin-top:8px"><input type="checkbox" id="agree-testdrive"><span>מצהיר/ה בזאת כי עברתי הדרכה הכוללת תפעול הרכב, ואני בקיא/ה בהפעלתו</span></label>
     </div>
   </div>
@@ -508,7 +507,7 @@ function buildDocHtml(r) {
     <div style="page-break-inside:avoid;margin-top:18px;border-top:2px solid #1e3a8a;padding-top:12px">
       <p style="font-size:13px;font-weight:800;margin:0 0 8px">${r.testDrive ? 'מצהיר/ה בזאת כי עברתי הדרכה הכוללת תפעול הרכב, ואני בקיא/ה בהפעלתו.' : 'הנני מצהיר/ה בזאת כי כל הצהרותיי לעיל אמת.'}</p>
       <table style="width:100%;font-size:12px"><tr>
-        <td><b>שם:</b> ${r.name}${r.testDrive ? `<br><b>מס׳ עובד:</b> ${r.testDrive.empNo || '-'}` : ''}<br><br><b>תאריך:</b> ${r.dateStr}</td>
+        <td><b>שם:</b> ${r.name}<br><br><b>תאריך:</b> ${r.dateStr}</td>
         <td style="text-align:left"><div style="font-size:11px;color:#475569">חתימת העובד/ת:</div><img src="${r.signature}" style="width:190px;border-bottom:1.5px solid #0f172a"></td>
       </tr></table>
       ${r.officerSignature ? `<table style="width:100%;font-size:12px;margin-top:14px"><tr>
@@ -606,7 +605,6 @@ function buildSummaryText(r) {
   F.secs.forEach(s => L.push(`✓ ${s[1]} — אושר`));
   if (r.testDrive) {
     L.push('');
-    L.push(`מס׳ עובד: ${r.testDrive.empNo || '-'}`);
     L.push('סעיפי המבדק המעשי:');
     r.testDrive.items.forEach(it => L.push(`  ${it.ok ? '✓' : '✗'} ${it.name}`));
     if (r.testDrive.notes) L.push(`הערות קצין הבטיחות: ${r.testDrive.notes}`);
@@ -666,7 +664,6 @@ async function submitForm() {
   if (F.officerSig) {
     rec.officerSignature = document.getElementById('sig2').toDataURL('image/png');
     rec.testDrive = {
-      empNo: val('td-empno'),
       notes: val('td-notes'),
       items: [
         { name: 'התחלת נסיעה',        ok: chk('td-1') },
