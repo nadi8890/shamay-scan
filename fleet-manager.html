@@ -270,6 +270,7 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
     <span id="header-clock" style="color:#fff;font-size:0.8rem;font-weight:600;white-space:nowrap;opacity:.9"></span>
     <span id="save-indicator">💾 לא נשמר</span>
     <button class="btn" style="padding:7px 14px;font-size:0.82rem;background:#fff;color:#1e40af;font-weight:700;border-radius:8px" onclick="openAddVehicle()">+ רכב חדש</button>
+    <button class="btn" style="padding:7px 12px;font-size:0.82rem;background:rgba(255,255,255,.16);color:#fff;font-weight:700;border-radius:8px" title="שחזור רכב שנמחק מהגיבוי היומי" onclick="openRestoreDeleted()">♻️ שחזור</button>
     <button class="btn" style="padding:7px 12px;font-size:0.82rem;background:rgba(255,255,255,.18);color:#fff;font-weight:700;border-radius:8px" onclick="doLogout()" title="התנתקות">🚪</button>
   </div>
 </header>
@@ -705,6 +706,18 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
 </div>
 
 <!-- ══ DECLARATION SHARE MODAL ══ -->
+<!-- ══ RESTORE A DELETED VEHICLE FROM THE DAILY BACKUP ══ -->
+<div class="modal-overlay" id="restore-modal">
+  <div class="modal" style="max-width:620px">
+    <h3>♻️ שחזור רכב שנמחק</h3>
+    <p style="font-size:0.8rem;color:var(--muted);margin:8px 0 12px">רכבים שקיימים בגיבוי היומי אך חסרים בצי כרגע. לחיצה על "שחזר" תחזיר את הרכב עם כל הנתונים שלו.</p>
+    <div id="restore-body" style="max-height:52vh;overflow:auto"></div>
+    <div class="btn-row">
+      <button class="btn btn-secondary" onclick="document.getElementById('restore-modal').classList.remove('open')">סגור</button>
+    </div>
+  </div>
+</div>
+
 <!-- ══ SCANNED VEHICLE DOCUMENTS — REVIEW BEFORE APPLYING ══ -->
 <div class="modal-overlay" id="vdoc-modal">
   <div class="modal" style="max-width:560px">
@@ -2251,6 +2264,72 @@ async function declCopyLink() {
   try { await navigator.clipboard.writeText(window._declLink || ''); toast('הקישור הועתק ✓'); }
   catch(e) { toast('ההעתקה נכשלה', true); }
 }
+// ══ RESTORE: bring back a vehicle that was deleted, from the daily backup ══
+// Lists every vehicle that exists in a recent backup but is missing from the fleet
+// now, newest backup first, so a mistaken delete is always recoverable.
+async function openRestoreDeleted() {
+  const modal = document.getElementById('restore-modal');
+  const body = document.getElementById('restore-body');
+  modal.classList.add('open');
+  body.innerHTML = '<div style="padding:10px;color:var(--muted);font-size:0.85rem">טוען גיבויים...</div>';
+  try {
+    const snap = await db.collection('fleet')
+      .orderBy(firebase.firestore.FieldPath.documentId())
+      .startAt('backup_').endAt('backup_').get();
+    const backups = snap.docs.map(d => ({ id: d.id, ...d.data() }))
+      .sort((a, b) => b.id.localeCompare(a.id)); // newest first
+    if (!backups.length) { body.innerHTML = '<div style="padding:10px;color:var(--muted);font-size:0.85rem">לא נמצאו גיבויים עדיין</div>'; return; }
+    const have = new Set(VEHICLES.map(v => String(v.plate || '').replace(/\D/g, '')));
+    const seen = new Set();
+    const missing = [];
+    for (const b of backups) {
+      for (const v of (b.vehicles || [])) {
+        const pd = String(v.plate || '').replace(/\D/g, '');
+        if (!pd || have.has(pd) || seen.has(pd)) continue;
+        seen.add(pd);
+        missing.push({ v, from: b.id.replace('backup_', '') });
+      }
+    }
+    window._RESTORE = missing;
+    if (!missing.length) {
+      body.innerHTML = `<div style="padding:10px;color:var(--muted);font-size:0.85rem">✓ אין רכבים חסרים — הצי תואם לגיבוי האחרון (${esc(backups[0].id.replace('backup_',''))})</div>`;
+      return;
+    }
+    body.innerHTML = missing.map((m, i) => `<div class="insp-hist-row">
+        <span style="font-weight:700">${esc((m.v.driverName || '').split('-')[0])}</span>
+        <span style="font-weight:700;color:var(--accent);direction:ltr">${esc(m.v.plate)}</span>
+        <span style="font-size:0.75rem">${esc(m.v.make || '')} ${esc(m.v.model || '')}</span>
+        <span style="color:var(--muted);font-size:0.72rem">מגיבוי ${esc(m.from)}</span>
+        <button class="btn btn-green" style="padding:3px 12px;font-size:0.72rem" onclick="restoreVehicle(${i})">♻️ שחזר</button>
+      </div>`).join('');
+  } catch(e) {
+    body.innerHTML = '<div style="padding:10px;color:#dc2626;font-size:0.85rem">שגיאה בטעינת הגיבויים: ' + esc(e.code || e.message) + '</div>';
+  }
+}
+async function restoreVehicle(i) {
+  const m = (window._RESTORE || [])[i];
+  if (!m) return;
+  if (!auth.currentUser) { toast('⚠ לא מחובר — התחבר מחדש', true); return; }
+  try {
+    const snap = await db.collection('fleet').doc('main').get();
+    let cloud = (snap.data() || {}).vehicles;
+    if (!Array.isArray(cloud)) cloud = VEHICLES.slice();
+    const pd = String(m.v.plate || '').replace(/\D/g, '');
+    if (cloud.some(x => String(x.plate || '').replace(/\D/g, '') === pd)) { toast('הרכב כבר קיים בצי'); return; }
+    cloud.unshift(m.v);
+    VEHICLES = cloud;
+    localStorage.setItem('fleet_vehicles', JSON.stringify(VEHICLES));
+    await db.collection('fleet').doc('main').set({ vehicles: stripUndef(cloud) }, { merge: true });
+    mirrorToTenant('main', { vehicles: cloud });
+    rebuildDriversDirectory();
+    renderFleet(); renderAlerts(); renderDashboard();
+    toast(`✓ רכב ${m.v.plate} שוחזר`);
+    openRestoreDeleted(); // refresh the list
+  } catch(e) {
+    toast('⚠ השחזור נכשל: ' + (e.code || e.message), true);
+  }
+}
+
 // ══ VEHICLE DOCUMENTS: read expiry dates off driver-uploaded photos ══
 // Claude reads the compulsory-insurance and vehicle-licence photos the driver
 // attached and proposes the expiry dates. Nothing is written to the vehicle until
