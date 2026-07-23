@@ -1396,6 +1396,17 @@ async function deleteVehicleRow(plate) {
     if (!Array.isArray(cloud)) cloud = VEHICLES.slice();
     const next = cloud.filter(x => x.plate !== plate);
     if (next.length === cloud.length) { toast('הרכב לא נמצא בענן', true); return; }
+    // Snapshot the vehicle BEFORE removing it. The daily backup only runs once a
+    // day, so a vehicle added and deleted the same day would otherwise be lost.
+    const gone = cloud.find(x => x.plate === plate);
+    if (gone) {
+      try {
+        await db.collection('fleet').doc('trash_' + Date.now()).set({
+          type: 'deletedVehicle', deletedAt: new Date().toLocaleString('he-IL'),
+          plate: gone.plate, vehicle: stripUndef(gone)
+        });
+      } catch(e) { console.log('trash snapshot failed', e.code || e.message); }
+    }
     VEHICLES = next;
     localStorage.setItem('fleet_vehicles', JSON.stringify(VEHICLES));
     await db.collection('fleet').doc('main').set({ vehicles: stripUndef(next) }, { merge: true });
@@ -2282,6 +2293,21 @@ async function openRestoreDeleted() {
     const have = new Set(VEHICLES.map(v => String(v.plate || '').replace(/\D/g, '')));
     const seen = new Set();
     const missing = [];
+    // Trash first — an explicit delete is the most likely thing being restored,
+    // and it covers vehicles that never made it into a daily backup.
+    try {
+      const tsnap = await db.collection('fleet')
+        .orderBy(firebase.firestore.FieldPath.documentId())
+        .startAt('trash_').endAt('trash_'+'').get();
+      const trashed = tsnap.docs.map(d => d.data()).sort((a, b) => (b.deletedAt || '').localeCompare(a.deletedAt || ''));
+      for (const t of trashed) {
+        const v = t.vehicle; if (!v) continue;
+        const pd = String(v.plate || '').replace(/\D/g, '');
+        if (!pd || have.has(pd) || seen.has(pd)) continue;
+        seen.add(pd);
+        missing.push({ v, from: 'נמחק ' + (t.deletedAt || '') });
+      }
+    } catch(e) { console.log('trash read failed', e.code || e.message); }
     for (const b of backups) {
       for (const v of (b.vehicles || [])) {
         const pd = String(v.plate || '').replace(/\D/g, '');
