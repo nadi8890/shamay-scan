@@ -3269,8 +3269,18 @@ function buildSystemPrompt() {
   const rulesBlock = (AGENT_RULES && AGENT_RULES.trim())
     ? `\n═══ הכללים וההעדפות של מנהל הצי (חשוב! עליך לכבד אותם תמיד) ═══\n${AGENT_RULES.trim()}\n`
     : '';
+  // The model has no reliable sense of "today" — give it the real date, otherwise it
+  // invents one whenever an action needs a date.
+  const _n = new Date();
+  const _p2 = x => String(x).padStart(2,'0');
+  const _days = ['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'];
+  const todayStr = `${_p2(_n.getDate())}/${_p2(_n.getMonth()+1)}/${_n.getFullYear()}`;
   return `אתה סוכן AI מקצועי לניהול ציי רכב של חברת נופר אנרגי. אתה עוזר לקציני רכב ופקידים לנהל את הצי ביעילות.
 תמיד ענה בעברית, בצורה תמציתית ומקצועית.
+
+═══ התאריך והשעה כעת ═══
+היום: יום ${_days[_n.getDay()]}, ${todayStr}, שעה ${_p2(_n.getHours())}:${_p2(_n.getMinutes())}
+כשמדובר על פעולה שקרתה "היום" / "עכשיו" / בלי תאריך מפורש — התאריך הוא ${todayStr}. אל תנחש תאריך אחר לעולם.
 ${rulesBlock}
 ═══ נתוני הצי (עדכני) ═══
 סה"כ רכבים: ${VEHICLES.length}
@@ -3376,7 +3386,8 @@ ${RETURNS.slice(0,5).map(r=>`• ${r.employee} | ${r.plate} | ${r.fromDate||'?'}
 [[ACTION:replaceVehicle:רישוי_ישן|רישוי_חדש|תאריך_קבלה(DD/MM/YYYY)|סיבה]]
 דוגמה: [[ACTION:replaceVehicle:34005503|66529004|15/07/2026|רכב חדש]]
 
-כלל חשוב: כשעובד מקבל רכב חדש — השתמש אך ורק ב-replaceVehicle (לא returnVehicle+addVehicle בנפרד). אם המשתמש לא ציין את תאריך קבלת הרכב — שאל אותו לפני הביצוע.
+כלל חשוב: כשעובד מקבל רכב חדש — השתמש אך ורק ב-replaceVehicle (לא returnVehicle+addVehicle בנפרד).
+תאריך קבלה: אם המשתמש ציין תאריך מפורש — כתוב אותו. אם לא ציין (או אמר "היום"/"עכשיו") — השאר את השדה ריק לגמרי, והמערכת תמלא את תאריך היום אוטומטית. אל תנחש תאריך ואל תשאל.
 כשעובד מקבל רכב חליפי זמני → בצע [[ACTION:addReplacement:...]].
 
 ═══ ניתוח תמונות ═══
@@ -4012,7 +4023,17 @@ async function replaceVehicleAction(param) {
   if (!newPlate) return null;
   const old = { ...oldV0 }; // copy — the realtime snapshot may swap VEHICLES while we await
   const _t = new Date();
-  const recDate = receivedDate || ('0'+_t.getDate()).slice(-2)+'/'+('0'+(_t.getMonth()+1)).slice(-2)+'/'+_t.getFullYear();
+  const todayStr = ('0'+_t.getDate()).slice(-2)+'/'+('0'+(_t.getMonth()+1)).slice(-2)+'/'+_t.getFullYear();
+  // Guard against a hallucinated date: only accept what the agent sent if it parses
+  // and is sane (not in the future, not absurdly old). Otherwise use today.
+  let recDate = todayStr;
+  if (receivedDate) {
+    const d = parseDate(receivedDate);
+    const maxAhead = new Date(_t.getTime() + 2*86400000);   // small tolerance
+    const minBack  = new Date(_t.getFullYear() - 5, 0, 1);
+    if (d && d <= maxAhead && d >= minBack) recDate = receivedDate;
+    else console.log('replaceVehicle: ignoring implausible date', receivedDate, '→ using today');
+  }
   // 1. add the new vehicle first (awaits gov lookup) — or reuse it if already in the fleet
   await addVehicleWithLookup(newPlate);
   // 2. all mutations synchronously, then one combined write (no snapshot race window)
