@@ -7,6 +7,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;600;700;900&display=swap" rel="stylesheet">
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Heebo',sans-serif;background:#f0f4f8;color:#1e293b;padding:16px;max-width:480px;margin:0 auto}
@@ -69,11 +70,21 @@ firebase.initializeApp({
   appId: "1:347809967171:web:af3eb5cdeefc827b41f8f6"
 });
 const db = firebase.firestore();
+// Sign this browser in anonymously — invisible to the driver (no login screen, no
+// extra tap) but it gives the database an identity to check. Failure is non-fatal:
+// the app keeps working exactly as before.
+async function ensureAnonAuth() {
+  try {
+    if (firebase.auth().currentUser) return;
+    await firebase.auth().signInAnonymously();
+  } catch(e) { console.log('anon auth unavailable, continuing', e.code || e.message); }
+}
 let VEH = null, MAIL = {}, FLEET = [];
 const urlPlate = (new URLSearchParams(location.search).get('plate') || '').replace(/\D/g,'');
 const parseKmNum = s => parseInt(String(s||'').replace(/\D/g,'')) || 0;
 
 (async function init() {
+  await ensureAnonAuth(); // must precede any read so the identity is in place
   try {
     const snap = await db.collection('fleet').doc('main').get();
     const d = snap.data() || {};
