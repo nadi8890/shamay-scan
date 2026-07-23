@@ -1278,7 +1278,11 @@ function stripUndef(x) {
 function mirrorToTenant(id, data, merge = true) {
   try {
     if (!auth.currentUser) return;
-    TENANT_DATA().doc(id).set(stripUndef(data), { merge })
+    // _mirroredAt makes it easy to confirm at a glance that the mirror is live
+    const payload = stripUndef(data);
+    payload._mirroredAt = new Date().toLocaleString('he-IL');
+    TENANT_DATA().doc(id).set(payload, { merge })
+      .then(() => console.log('tenant mirror ok:', id))
       .catch(e => console.log('tenant mirror deferred:', id, e.code || e.message));
   } catch(e) { console.log('tenant mirror error:', id, e); }
 }
