@@ -646,6 +646,9 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
       </div>
     </div>
     <div id="kmround-panel"></div>
+    <div class="section-hdr" style="margin-top:18px"><div style="display:flex;align-items:center;gap:8px"><span class="section-title">🚗 מסמכי רכב שהעלו נהגים</span><span class="count-badge" id="vdocs-count">0</span></div></div>
+    <div id="vdocs-panel"></div>
+
     <div class="section-hdr" style="margin-top:18px"><div style="display:flex;align-items:center;gap:8px"><span class="section-title">📨 הצהרות קבלת רכב שהתקבלו</span><span class="count-badge" id="decl-count">0</span></div></div>
     <div id="decl-history"></div>
   </div>
@@ -702,6 +705,25 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
 </div>
 
 <!-- ══ DECLARATION SHARE MODAL ══ -->
+<!-- ══ SCANNED VEHICLE DOCUMENTS — REVIEW BEFORE APPLYING ══ -->
+<div class="modal-overlay" id="vdoc-modal">
+  <div class="modal" style="max-width:560px">
+    <h3>🔍 תאריכים שזוהו במסמכי הרכב</h3>
+    <p id="vdoc-info" style="font-size:0.85rem;color:var(--muted);margin:8px 0 10px"></p>
+    <div id="vdoc-imgs" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px"></div>
+    <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:8px;padding:9px;font-size:0.76rem;color:#92400e;margin-bottom:12px">
+      ⚠️ בדוק/י מול התמונה לפני אישור. אפשר לתקן כל תאריך ידנית.
+    </div>
+    <div class="modal-row"><label>תוקף ביטוח חובה</label><input id="vdoc-ins" placeholder="DD/MM/YYYY" oninput="dateAutoMask(this)"></div>
+    <div class="modal-row"><label>תוקף רישיון רכב (טסט)</label><input id="vdoc-reg" placeholder="DD/MM/YYYY" oninput="dateAutoMask(this)"></div>
+    <div class="btn-row">
+      <button class="btn btn-green" onclick="applyVehicleDocDates()">✓ אשר ועדכן ברכב</button>
+      <button class="btn btn-secondary" onclick="dismissVehicleDoc()">התעלם</button>
+      <button class="btn btn-secondary" onclick="document.getElementById('vdoc-modal').classList.remove('open')">סגור</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="decl-share-modal">
   <div class="modal">
     <h3>📨 שליחת טפסי נהג</h3>
@@ -2080,6 +2102,7 @@ function renderFormsTab() {
   document.getElementById('ms-gas').value = MAIL_SETTINGS.gasUrl || '';
   loadInspectionHistory();
   loadDeclarations();
+  loadVehicleDocs();
   loadKmRound();
 }
 
@@ -2228,6 +2251,90 @@ async function declCopyLink() {
   try { await navigator.clipboard.writeText(window._declLink || ''); toast('הקישור הועתק ✓'); }
   catch(e) { toast('ההעתקה נכשלה', true); }
 }
+// ══ VEHICLE DOCUMENTS: read expiry dates off driver-uploaded photos ══
+// Claude reads the compulsory-insurance and vehicle-licence photos the driver
+// attached and proposes the expiry dates. Nothing is written to the vehicle until
+// the manager confirms — a misread date here would be a real safety/legal risk.
+async function loadVehicleDocs() {
+  const wrap = document.getElementById('vdocs-panel');
+  if (!wrap) return;
+  try {
+    const snap = await db.collection('fleet').where('type','==','vehicledocs').get();
+    const list = snap.docs.map(d => ({ _docId: d.id, ...d.data() }))
+      .filter(r => !r.applied).sort((a,b) => (b.created||0)-(a.created||0));
+    const cnt = document.getElementById('vdocs-count');
+    if (cnt) cnt.textContent = list.length;
+    window._VDOCS = list;
+    if (!list.length) { wrap.innerHTML = '<div style="color:var(--muted);font-size:0.8rem;padding:8px">אין מסמכי רכב חדשים לסריקה</div>'; return; }
+    wrap.innerHTML = list.map((r,i) => `<div class="insp-hist-row">
+        <span style="font-weight:700">${esc(r.driver||'')}</span>
+        <span style="font-weight:700;color:var(--accent);direction:ltr">${esc(r.plate||'')}</span>
+        <span class="badge badge-orange">🚗 ${(r.images||[]).length} מסמכים</span>
+        <span style="color:var(--muted)">${esc(r.dateStr||'')}</span>
+        <button class="btn btn-green" style="padding:3px 10px;font-size:0.72rem" onclick="scanVehicleDoc(${i})">🔍 סרוק תאריכים</button>
+      </div>`).join('');
+  } catch(e) { wrap.innerHTML = '<div style="color:#dc2626;font-size:0.8rem;padding:8px">שגיאה בטעינה</div>'; }
+}
+async function scanVehicleDoc(i) {
+  const r = (window._VDOCS || [])[i];
+  if (!r) return;
+  if (!agentApiKey) { toast('⚠ חסר מפתח API — הגדר אותו בסוכן (⚙️)', true); return; }
+  window._VDOC_CUR = r;
+  document.getElementById('vdoc-info').textContent = 'סורק מסמכים...';
+  document.getElementById('vdoc-imgs').innerHTML = (r.images||[]).map(b =>
+    `<img src="data:image/jpeg;base64,${b}" style="max-width:150px;border-radius:7px;border:1px solid var(--border)">`).join('');
+  document.getElementById('vdoc-ins').value = '';
+  document.getElementById('vdoc-reg').value = '';
+  document.getElementById('vdoc-modal').classList.add('open');
+  try {
+    const content = [
+      { type:'text', text: 'אלה צילומים של מסמכי רכב ישראליים — ביטוח חובה ו/או רישיון רכב (טסט). חלץ את תאריכי התוקף.\nהחזר JSON בלבד, בלי טקסט נוסף:\n{"insuranceExpiry":"DD/MM/YYYY","registrationExpiry":"DD/MM/YYYY"}\nאם ערך לא מופיע בתמונות — החזר "" עבורו. אל תנחש.' },
+      ...(r.images||[]).map(b => ({ type:'image', source:{ type:'base64', media_type:'image/jpeg', data:b } }))
+    ];
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json', 'x-api-key': agentApiKey,
+        'anthropic-version':'2023-06-01', 'anthropic-dangerous-direct-browser-access':'true' },
+      body: JSON.stringify({ model: AGENT_MODEL, max_tokens:300, messages:[{ role:'user', content }] })
+    });
+    const data = await resp.json();
+    if (!resp.ok) throw new Error((data.error && data.error.message) || 'שגיאת API');
+    const txt = (data.content||[]).map(c => c.text||'').join('');
+    const m = txt.match(/\{[\s\S]*\}/);
+    const out = m ? JSON.parse(m[0]) : {};
+    document.getElementById('vdoc-ins').value = out.insuranceExpiry || '';
+    document.getElementById('vdoc-reg').value = out.registrationExpiry || '';
+    document.getElementById('vdoc-info').innerHTML =
+      `${esc(r.driver||'')} — רכב <b dir="ltr">${esc(r.plate||'')}</b><br><span style="font-size:0.75rem">השווה מול התמונות ואשר/י</span>`;
+  } catch(e) {
+    document.getElementById('vdoc-info').textContent = 'הסריקה נכשלה: ' + (e.message || e) + ' — אפשר להקליד ידנית';
+  }
+}
+async function applyVehicleDocDates() {
+  const r = window._VDOC_CUR;
+  if (!r) return;
+  const ins = document.getElementById('vdoc-ins').value.trim();
+  const reg = document.getElementById('vdoc-reg').value.trim();
+  if (!ins && !reg) { toast('לא הוזן תאריך', true); return; }
+  const v = VEHICLES.find(x => String(x.plate||'').replace(/\D/g,'') === String(r.plate||'').replace(/\D/g,''));
+  if (!v) { toast('הרכב לא נמצא בצי', true); return; }
+  if (ins) v.insuranceExpiry = ins;
+  if (reg) v.registrationExpiry = reg;
+  await saveVehiclesSafely(v.plate, driverKey(v.driverName));
+  try { await db.collection('fleet').doc(r._docId).set({ applied:true }, { merge:true }); } catch(e) {}
+  document.getElementById('vdoc-modal').classList.remove('open');
+  renderFleet(); renderAlerts();
+  loadVehicleDocs();
+  toast(`✓ עודכנו תאריכים לרכב ${r.plate}`);
+}
+async function dismissVehicleDoc() {
+  const r = window._VDOC_CUR;
+  if (!r) return;
+  try { await db.collection('fleet').doc(r._docId).set({ applied:true }, { merge:true }); } catch(e) {}
+  document.getElementById('vdoc-modal').classList.remove('open');
+  loadVehicleDocs();
+}
+
 async function loadDeclarations() {
   const wrap = document.getElementById('decl-history');
   if (!wrap) return;

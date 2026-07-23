@@ -248,7 +248,7 @@ async function ensureAnonAuth() {
 }
 const params = new URLSearchParams(location.search);
 const PLATE = (params.get('plate') || '').trim();
-let VEH = null, MAIL = {}, CURRENT = null, licPhotos = [], docPhotos = [];
+let VEH = null, MAIL = {}, CURRENT = null, licPhotos = [], docPhotos = [], docPhotosSmall = [];
 
 const FORMS = {
   procedures: { title: 'נהלים ואחריות אישית', doc: 'טפסי נהלים ואחריות — הצהרות מחזיק רכב', agrees: ['agree-holder','agree-viol'], secs: [['sec-holder','הצהרה והתחייבות מחזיק/ה ברכב'],['sec-viol','אחריות אישית בגין עבירות']], cls: 'only-procedures', updatesProcedures: true, photos: true, photoHint: 'צרף/י צילום רישיון נהיגה שלך, וגם של בן/בת זוג או בן משפחה שנוהגים ברכב (אפשר כמה תמונות)' },
@@ -287,7 +287,7 @@ function openForm(key) {
   document.querySelectorAll('.only-procedures,.only-family,.only-traffic,.only-accident').forEach(el => el.style.display = 'none');
   document.querySelectorAll('.' + FORMS[key].cls).forEach(el => el.style.display = '');
   // attachments: each form starts clean and explains what to attach
-  licPhotos = []; docPhotos = [];
+  licPhotos = []; docPhotos = []; docPhotosSmall = [];
   renderThumbs(); renderDocThumbs();
   const hint = document.getElementById('lic-hint');
   if (hint) hint.textContent = FORMS[key].photoHint || '';
@@ -352,11 +352,14 @@ function renderThumbs() {
     `<div class="thumb"><img src="${p}"><button class="rm" onclick="licPhotos.splice(${i},1);renderThumbs()">✕</button></div>`).join('');
 }
 
-/* vehicle documents — compulsory insurance + vehicle licence (procedures form) */
+/* vehicle documents — compulsory insurance + vehicle licence (procedures form).
+   Two sizes are kept: a sharp one for the emailed PDF, and a small one that is
+   stored in the cloud so the manager's app can read the expiry dates off it. */
 async function docFilesChanged(inp) {
   for (const file of inp.files) {
     if (!file.type.startsWith('image/')) continue;
     docPhotos.push(await compressImage(file, 1300, 0.82));
+    docPhotosSmall.push(await compressImage(file, 900, 0.65));
   }
   inp.value = '';
   renderDocThumbs();
@@ -365,7 +368,7 @@ function renderDocThumbs() {
   const el = document.getElementById('doc-thumbs');
   if (!el) return;
   el.innerHTML = docPhotos.map((p, i) =>
-    `<div class="thumb"><img src="${p}"><button class="rm" onclick="docPhotos.splice(${i},1);renderDocThumbs()">✕</button></div>`).join('');
+    `<div class="thumb"><img src="${p}"><button class="rm" onclick="docPhotos.splice(${i},1);docPhotosSmall.splice(${i},1);renderDocThumbs()">✕</button></div>`).join('');
 }
 
 /* ---------- document (PDF) ---------- */
@@ -596,8 +599,20 @@ async function submitForm() {
     rec.proceduresDate = today;
   }
   try {
-    // 1. store the declaration (photos are not stored in Firestore — they go into the emailed PDF)
+    // 1. store the declaration (licence photos are not stored — they go into the emailed PDF)
     await db.collection('fleet').doc('decl_' + rec.created).set(rec);
+    // 1b. vehicle documents ARE stored (small copies, max 4) so the manager's app can
+    // read the insurance / registration expiry dates off them. Never fails the form.
+    if (docPhotosSmall.length) {
+      try {
+        await db.collection('fleet').doc('vdocs_' + rec.created).set({
+          type: 'vehicledocs', created: rec.created,
+          plate: rec.plate, driver: rec.name, dateStr: rec.dateStr,
+          images: docPhotosSmall.slice(0, 4).map(s => s.split(',')[1]),
+          scanned: false, applied: false
+        });
+      } catch(e) { console.log('vehicle docs upload skipped', e.code || e.message); }
+    }
     // 2. best-effort: try to update the vehicle directly. Drivers aren't signed in
     // so this write is blocked by the rules — that's fine, the manager's app applies
     // the change from the declaration (applyProcedures flag). Never fail the form here.
@@ -636,7 +651,7 @@ async function submitForm() {
     document.getElementById('form-wrap').style.display = 'none';
     document.getElementById('done').style.display = 'block';
     if (F.photos) { licPhotos = []; renderThumbs(); }
-    docPhotos = []; renderDocThumbs();
+    docPhotos = []; docPhotosSmall = []; renderDocThumbs();
     window.scrollTo(0, 0);
   } catch(e) {
     fail('שגיאה בשליחה — בדוק/י חיבור לאינטרנט ונסה/י שוב');
