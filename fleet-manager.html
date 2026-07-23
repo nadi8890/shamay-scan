@@ -2922,6 +2922,49 @@ function saveVehicle() {
 // ══ AUTHENTICATION GATE ══
 const auth = firebase.auth();
 let _appBooted = false;
+
+// ══ MULTI-TENANT FOUNDATION (Stage 1) ══
+// Each customer company is a "tenant" with isolated data under tenants/{id}/data.
+// During this transition the app still reads/writes the legacy fleet/* docs; a
+// one-time NON-DESTRUCTIVE copy mirrors them into the tenant namespace so a later
+// cutover is safe. Nothing here deletes or moves the live data.
+let TENANT = 'nofar';                 // resolved from users/{uid}; default keeps Nofar working
+let ROLE = 'manager';
+let COMPANY_NAME = 'נופר אנרגיה';
+const TENANT_DATA = () => db.collection('tenants').doc(TENANT).collection('data');
+async function resolveTenant(user) {
+  try {
+    console.log('logged-in uid:', user.uid); // needed once to create the users/{uid} mapping doc
+    const snap = await db.collection('users').doc(user.uid).get();
+    if (snap.exists) {
+      const d = snap.data() || {};
+      if (d.tenantId) TENANT = d.tenantId;
+      if (d.role) ROLE = d.role;
+      if (d.companyName) COMPANY_NAME = d.companyName;
+    }
+  } catch(e) { console.log('tenant resolve error — defaulting to nofar', e); }
+}
+// Non-destructive: copy the core docs into the tenant namespace. Safe to re-run;
+// retries next load if the rules don't permit it yet.
+let _tenantCopyDone = false;
+async function copyToTenant() {
+  if (_tenantCopyDone || !auth.currentUser) return;
+  _tenantCopyDone = true;
+  try {
+    if ((await TENANT_DATA().doc('_meta').get()).exists) return; // already mirrored
+    const ids = ['main', 'incidents', 'violations', 'replacements', 'returns'];
+    for (const id of ids) {
+      const src = await db.collection('fleet').doc(id).get();
+      if (src.exists) await TENANT_DATA().doc(id).set(src.data());
+    }
+    await TENANT_DATA().doc('_meta').set({ copiedAt: new Date().toISOString(), from: 'fleet', tenant: TENANT });
+    console.log('tenant mirror complete for', TENANT);
+    if (typeof toast === 'function') toast('✓ נתוני החברה שוכפלו למרחב מבודד (שלב 1)');
+  } catch(e) {
+    _tenantCopyDone = false; // allow retry once the console rules are in place
+    console.log('tenant copy deferred (rules may need updating):', e.code || e.message);
+  }
+}
 function startHeaderClock() {
   const el = document.getElementById('header-clock');
   if (!el) return;
@@ -2946,6 +2989,7 @@ function bootApp() {
     renderAlerts();
     renderFleet();
     setupRealtimeSync();
+    copyToTenant(); // Stage 1: mirror data into the isolated tenant namespace
   });
   renderIncidents();
   renderViolations();
@@ -2980,8 +3024,9 @@ function doReset() {
 function doLogout() {
   if (confirm('להתנתק מהמערכת?')) auth.signOut().then(() => location.reload());
 }
-auth.onAuthStateChanged(user => {
+auth.onAuthStateChanged(async user => {
   if (user) {
+    await resolveTenant(user); // which company this account belongs to (defaults to nofar)
     bootApp();
   } else {
     document.getElementById('login-gate').style.display = 'flex';
