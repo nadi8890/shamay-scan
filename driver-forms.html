@@ -136,6 +136,17 @@ canvas.sig{width:100%;height:130px;border:1.5px dashed #94a3b8;border-radius:10p
     </div>
   </div>
 
+  <div class="card only-procedures">
+    <div class="card-hdr">🚗 מסמכי הרכב
+      <button class="btn btn-gray" onclick="document.getElementById('doc-files').click()">+ הוסף תמונות</button>
+    </div>
+    <div class="card-body">
+      <div style="font-size:0.76rem;color:#64748b">צרף/י צילום של <b>ביטוח חובה</b> ושל <b>רישיון הרכב</b> שנמצאים ברכב (אפשר כמה תמונות)</div>
+      <input type="file" id="doc-files" accept="image/*" multiple style="display:none" onchange="docFilesChanged(this)">
+      <div class="thumbs" id="doc-thumbs"></div>
+    </div>
+  </div>
+
   <!-- ═ family sections ═ -->
   <div class="card only-family">
     <div class="card-hdr">👨‍👩‍👧 הצהרה בדבר שימוש בני משפחה ברכב</div>
@@ -237,7 +248,7 @@ async function ensureAnonAuth() {
 }
 const params = new URLSearchParams(location.search);
 const PLATE = (params.get('plate') || '').trim();
-let VEH = null, MAIL = {}, CURRENT = null, licPhotos = [];
+let VEH = null, MAIL = {}, CURRENT = null, licPhotos = [], docPhotos = [];
 
 const FORMS = {
   procedures: { title: 'נהלים ואחריות אישית', doc: 'טפסי נהלים ואחריות — הצהרות מחזיק רכב', agrees: ['agree-holder','agree-viol'], secs: [['sec-holder','הצהרה והתחייבות מחזיק/ה ברכב'],['sec-viol','אחריות אישית בגין עבירות']], cls: 'only-procedures', updatesProcedures: true, photos: true, photoHint: 'צרף/י צילום רישיון נהיגה שלך, וגם של בן/בת זוג או בן משפחה שנוהגים ברכב (אפשר כמה תמונות)' },
@@ -275,9 +286,9 @@ function openForm(key) {
   document.getElementById('form-wrap').style.display = 'block';
   document.querySelectorAll('.only-procedures,.only-family,.only-traffic,.only-accident').forEach(el => el.style.display = 'none');
   document.querySelectorAll('.' + FORMS[key].cls).forEach(el => el.style.display = '');
-  // license photos: each form starts clean and explains what to attach
-  licPhotos = [];
-  renderThumbs();
+  // attachments: each form starts clean and explains what to attach
+  licPhotos = []; docPhotos = [];
+  renderThumbs(); renderDocThumbs();
   const hint = document.getElementById('lic-hint');
   if (hint) hint.textContent = FORMS[key].photoHint || '';
   clearSig();
@@ -339,6 +350,22 @@ function compressImage(file, maxDim, q) {
 function renderThumbs() {
   document.getElementById('lic-thumbs').innerHTML = licPhotos.map((p, i) =>
     `<div class="thumb"><img src="${p}"><button class="rm" onclick="licPhotos.splice(${i},1);renderThumbs()">✕</button></div>`).join('');
+}
+
+/* vehicle documents — compulsory insurance + vehicle licence (procedures form) */
+async function docFilesChanged(inp) {
+  for (const file of inp.files) {
+    if (!file.type.startsWith('image/')) continue;
+    docPhotos.push(await compressImage(file, 1300, 0.82));
+  }
+  inp.value = '';
+  renderDocThumbs();
+}
+function renderDocThumbs() {
+  const el = document.getElementById('doc-thumbs');
+  if (!el) return;
+  el.innerHTML = docPhotos.map((p, i) =>
+    `<div class="thumb"><img src="${p}"><button class="rm" onclick="docPhotos.splice(${i},1);renderDocThumbs()">✕</button></div>`).join('');
 }
 
 /* ---------- document (PDF) ---------- */
@@ -503,7 +530,8 @@ function buildSummaryText(r) {
   L.push(`עובד/ת: ${r.name} | ת.ז: ${r.idNum} | טלפון: ${r.phone||'-'} | רישיון: ${r.licNum||'-'}`);
   F.secs.forEach(s => L.push(`✓ ${s[1]} — אושר`));
   if (r.extraDriver) L.push(`✓ הצהרת בריאות נהג/ת נוסף/ת (${r.extraDriver.name}) — אושרה`);
-  if (r.photosCount) L.push(`📷 צורפו ${r.photosCount} צילומי רישיון (בתוך ה-PDF)`);
+  if (r.photosCount) L.push(`📷 צורפו ${r.photosCount} צילומי רישיון נהיגה (בתוך ה-PDF)`);
+  if (r.docsCount) L.push(`🚗 צורפו ${r.docsCount} צילומי מסמכי רכב — ביטוח חובה / רישיון רכב (בתוך ה-PDF)`);
   L.push('');
   L.push('נחתם דיגיטלית ✍');
   return L.join('\n');
@@ -548,6 +576,7 @@ async function submitForm() {
     km: F.updatesProcedures ? val('f-km') : '',
     extraDriver: extraOpen && val('x-name') ? { name: val('x-name'), idNum: val('x-id'), licNum: val('x-lic'), relation: val('x-rel'), healthApproved: chk('agreeX') } : null,
     photosCount: F.photos ? licPhotos.length : 0,
+    docsCount: docPhotos.length, // insurance + vehicle licence photos
     signature: document.getElementById('sig').toDataURL('image/png')
   };
   if (F.isAccident) {
@@ -593,7 +622,7 @@ async function submitForm() {
         btn.textContent = 'מכין מסמך...';
         const files = [];
         try {
-          const pdfBlob = await docToPdfBlob({ ...rec, photos: F.photos ? licPhotos : [] });
+          const pdfBlob = await docToPdfBlob({ ...rec, photos: [...(F.photos ? licPhotos : []), ...docPhotos] });
           const pdfB64 = await new Promise(res => { const fr = new FileReader(); fr.onload = () => res(String(fr.result).split(',')[1]); fr.readAsDataURL(pdfBlob); });
           files.push({ base64: pdfB64, mimeType: 'application/pdf', filename: `${F.title} - ${rec.name} ${rec.plate}.pdf` });
         } catch(e) {}
@@ -607,6 +636,7 @@ async function submitForm() {
     document.getElementById('form-wrap').style.display = 'none';
     document.getElementById('done').style.display = 'block';
     if (F.photos) { licPhotos = []; renderThumbs(); }
+    docPhotos = []; renderDocThumbs();
     window.scrollTo(0, 0);
   } catch(e) {
     fail('שגיאה בשליחה — בדוק/י חיבור לאינטרנט ונסה/י שוב');

@@ -1347,6 +1347,35 @@ async function saveVehiclesSafely(editedPlate, dk) {
   }
 }
 
+// Remove one vehicle from the fleet. Same read-modify-write as saveVehiclesSafely,
+// so it can only ever drop the requested plate — never other vehicles' data.
+// The daily backup keeps a restore point in case of a mistaken delete.
+async function deleteVehicleRow(plate) {
+  const v = VEHICLES.find(x => x.plate === plate);
+  const who = v ? (v.driverName || '').split('-')[0].trim() : '';
+  if (!confirm(`למחוק את רכב ${plate}${who ? ' — ' + who : ''} מהצי?\n\nהרכב יוסר מהרשימה. ניתן לשחזר מהגיבוי היומי.`)) return;
+  if (!auth.currentUser) { toast('⚠ לא מחובר — התחבר מחדש כדי למחוק', true); return; }
+  try {
+    const snap = await db.collection('fleet').doc('main').get();
+    let cloud = (snap.data() || {}).vehicles;
+    if (!Array.isArray(cloud)) cloud = VEHICLES.slice();
+    const next = cloud.filter(x => x.plate !== plate);
+    if (next.length === cloud.length) { toast('הרכב לא נמצא בענן', true); return; }
+    VEHICLES = next;
+    localStorage.setItem('fleet_vehicles', JSON.stringify(VEHICLES));
+    await db.collection('fleet').doc('main').set({ vehicles: stripUndef(next) }, { merge: true });
+    mirrorToTenant('main', { vehicles: next });
+    rebuildDriversDirectory();
+    renderFleet(); renderAlerts(); renderDashboard();
+    toast(`רכב ${plate} נמחק ✓`);
+  } catch(e) {
+    console.log('delete failed', e);
+    toast(e.code === 'permission-denied'
+      ? '⚠ אין הרשאה למחוק — התחבר מחדש'
+      : '⚠ המחיקה נכשלה: ' + (e.code || e.message), true);
+  }
+}
+
 function setupRealtimeSync() {
   db.collection('fleet').doc('main').onSnapshot(snap => {
     if (!_firestoreLoaded) return;
@@ -1845,6 +1874,7 @@ function renderFleet() {
       <td style="white-space:nowrap">
         <button class="btn btn-gray" style="padding:3px 8px;font-size:0.7rem" onclick="editVehicle('${esc(v.plate)}')">✏️</button>
         <button class="btn btn-gray" style="padding:3px 8px;font-size:0.7rem" title="שלח טפסי קבלת רכב לנהג" onclick="openDeclShare('${esc(v.plate)}')">📨</button>
+        <button class="btn btn-gray" style="padding:3px 8px;font-size:0.7rem" title="מחק רכב מהצי" onclick="deleteVehicleRow('${esc(v.plate)}')">🗑️</button>
       </td>
     </tr>`;
   }).join('');
@@ -2215,6 +2245,7 @@ async function loadDeclarations() {
         <span style="color:var(--muted)">${esc(r.dateStr||'')}</span>
         ${r.extraDriver ? '<span class="badge badge-orange">+ נהג נוסף</span>' : ''}
         ${r.photosCount ? `<span class="badge badge-orange">📷 ${r.photosCount}</span>` : ''}
+        ${r.docsCount ? `<span class="badge badge-orange" title="ביטוח חובה / רישיון רכב">🚗 ${r.docsCount}</span>` : ''}
         <span class="badge badge-green">✓ נחתם</span>
         <button class="btn btn-secondary" style="padding:3px 8px;font-size:0.72rem" onclick="event.stopPropagation();deleteDeclaration(${i})">🗑️</button>
       </div>`).join('');
