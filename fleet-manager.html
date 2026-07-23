@@ -1117,6 +1117,7 @@ async function runStartupSync() {
     if (changed) {
       localStorage.setItem('fleet_vehicles', JSON.stringify(VEHICLES));
       await db.collection('fleet').doc('main').set({ vehicles: stripUndef(VEHICLES) }, { merge: true });
+      mirrorToTenant('main', { vehicles: VEHICLES });
       if (typeof renderFleet === 'function') renderFleet();
       if (typeof renderAlerts === 'function') renderAlerts();
       if (typeof checkServiceOverages === 'function') checkServiceOverages();
@@ -1271,13 +1272,25 @@ function stripUndef(x) {
   }
   return x;
 }
+// STAGE 2a — dual-write. Every legacy write is mirrored into the tenant namespace
+// so the isolated copy stays current. Deliberately fire-and-forget and fully
+// isolated: a mirror failure can NEVER affect the primary write or the UI.
+function mirrorToTenant(id, data, merge = true) {
+  try {
+    if (!auth.currentUser) return;
+    TENANT_DATA().doc(id).set(stripUndef(data), { merge })
+      .catch(e => console.log('tenant mirror deferred:', id, e.code || e.message));
+  } catch(e) { console.log('tenant mirror error:', id, e); }
+}
 async function saveToFirestore(key, value) {
   try {
     value = stripUndef(value);
     if (ARCHIVE_DOCS[key]) {
       await db.collection('fleet').doc(key).set({ items: value }, { merge: true });
+      mirrorToTenant(key, { items: value });
     } else {
       await db.collection('fleet').doc('main').set({ [key]: value }, { merge: true });
+      mirrorToTenant('main', { [key]: value });
     }
   } catch(e) { console.log('Firestore save error', e); }
 }
@@ -1312,6 +1325,7 @@ async function saveVehiclesSafely(editedPlate, dk) {
     // drop any undefined values — Firestore rejects them and it surfaces as a
     // generic "save failed" (this was the real cause of vanishing edits)
     await db.collection('fleet').doc('main').set({ vehicles: stripUndef(cloud) }, { merge: true });
+    mirrorToTenant('main', { vehicles: cloud });
     // read back to confirm it actually persisted
     const verify = await db.collection('fleet').doc('main').get();
     const saved = (verify.data() || {}).vehicles || [];
@@ -2120,6 +2134,7 @@ async function maybeSendKmReminder() {
     if (rem[mk]) return;
     rem[mk] = Date.now();
     await db.collection('fleet').doc('main').set({ kmRemind: rem }, { merge: true });
+    mirrorToTenant('main', { kmRemind: rem });
     if (MAIL_SETTINGS.gasUrl) {
       await fetch(MAIL_SETTINGS.gasUrl, { method:'POST', mode:'no-cors', headers:{'Content-Type':'text/plain'},
         body: JSON.stringify({ subject: '🛣️ תזכורת: סבב עדכון ק"מ חודשי', body: 'תחילת חודש!\nשלח לקבוצת הנהגים את הודעת עדכון הק"מ.\nההודעה המוכנה: לשונית טפסים ← סבב עדכון ק"מ ← "העתק הודעה לקבוצה".\n\nקישור הנהגים: ' + KM_UPDATE_LINK, files: [] }) });
@@ -3880,7 +3895,7 @@ async function replaceVehicleAction(param) {
     localStorage.setItem('fleet_vehicles_version', VEHICLES_VERSION);
     localStorage.setItem('fleet_returns', JSON.stringify(RETURNS));
   } catch(e){}
-  try { await db.collection('fleet').doc('main').set({ vehicles: VEHICLES, drivers: DRIVERS }, { merge: true }); } catch(e) { console.log('Firestore save error', e); }
+  try { await db.collection('fleet').doc('main').set({ vehicles: VEHICLES, drivers: DRIVERS }, { merge: true }); mirrorToTenant('main', { vehicles: VEHICLES, drivers: DRIVERS }); } catch(e) { console.log('Firestore save error', e); }
   saveToFirestore('returns', RETURNS); // returns live in their own doc now
   renderFleet(); renderDashboard(); renderAlerts();
   if (typeof renderReturns === 'function') renderReturns();
