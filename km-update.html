@@ -106,10 +106,26 @@ function selectVehicle(plateDigits) {
   document.getElementById('step-plate').style.display = 'none';
   document.getElementById('step-km').style.display = 'block';
   const nm = (VEH.driverName||'').split('-')[0].trim();
-  document.getElementById('veh-info').innerHTML = `👤 <b>${nm||'נהג/ת'}</b><br>🚗 ${VEH.make||''} ${VEH.model||''} | <span dir="ltr">${VEH.plate}</span>`;
   const prev = parseKmNum(VEH.currentKm);
+  const next = parseKmNum(VEH.nextServiceKm);
+  // Show the driver everything relevant to them: their vehicle, the last reading
+  // on record, and where the next service stands.
+  const rows = [
+    `👤 <b>${nm||'נהג/ת'}</b>`,
+    `🚗 ${VEH.make||''} ${VEH.model||''} | <span dir="ltr">${VEH.plate}</span>`,
+    `📊 ק"מ אחרון שדווח: <b>${prev ? prev.toLocaleString() : 'טרם דווח'}</b>`
+  ];
+  if (next) {
+    const left = next - prev;
+    rows.push(prev && left <= 0
+      ? `🔧 <b style="color:#dc2626">הרכב הגיע לטיפול</b> (${next.toLocaleString()} ק"מ)`
+      : `🔧 טיפול הבא: <b>${next.toLocaleString()}</b> ק"מ${prev ? ` — עוד ${left.toLocaleString()} ק"מ` : ''}`);
+  }
+  document.getElementById('veh-info').innerHTML = rows.join('<br>');
   document.getElementById('km-inp').placeholder = prev ? String(prev) : 'לדוגמה: 45000';
-  document.getElementById('km-hint').textContent = prev ? `הק"מ האחרון שדווח: ${prev.toLocaleString()}` : '';
+  document.getElementById('km-hint').textContent = prev
+    ? `הק"מ האחרון שדווח: ${prev.toLocaleString()}`
+    : 'טרם דווח ק"מ לרכב זה';
 }
 function findVehicle() {
   document.getElementById('plate-err').style.display = 'none';
