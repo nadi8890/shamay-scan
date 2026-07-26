@@ -279,6 +279,7 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
   <div class="logo">🚗 נופר<span> | ניהול ציי רכב</span></div>
   <div style="display:flex;align-items:center;gap:10px">
     <span id="header-clock" style="color:#fff;font-size:0.8rem;font-weight:600;white-space:nowrap;opacity:.9"></span>
+    <span id="tenant-status" style="color:#a7f3d0;font-size:0.72rem;font-weight:700;white-space:nowrap"></span>
     <span id="save-indicator">💾 לא נשמר</span>
     <button class="btn" style="padding:7px 14px;font-size:0.82rem;background:#fff;color:#1e40af;font-weight:700;border-radius:8px" onclick="openAddVehicle()">+ רכב חדש</button>
     <button class="btn" style="padding:7px 12px;font-size:0.82rem;background:rgba(255,255,255,.16);color:#fff;font-weight:700;border-radius:8px" title="שחזור רכב שנמחק מהגיבוי היומי" onclick="openRestoreDeleted()">♻️ שחזור</button>
@@ -3392,8 +3393,12 @@ async function copyToTenant() {
   if (_tenantCopyDone || !auth.currentUser) return;
   _tenantCopyDone = true;
   try {
+    const setStatus = t => { const el = document.getElementById('tenant-status'); if (el) el.textContent = t; };
     const meta = await TENANT_DATA().doc('_meta').get();
-    if (meta.exists && (meta.data() || {}).fullCopy) return; // full copy already done
+    if (meta.exists && (meta.data() || {}).fullCopy) { // full copy already done
+      setStatus(`🔒 מבודד · ${(meta.data() || {}).docCount || ''} מסמכים`);
+      return;
+    }
     const all = await db.collection('fleet').get(); // legacy source (stays legacy)
     let count = 0, batch = db.batch(), inBatch = 0;
     for (const doc of all.docs) {
@@ -3405,6 +3410,7 @@ async function copyToTenant() {
     if (inBatch > 0) await batch.commit();
     await TENANT_DATA().doc('_meta').set({ copiedAt: new Date().toISOString(), from: 'fleet', tenant: TENANT, fullCopy: true, docCount: count }, { merge: true });
     console.log('full tenant copy complete:', count, 'docs');
+    setStatus(`✓ הועתקו ${count} מסמכים למרחב מבודד`);
     if (typeof toast === 'function') toast(`✓ ${count} מסמכים שוכפלו למרחב המבודד`);
   } catch(e) {
     _tenantCopyDone = false; // allow retry next load
