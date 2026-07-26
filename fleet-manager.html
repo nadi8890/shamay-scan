@@ -1015,7 +1015,7 @@ let RETURNS      = []; // תיעוד תקופת אחזקה (היסטוריה)
 // --- Firestore sync ---
 async function loadFromFirestore() {
   try {
-    const snap = await db.collection('fleet').doc('main').get();
+    const snap = await fcol().doc('main').get();
     if (snap.exists) {
       const d = snap.data();
       if (Array.isArray(d.vehicles)) {
@@ -1103,9 +1103,9 @@ async function reconcileDeclarations() {
   if (!auth.currentUser) return out;
   try {
     const [qProc, qKm, qBook] = await Promise.all([
-      db.collection('fleet').where('applyProcedures', '==', true).get(),
-      db.collection('fleet').where('applyKm', '==', true).get(),
-      db.collection('fleet').where('applyBooking', '==', true).get()
+      fcol().where('applyProcedures', '==', true).get(),
+      fcol().where('applyKm', '==', true).get(),
+      fcol().where('applyBooking', '==', true).get()
     ]);
     const plateProc = p => VEHICLES.find(x => String(x.plate || '').replace(/\D/g, '') === String(p || '').replace(/\D/g, ''));
     const pending = [];
@@ -1153,7 +1153,7 @@ async function dailyBackup() {
     const t = new Date();
     const p2 = n => ('0' + n).slice(-2);
     const key = `backup_${t.getFullYear()}-${p2(t.getMonth() + 1)}-${p2(t.getDate())}`;
-    const ref = db.collection('fleet').doc(key);
+    const ref = fcol().doc(key);
     if ((await ref.get()).exists) return; // already backed up today
     await ref.set(stripUndef({
       vehicles: VEHICLES,
@@ -1180,7 +1180,7 @@ async function runStartupSync() {
     const changed = inspN || hertzN || rec.procN || rec.kmN || rec.bookN;
     if (changed) {
       localStorage.setItem('fleet_vehicles', JSON.stringify(VEHICLES));
-      await db.collection('fleet').doc('main').set({ vehicles: stripUndef(VEHICLES) }, { merge: true });
+      await fcol().doc('main').set({ vehicles: stripUndef(VEHICLES) }, { merge: true });
       mirrorToTenant('main', { vehicles: VEHICLES });
       if (typeof renderFleet === 'function') renderFleet();
       if (typeof renderAlerts === 'function') renderAlerts();
@@ -1203,7 +1203,7 @@ async function runStartupSync() {
 // only when the dedicated doc exists, so legacy data in main is used until migrated.
 async function loadArchiveDoc(name, assign) {
   try {
-    const s = await db.collection('fleet').doc(name).get();
+    const s = await fcol().doc(name).get();
     if (s.exists) {
       const items = (s.data() || {}).items;
       if (Array.isArray(items)) { assign(items); return true; }
@@ -1220,20 +1220,20 @@ async function migrateArchivesToSubdocs() {
   if (_archiveMigrated || !auth.currentUser) return;
   _archiveMigrated = true;
   try {
-    const main = await db.collection('fleet').doc('main').get();
+    const main = await fcol().doc('main').get();
     const d = main.data() || {};
     const names = Object.keys(ARCHIVE_DOCS);
     const toDelete = {};
     for (const n of names) {
       if (!Array.isArray(d[n])) continue; // nothing legacy to move
-      const sub = await db.collection('fleet').doc(n).get();
+      const sub = await fcol().doc(n).get();
       if (!sub.exists || !Array.isArray((sub.data() || {}).items)) {
-        await db.collection('fleet').doc(n).set({ items: d[n] });
+        await fcol().doc(n).set({ items: d[n] });
       }
       toDelete[n] = firebase.firestore.FieldValue.delete();
     }
     if (Object.keys(toDelete).length) {
-      await db.collection('fleet').doc('main').set(toDelete, { merge: true });
+      await fcol().doc('main').set(toDelete, { merge: true });
       console.log('archive migration complete — moved out of main:', Object.keys(toDelete));
       if (typeof toast === 'function') toast('✓ מסד הנתונים אורגן מחדש — שמירות יפעלו כרגיל');
     }
@@ -1374,10 +1374,10 @@ async function saveToFirestore(key, value) {
   try {
     value = stripUndef(value);
     if (ARCHIVE_DOCS[key]) {
-      await db.collection('fleet').doc(key).set({ items: value }, { merge: true });
+      await fcol().doc(key).set({ items: value }, { merge: true });
       mirrorToTenant(key, { items: value });
     } else {
-      await db.collection('fleet').doc('main').set({ [key]: value }, { merge: true });
+      await fcol().doc('main').set({ [key]: value }, { merge: true });
       mirrorToTenant('main', { [key]: value });
     }
   } catch(e) { console.log('Firestore save error', e); }
@@ -1393,7 +1393,7 @@ async function saveVehiclesSafely(editedPlate, dk) {
     return;
   }
   try {
-    const snap = await db.collection('fleet').doc('main').get();
+    const snap = await fcol().doc('main').get();
     let cloud = (snap.data() || {}).vehicles;
     if (!Array.isArray(cloud)) cloud = VEHICLES.slice();
     const edited = VEHICLES.find(v => v.plate === editedPlate);
@@ -1412,10 +1412,10 @@ async function saveVehiclesSafely(editedPlate, dk) {
     localStorage.setItem('fleet_vehicles', JSON.stringify(VEHICLES));
     // drop any undefined values — Firestore rejects them and it surfaces as a
     // generic "save failed" (this was the real cause of vanishing edits)
-    await db.collection('fleet').doc('main').set({ vehicles: stripUndef(cloud) }, { merge: true });
+    await fcol().doc('main').set({ vehicles: stripUndef(cloud) }, { merge: true });
     mirrorToTenant('main', { vehicles: cloud });
     // read back to confirm it actually persisted
-    const verify = await db.collection('fleet').doc('main').get();
+    const verify = await fcol().doc('main').get();
     const saved = (verify.data() || {}).vehicles || [];
     const ok = saved.find(v => v.plate === editedPlate);
     if (ok) toast('✓ נשמר בענן');
@@ -1439,7 +1439,7 @@ async function deleteVehicleRow(plate) {
   if (!confirm(`למחוק את רכב ${plate}${who ? ' — ' + who : ''} מהצי?\n\nהרכב יוסר מהרשימה. ניתן לשחזר מהגיבוי היומי.`)) return;
   if (!auth.currentUser) { toast('⚠ לא מחובר — התחבר מחדש כדי למחוק', true); return; }
   try {
-    const snap = await db.collection('fleet').doc('main').get();
+    const snap = await fcol().doc('main').get();
     let cloud = (snap.data() || {}).vehicles;
     if (!Array.isArray(cloud)) cloud = VEHICLES.slice();
     const next = cloud.filter(x => x.plate !== plate);
@@ -1449,7 +1449,7 @@ async function deleteVehicleRow(plate) {
     const gone = cloud.find(x => x.plate === plate);
     if (gone) {
       try {
-        await db.collection('fleet').doc('trash_' + Date.now()).set({
+        await fcol().doc('trash_' + Date.now()).set({
           type: 'deletedVehicle', deletedAt: new Date().toLocaleString('he-IL'),
           plate: gone.plate, vehicle: stripUndef(gone)
         });
@@ -1457,7 +1457,7 @@ async function deleteVehicleRow(plate) {
     }
     VEHICLES = next;
     localStorage.setItem('fleet_vehicles', JSON.stringify(VEHICLES));
-    await db.collection('fleet').doc('main').set({ vehicles: stripUndef(next) }, { merge: true });
+    await fcol().doc('main').set({ vehicles: stripUndef(next) }, { merge: true });
     mirrorToTenant('main', { vehicles: next });
     rebuildDriversDirectory();
     renderFleet(); renderAlerts(); renderDashboard();
@@ -1471,7 +1471,7 @@ async function deleteVehicleRow(plate) {
 }
 
 function setupRealtimeSync() {
-  db.collection('fleet').doc('main').onSnapshot(snap => {
+  fcol().doc('main').onSnapshot(snap => {
     if (!_firestoreLoaded) return;
     if (!snap.exists) return;
     const d = snap.data();
@@ -1494,7 +1494,7 @@ function setupRealtimeSync() {
   });
   // dedicated listeners for the archive docs (kept out of main to stay under 1 MiB)
   const watchArchive = (name, assign, render) =>
-    db.collection('fleet').doc(name).onSnapshot(snap => {
+    fcol().doc(name).onSnapshot(snap => {
       if (!_firestoreLoaded || !snap.exists) return;
       const items = (snap.data() || {}).items;
       if (Array.isArray(items)) { assign(items); if (typeof render === 'function') render(); }
@@ -1764,7 +1764,7 @@ async function loadMonthlyMileage(active, cleanName, bars) {
   const wrap = document.getElementById('dash-mileage');
   wrap.innerHTML = '<div class="empty-note">טוען...</div>';
   try {
-    const snap = await db.collection('fleet').where('type','==','kmreport').get();
+    const snap = await fcol().where('type','==','kmreport').get();
     const byPlate = {};
     snap.docs.forEach(d => {
       const r = d.data();
@@ -2215,7 +2215,7 @@ async function loadKmRound() {
   document.getElementById('kmround-title').textContent = `🛣️ סבב עדכון ק"מ — ${kmMonthName()}`;
   document.getElementById('kmround-sent-btn').style.display = KMROUND[kmMonthKey()] ? 'none' : '';
   try {
-    const snap = await db.collection('fleet').where('type','==','kmreport').get();
+    const snap = await fcol().where('type','==','kmreport').get();
     const mk = kmMonthKey();
     const reports = snap.docs.map(d => d.data()).filter(r => r.monthKey === mk);
     const reportedPlates = new Set(reports.map(r => (r.plate||'').replace(/\D/g,'')));
@@ -2261,11 +2261,11 @@ async function maybeSendKmReminder() {
   const mk = kmMonthKey();
   if (new Date().getDate() > 7 || KMROUND[mk]) return;
   try {
-    const snap = await db.collection('fleet').doc('main').get();
+    const snap = await fcol().doc('main').get();
     const rem = (snap.data()||{}).kmRemind || {};
     if (rem[mk]) return;
     rem[mk] = Date.now();
-    await db.collection('fleet').doc('main').set({ kmRemind: rem }, { merge: true });
+    await fcol().doc('main').set({ kmRemind: rem }, { merge: true });
     mirrorToTenant('main', { kmRemind: rem });
     if (MAIL_SETTINGS.gasUrl) {
       await fetch(MAIL_SETTINGS.gasUrl, { method:'POST', mode:'no-cors', headers:{'Content-Type':'text/plain'},
@@ -2332,7 +2332,7 @@ async function cancelInspBooking(plate) {
   if (!confirm(`לבטל את מועד הביקורת שנקבע${when ? ' ל-' + when : ''} עבור רכב ${plate}?\n\nהמועד יוסר. תוכל/י לשלוח לנהג/ת תזכורת חדשה.`)) return;
   if (!auth.currentUser) { toast('⚠ לא מחובר — התחבר מחדש', true); return; }
   try {
-    const snap = await db.collection('fleet').doc('main').get();
+    const snap = await fcol().doc('main').get();
     let cloud = (snap.data() || {}).vehicles;
     if (!Array.isArray(cloud)) cloud = VEHICLES.slice();
     const cv = cloud.find(x => x.plate === plate);
@@ -2340,11 +2340,11 @@ async function cancelInspBooking(plate) {
     if (v) delete v.inspectionScheduled;
     VEHICLES = cloud;
     localStorage.setItem('fleet_vehicles', JSON.stringify(VEHICLES));
-    await db.collection('fleet').doc('main').set({ vehicles: stripUndef(cloud) }, { merge: true });
+    await fcol().doc('main').set({ vehicles: stripUndef(cloud) }, { merge: true });
     mirrorToTenant('main', { vehicles: cloud });
     // mark the booking docs for this plate applied, so they aren't re-applied on next load
     try {
-      const q = await db.collection('fleet').where('applyBooking', '==', true).get();
+      const q = await fcol().where('applyBooking', '==', true).get();
       const pd = String(plate).replace(/\D/g, '');
       for (const doc of q.docs) {
         const r = doc.data();
@@ -2433,7 +2433,7 @@ async function openRestoreDeleted() {
   modal.classList.add('open');
   body.innerHTML = '<div style="padding:10px;color:var(--muted);font-size:0.85rem">טוען גיבויים...</div>';
   try {
-    const snap = await db.collection('fleet')
+    const snap = await fcol()
       .orderBy(firebase.firestore.FieldPath.documentId())
       .startAt('backup_').endAt('backup_').get();
     const backups = snap.docs.map(d => ({ id: d.id, ...d.data() }))
@@ -2445,7 +2445,7 @@ async function openRestoreDeleted() {
     // Trash first — an explicit delete is the most likely thing being restored,
     // and it covers vehicles that never made it into a daily backup.
     try {
-      const tsnap = await db.collection('fleet')
+      const tsnap = await fcol()
         .orderBy(firebase.firestore.FieldPath.documentId())
         .startAt('trash_').endAt('trash_'+'').get();
       const trashed = tsnap.docs.map(d => d.data()).sort((a, b) => (b.deletedAt || '').localeCompare(a.deletedAt || ''));
@@ -2486,7 +2486,7 @@ async function restoreVehicle(i) {
   if (!m) return;
   if (!auth.currentUser) { toast('⚠ לא מחובר — התחבר מחדש', true); return; }
   try {
-    const snap = await db.collection('fleet').doc('main').get();
+    const snap = await fcol().doc('main').get();
     let cloud = (snap.data() || {}).vehicles;
     if (!Array.isArray(cloud)) cloud = VEHICLES.slice();
     const pd = String(m.v.plate || '').replace(/\D/g, '');
@@ -2494,7 +2494,7 @@ async function restoreVehicle(i) {
     cloud.unshift(m.v);
     VEHICLES = cloud;
     localStorage.setItem('fleet_vehicles', JSON.stringify(VEHICLES));
-    await db.collection('fleet').doc('main').set({ vehicles: stripUndef(cloud) }, { merge: true });
+    await fcol().doc('main').set({ vehicles: stripUndef(cloud) }, { merge: true });
     mirrorToTenant('main', { vehicles: cloud });
     rebuildDriversDirectory();
     renderFleet(); renderAlerts(); renderDashboard();
@@ -2513,7 +2513,7 @@ async function loadVehicleDocs() {
   const wrap = document.getElementById('vdocs-panel');
   if (!wrap) return;
   try {
-    const snap = await db.collection('fleet').where('type','==','vehicledocs').get();
+    const snap = await fcol().where('type','==','vehicledocs').get();
     const list = snap.docs.map(d => ({ _docId: d.id, ...d.data() }))
       .filter(r => !r.applied).sort((a,b) => (b.created||0)-(a.created||0));
     const cnt = document.getElementById('vdocs-count');
@@ -2575,7 +2575,7 @@ async function applyVehicleDocDates() {
   if (ins) v.insuranceExpiry = ins;
   if (reg) v.registrationExpiry = reg;
   await saveVehiclesSafely(v.plate, driverKey(v.driverName));
-  try { await db.collection('fleet').doc(r._docId).set({ applied:true }, { merge:true }); } catch(e) {}
+  try { await fcol().doc(r._docId).set({ applied:true }, { merge:true }); } catch(e) {}
   document.getElementById('vdoc-modal').classList.remove('open');
   renderFleet(); renderAlerts();
   loadVehicleDocs();
@@ -2584,7 +2584,7 @@ async function applyVehicleDocDates() {
 async function dismissVehicleDoc() {
   const r = window._VDOC_CUR;
   if (!r) return;
-  try { await db.collection('fleet').doc(r._docId).set({ applied:true }, { merge:true }); } catch(e) {}
+  try { await fcol().doc(r._docId).set({ applied:true }, { merge:true }); } catch(e) {}
   document.getElementById('vdoc-modal').classList.remove('open');
   loadVehicleDocs();
 }
@@ -2594,7 +2594,7 @@ async function loadDeclarations() {
   if (!wrap) return;
   wrap.innerHTML = '<div style="color:var(--muted);font-size:0.8rem;padding:8px">טוען...</div>';
   try {
-    const snap = await db.collection('fleet').where('type','==','declaration').get();
+    const snap = await fcol().where('type','==','declaration').get();
     const list = snap.docs.map(d => ({ _docId: d.id, ...d.data() })).sort((a,b) => (b.created||0)-(a.created||0));
     document.getElementById('decl-count').textContent = list.length;
     if (!list.length) { wrap.innerHTML = '<div style="color:var(--muted);font-size:0.8rem;padding:8px">עוד לא התקבלו הצהרות</div>'; return; }
@@ -2669,7 +2669,7 @@ async function deleteDeclaration(i) {
   if (!r) return;
   if (!confirm(`למחוק את ההצהרה של ${r.name||''} (רכב ${r.plate||''})?`)) return;
   try {
-    await db.collection('fleet').doc(r._docId).delete();
+    await fcol().doc(r._docId).delete();
     toast('ההצהרה נמחקה ✓');
     loadDeclarations();
   } catch(e) { toast('שגיאה במחיקה', true); }
@@ -2679,7 +2679,7 @@ async function loadInspectionHistory() {
   const wrap = document.getElementById('insp-history');
   wrap.innerHTML = '<div style="color:var(--muted);font-size:0.8rem;padding:8px">טוען...</div>';
   try {
-    const snap = await db.collection('fleet').where('type','==','inspection').get();
+    const snap = await fcol().where('type','==','inspection').get();
     const list = snap.docs.map(d => ({ _docId: d.id, ...d.data() })).sort((a,b) => (b.created||0)-(a.created||0));
     document.getElementById('insp-count').textContent = list.length;
     if (!list.length) { wrap.innerHTML = '<div style="color:var(--muted);font-size:0.8rem;padding:8px">עוד לא בוצעו ביקורות דיגיטליות</div>'; return; }
@@ -2905,7 +2905,7 @@ async function submitInspection() {
   };
   try {
     // 1. save the inspection to the cloud (own doc — synced everywhere)
-    await db.collection('fleet').doc('insp_' + rec.created).set(rec);
+    await fcol().doc('insp_' + rec.created).set(rec);
     // 2. update the vehicle file: inspection date + current km
     const v = VEHICLES.find(x => x.plate === plate);
     if (v) {
@@ -2979,7 +2979,7 @@ async function deleteInspection(i) {
   if (!r) return;
   if (!confirm(`למחוק את הביקורת של רכב ${r.plate} מתאריך ${r.dateStr||''}?`)) return;
   try {
-    await db.collection('fleet').doc(r._docId).delete();
+    await fcol().doc(r._docId).delete();
     toast('הביקורת נמחקה ✓');
     loadInspectionHistory();
   } catch(e) { toast('שגיאה במחיקה', true); }
@@ -3368,6 +3368,9 @@ let TENANT = 'nofar';                 // resolved from users/{uid}; default keep
 let ROLE = 'manager';
 let COMPANY_NAME = 'נופר אנרגיה';
 const TENANT_DATA = () => db.collection('tenants').doc(TENANT).collection('data');
+// Stage-2 cutover switch. OFF = legacy fleet/* (unchanged). ON = per-tenant isolation.
+let USE_TENANT = false;
+function fcol() { return USE_TENANT ? TENANT_DATA() : db.collection('fleet'); }
 async function resolveTenant(user) {
   try {
     console.log('logged-in uid:', user.uid); // needed once to create the users/{uid} mapping doc
@@ -4338,7 +4341,7 @@ async function replaceVehicleAction(param) {
     localStorage.setItem('fleet_vehicles_version', VEHICLES_VERSION);
     localStorage.setItem('fleet_returns', JSON.stringify(RETURNS));
   } catch(e){}
-  try { await db.collection('fleet').doc('main').set({ vehicles: VEHICLES, drivers: DRIVERS }, { merge: true }); mirrorToTenant('main', { vehicles: VEHICLES, drivers: DRIVERS }); } catch(e) { console.log('Firestore save error', e); }
+  try { await fcol().doc('main').set({ vehicles: VEHICLES, drivers: DRIVERS }, { merge: true }); mirrorToTenant('main', { vehicles: VEHICLES, drivers: DRIVERS }); } catch(e) { console.log('Firestore save error', e); }
   saveToFirestore('returns', RETURNS); // returns live in their own doc now
   renderFleet(); renderDashboard(); renderAlerts();
   if (typeof renderReturns === 'function') renderReturns();
