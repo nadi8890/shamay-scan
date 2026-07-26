@@ -1504,7 +1504,8 @@ function setupRealtimeSync() {
     if (typeof d.officerSignature === 'string') { window.OFFICER_SIGNATURE = d.officerSignature; }
     if (changed) rebuildDriversDirectory();
     if (changed && typeof renderFleet === 'function') { renderFleet(); renderAlerts(); }
-    if (changed) refreshDashboardIfOpen(); // keep the dashboard live when it's the visible tab
+    if (changed && typeof renderDashboard === 'function') renderDashboard(); // fleet-tab stat boxes
+    if (changed) refreshDashboardIfOpen(); // the 📊 dashboard tab, when it's visible
     if (changed && typeof checkServiceOverages === 'function') checkServiceOverages();
   });
   // dedicated listeners for the archive docs (kept out of main to stay under 1 MiB).
@@ -1516,6 +1517,7 @@ function setupRealtimeSync() {
       if (Array.isArray(items)) {
         assign(items);
         if (typeof render === 'function') render();
+        if (typeof renderDashboard === 'function') renderDashboard();
         refreshDashboardIfOpen();
       }
     });
