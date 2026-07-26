@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>נופר אנרגיה — קביעת מועד לביקורת בטיחות</title>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;600;700;900&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Heebo',sans-serif;background:#f0f4f8;color:#1e293b;padding:16px;max-width:480px;margin:0 auto}
+.hdr{background:linear-gradient(135deg,#1e3a8a,#2563eb);color:#fff;border-radius:14px;padding:18px;text-align:center;margin-bottom:16px}
+.hdr h1{font-size:1.15rem;font-weight:900}
+.hdr .sub{font-size:0.78rem;opacity:.9;margin-top:4px}
+.card{background:#fff;border:1.5px solid #dde3ed;border-radius:14px;padding:16px;margin-bottom:14px;box-shadow:0 1px 5px rgba(0,0,0,.05)}
+.veh{background:#eff6ff;border:1.5px solid #bfdbfe;border-radius:10px;padding:12px;font-size:0.9rem;margin-bottom:12px}
+.intro{font-size:0.86rem;line-height:1.6;color:#334155;margin-bottom:12px}
+.days{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.day{border:1.5px solid #dde3ed;border-radius:11px;padding:11px 8px;text-align:center;cursor:pointer;background:#fff;font-family:'Heebo',sans-serif;transition:.12s}
+.day .dow{font-size:0.72rem;color:#64748b}
+.day .dt{font-size:1rem;font-weight:800;margin-top:2px;direction:ltr}
+.day.sel{background:#2563eb;border-color:#2563eb;color:#fff}
+.day.sel .dow{color:#dbeafe}
+.day.sat{opacity:.45;pointer-events:none}
+.day.sat .dow::after{content:' (שבת)'}
+.btn{border:none;border-radius:11px;padding:14px;font-family:'Heebo',sans-serif;font-size:1rem;font-weight:800;cursor:pointer;width:100%;background:#059669;color:#fff;margin-top:14px}
+.btn:disabled{opacity:.5}
+.err{color:#dc2626;font-size:0.82rem;font-weight:700;margin-top:8px;display:none}
+#result{display:none;text-align:center;padding:26px 12px}
+#result .big{font-size:3rem}
+.contact{font-size:0.78rem;color:#64748b;text-align:center;margin-top:10px}
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <h1>🛡️ קביעת מועד לביקורת בטיחות</h1>
+  <div class="sub">נופר אנרגיה — מחלקת הרכב</div>
+</div>
+
+<div id="loading" class="card" style="text-align:center;color:#64748b">טוען...</div>
+
+<div id="main" style="display:none">
+  <div class="veh" id="veh-info"></div>
+  <div class="card">
+    <div class="intro" id="intro"></div>
+    <div style="font-weight:700;font-size:0.88rem;margin-bottom:8px">בחר/י מועד נוח בטווח השבועיים הקרובים:</div>
+    <div class="days" id="days"></div>
+    <div class="err" id="err"></div>
+    <button class="btn" id="send-btn" disabled onclick="submitBooking()">📅 קבע/י מועד</button>
+    <div class="contact">לתיאום או שינוי — קצין הרכב: 054-2840258</div>
+  </div>
+</div>
+
+<div id="result">
+  <div class="big">✅</div>
+  <h2 style="margin:10px 0 6px">המועד נקבע — תודה!</h2>
+  <div id="result-txt" style="font-size:0.95rem;color:#334155"></div>
+  <div class="contact">קצין הבטיחות יאשר את המועד. לשינוי — 054-2840258</div>
+</div>
+
+<script>
+firebase.initializeApp({
+  apiKey: "AIzaSyDW6mzShTVBgHH-c5f0hb7FvIRophpgp78",
+  authDomain: "niholrechev.firebaseapp.com",
+  projectId: "niholrechev",
+  storageBucket: "niholrechev.firebasestorage.app",
+  messagingSenderId: "347809967171",
+  appId: "1:347809967171:web:af3eb5cdeefc827b41f8f6"
+});
+const db = firebase.firestore();
+async function ensureAnonAuth() {
+  try { if (!firebase.auth().currentUser) await firebase.auth().signInAnonymously(); }
+  catch(e) { console.log('anon auth unavailable, continuing', e.code || e.message); }
+}
+
+const params = new URLSearchParams(location.search);
+const PLATE = (params.get('plate') || '').replace(/\D/g,'');
+const DAYS_HE = ['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'];
+let VEH = null, chosen = null;
+
+// window start: the "sent" date from the link, else today. Two-week window.
+function windowStart() {
+  const s = params.get('sent');
+  const d = s ? new Date(s + 'T00:00:00') : new Date();
+  return isNaN(d) ? new Date() : d;
+}
+
+(async function init() {
+  await ensureAnonAuth();
+  try {
+    const snap = await db.collection('fleet').doc('main').get();
+    const d = snap.data() || {};
+    VEH = (d.vehicles || []).find(v => (v.plate||'').replace(/\D/g,'') === PLATE);
+  } catch(e) {}
+  document.getElementById('loading').style.display = 'none';
+  document.getElementById('main').style.display = 'block';
+  const nm = VEH ? (VEH.driverName||'').split('-')[0].trim() : '';
+  document.getElementById('veh-info').innerHTML = VEH
+    ? `👤 <b>${nm||'נהג/ת'}</b><br>🚗 ${VEH.make||''} ${VEH.model||''} | <span dir="ltr">${VEH.plate}</span>`
+    : (PLATE ? `🚗 רכב <span dir="ltr">${PLATE}</span>` : '🚗 קביעת מועד לביקורת');
+  document.getElementById('intro').innerHTML =
+    'ביקורת בטיחות תקופתית לרכב מתקרבת. על מנת לשמור על תקינות הרכב ועמידה בדרישות החוק, נא לקבוע מועד נוח לביצוע הביקורת מול קצין הבטיחות.';
+  renderDays();
+})();
+
+function renderDays() {
+  const start = windowStart();
+  const wrap = document.getElementById('days');
+  let html = '';
+  for (let i = 0; i < 14; i++) {
+    const d = new Date(start); d.setDate(start.getDate() + i);
+    const dow = d.getDay();
+    const p2 = n => String(n).padStart(2,'0');
+    const val = `${p2(d.getDate())}/${p2(d.getMonth()+1)}/${d.getFullYear()}`;
+    const sat = dow === 6; // Saturday — not offered
+    html += `<button class="day${sat?' sat':''}" ${sat?'':`onclick="pickDay(this,'${val}')"`}>
+      <div class="dow">יום ${DAYS_HE[dow]}</div>
+      <div class="dt">${p2(d.getDate())}/${p2(d.getMonth()+1)}</div>
+    </button>`;
+  }
+  wrap.innerHTML = html;
+}
+function pickDay(el, val) {
+  document.querySelectorAll('.day').forEach(d => d.classList.remove('sel'));
+  el.classList.add('sel');
+  chosen = val;
+  document.getElementById('send-btn').disabled = false;
+}
+
+async function submitBooking() {
+  const err = document.getElementById('err');
+  err.style.display = 'none';
+  if (!chosen) { err.textContent = 'נא לבחור מועד'; err.style.display = 'block'; return; }
+  const btn = document.getElementById('send-btn');
+  btn.disabled = true; btn.textContent = 'שולח...';
+  const now = new Date();
+  try {
+    await db.collection('fleet').doc('inspbook_' + Date.now()).set({
+      type: 'inspbooking', created: Date.now(),
+      plate: (VEH && VEH.plate) || PLATE,
+      driver: VEH ? (VEH.driverName||'').split('-')[0].trim() : '',
+      bookedDate: chosen,
+      sentAt: params.get('sent') || '',
+      submittedAt: now.toLocaleString('he-IL'),
+      applyBooking: true, applied: false
+    });
+    document.getElementById('main').style.display = 'none';
+    document.getElementById('result-txt').innerHTML = `נקבע מועד ביקורת ל-<b>${chosen}</b>`;
+    document.getElementById('result').style.display = 'block';
+    window.scrollTo(0, 0);
+  } catch(e) {
+    btn.disabled = false; btn.textContent = '📅 קבע/י מועד';
+    err.textContent = 'שגיאה בשליחה — בדוק/י חיבור לאינטרנט ונסה/י שוב';
+    err.style.display = 'block';
+  }
+}
+</script>
+</body>
+</html>
