@@ -1954,7 +1954,7 @@ function renderFleet() {
       ${isTrailer
         ? `<td><span class="badge badge-gray">—</span></td>`
         : `<td class="${yc(v.nextServiceKm)}">${kmStatus(v.currentKm, v.nextServiceKm)}<br><span style="color:var(--muted);font-size:0.63rem">${esc(v.nextServiceKm)||'—'} ק"מ</span></td>`}
-      <td class="${yc(v.inspection, cellCls(inspDays))}">${statusBadge(inspDays)}<br><span style="color:var(--muted);font-size:0.63rem">הבאה: ${nextInspectionStr(v)||'—'}</span><br><span style="color:var(--muted);font-size:0.58rem">אחרונה: ${esc(v.inspection)||'—'}</span>${v.inspectionScheduled ? `<br><span class="badge" style="background:#dbeafe;color:#1e40af;font-size:0.57rem;padding:1px 5px">📅 נקבע: ${esc(v.inspectionScheduled)}</span>` : ''}</td>
+      <td class="${yc(v.inspection, cellCls(inspDays))}">${statusBadge(inspDays)}<br><span style="color:var(--muted);font-size:0.63rem">הבאה: ${nextInspectionStr(v)||'—'}</span><br><span style="color:var(--muted);font-size:0.58rem">אחרונה: ${esc(v.inspection)||'—'}</span>${v.inspectionScheduled ? `<br><span class="badge" style="background:#dbeafe;color:#1e40af;font-size:0.57rem;padding:1px 5px;cursor:pointer" title="לחץ לביטול המועד" onclick="cancelInspBooking('${esc(v.plate)}')">📅 נקבע: ${esc(v.inspectionScheduled)} ✕</span>` : ''}</td>
       <td class="${isTrailer?'':yc(v.trafficRecord, cellCls(daysUntil(dateAddYears(v.trafficRecord,3))))}">${statusBadge(daysUntil(dateAddYears(v.trafficRecord,3)))}<br><span style="color:var(--muted);font-size:0.63rem">בוצע: ${esc(v.trafficRecord)||'—'}</span><br><span style="color:var(--muted);font-size:0.58rem">תוקף: ${dateAddYears(v.trafficRecord,3)||'—'}</span></td>
       ${(() => {
         const drv = (v.driverName||'').trim();
@@ -2324,6 +2324,41 @@ function sendDeclAll() {
 }
 // Gendered safety-inspection reminder + a link where the driver books a slot within
 // the next two weeks. Sent from the Alerts tab, per inspection alert.
+// Cancel a driver-booked inspection slot. Clears the scheduled date on the vehicle
+// (safe read-modify-write) so the row shows the reminder button again.
+async function cancelInspBooking(plate) {
+  const v = VEHICLES.find(x => x.plate === plate);
+  const when = v ? v.inspectionScheduled : '';
+  if (!confirm(`לבטל את מועד הביקורת שנקבע${when ? ' ל-' + when : ''} עבור רכב ${plate}?\n\nהמועד יוסר. תוכל/י לשלוח לנהג/ת תזכורת חדשה.`)) return;
+  if (!auth.currentUser) { toast('⚠ לא מחובר — התחבר מחדש', true); return; }
+  try {
+    const snap = await db.collection('fleet').doc('main').get();
+    let cloud = (snap.data() || {}).vehicles;
+    if (!Array.isArray(cloud)) cloud = VEHICLES.slice();
+    const cv = cloud.find(x => x.plate === plate);
+    if (cv) delete cv.inspectionScheduled;
+    if (v) delete v.inspectionScheduled;
+    VEHICLES = cloud;
+    localStorage.setItem('fleet_vehicles', JSON.stringify(VEHICLES));
+    await db.collection('fleet').doc('main').set({ vehicles: stripUndef(cloud) }, { merge: true });
+    mirrorToTenant('main', { vehicles: cloud });
+    // mark the booking docs for this plate applied, so they aren't re-applied on next load
+    try {
+      const q = await db.collection('fleet').where('applyBooking', '==', true).get();
+      const pd = String(plate).replace(/\D/g, '');
+      for (const doc of q.docs) {
+        const r = doc.data();
+        if (String(r.plate || '').replace(/\D/g, '') === pd && !r.applied) {
+          await doc.ref.set({ applied: true, cancelled: true }, { merge: true });
+        }
+      }
+    } catch(e) { console.log('booking mark-cancelled skipped', e.code || e.message); }
+    renderAlerts(); renderFleet();
+    toast(`מועד הביקורת של רכב ${plate} בוטל`);
+  } catch(e) {
+    toast('⚠ הביטול נכשל: ' + (e.code || e.message), true);
+  }
+}
 function sendInspReminderPlate(plate) {
   const v = VEHICLES.find(x => x.plate === plate);
   const name = v ? (v.driverName || '').split('-')[0].trim() : '';
@@ -3077,7 +3112,8 @@ function renderAlerts() {
     const scheduled = gVeh && gVeh.inspectionScheduled;
     const inspBtns = hasInsp ? `<div style="margin-top:5px">
         ${scheduled
-          ? `<div class="badge" style="background:#dcfce7;color:#166534;border:1px solid #86efac;font-size:0.68rem;padding:3px 8px">📅 הנהג/ת קבע/ה מועד: <b>${esc(scheduled)}</b></div>`
+          ? `<span class="badge" style="background:#dcfce7;color:#166534;border:1px solid #86efac;font-size:0.68rem;padding:3px 8px">📅 הנהג/ת קבע/ה מועד: <b>${esc(scheduled)}</b></span>
+             <button class="btn" style="padding:2px 7px;font-size:0.64rem;background:#fee2e2;color:#b91c1c;margin-right:4px" title="ביטול המועד שנקבע" onclick="cancelInspBooking('${esc(g.plate)}')">✕ בטל מועד</button>`
           : `<button class="btn btn-green" style="padding:3px 9px;font-size:0.68rem" title="שלח לנהג/ת תזכורת לקביעת מועד ביקורת" onclick="sendInspReminderPlate('${esc(g.plate)}')">🛡️ תזכורת ביקורת</button>`}
       </div>` : '';
     return `<tr class="${cls}">
