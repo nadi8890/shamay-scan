@@ -3383,25 +3383,32 @@ async function resolveTenant(user) {
     }
   } catch(e) { console.log('tenant resolve error — defaulting to nofar', e); }
 }
-// Non-destructive: copy the core docs into the tenant namespace. Safe to re-run;
-// retries next load if the rules don't permit it yet.
+// Non-destructive FULL copy of every legacy fleet doc into the tenant namespace
+// (main, archives, declarations, inspections, km reports, bookings, backups, trash…),
+// so after the cutover nothing is missing. Reads legacy, writes tenant; never deletes.
+// Runs once (guarded by _meta.fullCopy); retries next load on transient failure.
 let _tenantCopyDone = false;
 async function copyToTenant() {
   if (_tenantCopyDone || !auth.currentUser) return;
   _tenantCopyDone = true;
   try {
-    if ((await TENANT_DATA().doc('_meta').get()).exists) return; // already mirrored
-    const ids = ['main', 'incidents', 'violations', 'replacements', 'returns'];
-    for (const id of ids) {
-      const src = await db.collection('fleet').doc(id).get();
-      if (src.exists) await TENANT_DATA().doc(id).set(src.data());
+    const meta = await TENANT_DATA().doc('_meta').get();
+    if (meta.exists && (meta.data() || {}).fullCopy) return; // full copy already done
+    const all = await db.collection('fleet').get(); // legacy source (stays legacy)
+    let count = 0, batch = db.batch(), inBatch = 0;
+    for (const doc of all.docs) {
+      if (doc.id === '_meta') continue;
+      batch.set(TENANT_DATA().doc(doc.id), doc.data());
+      count++; inBatch++;
+      if (inBatch >= 400) { await batch.commit(); batch = db.batch(); inBatch = 0; }
     }
-    await TENANT_DATA().doc('_meta').set({ copiedAt: new Date().toISOString(), from: 'fleet', tenant: TENANT });
-    console.log('tenant mirror complete for', TENANT);
-    if (typeof toast === 'function') toast('✓ נתוני החברה שוכפלו למרחב מבודד (שלב 1)');
+    if (inBatch > 0) await batch.commit();
+    await TENANT_DATA().doc('_meta').set({ copiedAt: new Date().toISOString(), from: 'fleet', tenant: TENANT, fullCopy: true, docCount: count }, { merge: true });
+    console.log('full tenant copy complete:', count, 'docs');
+    if (typeof toast === 'function') toast(`✓ ${count} מסמכים שוכפלו למרחב המבודד`);
   } catch(e) {
-    _tenantCopyDone = false; // allow retry once the console rules are in place
-    console.log('tenant copy deferred (rules may need updating):', e.code || e.message);
+    _tenantCopyDone = false; // allow retry next load
+    console.log('tenant copy deferred:', e.code || e.message);
   }
 }
 function startHeaderClock() {
