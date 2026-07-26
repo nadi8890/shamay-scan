@@ -324,7 +324,7 @@ function openForm(key) {
   document.getElementById('menu').style.display = 'none';
   document.getElementById('done').style.display = 'none';
   document.getElementById('form-wrap').style.display = 'block';
-  document.querySelectorAll('.only-procedures,.only-family,.only-traffic,.only-accident').forEach(el => el.style.display = 'none');
+  document.querySelectorAll('.only-procedures,.only-family,.only-traffic,.only-testdrive,.only-accident').forEach(el => el.style.display = 'none');
   document.querySelectorAll('.' + FORMS[key].cls).forEach(el => el.style.display = '');
   // attachments: each form starts clean and explains what to attach
   licPhotos = []; docPhotos = []; docPhotosSmall = [];
