@@ -75,6 +75,11 @@ canvas.sig{width:100%;height:130px;border:1.5px dashed #94a3b8;border-radius:10p
     <div><div class="tt">אישור בדיקת עבר תעבורתי</div><div class="dd">הסכמה לבדיקת רישיון הנהיגה לפי תקנה 585א</div></div>
     <span class="done" id="done-traffic">✓ נשלח</span>
   </div>
+  <div class="menu-card" onclick="openForm('testdrive')">
+    <span class="ic">🚙</span>
+    <div><div class="tt">מבחן נהיגה מעשי (נסיעת מבחן)</div><div class="dd">הדרכת תפעול הרכב לפי תקנה 25 — נחתם מול קצין הבטיחות</div></div>
+    <span class="done" id="done-testdrive">✓ נשלח</span>
+  </div>
 </div>
 
 <!-- ═════ form wrap ═════ -->
@@ -287,7 +292,7 @@ const FORMS = {
   procedures: { title: 'נהלים ואחריות אישית', doc: 'טפסי נהלים ואחריות — הצהרות מחזיק רכב', agrees: ['agree-holder','agree-viol'], secs: [['sec-holder','הצהרה והתחייבות מחזיק/ה ברכב'],['sec-viol','אחריות אישית בגין עבירות']], cls: 'only-procedures', updatesProcedures: true, photos: true, photoHint: 'צרף/י צילום רישיון נהיגה שלך, וגם של בן/בת זוג או בן משפחה שנוהגים ברכב (אפשר כמה תמונות)' },
   family:     { title: 'הצהרת שימוש בני משפחה', doc: 'הצהרה בדבר שימוש בני משפחה ברכב', agrees: ['agree-family'], secs: [['sec-family','הצהרה בדבר שימוש בני משפחה ברכב']], cls: 'only-family', extraDriver: true, photos: true, photoHint: 'צרף/י צילום רישיון נהיגה של בן/בת המשפחה שנוהג/ת ברכב (אפשר כמה תמונות)' },
   traffic:    { title: 'אישור בדיקת עבר תעבורתי', doc: 'אישור בדיקת רישיון נהיגה — מידע תעבורתי (תקנה 585א)', agrees: ['agree-traffic'], secs: [['sec-traffic','אישור בדיקת רישיון נהיגה — מידע תעבורתי (תקנה 585א)']], cls: 'only-traffic' },
-  testdrive:  { title: 'מבחן נהיגה מעשי', doc: 'מבחן נהיגה מעשי — הדרכת תפעול רכב (תקנה 25)', agrees: ['agree-testdrive'], secs: [['sec-testdrive','מבחן נהיגה מעשי']], cls: 'only-testdrive', officerSig: true, hideFromMenu: true },
+  testdrive:  { title: 'מבחן נהיגה מעשי', doc: 'מבחן נהיגה מעשי — הדרכת תפעול רכב (תקנה 25)', agrees: ['agree-testdrive'], secs: [['sec-testdrive','מבחן נהיגה מעשי']], cls: 'only-testdrive', officerSig: true },
   accident:   { title: 'תחקיר תאונת דרכים', doc: 'תחקיר תאונת דרכים — קצין בטיחות בתעבורה', agrees: [], secs: [], cls: 'only-accident', isAccident: true, hideFromMenu: true }
 };
 
