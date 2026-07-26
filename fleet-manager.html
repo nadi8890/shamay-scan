@@ -3073,8 +3073,12 @@ function renderAlerts() {
   document.getElementById('alerts-tab-body').innerHTML = groups.map(g => {
     const cls = worstCls(g.alerts);
     const hasInsp = g.alerts.some(a => String(a.type || '').includes('ביקורת'));
+    const gVeh = VEHICLES.find(x => x.plate === g.plate);
+    const scheduled = gVeh && gVeh.inspectionScheduled;
     const inspBtns = hasInsp ? `<div style="margin-top:5px">
-        <button class="btn btn-green" style="padding:3px 9px;font-size:0.68rem" title="שלח לנהג/ת תזכורת לקביעת מועד ביקורת" onclick="sendInspReminderPlate('${esc(g.plate)}')">🛡️ תזכורת ביקורת</button>
+        ${scheduled
+          ? `<div class="badge" style="background:#dcfce7;color:#166534;border:1px solid #86efac;font-size:0.68rem;padding:3px 8px">📅 הנהג/ת קבע/ה מועד: <b>${esc(scheduled)}</b></div>`
+          : `<button class="btn btn-green" style="padding:3px 9px;font-size:0.68rem" title="שלח לנהג/ת תזכורת לקביעת מועד ביקורת" onclick="sendInspReminderPlate('${esc(g.plate)}')">🛡️ תזכורת ביקורת</button>`}
       </div>` : '';
     return `<tr class="${cls}">
       <td style="font-weight:700;color:var(--accent);direction:ltr;font-size:0.85rem;white-space:nowrap">${esc(g.plate)}</td>
