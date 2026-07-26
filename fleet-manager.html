@@ -3490,7 +3490,8 @@ function bootApp() {
     renderFleet();
     setupRealtimeSync();
     copyToTenant(); // Stage 1: mirror data into the isolated tenant namespace
-    notifyNewDeclarations(); // email the manager about any driver forms not yet notified
+    // notifyNewDeclarations() removed — the driver's own email (with the PDF) works again,
+    // so the manager-side fallback was sending a duplicate (fileless) email.
   });
   renderIncidents();
   renderViolations();
