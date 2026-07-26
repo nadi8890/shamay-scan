@@ -2591,6 +2591,33 @@ async function dismissVehicleDoc() {
   loadVehicleDocs();
 }
 
+// Reliable safety net: email the manager about newly-received driver forms, from the
+// manager's own mail channel (the driver's own email is best-effort and can silently
+// fail). Seeds silently on first run — only forms from the last few days email — then
+// catches every new form once. Marks each doc _managerNotified so it never repeats.
+let _declNotifyRan = false;
+async function notifyNewDeclarations() {
+  if (_declNotifyRan || !auth.currentUser) return;
+  _declNotifyRan = true;
+  try {
+    const snap = await fcol().where('type', '==', 'declaration').get();
+    const RECENT = 4 * 86400 * 1000, now = Date.now();
+    for (const doc of snap.docs) {
+      const r = doc.data();
+      if (r._managerNotified) continue;
+      if (r.created && (now - r.created) < RECENT && MAIL_SETTINGS.gasUrl) {
+        const title = (r.formType && DECL_FORM_META[r.formType]) ? DECL_FORM_META[r.formType].label : 'טפסי קבלת רכב';
+        try {
+          await fetch(MAIL_SETTINGS.gasUrl, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain' },
+            body: JSON.stringify({ subject: `📋 טופס נהג התקבל — ${r.name || ''} (${r.plate || ''}) · ${title}`,
+              body: buildDeclText(r) + '\n\n(התראה אוטומטית ממערכת ר.מזור — הטופס המלא זמין בלשונית "טפסים")', files: [] }) });
+        } catch(e) {}
+      }
+      try { await doc.ref.set({ _managerNotified: true }, { merge: true }); } catch(e) {}
+    }
+  } catch(e) { console.log('decl notify error', e); }
+}
+
 async function loadDeclarations() {
   const wrap = document.getElementById('decl-history');
   if (!wrap) return;
@@ -3443,6 +3470,7 @@ function bootApp() {
     renderFleet();
     setupRealtimeSync();
     copyToTenant(); // Stage 1: mirror data into the isolated tenant namespace
+    notifyNewDeclarations(); // email the manager about any driver forms not yet notified
   });
   renderIncidents();
   renderViolations();
