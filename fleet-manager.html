@@ -288,7 +288,7 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
 </header>
 
 <!-- ══════════════ TAB: FLEET ══════════════ -->
-<div class="tab-content" id="tab-fleet">
+<div class="tab-content active" id="tab-fleet">
   <div class="search-row">
     <input class="search-input" id="fleet-search" placeholder="🔍 חפש לפי רישוי, שם, יצרן..." oninput="renderFleet()">
     <select class="filter-select" id="fleet-company" onchange="renderFleet()">
@@ -532,7 +532,7 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
 </div>
 
 <!-- ══════════════ TAB: ALERTS ══════════════ -->
-<div class="tab-content active" id="tab-alerts">
+<div class="tab-content" id="tab-alerts">
   <div id="km-banner" style="display:none;background:linear-gradient(135deg,#7c3aed,#4f46e5);color:#fff;border-radius:12px;padding:12px 16px;margin-bottom:14px;display:none;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
     <div style="font-weight:800;font-size:0.9rem">🛣️ תחילת חודש — זמן לשלוח סבב עדכון ק"מ לנהגים!</div>
     <button class="btn" style="background:#fff;color:#4f46e5;padding:6px 14px;font-size:0.8rem;font-weight:800" onclick="showTab('forms', document.querySelector('.nav-btn[onclick*=&quot;forms&quot;]'))">לסבב הק"מ ←</button>
@@ -564,8 +564,8 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
 
 <!-- Bottom Nav -->
 <nav class="bottom-nav">
-  <button class="nav-btn" onclick="showTab('fleet',this)"><span class="icon">🚗</span>ציי רכב</button>
-  <button class="nav-btn active" onclick="showTab('alerts',this)"><span class="icon">🔔</span>התראות</button>
+  <button class="nav-btn active" onclick="showTab('fleet',this)"><span class="icon">🚗</span>ציי רכב</button>
+  <button class="nav-btn" onclick="showTab('alerts',this)"><span class="icon">🔔</span>התראות</button>
   <button class="nav-btn" onclick="showTab('incidents',this)"><span class="icon">💥</span>אירועים</button>
   <button class="nav-btn" onclick="showTab('violations',this)"><span class="icon">📄</span>דוחות</button>
   <button class="nav-btn" onclick="showTab('invoices',this)"><span class="icon">🔧</span>מוסכים</button>
