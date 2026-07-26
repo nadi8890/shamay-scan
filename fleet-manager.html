@@ -431,7 +431,10 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
       <span class="section-title">🔄 רכבים חליפיים</span>
       <span class="count-badge" id="repl-count">0</span>
     </div>
-    <button class="btn-export" onclick="exportSection('replacements')">📊 ייצוא Excel</button>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-green" style="padding:5px 12px;font-size:0.78rem" onclick="addReplacementRow()">+ הוסף שורה</button>
+      <button class="btn-export" onclick="exportSection('replacements')">📊 ייצוא Excel</button>
+    </div>
   </div>
   <div class="tbl-wrap" style="margin-bottom:18px">
     <table>
@@ -457,7 +460,10 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
       <span class="section-title">📋 תיעוד תקופת אחזקה</span>
       <span class="count-badge" id="ret-count">0</span>
     </div>
-    <button class="btn-export" onclick="exportSection('returns')">📊 ייצוא Excel</button>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-green" style="padding:5px 12px;font-size:0.78rem" onclick="addReturnRow()">+ הוסף שורה</button>
+      <button class="btn-export" onclick="exportSection('returns')">📊 ייצוא Excel</button>
+    </div>
   </div>
   <div class="tbl-wrap">
     <table>
@@ -4679,6 +4685,20 @@ function removeReplacementRow(origIdx) {
   renderReturns();
 }
 
+// add a blank replacement row at the top and open it for filling in
+function addReplacementRow() {
+  REPLACEMENTS.unshift({ employee: '', plate: '', typeCompany: '', fromDate: '', toDate: '', notes: '' });
+  try { localStorage.setItem('fleet_replacements', JSON.stringify(REPLACEMENTS)); saveToFirestore('replacements', REPLACEMENTS); } catch(e){}
+  renderReturns();
+  openEditReplacement(0);
+}
+// add a blank holding-period row at the top and open it for filling in
+function addReturnRow() {
+  RETURNS.unshift({ employee: '', plate: '', make: '', model: '', fromDate: '', toDate: '', reason: '', notes: '' });
+  try { localStorage.setItem('fleet_returns', JSON.stringify(RETURNS)); saveToFirestore('returns', RETURNS); } catch(e){}
+  renderReturns();
+  openEditReturn(0);
+}
 function openEditReplacement(origIdx) {
   const r = REPLACEMENTS[origIdx];
   if (!r) return;
