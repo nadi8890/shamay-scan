@@ -1478,6 +1478,12 @@ async function deleteVehicleRow(plate) {
   }
 }
 
+// Re-render the dashboard only while it's the visible tab (it runs a km-report query,
+// so we don't want it firing on every background snapshot).
+function refreshDashboardIfOpen() {
+  const t = document.getElementById('tab-dashboard');
+  if (t && t.classList.contains('active') && typeof renderManagerDashboard === 'function') renderManagerDashboard();
+}
 function setupRealtimeSync() {
   fcol().doc('main').onSnapshot(snap => {
     if (!_firestoreLoaded) return;
@@ -1498,14 +1504,20 @@ function setupRealtimeSync() {
     if (typeof d.officerSignature === 'string') { window.OFFICER_SIGNATURE = d.officerSignature; }
     if (changed) rebuildDriversDirectory();
     if (changed && typeof renderFleet === 'function') { renderFleet(); renderAlerts(); }
+    if (changed) refreshDashboardIfOpen(); // keep the dashboard live when it's the visible tab
     if (changed && typeof checkServiceOverages === 'function') checkServiceOverages();
   });
-  // dedicated listeners for the archive docs (kept out of main to stay under 1 MiB)
+  // dedicated listeners for the archive docs (kept out of main to stay under 1 MiB).
+  // The dashboard aggregates all of these, so refresh it too on any archive change.
   const watchArchive = (name, assign, render) =>
     fcol().doc(name).onSnapshot(snap => {
       if (!_firestoreLoaded || !snap.exists) return;
       const items = (snap.data() || {}).items;
-      if (Array.isArray(items)) { assign(items); if (typeof render === 'function') render(); }
+      if (Array.isArray(items)) {
+        assign(items);
+        if (typeof render === 'function') render();
+        refreshDashboardIfOpen();
+      }
     });
   watchArchive('incidents',    a => { INCIDENTS = a; localStorage.setItem('fleet_incidents', JSON.stringify(a)); },    () => { if (typeof renderIncidents === 'function') renderIncidents(); });
   watchArchive('violations',   a => { VIOLATIONS = a; localStorage.setItem('fleet_violations', JSON.stringify(a)); },   () => { if (typeof renderViolations === 'function') renderViolations(); });
