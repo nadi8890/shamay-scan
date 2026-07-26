@@ -77,6 +77,8 @@ async function ensureAnonAuth() {
 }
 
 const params = new URLSearchParams(location.search);
+const TENANT = (params.get('t') || 'nofar');
+const fcol = () => db.collection('tenants').doc(TENANT).collection('data');
 const PLATE = (params.get('plate') || '').replace(/\D/g,'');
 const DAYS_HE = ['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'];
 let VEH = null, MAIL = {}, chosen = null;
@@ -91,7 +93,7 @@ function windowStart() {
 (async function init() {
   await ensureAnonAuth();
   try {
-    const snap = await db.collection('fleet').doc('main').get();
+    const snap = await fcol().doc('main').get();
     const d = snap.data() || {};
     MAIL = d.mailSettings || {};
     VEH = (d.vehicles || []).find(v => (v.plate||'').replace(/\D/g,'') === PLATE);
@@ -141,7 +143,7 @@ async function submitBooking() {
   const driverName = VEH ? (VEH.driverName||'').split('-')[0].trim() : '';
   const plate = (VEH && VEH.plate) || PLATE;
   try {
-    await db.collection('fleet').doc('inspbook_' + Date.now()).set({
+    await fcol().doc('inspbook_' + Date.now()).set({
       type: 'inspbooking', created: Date.now(),
       plate: plate,
       driver: driverName,

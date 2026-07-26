@@ -80,13 +80,16 @@ async function ensureAnonAuth() {
   } catch(e) { console.log('anon auth unavailable, continuing', e.code || e.message); }
 }
 let VEH = null, MAIL = {}, FLEET = [];
-const urlPlate = (new URLSearchParams(location.search).get('plate') || '').replace(/\D/g,'');
+const _kmParams = new URLSearchParams(location.search);
+const TENANT = (_kmParams.get('t') || 'nofar');
+const fcol = () => db.collection('tenants').doc(TENANT).collection('data');
+const urlPlate = (_kmParams.get('plate') || '').replace(/\D/g,'');
 const parseKmNum = s => parseInt(String(s||'').replace(/\D/g,'')) || 0;
 
 (async function init() {
   await ensureAnonAuth(); // must precede any read so the identity is in place
   try {
-    const snap = await db.collection('fleet').doc('main').get();
+    const snap = await fcol().doc('main').get();
     const d = snap.data() || {};
     FLEET = d.vehicles || [];
     MAIL = d.mailSettings || {};
@@ -151,7 +154,7 @@ async function submitKm() {
   try {
     // 1. km report (one per vehicle per month — overwrites on repeat fill).
     // applyKm flags it so the signed-in manager writes the km onto the vehicle.
-    await db.collection('fleet').doc(`kmr_${monthKey}_${VEH.plate}`).set({
+    await fcol().doc(`kmr_${monthKey}_${VEH.plate}`).set({
       type: 'kmreport', created: Date.now(), monthKey,
       dateStr: `${p2(now.getDate())}/${p2(now.getMonth()+1)}/${now.getFullYear()} ${p2(now.getHours())}:${p2(now.getMinutes())}`,
       plate: VEH.plate, driver: (VEH.driverName||'').split('-')[0].trim(),
@@ -162,13 +165,13 @@ async function submitKm() {
     // this; the manager's app applies the km from the report. Never fail the form.
     try {
       for (let attempt = 0; attempt < 3; attempt++) {
-        const snap = await db.collection('fleet').doc('main').get();
+        const snap = await fcol().doc('main').get();
         const vehicles = (snap.data()||{}).vehicles || [];
         const v = vehicles.find(x => (x.plate||'').replace(/\D/g,'') === (VEH.plate||'').replace(/\D/g,''));
         if (!v) break;
         if (parseKmNum(v.currentKm) === km) break;
         v.currentKm = String(km);
-        await db.collection('fleet').doc('main').set({ vehicles }, { merge: true });
+        await fcol().doc('main').set({ vehicles }, { merge: true });
         await new Promise(res => setTimeout(res, 1500));
       }
     } catch(e) { console.log('km update deferred to manager', e); }

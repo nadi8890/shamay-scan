@@ -1361,6 +1361,7 @@ function stripUndef(x) {
 // so the isolated copy stays current. Deliberately fire-and-forget and fully
 // isolated: a mirror failure can NEVER affect the primary write or the UI.
 function mirrorToTenant(id, data, merge = true) {
+  if (USE_TENANT) return; // already writing to the tenant directly via fcol() — no mirror needed
   try {
     if (!auth.currentUser) return;
     // _mirroredAt makes it easy to confirm at a glance that the mirror is live
@@ -3369,8 +3370,8 @@ let TENANT = 'nofar';                 // resolved from users/{uid}; default keep
 let ROLE = 'manager';
 let COMPANY_NAME = 'נופר אנרגיה';
 const TENANT_DATA = () => db.collection('tenants').doc(TENANT).collection('data');
-// Stage-2 cutover switch. OFF = legacy fleet/* (unchanged). ON = per-tenant isolation.
-let USE_TENANT = false;
+// Stage-2 cutover switch. OFF = legacy fleet/* . ON = per-tenant isolation (tenants/{tid}/data).
+let USE_TENANT = true;
 function fcol() { return USE_TENANT ? TENANT_DATA() : db.collection('fleet'); }
 async function resolveTenant(user) {
   try {
