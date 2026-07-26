@@ -275,6 +275,9 @@ const db = firebase.firestore();
 async function ensureAnonAuth() {
   try {
     if (firebase.auth().currentUser) return;
+    // in-memory only, so the driver's anonymous session never overwrites the
+    // manager's email/password session stored on the same site
+    try { await firebase.auth().setPersistence(firebase.auth.Auth.Persistence.NONE); } catch(e) {}
     await firebase.auth().signInAnonymously();
   } catch(e) { console.log('anon auth unavailable, continuing', e.code || e.message); }
 }

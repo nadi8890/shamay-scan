@@ -72,7 +72,7 @@ firebase.initializeApp({
 });
 const db = firebase.firestore();
 async function ensureAnonAuth() {
-  try { if (!firebase.auth().currentUser) await firebase.auth().signInAnonymously(); }
+  try { if (!firebase.auth().currentUser) { try { await firebase.auth().setPersistence(firebase.auth.Auth.Persistence.NONE); } catch(e) {} await firebase.auth().signInAnonymously(); } }
   catch(e) { console.log('anon auth unavailable, continuing', e.code || e.message); }
 }
 

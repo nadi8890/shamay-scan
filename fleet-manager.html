@@ -3478,6 +3478,14 @@ function doLogout() {
   if (confirm('להתנתק מהמערכת?')) auth.signOut().then(() => location.reload());
 }
 auth.onAuthStateChanged(async user => {
+  // An anonymous session (left over from a driver page on the same site) must NOT
+  // count as a manager login — it can read but not write, which looks like a
+  // "permission denied" on save. Force a real email/password login instead.
+  if (user && user.isAnonymous) {
+    try { await auth.signOut(); } catch(e) {}
+    document.getElementById('login-gate').style.display = 'flex';
+    return;
+  }
   if (user) {
     await resolveTenant(user); // which company this account belongs to (defaults to nofar)
     bootApp();
