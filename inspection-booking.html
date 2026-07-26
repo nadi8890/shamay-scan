@@ -79,7 +79,7 @@ async function ensureAnonAuth() {
 const params = new URLSearchParams(location.search);
 const PLATE = (params.get('plate') || '').replace(/\D/g,'');
 const DAYS_HE = ['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'];
-let VEH = null, chosen = null;
+let VEH = null, MAIL = {}, chosen = null;
 
 // window start: the "sent" date from the link, else today. Two-week window.
 function windowStart() {
@@ -93,6 +93,7 @@ function windowStart() {
   try {
     const snap = await db.collection('fleet').doc('main').get();
     const d = snap.data() || {};
+    MAIL = d.mailSettings || {};
     VEH = (d.vehicles || []).find(v => (v.plate||'').replace(/\D/g,'') === PLATE);
   } catch(e) {}
   document.getElementById('loading').style.display = 'none';
@@ -137,16 +138,44 @@ async function submitBooking() {
   const btn = document.getElementById('send-btn');
   btn.disabled = true; btn.textContent = 'שולח...';
   const now = new Date();
+  const driverName = VEH ? (VEH.driverName||'').split('-')[0].trim() : '';
+  const plate = (VEH && VEH.plate) || PLATE;
   try {
     await db.collection('fleet').doc('inspbook_' + Date.now()).set({
       type: 'inspbooking', created: Date.now(),
-      plate: (VEH && VEH.plate) || PLATE,
-      driver: VEH ? (VEH.driverName||'').split('-')[0].trim() : '',
+      plate: plate,
+      driver: driverName,
       bookedDate: chosen,
       sentAt: params.get('sent') || '',
       submittedAt: now.toLocaleString('he-IL'),
       applyBooking: true, applied: false
     });
+    // notify the fleet manager by email with a calendar invite (.ics) to reserve the slot
+    if (MAIL.gasUrl) {
+      try {
+        const p2 = n => String(n).padStart(2,'0');
+        const [dd,mm,yy] = chosen.split('/');
+        const startYmd = `${yy}${mm}${dd}`;
+        const nd = new Date(+yy, +mm-1, +dd+1);
+        const endYmd = `${nd.getFullYear()}${p2(nd.getMonth()+1)}${p2(nd.getDate())}`;
+        const stamp = now.toISOString().replace(/[-:]/g,'').split('.')[0] + 'Z';
+        const title = `ביקורת בטיחות — ${driverName} (${plate})`;
+        const ics = [
+          'BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//RMazor//Fleet//HE','CALSCALE:GREGORIAN','METHOD:REQUEST',
+          'BEGIN:VEVENT',`UID:inspbook-${Date.now()}@rmazor`,`DTSTAMP:${stamp}`,
+          `DTSTART;VALUE=DATE:${startYmd}`,`DTEND;VALUE=DATE:${endYmd}`,
+          `SUMMARY:${title}`,
+          `DESCRIPTION:ביקורת בטיחות תקופתית שנקבעה ע"י הנהג/ת. רכב ${plate}. לתיאום: 054-2840258`,
+          'STATUS:CONFIRMED','BEGIN:VALARM','TRIGGER:-P1D','ACTION:DISPLAY','DESCRIPTION:תזכורת ביקורת בטיחות','END:VALARM',
+          'END:VEVENT','END:VCALENDAR'
+        ].join('\r\n');
+        const icsB64 = btoa(unescape(encodeURIComponent(ics)));
+        const body = `הנהג/ת ${driverName} קבע/ה מועד לביקורת בטיחות.\n\nרכב: ${plate}\nמועד שנבחר: ${chosen}\nנקבע בתאריך: ${now.toLocaleString('he-IL')}\n\nמצורף קובץ זימון ליומן (.ics) — פתח/י אותו כדי לשריין את המועד.\n\n(נשלח אוטומטית ע"י מערכת ר.מזור)`;
+        await fetch(MAIL.gasUrl, { method:'POST', mode:'no-cors', headers:{'Content-Type':'text/plain'},
+          body: JSON.stringify({ subject: `📅 נקבע מועד ביקורת — ${driverName} (${plate}) · ${chosen}`, body,
+            files: [{ base64: icsB64, mimeType: 'text/calendar', filename: `ביקורת ${plate}.ics` }] }) });
+      } catch(e) { console.log('booking email skipped', e); }
+    }
     document.getElementById('main').style.display = 'none';
     document.getElementById('result-txt').innerHTML = `נקבע מועד ביקורת ל-<b>${chosen}</b>`;
     document.getElementById('result').style.display = 'block';
