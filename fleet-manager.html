@@ -285,7 +285,7 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
   </div>
   <div style="display:flex;align-items:center;gap:10px">
     <span id="header-clock" style="color:#fff;font-size:0.8rem;font-weight:600;white-space:nowrap;opacity:.9"></span>
-    <span id="tenant-status" style="color:#a7f3d0;font-size:0.72rem;font-weight:700;white-space:nowrap"></span>
+    <span id="tenant-status" style="display:none"></span>
     <span id="save-indicator">💾 לא נשמר</span>
     <button class="btn" style="padding:7px 14px;font-size:0.82rem;background:#fff;color:#1e40af;font-weight:700;border-radius:8px" onclick="openAddVehicle()">+ רכב חדש</button>
     <button class="btn" style="padding:7px 12px;font-size:0.82rem;background:rgba(255,255,255,.16);color:#fff;font-weight:700;border-radius:8px" title="שחזור רכב שנמחק מהגיבוי היומי" onclick="openRestoreDeleted()">♻️ שחזור</button>
@@ -829,7 +829,7 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
   <div class="modal">
     <h3 id="modal-title">הוסף רכב</h3>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-      <div class="modal-row"><label>מס׳ רישוי</label><div style="display:flex;gap:5px;align-items:center"><input id="m-plate" type="text" placeholder="12345678" style="flex:1" onblur="autoFillFromGov(this.value)"><span id="m-gov-status" style="font-size:0.7rem;color:#64748b;white-space:nowrap"></span></div></div>
+      <div class="modal-row"><label>מס׳ רישוי <span style="font-weight:400;color:#94a3b8;font-size:0.7rem">(השאר ריק לעובד/ת ללא רכב)</span></label><div style="display:flex;gap:5px;align-items:center"><input id="m-plate" type="text" placeholder="12345678" style="flex:1" onblur="autoFillFromGov(this.value)"><span id="m-gov-status" style="font-size:0.7rem;color:#64748b;white-space:nowrap"></span></div></div>
       <div class="modal-row"><label>חברה</label>
         <select id="m-company">
           <option>נופר אנרגי</option><option>ליסקאר</option><option>שלמה סיקסט</option><option>הרץ</option><option>אחר</option>
@@ -1969,10 +1969,12 @@ function renderFleet() {
     // empty-field highlighting: any missing value gets a yellow cell so it's easy to spot what to fill
     const drvNm = (v.driverName||'').trim();
     const isTrailer = drvNm.includes('נגרר') || drvNm.includes('ללא נהג');
+    const noVeh = !!v.noVehicle; // employee tracked without a vehicle
     const blank = s => !String(s==null?'':s).trim();
-    const yc = (val, cls) => blank(val) ? 'cell-yellow' : (cls||''); // yellow if empty, else keep existing color class
+    // yellow if empty — but never for a no-vehicle employee (vehicle fields don't apply)
+    const yc = (val, cls) => (!noVeh && blank(val)) ? 'cell-yellow' : (cls||'');
     return `<tr class="${rowCls}">
-      <td class="${yc(v.plate)}" style="font-weight:700;color:var(--accent);direction:ltr;font-size:0.78rem;white-space:nowrap">${esc(v.plate)||'—'}</td>
+      <td class="${noVeh?'':yc(v.plate)}" style="font-weight:700;color:var(--accent);direction:ltr;font-size:0.78rem;white-space:nowrap">${noVeh ? '<span style="color:#7c3aed">👤 ללא רכב</span>' : (esc(v.plate)||'—')}</td>
       <td class="${yc((v.make||'')+(v.model||''))}" style="font-size:0.73rem">${esc(v.make)} ${esc(v.model)}<br><span style="color:var(--muted);font-size:0.65rem">${esc(v.year)}</span></td>
       <td class="${isTrailer?'':yc(drvNm)}" style="font-size:0.73rem">${esc((v.driverName||'').split('-')[0])||'—'}</td>
       <td class="${yc(v.company)}">${companyBadge(v.company)}</td>
@@ -3329,7 +3331,7 @@ function editVehicle(plate) {
   if (!v) return;
   editingPlate = plate;
   document.getElementById('modal-title').textContent = 'ערוך רכב — ' + plate;
-  document.getElementById('m-plate').value = v.plate||'';
+  document.getElementById('m-plate').value = v.noVehicle ? '' : (v.plate||''); // hide the internal key for no-vehicle records
   document.getElementById('m-make').value = v.make||'';
   document.getElementById('m-model').value = v.model||'';
   document.getElementById('m-year').value = v.year||'';
@@ -3360,11 +3362,16 @@ function openIncidentFromModal() {
   openIncidentModal(null, plate, driver);
 }
 function saveVehicle() {
-  const plate = document.getElementById('m-plate').value.trim();
-  if (!plate) { toast('הכנס מספר רישוי', true); return; }
+  let plate = document.getElementById('m-plate').value.trim();
+  const _driver = document.getElementById('m-driver').value.trim();
+  // allow adding an employee with no vehicle yet — needs at least a name
+  const _noVeh = !plate;
+  if (_noVeh && !_driver) { toast('הכנס מספר רכב או שם עובד/ת', true); return; }
+  if (_noVeh) plate = editingPlate || ('emp_' + Date.now()); // stable internal key, shown as "ללא רכב"
   const _t = new Date();
   const _today = ('0'+_t.getDate()).slice(-2)+'/'+('0'+(_t.getMonth()+1)).slice(-2)+'/'+_t.getFullYear();
   const v = {
+    noVehicle: _noVeh || undefined,
     plate, make: document.getElementById('m-make').value.trim(),
     model: document.getElementById('m-model').value.trim(),
     year: document.getElementById('m-year').value.trim(),
@@ -3374,10 +3381,10 @@ function saveVehicle() {
     registrationExpiry: document.getElementById('m-regExpiry').value.trim(),
     insuranceExpiry: document.getElementById('m-insExpiry').value.trim(),
     licenseExpiry: document.getElementById('m-licExpiry').value.trim(),
-    inspection: document.getElementById('m-inspection').value.trim() || (!editingPlate ? (document.getElementById('m-from').value.trim() || _today) : ''),
+    inspection: document.getElementById('m-inspection').value.trim() || (!editingPlate && !_noVeh ? (document.getElementById('m-from').value.trim() || _today) : ''),
     vehicleFrom: document.getElementById('m-from').value.trim(),
     currentKm: document.getElementById('m-km').value.trim(),
-    nextServiceKm: document.getElementById('m-nextKm').value.trim() || (!editingPlate ? String((parseInt(document.getElementById('m-km').value)||0)+15000) : ''),
+    nextServiceKm: document.getElementById('m-nextKm').value.trim() || (!editingPlate && !_noVeh ? String((parseInt(document.getElementById('m-km').value)||0)+15000) : ''),
     trafficRecord: document.getElementById('m-traffic').value.trim(),
     procedures: document.getElementById('m-procedures').value.trim(),
     notes: document.getElementById('m-notes').value.trim(),
@@ -3724,6 +3731,11 @@ ${VEHICLES.map(v=>`• ${v.plate} | ${v.make} ${v.model} ${v.year||''} | נהג:
 דוגמה: [[ACTION:exportVehicleCard:83945203]]
 
 כלל: כשמשתמש מבקש להוסיף רכב — השתמש תמיד ב-[[ACTION:addVehicle:מספר_רישוי]] בלבד. המערכת תמלא את הפרטים אוטומטית מהממשלה.
+
+הוספת עובד/ת לצי ללא רכב (כשעדיין אין לו/לה רכב — מתועד לצורך מעקב רישיון/עבר תעבורתי/טלפון):
+[[ACTION:addEmployee:שם_עובד|חברה|תוקף_רישיון_נהיגה|עבר_תעבורתי|טלפון]]
+דוגמה: [[ACTION:addEmployee:עדי צנטנר|נופר אנרגי|31/12/2028||054-1234567]]
+(רק השם חובה; שאר השדות אופציונליים — השאר ריק אם לא ידוע). כשמבקשים "להוסיף עובד/ת ללא רכב" — השתמש בפעולה הזו. אתה כן יכול להוסיף עובד ללא רכב.
 
 ═══ לשונית החזרות / רכבים חליפיים ═══
 
@@ -4371,9 +4383,38 @@ async function agentExecActionAsync(action, param) {
   if (action === 'lookupVehicle') return await lookupVehicleGov(param);
   if (action === 'exportVehicleCard') { exportVehicleCard(param); return { type:'vehicleCard', plate: param }; }
   if (action === 'addVehicle') return await addVehicleWithLookup(param);
+  if (action === 'addEmployee') return await addEmployeeNoVehicle(param);
   if (action === 'syncVehicle') return await syncVehicleFromGov(param);
   if (action === 'replaceVehicle') return await replaceVehicleAction(param);
   return agentExecAction(action, param);
+}
+
+// Add an employee to the fleet WITHOUT a vehicle (tracked for licence/traffic/phone
+// until they get a car). Uses a stable internal key shown as "ללא רכב" in the table.
+async function addEmployeeNoVehicle(param) {
+  const [name, company, licenseExpiry, trafficRecord, phone] = param.split('|').map(s => (s||'').trim());
+  if (!name) return { type: 'employee', action: 'שגיאה', detail: 'חסר שם עובד' };
+  const v = {
+    noVehicle: true, plate: 'emp_' + Date.now(),
+    driverName: name, company: company || '', driverPhone: phone || '',
+    licenseExpiry: licenseExpiry || '', trafficRecord: trafficRecord || '',
+    make: '', model: '', year: '', registrationExpiry: '', insuranceExpiry: '',
+    inspection: '', vehicleFrom: '', currentKm: '', nextServiceKm: '', procedures: '', notes: '',
+    id: Date.now()
+  };
+  VEHICLES.unshift(v);
+  const dk = driverKey(name);
+  if (dk) {
+    DRIVERS[dk] = DRIVERS[dk] || {};
+    if (licenseExpiry) DRIVERS[dk].licenseExpiry = licenseExpiry;
+    if (trafficRecord) DRIVERS[dk].trafficRecord = trafficRecord;
+    if (phone) DRIVERS[dk].driverPhone = phone;
+    saveToFirestore('drivers', DRIVERS);
+  }
+  localStorage.setItem('fleet_vehicles', JSON.stringify(VEHICLES));
+  await saveVehiclesSafely(v.plate, dk);
+  renderFleet(); renderDashboard();
+  return { type: 'employee', action: 'נוסף/ה ללא רכב', name };
 }
 
 // Employee got a new vehicle: archive the old one in returns, add the new one
