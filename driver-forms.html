@@ -286,7 +286,7 @@ const params = new URLSearchParams(location.search);
 const TENANT = (params.get('t') || 'nofar');
 const fcol = () => db.collection('tenants').doc(TENANT).collection('data');
 const PLATE = (params.get('plate') || '').trim();
-let VEH = null, MAIL = {}, CURRENT = null, licPhotos = [], docPhotos = [], docPhotosSmall = [], OFFICER_SIG = '';
+let VEH = null, MAIL = {}, CURRENT = null, licPhotos = [], licPhotosSmall = [], docPhotos = [], docPhotosSmall = [], OFFICER_SIG = '';
 
 const FORMS = {
   procedures: { title: 'נהלים ואחריות אישית', doc: 'טפסי נהלים ואחריות — הצהרות מחזיק רכב', agrees: ['agree-holder','agree-viol'], secs: [['sec-holder','הצהרה והתחייבות מחזיק/ה ברכב'],['sec-viol','אחריות אישית בגין עבירות']], cls: 'only-procedures', updatesProcedures: true, photos: true, photoHint: 'צרף/י צילום רישיון נהיגה שלך, וגם של בן/בת זוג או בן משפחה שנוהגים ברכב (אפשר כמה תמונות)' },
@@ -327,7 +327,7 @@ function openForm(key) {
   document.querySelectorAll('.only-procedures,.only-family,.only-traffic,.only-testdrive,.only-accident').forEach(el => el.style.display = 'none');
   document.querySelectorAll('.' + FORMS[key].cls).forEach(el => el.style.display = '');
   // attachments: each form starts clean and explains what to attach
-  licPhotos = []; docPhotos = []; docPhotosSmall = [];
+  licPhotos = []; licPhotosSmall = []; docPhotos = []; docPhotosSmall = [];
   renderThumbs(); renderDocThumbs();
   const hint = document.getElementById('lic-hint');
   if (hint) hint.textContent = FORMS[key].photoHint || '';
@@ -391,8 +391,8 @@ function toggleExtra() {
 async function licFilesChanged(inp) {
   for (const file of inp.files) {
     if (!file.type.startsWith('image/')) continue;
-    const b64 = await compressImage(file, 1300, 0.82);
-    licPhotos.push(b64);
+    licPhotos.push(await compressImage(file, 1300, 0.82));       // sharp, for the emailed PDF
+    licPhotosSmall.push(await compressImage(file, 900, 0.65));   // small, stored so the manager auto-scans the licence
   }
   inp.value = '';
   renderThumbs();
@@ -413,7 +413,7 @@ function compressImage(file, maxDim, q) {
 }
 function renderThumbs() {
   document.getElementById('lic-thumbs').innerHTML = licPhotos.map((p, i) =>
-    `<div class="thumb"><img src="${p}"><button class="rm" onclick="licPhotos.splice(${i},1);renderThumbs()">✕</button></div>`).join('');
+    `<div class="thumb"><img src="${p}"><button class="rm" onclick="licPhotos.splice(${i},1);licPhotosSmall.splice(${i},1);renderThumbs()">✕</button></div>`).join('');
 }
 
 /* vehicle documents — compulsory insurance + vehicle licence (procedures form).
@@ -710,6 +710,18 @@ async function submitForm() {
         });
       } catch(e) { console.log('vehicle docs upload skipped', e.code || e.message); }
     }
+    // 1c. driving-licence photos ARE stored too (small copies) so the manager's app can
+    // auto-read the licence expiry date. Never fails the form.
+    if (licPhotosSmall.length) {
+      try {
+        await fcol().doc('licdocs_' + rec.created).set({
+          type: 'licensedocs', created: rec.created,
+          plate: rec.plate, driver: rec.name, licNum: rec.licNum || '', dateStr: rec.dateStr,
+          images: licPhotosSmall.slice(0, 4).map(s => s.split(',')[1]),
+          scanned: false, applied: false
+        });
+      } catch(e) { console.log('licence docs upload skipped', e.code || e.message); }
+    }
     // 2. best-effort: try to update the vehicle directly. Drivers aren't signed in
     // so this write is blocked by the rules — that's fine, the manager's app applies
     // the change from the declaration (applyProcedures flag). Never fail the form here.
@@ -747,7 +759,7 @@ async function submitForm() {
     document.getElementById('done-title').textContent = `"${F.title}" נשלח בהצלחה!`;
     document.getElementById('form-wrap').style.display = 'none';
     document.getElementById('done').style.display = 'block';
-    if (F.photos) { licPhotos = []; renderThumbs(); }
+    if (F.photos) { licPhotos = []; licPhotosSmall = []; renderThumbs(); }
     docPhotos = []; docPhotosSmall = []; renderDocThumbs();
     window.scrollTo(0, 0);
   } catch(e) {

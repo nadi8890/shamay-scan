@@ -2549,6 +2549,81 @@ async function readDriverDocs(type) {
   return [...byId.values()];
 }
 
+// ── AUTO-SCAN: read expiry dates off driver-uploaded photos automatically ──
+// Runs on load (manager side — only there is the API key). Scans any new vehicle
+// documents (insurance + licence/test) and driving-licence photos, extracts the
+// dates and applies them, then marks the doc done so it never re-scans. A summary
+// toast lets the manager glance-check, since a scan can occasionally misread.
+const VDOC_SCAN_PROMPT = `אלה צילומים של מסמכי רכב ישראליים — תעודת ביטוח חובה ו/או רישיון רכב (רישיון רכב = "טסט"). חלץ אך ורק את שני תאריכי התוקף:
+1) תוקף ביטוח חובה (insuranceExpiry): בתעודת ביטוח החובה, ליד/מתחת ל"מועד פקיעת הביטוח" / "בתוקף עד" — קח את תאריך הסיום.
+2) תוקף רישיון רכב / טסט (registrationExpiry): ברישיון הרכב, בפינה השמאלית העליונה תחת "בתוקף עד". התעלם משאר התאריכים.
+אם מסמך לא מופיע — החזר "". אל תנחש. החזר JSON בלבד:
+{"insuranceExpiry":"DD/MM/YYYY","registrationExpiry":"DD/MM/YYYY"}`;
+const LIC_SCAN_PROMPT = `אלה צילומים של רישיון נהיגה ישראלי. חלץ את תאריך תפוגת הרישיון (בתוקף עד). ברישיון נהיגה ישראלי תאריך זה מופיע ליד השדה המסומן "4b" (בתוקף עד) — קח את התאריך המאוחר, שהוא תוקף הרישיון. אם לא ברור — החזר "". אל תנחש. החזר JSON בלבד:
+{"licenseExpiry":"DD/MM/YYYY"}`;
+async function scanDatesFromImages(images, promptText) {
+  const content = [{ type:'text', text: promptText },
+    ...(images||[]).map(b => ({ type:'image', source:{ type:'base64', media_type:'image/jpeg', data:b } }))];
+  const resp = await fetch('https://api.anthropic.com/v1/messages', {
+    method:'POST',
+    headers:{ 'Content-Type':'application/json', 'x-api-key': agentApiKey, 'anthropic-version':'2023-06-01', 'anthropic-dangerous-direct-browser-access':'true' },
+    body: JSON.stringify({ model: AGENT_MODEL, max_tokens:300, messages:[{ role:'user', content }] })
+  });
+  const data = await resp.json();
+  if (!resp.ok) throw new Error((data.error && data.error.message) || 'API error');
+  const txt = (data.content||[]).map(c => c.text||'').join('');
+  const m = txt.match(/\{[\s\S]*\}/);
+  return m ? JSON.parse(m[0]) : {};
+}
+let _autoScanRan = false;
+async function autoScanDriverDocs() {
+  if (_autoScanRan || !auth.currentUser || !agentApiKey) return; // needs the API key (manager side)
+  _autoScanRan = true;
+  const validDate = s => !!parseDate(s);
+  const plateEq = (a, b) => String(a||'').replace(/\D/g,'') === String(b||'').replace(/\D/g,'');
+  let updated = 0;
+  try {
+    const vdocs = (await readDriverDocs('vehicledocs')).filter(r => !r.applied && (r.images||[]).length);
+    for (const r of vdocs) {
+      try {
+        const out = await scanDatesFromImages(r.images, VDOC_SCAN_PROMPT);
+        const v = VEHICLES.find(x => plateEq(x.plate, r.plate));
+        if (v) {
+          if (validDate(out.insuranceExpiry)) { v.insuranceExpiry = out.insuranceExpiry; updated++; }
+          if (validDate(out.registrationExpiry)) { v.registrationExpiry = out.registrationExpiry; }
+        }
+      } catch(e) { console.log('vdoc auto-scan failed', e.message); }
+      try { await (r._ref).set({ scanned:true, applied:true }, { merge:true }); } catch(e){}
+    }
+    const ldocs = (await readDriverDocs('licensedocs')).filter(r => !r.applied && (r.images||[]).length);
+    for (const r of ldocs) {
+      try {
+        const out = await scanDatesFromImages(r.images, LIC_SCAN_PROMPT);
+        if (validDate(out.licenseExpiry)) {
+          const v = VEHICLES.find(x => plateEq(x.plate, r.plate)) || VEHICLES.find(x => driverKey(x.driverName) === driverKey(r.driver));
+          if (v) {
+            v.licenseExpiry = out.licenseExpiry;
+            const dk = driverKey(v.driverName);
+            if (dk) { DRIVERS[dk] = DRIVERS[dk] || {}; DRIVERS[dk].licenseExpiry = out.licenseExpiry; syncDriverToVehicles(dk); }
+            updated++;
+          }
+        }
+      } catch(e) { console.log('licdoc auto-scan failed', e.message); }
+      try { await (r._ref).set({ scanned:true, applied:true }, { merge:true }); } catch(e){}
+    }
+    if (updated) {
+      localStorage.setItem('fleet_vehicles', JSON.stringify(VEHICLES));
+      await fcol().doc('main').set({ vehicles: stripUndef(VEHICLES) }, { merge:true });
+      mirrorToTenant('main', { vehicles: VEHICLES });
+      saveToFirestore('drivers', DRIVERS);
+      if (typeof renderFleet === 'function') renderFleet();
+      if (typeof renderAlerts === 'function') renderAlerts();
+      if (typeof renderDashboard === 'function') renderDashboard();
+      toast(`✓ נסרקו ועודכנו אוטומטית תאריכים מ-${updated} מסמכי נהגים`);
+    }
+  } catch(e) { console.log('auto-scan error', e); }
+}
+
 // ══ VEHICLE DOCUMENTS: read expiry dates off driver-uploaded photos ══
 // Claude reads the compulsory-insurance and vehicle-licence photos the driver
 // attached and proposes the expiry dates. Nothing is written to the vehicle until
@@ -3529,6 +3604,7 @@ function bootApp() {
     renderFleet();
     setupRealtimeSync();
     copyToTenant(); // Stage 1: mirror data into the isolated tenant namespace
+    autoScanDriverDocs(); // auto-read expiry dates off any new driver-uploaded documents
     // notifyNewDeclarations() removed — the driver's own email (with the PDF) works again,
     // so the manager-side fallback was sending a duplicate (fileless) email.
   });
