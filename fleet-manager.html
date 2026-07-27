@@ -1407,11 +1407,14 @@ async function saveVehiclesSafely(editedPlate, dk) {
     return;
   }
   try {
+    // capture the edited vehicle BEFORE the await — a realtime snapshot (e.g. from the
+    // drivers-save that runs just before) can replace the VEHICLES array mid-await,
+    // which previously made a brand-new record look "not found".
+    const edited = VEHICLES.find(v => v.plate === editedPlate);
+    if (!edited) { toast('⚠ שגיאה: הרכב לא נמצא', true); return; }
     const snap = await fcol().doc('main').get();
     let cloud = (snap.data() || {}).vehicles;
     if (!Array.isArray(cloud)) cloud = VEHICLES.slice();
-    const edited = VEHICLES.find(v => v.plate === editedPlate);
-    if (!edited) { toast('⚠ שגיאה: הרכב לא נמצא', true); return; }
     const idx = cloud.findIndex(v => v.plate === editedPlate);
     if (idx >= 0) cloud[idx] = edited; else cloud.unshift(edited);
     if (dk) cloud.forEach(v => {
