@@ -2538,6 +2538,17 @@ async function restoreVehicle(i) {
   }
 }
 
+// During the tenant cutover a driver on a cached old page may write to legacy fleet/*
+// while the manager reads the tenant namespace. Read driver-created docs from BOTH so
+// nothing is missed; each item keeps its own _ref so delete/apply target the right place.
+async function readDriverDocs(type) {
+  const byId = new Map();
+  const add = (d, legacy) => { if (!byId.has(d.id)) byId.set(d.id, { _docId: d.id, _ref: d.ref, _legacy: legacy, ...d.data() }); };
+  try { (await fcol().where('type','==',type).get()).forEach(d => add(d, false)); } catch(e){}
+  try { (await db.collection('fleet').where('type','==',type).get()).forEach(d => add(d, true)); } catch(e){}
+  return [...byId.values()];
+}
+
 // ══ VEHICLE DOCUMENTS: read expiry dates off driver-uploaded photos ══
 // Claude reads the compulsory-insurance and vehicle-licence photos the driver
 // attached and proposes the expiry dates. Nothing is written to the vehicle until
@@ -2546,8 +2557,7 @@ async function loadVehicleDocs() {
   const wrap = document.getElementById('vdocs-panel');
   if (!wrap) return;
   try {
-    const snap = await fcol().where('type','==','vehicledocs').get();
-    const list = snap.docs.map(d => ({ _docId: d.id, ...d.data() }))
+    const list = (await readDriverDocs('vehicledocs'))
       .filter(r => !r.applied).sort((a,b) => (b.created||0)-(a.created||0));
     const cnt = document.getElementById('vdocs-count');
     if (cnt) cnt.textContent = list.length;
@@ -2622,7 +2632,7 @@ async function applyVehicleDocDates() {
   if (ins) v.insuranceExpiry = ins;
   if (reg) v.registrationExpiry = reg;
   await saveVehiclesSafely(v.plate, driverKey(v.driverName));
-  try { await fcol().doc(r._docId).set({ applied:true }, { merge:true }); } catch(e) {}
+  try { await (r._ref || fcol().doc(r._docId)).set({ applied:true }, { merge:true }); } catch(e) {}
   document.getElementById('vdoc-modal').classList.remove('open');
   renderFleet(); renderAlerts();
   loadVehicleDocs();
@@ -2631,7 +2641,7 @@ async function applyVehicleDocDates() {
 async function dismissVehicleDoc() {
   const r = window._VDOC_CUR;
   if (!r) return;
-  try { await fcol().doc(r._docId).set({ applied:true }, { merge:true }); } catch(e) {}
+  try { await (r._ref || fcol().doc(r._docId)).set({ applied:true }, { merge:true }); } catch(e) {}
   document.getElementById('vdoc-modal').classList.remove('open');
   loadVehicleDocs();
 }
@@ -2668,8 +2678,7 @@ async function loadDeclarations() {
   if (!wrap) return;
   wrap.innerHTML = '<div style="color:var(--muted);font-size:0.8rem;padding:8px">טוען...</div>';
   try {
-    const snap = await fcol().where('type','==','declaration').get();
-    const list = snap.docs.map(d => ({ _docId: d.id, ...d.data() })).sort((a,b) => (b.created||0)-(a.created||0));
+    const list = (await readDriverDocs('declaration')).sort((a,b) => (b.created||0)-(a.created||0));
     document.getElementById('decl-count').textContent = list.length;
     if (!list.length) { wrap.innerHTML = '<div style="color:var(--muted);font-size:0.8rem;padding:8px">עוד לא התקבלו הצהרות</div>'; return; }
     window._DECLS = list;
@@ -2743,7 +2752,7 @@ async function deleteDeclaration(i) {
   if (!r) return;
   if (!confirm(`למחוק את ההצהרה של ${r.name||''} (רכב ${r.plate||''})?`)) return;
   try {
-    await fcol().doc(r._docId).delete();
+    await (r._ref || fcol().doc(r._docId)).delete();
     toast('ההצהרה נמחקה ✓');
     loadDeclarations();
   } catch(e) { toast('שגיאה במחיקה', true); }
