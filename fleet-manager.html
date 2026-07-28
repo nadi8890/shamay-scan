@@ -228,6 +228,7 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
   .logo{font-size:0.95rem;white-space:nowrap;flex-shrink:0}
   .logo .brand-sub{display:none}           /* hide only the "ניהול ציי רכב" subtitle */
   #header-clock{display:none}               /* clock is too wide for the row */
+  #company-badge{display:none}              /* company name — hidden on mobile to save room */
   #save-indicator{display:none}             /* status not essential on mobile */
   header > div{gap:6px!important;flex-wrap:nowrap}
   header .btn{padding:7px 9px!important;font-size:0.74rem!important;white-space:nowrap}
@@ -266,12 +267,16 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
   <div style="background:#fff;border-radius:20px;padding:30px 26px;width:100%;max-width:380px;box-shadow:0 30px 80px rgba(0,0,0,.5);text-align:center">
     <div style="font-size:2.4rem">🚗</div>
     <div style="font-size:1.3rem;font-weight:900;color:#1e3a8a;margin-top:4px"><span style="color:#059669">ר.מ</span>זור</div>
-    <div style="font-size:0.8rem;color:#64748b;margin-bottom:20px">מערכת ניהול צי רכב · כניסת מנהל</div>
+    <div id="lg-subtitle" style="font-size:0.8rem;color:#64748b;margin-bottom:20px">מערכת ניהול צי רכב · כניסת מנהל</div>
+    <input id="lg-company" type="text" placeholder="שם החברה" style="display:none;width:100%;border:1.5px solid #dde3ed;border-radius:10px;padding:12px;font-family:'Heebo',sans-serif;font-size:0.95rem;margin-bottom:9px;text-align:right">
     <input id="lg-email" type="email" placeholder="אימייל" autocomplete="username" style="width:100%;border:1.5px solid #dde3ed;border-radius:10px;padding:12px;font-family:'Heebo',sans-serif;font-size:0.95rem;margin-bottom:9px;direction:ltr;text-align:right">
-    <input id="lg-pass" type="password" placeholder="סיסמה" autocomplete="current-password" style="width:100%;border:1.5px solid #dde3ed;border-radius:10px;padding:12px;font-family:'Heebo',sans-serif;font-size:0.95rem;margin-bottom:9px;direction:ltr;text-align:right" onkeydown="if(event.key==='Enter')doLogin()">
+    <input id="lg-pass" type="password" placeholder="סיסמה" autocomplete="current-password" style="width:100%;border:1.5px solid #dde3ed;border-radius:10px;padding:12px;font-family:'Heebo',sans-serif;font-size:0.95rem;margin-bottom:9px;direction:ltr;text-align:right" onkeydown="if(event.key==='Enter'){ _authMode==='signup' ? doSignup() : doLogin(); }">
     <div id="lg-err" style="color:#dc2626;font-size:0.8rem;font-weight:700;min-height:18px;margin-bottom:6px"></div>
     <button id="lg-btn" onclick="doLogin()" style="width:100%;background:linear-gradient(135deg,#2563eb,#4f46e5);color:#fff;border:none;border-radius:11px;padding:13px;font-family:'Heebo',sans-serif;font-size:1rem;font-weight:800;cursor:pointer">התחברות</button>
-    <div style="margin-top:12px"><a href="#" onclick="doReset();return false" style="font-size:0.75rem;color:#64748b;text-decoration:underline">שכחתי סיסמה</a></div>
+    <div style="margin-top:12px;display:flex;justify-content:space-between;font-size:0.75rem">
+      <a href="#" id="lg-toggle" onclick="toggleAuthMode();return false" style="color:#2563eb;text-decoration:underline;font-weight:700">➕ פתיחת חשבון לחברה חדשה</a>
+      <a href="#" onclick="doReset();return false" style="color:#64748b;text-decoration:underline">שכחתי סיסמה</a>
+    </div>
   </div>
 </div>
 
@@ -284,6 +289,7 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
     </span>
   </div>
   <div style="display:flex;align-items:center;gap:10px">
+    <span id="company-badge" style="color:#fff;font-size:0.78rem;font-weight:800;white-space:nowrap;background:rgba(255,255,255,.16);padding:3px 10px;border-radius:999px"></span>
     <span id="header-clock" style="color:#fff;font-size:0.8rem;font-weight:600;white-space:nowrap;opacity:.9"></span>
     <span id="tenant-status" style="display:none"></span>
     <span id="save-indicator">💾 לא נשמר</span>
@@ -2545,7 +2551,8 @@ async function readDriverDocs(type) {
   const byId = new Map();
   const add = (d, legacy) => { if (!byId.has(d.id)) byId.set(d.id, { _docId: d.id, _ref: d.ref, _legacy: legacy, ...d.data() }); };
   try { (await fcol().where('type','==',type).get()).forEach(d => add(d, false)); } catch(e){}
-  try { (await db.collection('fleet').where('type','==',type).get()).forEach(d => add(d, true)); } catch(e){}
+  // legacy fleet/* is Nofar's only — never read it for another customer's tenant
+  if (TENANT === 'nofar') { try { (await db.collection('fleet').where('type','==',type).get()).forEach(d => add(d, true)); } catch(e){} }
   return [...byId.values()];
 }
 
@@ -3553,6 +3560,9 @@ async function resolveTenant(user) {
 let _tenantCopyDone = false;
 async function copyToTenant() {
   if (_tenantCopyDone || !auth.currentUser) return;
+  // This copy migrates the LEGACY fleet/* (Nofar's original data) into its tenant.
+  // It must NEVER run for any other customer, or it would copy Nofar's data into them.
+  if (TENANT !== 'nofar') return;
   _tenantCopyDone = true;
   try {
     const setStatus = t => { const el = document.getElementById('tenant-status'); if (el) el.textContent = t; };
@@ -3591,9 +3601,20 @@ function startHeaderClock() {
   tick();
   setInterval(tick, 1000);
 }
+// A shared browser can hold another tenant's cached data in localStorage. If the
+// signed-in tenant differs from what's cached, wipe the cache so a new/other customer
+// never briefly sees someone else's fleet.
+function guardTenantCache() {
+  if (localStorage.getItem('fleet_cache_tenant') === TENANT) return;
+  VEHICLES = []; INCIDENTS = []; VIOLATIONS = []; REPLACEMENTS = []; RETURNS = []; TASKS = []; DRIVERS = {};
+  ['fleet_vehicles','fleet_incidents','fleet_violations','fleet_replacements','fleet_returns','fleet_tasks','fleet_mailSettings'].forEach(k => localStorage.removeItem(k));
+  localStorage.setItem('fleet_cache_tenant', TENANT);
+}
 function bootApp() {
   if (_appBooted) return;
   _appBooted = true;
+  guardTenantCache();
+  const cb = document.getElementById('company-badge'); if (cb) cb.textContent = COMPANY_NAME || '';
   document.getElementById('login-gate').style.display = 'none';
   startHeaderClock();
   const ind = document.getElementById('save-indicator');
@@ -3613,6 +3634,51 @@ function bootApp() {
   renderInvoices();
   renderTasks();
   agentInit();
+}
+// login vs signup toggle for the gate
+let _authMode = 'login';
+function toggleAuthMode() {
+  _authMode = _authMode === 'login' ? 'signup' : 'login';
+  const signup = _authMode === 'signup';
+  document.getElementById('lg-company').style.display = signup ? 'block' : 'none';
+  document.getElementById('lg-subtitle').textContent = signup ? 'פתיחת חשבון · חברה חדשה מקבלת מערכת ריקה משלה' : 'מערכת ניהול צי רכב · כניסת מנהל';
+  const btn = document.getElementById('lg-btn');
+  btn.textContent = signup ? 'צור חשבון' : 'התחברות';
+  btn.setAttribute('onclick', signup ? 'doSignup()' : 'doLogin()');
+  document.getElementById('lg-toggle').textContent = signup ? '↩ יש לי כבר חשבון — התחברות' : '➕ פתיחת חשבון לחברה חדשה';
+  document.getElementById('lg-err').textContent = '';
+}
+// Create a brand-new company account. Its tenant IS its uid → a private, empty space,
+// isolated from every other customer. On any failure the half-created account is removed.
+async function doSignup() {
+  const company = document.getElementById('lg-company').value.trim();
+  const email = document.getElementById('lg-email').value.trim();
+  const pass = document.getElementById('lg-pass').value;
+  const err = document.getElementById('lg-err');
+  err.style.color = '#dc2626'; err.textContent = '';
+  if (!company) { err.textContent = 'נא להזין שם חברה'; return; }
+  if (!email || pass.length < 6) { err.textContent = 'הזן אימייל תקין וסיסמה (6 תווים לפחות)'; return; }
+  const btn = document.getElementById('lg-btn');
+  btn.disabled = true; btn.textContent = 'יוצר חשבון...';
+  try {
+    await auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
+    const cred = await auth.createUserWithEmailAndPassword(email, pass);
+    try {
+      await db.collection('users').doc(cred.user.uid).set({
+        tenantId: cred.user.uid, companyName: company, role: 'manager', createdAt: new Date().toISOString()
+      });
+    } catch(mapErr) {
+      // couldn't record the company→tenant mapping — roll back so the account can't
+      // accidentally fall back into another company's data
+      try { await cred.user.delete(); } catch(e){}
+      throw mapErr;
+    }
+    // onAuthStateChanged fires → resolveTenant reads the mapping → boots into the empty tenant
+  } catch(e) {
+    btn.disabled = false; btn.textContent = 'צור חשבון';
+    const m = { 'auth/email-already-in-use':'המייל כבר רשום — התחבר במקום', 'auth/weak-password':'סיסמה חלשה מדי (6+ תווים)', 'auth/invalid-email':'אימייל לא תקין', 'permission-denied':'אין הרשאה ליצור חשבון — צור קשר עם התמיכה' };
+    err.textContent = m[e.code] || ('שגיאה: ' + (e.code || e.message));
+  }
 }
 function doLogin() {
   const email = document.getElementById('lg-email').value.trim();
