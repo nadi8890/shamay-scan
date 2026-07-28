@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>נופר אנרגיה — טפסי נהג</title>
+<title>ר.מזור — טפסי נהג</title>
 <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;600;700;900&display=swap" rel="stylesheet">
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
@@ -53,7 +53,7 @@ canvas.sig{width:100%;height:130px;border:1.5px dashed #94a3b8;border-radius:10p
 <body>
 
 <div class="hdr">
-  <h1>🚗 נופר אנרגיה — טפסי נהג</h1>
+  <h1>🚗 ר.מזור — טפסי נהג</h1>
   <div class="sub">מחלקת הרכב | מילוי וחתימה דיגיטליים</div>
 </div>
 <div class="veh-box" id="veh-box">טוען פרטי רכב...</div>
@@ -444,7 +444,7 @@ function buildDocHtml(r) {
     return `<div dir="rtl" style="box-sizing:border-box;width:740px;background:#fff;color:#0f172a;font-family:Arial,'Heebo',sans-serif;padding:28px 32px">
       <div style="text-align:center;border-bottom:3px solid #1e3a8a;padding-bottom:12px">
         <div style="font-size:20px;font-weight:900;color:#1e3a8a">תחקיר תאונת דרכים</div>
-        <div style="font-size:12px;color:#475569;margin-top:4px">נופר אנרגיה · קצין בטיחות בתעבורה · נשלח ${r.dateStr}</div>
+        <div style="font-size:12px;color:#475569;margin-top:4px">ר.מזור · קצין בטיחות בתעבורה · נשלח ${r.dateStr}</div>
       </div>
       <table style="width:100%;border-collapse:collapse;font-size:12px;margin-top:14px">
         <tr><td style="border:1px solid #cbd5e1;padding:6px 10px"><b>תאריך התאונה:</b> ${a.date||'-'}</td>
@@ -485,7 +485,7 @@ function buildDocHtml(r) {
   return `<div dir="rtl" style="box-sizing:border-box;width:740px;background:#fff;color:#0f172a;font-family:Arial,'Heebo',sans-serif;padding:28px 32px">
     <div style="text-align:center;border-bottom:3px solid #1e3a8a;padding-bottom:12px">
       <div style="font-size:20px;font-weight:900;color:#1e3a8a">${F.doc}</div>
-      <div style="font-size:12px;color:#475569;margin-top:4px">נופר אנרגיה · מחלקת הרכב · ${r.dateStr}</div>
+      <div style="font-size:12px;color:#475569;margin-top:4px">ר.מזור · מחלקת הרכב · ${r.dateStr}</div>
     </div>
     <table style="width:100%;border-collapse:collapse;font-size:12px;margin-top:14px">
       <tr>
