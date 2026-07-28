@@ -238,6 +238,10 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
   .stat-num{font-size:1.3rem}
   th,td{font-size:0.7rem;padding:6px 5px}
   .card{padding:12px}
+  /* 10 tabs were wider than a phone, so the leftmost tab (דשבורד) got clipped.
+     Tighten each tab so all ten fit without the bar scrolling. */
+  .nav-btn{font-size:0.5rem;padding:6px 1px;gap:1px}
+  .nav-btn .icon{font-size:1.05rem;padding:1px 3px}
 }
 /* keep the header a single compact row on phones — it was wrapping to 4 lines,
    pushing the whole screen down and pushing the agent button off view */
