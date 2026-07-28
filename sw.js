@@ -1,5 +1,5 @@
 // Service Worker — network-first for fleet-manager.html
-const CACHE = 'fleet-v1';
+const CACHE = 'fleet-v2';
 
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', e => e.waitUntil(self.clients.claim()));

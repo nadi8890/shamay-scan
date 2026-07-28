@@ -238,12 +238,11 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
   .stat-num{font-size:1.3rem}
   th,td{font-size:0.7rem;padding:6px 5px}
   .card{padding:12px}
-  /* 10 tabs don't fit a phone width. Instead of clipping the leftmost tab (דשבורד),
-     keep each tab a readable size and let the whole bar scroll horizontally. */
-  .nav-btn{flex:0 0 auto;min-width:62px;font-size:0.6rem;padding:6px 4px}
-  .nav-btn .icon{font-size:1.15rem;padding:2px 6px}
-  .bottom-nav{-webkit-overflow-scrolling:touch;scroll-snap-type:x proximity}
-  .nav-btn{scroll-snap-align:center}
+  /* Fit all 10 tabs on one row without scrolling: shrink each tab evenly and use a
+     compact label + icon so nothing spills past the screen edge (which clipped דשבורד). */
+  .bottom-nav{overflow-x:hidden}
+  .nav-btn{flex:1 1 0;min-width:0;font-size:0.52rem;padding:6px 0;gap:1px;letter-spacing:-.2px}
+  .nav-btn .icon{font-size:1.1rem;padding:1px 2px}
 }
 /* keep the header a single compact row on phones — it was wrapping to 4 lines,
    pushing the whole screen down and pushing the agent button off view */
