@@ -3814,6 +3814,8 @@ const TENANT_DATA = () => db.collection('tenants').doc(TENANT).collection('data'
 let USE_TENANT = true;
 function fcol() { return USE_TENANT ? TENANT_DATA() : db.collection('fleet'); }
 async function resolveTenant(user) {
+  // TEMP (owner-mapping setup): surface the uid on-screen so it can be recorded once.
+  try { let _b=document.getElementById('_uidbn'); if(!_b){_b=document.createElement('div');_b.id='_uidbn';document.body.appendChild(_b);} _b.style.cssText='position:fixed;top:0;left:0;right:0;z-index:99999;background:#000;color:#22ff66;font:bold 15px monospace;padding:9px;text-align:center;direction:ltr'; _b.textContent='UID: '+user.uid; } catch(e){}
   try {
     console.log('logged-in uid:', user.uid); // needed once to create the users/{uid} mapping doc
     const snap = await db.collection('users').doc(user.uid).get();
