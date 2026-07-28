@@ -3805,6 +3805,10 @@ let _appBooted = false;
 let TENANT = 'nofar';                 // resolved from users/{uid}; default keeps Nofar working
 let ROLE = 'manager';
 let COMPANY_NAME = 'נופר אנרגיה';
+// Subscription gate — set from users/{uid}. A customer is blocked when active===false
+// or when validUntil (ISO date) has passed. Nofar (the owner) is always active.
+let SUB_ACTIVE = true;
+let SUB_VALID_UNTIL = '';
 const TENANT_DATA = () => db.collection('tenants').doc(TENANT).collection('data');
 // Stage-2 cutover switch. OFF = legacy fleet/* . ON = per-tenant isolation (tenants/{tid}/data).
 let USE_TENANT = true;
@@ -3818,8 +3822,41 @@ async function resolveTenant(user) {
       if (d.tenantId) TENANT = d.tenantId;
       if (d.role) ROLE = d.role;
       if (d.companyName) COMPANY_NAME = d.companyName;
+      SUB_ACTIVE = (d.active !== false);       // blocked only if explicitly set false
+      SUB_VALID_UNTIL = d.validUntil || '';    // optional expiry date (ISO)
     }
   } catch(e) { console.log('tenant resolve error — defaulting to nofar', e); }
+}
+// Is this company's subscription currently valid? The owner (nofar) is never blocked.
+function subscriptionOK() {
+  if (TENANT === 'nofar') return true;
+  if (SUB_ACTIVE === false) return false;
+  if (SUB_VALID_UNTIL) {
+    const t = Date.parse(SUB_VALID_UNTIL);
+    if (!isNaN(t) && Date.now() > t) return false; // expired
+  }
+  return true;
+}
+// Block the app and show a "subscription inactive" screen with a contact line.
+function showPaywall() {
+  document.getElementById('login-gate').style.display = 'none';
+  let el = document.getElementById('paywall-gate');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'paywall-gate';
+    el.style.cssText = 'position:fixed;inset:0;z-index:10000;background:linear-gradient(135deg,#1e3a8a,#0f172a);display:flex;align-items:center;justify-content:center;padding:20px;font-family:\'Heebo\',sans-serif';
+    el.innerHTML = `<div style="background:#fff;border-radius:18px;max-width:400px;width:100%;padding:30px 26px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.4)">
+      <img src="icon-192.png" alt="" style="width:64px;height:64px;border-radius:14px;margin-bottom:14px">
+      <h2 style="color:#1e293b;font-size:1.25rem;margin-bottom:8px">המנוי אינו פעיל</h2>
+      <p style="color:#64748b;font-size:0.9rem;line-height:1.6;margin-bottom:20px">המנוי ל<b id="pw-company"></b> אינו פעיל כרגע.<br>לחידוש או הפעלה — צור קשר:</p>
+      <a href="tel:0542840258" style="display:block;background:linear-gradient(135deg,#2563eb,#4f46e5);color:#fff;text-decoration:none;border-radius:11px;padding:13px;font-weight:800;font-size:1rem;margin-bottom:10px">📞 054-2840258</a>
+      <a href="https://wa.me/972542840258" target="_blank" style="display:block;background:#25d366;color:#fff;text-decoration:none;border-radius:11px;padding:13px;font-weight:800;font-size:1rem;margin-bottom:16px">💬 וואטסאפ</a>
+      <button onclick="doLogout()" style="background:none;border:none;color:#94a3b8;text-decoration:underline;font-family:'Heebo',sans-serif;font-size:0.82rem;cursor:pointer">התנתקות</button>
+    </div>`;
+    document.body.appendChild(el);
+  }
+  const c = document.getElementById('pw-company'); if (c) c.textContent = COMPANY_NAME || 'חברה זו';
+  el.style.display = 'flex';
 }
 // Non-destructive FULL copy of every legacy fleet doc into the tenant namespace
 // (main, archives, declarations, inspections, km reports, bookings, backups, trash…),
@@ -3954,8 +3991,12 @@ async function doSignup() {
     await auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
     const cred = await auth.createUserWithEmailAndPassword(email, pass);
     try {
+      // Created by the owner AFTER payment → active. validUntil gives a one-month runway
+      // that auto-blocks if not renewed; the owner extends it each paid month in the console.
+      const _vu = new Date(); _vu.setDate(_vu.getDate() + 31);
       await db.collection('users').doc(cred.user.uid).set({
-        tenantId: cred.user.uid, companyName: company, role: 'manager', createdAt: new Date().toISOString()
+        tenantId: cred.user.uid, companyName: company, role: 'manager', createdAt: new Date().toISOString(),
+        active: true, validUntil: _vu.toISOString().slice(0,10)
       });
     } catch(mapErr) {
       // couldn't record the company→tenant mapping — roll back so the account can't
@@ -4008,6 +4049,7 @@ auth.onAuthStateChanged(async user => {
   }
   if (user) {
     await resolveTenant(user); // which company this account belongs to (defaults to nofar)
+    if (!subscriptionOK()) { showPaywall(); return; } // block companies with an inactive/expired subscription
     bootApp();
   } else {
     document.getElementById('login-gate').style.display = 'flex';
