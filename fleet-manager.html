@@ -3604,10 +3604,31 @@ function startHeaderClock() {
 // A shared browser can hold another tenant's cached data in localStorage. If the
 // signed-in tenant differs from what's cached, wipe the cache so a new/other customer
 // never briefly sees someone else's fleet.
-function guardTenantCache() {
-  if (localStorage.getItem('fleet_cache_tenant') === TENANT) return;
+function wipeSeedData() {
+  // The hardcoded literals (VEHICLES/INCIDENTS/... at the top of the file) hold Nofar's
+  // seed data and are RE-INITIALISED on every page load. loadFromFirestore only overwrites
+  // an array when the tenant actually has that key, so an empty tenant would keep showing
+  // Nofar's seed. Force-clear every in-memory dataset here.
   VEHICLES = []; INCIDENTS = []; VIOLATIONS = []; REPLACEMENTS = []; RETURNS = []; TASKS = []; DRIVERS = {};
-  ['fleet_vehicles','fleet_incidents','fleet_violations','fleet_replacements','fleet_returns','fleet_tasks','fleet_mailSettings'].forEach(k => localStorage.removeItem(k));
+  if (typeof INVOICES !== 'undefined') INVOICES = [];
+  if (typeof MAIL_SETTINGS !== 'undefined') MAIL_SETTINGS = {};
+  if (typeof AGENT_RULES !== 'undefined') AGENT_RULES = '';
+  if (typeof KMROUND !== 'undefined') KMROUND = {};
+  if (typeof SERVICE_NOTIFIED !== 'undefined') SERVICE_NOTIFIED = {};
+  ['fleet_vehicles','fleet_incidents','fleet_violations','fleet_replacements','fleet_returns','fleet_tasks','fleet_mailSettings','fleet_invoices'].forEach(k => localStorage.removeItem(k));
+}
+function guardTenantCache() {
+  // For ANY tenant other than the primary (nofar), clear the seed literals on EVERY load —
+  // not just once — because the literals re-init on refresh and the old cache-flag guard
+  // would skip the wipe, leaking Nofar's data into other companies' screens.
+  if (TENANT !== 'nofar') {
+    wipeSeedData();
+    localStorage.setItem('fleet_cache_tenant', TENANT);
+    return;
+  }
+  // Primary tenant: only wipe when actually switching away from another tenant's cache.
+  if (localStorage.getItem('fleet_cache_tenant') === TENANT) return;
+  wipeSeedData();
   localStorage.setItem('fleet_cache_tenant', TENANT);
 }
 function bootApp() {
