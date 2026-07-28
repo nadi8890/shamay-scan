@@ -6,7 +6,9 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <meta http-equiv="Expires" content="0">
-<title>נופר אנרגי — ניהול ציי רכב</title>
+<title>ר.מזור — ניהול ציי רכב</title>
+<meta name="application-name" content="ר.מזור">
+<meta name="apple-mobile-web-app-title" content="ר.מזור">
 <script>
 // Service Worker registration — network-first for home screen shortcuts
 if ('serviceWorker' in navigator) {
@@ -274,7 +276,7 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
     <div id="lg-err" style="color:#dc2626;font-size:0.8rem;font-weight:700;min-height:18px;margin-bottom:6px"></div>
     <button id="lg-btn" onclick="doLogin()" style="width:100%;background:linear-gradient(135deg,#2563eb,#4f46e5);color:#fff;border:none;border-radius:11px;padding:13px;font-family:'Heebo',sans-serif;font-size:1rem;font-weight:800;cursor:pointer">התחברות</button>
     <div style="margin-top:12px;display:flex;justify-content:space-between;font-size:0.75rem">
-      <a href="#" id="lg-toggle" onclick="toggleAuthMode();return false" style="color:#2563eb;text-decoration:underline;font-weight:700">➕ פתיחת חשבון לחברה חדשה</a>
+      <a href="#" id="lg-toggle" onclick="toggleAuthMode();return false" style="color:#2563eb;text-decoration:underline;font-weight:700;display:none">➕ פתיחת חשבון לחברה חדשה</a>
       <a href="#" onclick="doReset();return false" style="color:#64748b;text-decoration:underline">שכחתי סיסמה</a>
     </div>
   </div>
@@ -3746,7 +3748,16 @@ auth.onAuthStateChanged(async user => {
     if (btn) { btn.disabled = false; btn.textContent = 'התחברות'; }
   }
 });
-window.onload = () => {};
+window.onload = () => {
+  // Owner-only back door: signup is hidden for everyone; add ?signup=1 to the URL to
+  // reveal the "open a new company" link (used when onboarding a paying customer).
+  try {
+    if (new URLSearchParams(location.search).get('signup') === '1') {
+      const t = document.getElementById('lg-toggle');
+      if (t) t.style.display = '';
+    }
+  } catch(e) {}
+};
 
 // ══════════════════════════════════════
 // ── AI AGENT ──
