@@ -9,6 +9,8 @@
 <title>ר.מזור — ניהול ציי רכב</title>
 <meta name="application-name" content="ר.מזור">
 <meta name="apple-mobile-web-app-title" content="ר.מזור">
+<!-- SheetJS — reads uploaded Excel/CSV for the customer onboarding import wizard -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
 // Service Worker registration — network-first for home screen shortcuts
 if ('serviceWorker' in navigator) {
@@ -296,6 +298,7 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
     <span id="tenant-status" style="display:none"></span>
     <span id="save-indicator">💾 לא נשמר</span>
     <button class="btn" style="padding:7px 14px;font-size:0.82rem;background:#fff;color:#1e40af;font-weight:700;border-radius:8px" onclick="openAddVehicle()">+ רכב חדש</button>
+    <button class="btn" style="padding:7px 12px;font-size:0.82rem;background:rgba(255,255,255,.16);color:#fff;font-weight:700;border-radius:8px" title="ייבוא צי מקובץ אקסל / CSV" onclick="openImportWizard()">📥 ייבוא מאקסל</button>
     <button class="btn" style="padding:7px 12px;font-size:0.82rem;background:rgba(255,255,255,.16);color:#fff;font-weight:700;border-radius:8px" title="שחזור רכב שנמחק מהגיבוי היומי" onclick="openRestoreDeleted()">♻️ שחזור</button>
     <button class="btn" style="padding:7px 12px;font-size:0.82rem;background:rgba(255,255,255,.18);color:#fff;font-weight:700;border-radius:8px" onclick="doLogout()" title="התנתקות">🚪</button>
   </div>
@@ -863,6 +866,61 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
       <button class="btn btn-gray" onclick="closeModal()">ביטול</button>
       <button class="btn btn-primary" style="background:var(--orange)" id="modal-incident-btn" onclick="openIncidentFromModal()">💥 דיווח תאונה</button>
       <button class="btn btn-green" onclick="saveVehicle()">💾 שמור</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ IMPORT WIZARD (Excel/CSV onboarding) ══════════════ -->
+<div class="modal-overlay" id="import-modal">
+  <div class="modal" style="max-width:760px">
+    <h3 id="imp-title">📥 ייבוא צי מאקסל</h3>
+
+    <!-- STEP 1: file -->
+    <div id="imp-step-file">
+      <p style="font-size:0.86rem;color:var(--muted);line-height:1.6;margin-bottom:12px">
+        העלה קובץ <b>Excel</b> (‎.xlsx‎ / ‎.xls‎) או <b>CSV</b> עם רשימת הרכבים.<br>
+        אין צורך בפורמט מיוחד — המערכת תזהה את העמודות לבד, ותוכל לתקן ידנית לפני הייבוא.<br>
+        <span style="font-size:0.78rem">💡 השורה הראשונה בקובץ צריכה להיות <b>כותרות</b> (מספר רכב, שם נהג, יצרן...).</span>
+      </p>
+      <label class="btn btn-primary" style="display:inline-block;cursor:pointer">
+        בחר קובץ…
+        <input type="file" id="imp-file" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleImportFile(this)">
+      </label>
+      <span id="imp-file-name" style="font-size:0.8rem;color:var(--muted);margin-inline-start:10px"></span>
+      <div id="imp-file-err" style="color:#dc2626;font-size:0.82rem;font-weight:700;margin-top:10px;display:none"></div>
+    </div>
+
+    <!-- STEP 2: column mapping -->
+    <div id="imp-step-map" style="display:none">
+      <p style="font-size:0.84rem;color:var(--muted);margin-bottom:10px">
+        זוהו <b id="imp-row-count">0</b> שורות. התאם כל שדה במערכת לעמודה בקובץ (מה שזוהה אוטומטית כבר מסומן):
+      </p>
+      <div id="imp-map-grid" style="display:grid;grid-template-columns:1fr 1fr;gap:8px 14px;max-height:46vh;overflow:auto;padding-inline-end:4px"></div>
+    </div>
+
+    <!-- STEP 3: preview -->
+    <div id="imp-step-preview" style="display:none">
+      <p style="font-size:0.84rem;color:var(--muted);margin-bottom:8px">
+        תצוגה מקדימה (5 שורות ראשונות מתוך <b id="imp-prev-total">0</b>). אם נראה תקין — ייבא:
+      </p>
+      <div style="overflow:auto;max-height:44vh;border:1px solid var(--border);border-radius:8px">
+        <table id="imp-prev-table" style="width:100%;border-collapse:collapse;font-size:0.76rem;white-space:nowrap"></table>
+      </div>
+      <div id="imp-dupe-note" style="font-size:0.78rem;color:#d97706;margin-top:8px;display:none"></div>
+    </div>
+
+    <!-- STEP 4: done -->
+    <div id="imp-step-done" style="display:none;text-align:center;padding:22px 8px">
+      <div style="font-size:3rem">✅</div>
+      <h3 style="margin:8px 0" id="imp-done-msg">הייבוא הושלם</h3>
+    </div>
+
+    <div class="btn-row" id="imp-btns">
+      <button class="btn btn-gray" onclick="closeImportWizard()">ביטול</button>
+      <button class="btn btn-secondary" id="imp-back-btn" style="display:none" onclick="importBack()">→ חזרה</button>
+      <button class="btn btn-primary" id="imp-next-btn" style="display:none" onclick="importToPreview()">המשך ←</button>
+      <button class="btn btn-green" id="imp-go-btn" style="display:none" onclick="doImport('upsert')">📥 ייבא לצי</button>
+      <button class="btn" id="imp-replace-btn" style="display:none;background:#dc2626;color:#fff" onclick="doImport('replace')" title="מוחק את כל הרכבים הקיימים ומייבא מחדש">♻️ החלף הכל</button>
     </div>
   </div>
 </div>
@@ -3531,6 +3589,193 @@ function saveVehicle() {
   renderFleet();
   checkServiceOverages();
   toast(editingPlate ? 'רכב עודכן ✓' : 'רכב נוסף ✓');
+}
+
+// ══════════════ IMPORT WIZARD (Excel/CSV → fleet) ══════════════
+// System fields a customer's spreadsheet can map onto, with Hebrew header synonyms used
+// for auto-detection. Order = display order in the mapping grid.
+const IMPORT_FIELDS = [
+  { key:'plate',              label:'מספר רכב (רישוי)', required:true, syn:['מספר רכב','מס רכב','מספר רישוי','רישוי','לוחית','מספר לוחית','רכב','plate','license plate'] },
+  { key:'driverName',         label:'שם נהג/עובד',      syn:['שם נהג','שם עובד','שם הנהג','נהג','עובד','שם מלא','שם','driver','name'] },
+  { key:'driverId',           label:'תעודת זהות',        syn:['תעודת זהות','ת.ז','ת"ז','תז','מספר זהות','ת.ז.','id number','id'] },
+  { key:'driverPhone',        label:'טלפון נהג',         syn:['טלפון','נייד','פלאפון','מספר טלפון','נייד נהג','phone','mobile','cell'] },
+  { key:'make',               label:'יצרן',              syn:['יצרן','תוצר','תוצרת','מותג','make','manufacturer','brand'] },
+  { key:'model',              label:'דגם',               syn:['דגם','model'] },
+  { key:'year',               label:'שנתון',             syn:['שנתון','שנה','שנת ייצור','year'] },
+  { key:'company',            label:'חברת ליסינג',       syn:['חברת ליסינג','ליסינג','חברה','ליס','leasing','company'] },
+  { key:'licenseExpiry',      label:'תוקף רישיון נהיגה', syn:['תוקף רישיון נהיגה','רישיון נהיגה','תוקף רישיון','רשיון נהיגה','license expiry','license'] },
+  { key:'registrationExpiry', label:'תוקף רישוי (טסט)',  syn:['תוקף רישוי','רישיון רכב','טסט','תוקף טסט','רישוי שנתי','ביטוח חובה','registration','test'] },
+  { key:'insuranceExpiry',    label:'תוקף ביטוח',        syn:['תוקף ביטוח','ביטוח','ביטוח מקיף','insurance'] },
+  { key:'currentKm',          label:'ק"מ נוכחי',         syn:['ק"מ נוכחי','קילומטראז','קילומטר','ק"מ','קמ','מד אוץ','km','mileage','odometer'] },
+  { key:'nextServiceKm',      label:'טיפול הבא (ק"מ)',   syn:['טיפול הבא','טיפול','ק"מ טיפול','service','next service'] },
+  { key:'vehicleFrom',        label:'תאריך קבלת רכב',    syn:['תאריך קבלה','קבלת רכב','תאריך קבלת רכב','מתאריך','from date','start date'] },
+  { key:'inspection',         label:'ביקורת בטיחות',     syn:['ביקורת בטיחות','ביקורת','תאריך ביקורת','inspection'] },
+  { key:'trafficRecord',      label:'עבר תעבורתי',       syn:['עבר תעבורתי','עבר תעבורה','traffic record'] },
+  { key:'procedures',         label:'נהלים',             syn:['נהלים','חתימת נהלים','procedures'] },
+  { key:'code',               label:'קוד / מק"ט רכב',    syn:['קוד','מק"ט','מקט','מספר פנימי','code','asset'] },
+  { key:'children',           label:'ילדים',             syn:['ילדים','children','kids'] },
+  { key:'notes',              label:'הערות',             syn:['הערות','הערה','notes','remarks'] },
+];
+let IMP = { headers: [], rows: [], map: {} }; // parsed file state
+
+function normHeader(s) { return String(s == null ? '' : s).replace(/["'`׳״]/g,'').replace(/\s+/g,' ').trim().toLowerCase(); }
+
+function openImportWizard() {
+  if (typeof XLSX === 'undefined') { toast('ספריית הקריאה עדיין נטענת — נסה שוב בעוד רגע', true); return; }
+  IMP = { headers: [], rows: [], map: {} };
+  document.getElementById('imp-file').value = '';
+  document.getElementById('imp-file-name').textContent = '';
+  document.getElementById('imp-file-err').style.display = 'none';
+  showImportStep('file');
+  document.getElementById('import-modal').classList.add('open');
+}
+function closeImportWizard() { document.getElementById('import-modal').classList.remove('open'); }
+
+function showImportStep(step) {
+  ['file','map','preview','done'].forEach(s =>
+    document.getElementById('imp-step-' + s).style.display = (s === step ? '' : 'none'));
+  const show = (id, on) => document.getElementById(id).style.display = (on ? '' : 'none');
+  show('imp-back-btn',    step === 'map' || step === 'preview');
+  show('imp-next-btn',    step === 'map');
+  show('imp-go-btn',      step === 'preview');
+  show('imp-replace-btn', step === 'preview' && VEHICLES.length > 0);
+  document.getElementById('imp-btns').style.display = (step === 'done' ? 'none' : '');
+}
+function importBack() { showImportStep(document.getElementById('imp-step-preview').style.display === 'none' ? 'file' : 'map'); }
+
+function handleImportFile(input) {
+  const file = input.files && input.files[0];
+  if (!file) return;
+  const errEl = document.getElementById('imp-file-err');
+  errEl.style.display = 'none';
+  document.getElementById('imp-file-name').textContent = file.name;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const wb = XLSX.read(e.target.result, { type: 'array', cellDates: false });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: false, blankrows: false });
+      if (!aoa.length) throw new Error('הקובץ ריק');
+      // first non-empty row = headers
+      IMP.headers = (aoa[0] || []).map(h => String(h == null ? '' : h).trim());
+      IMP.rows = aoa.slice(1).filter(r => r.some(c => String(c).trim() !== ''));
+      if (!IMP.rows.length) throw new Error('לא נמצאו שורות נתונים מתחת לשורת הכותרות');
+      buildMappingUI();
+      document.getElementById('imp-row-count').textContent = IMP.rows.length;
+      showImportStep('map');
+    } catch (err) {
+      errEl.textContent = '⚠ שגיאה בקריאת הקובץ: ' + (err.message || err);
+      errEl.style.display = 'block';
+    }
+  };
+  reader.onerror = () => { errEl.textContent = '⚠ לא ניתן לקרוא את הקובץ'; errEl.style.display = 'block'; };
+  reader.readAsArrayBuffer(file);
+}
+
+function autoDetectColumn(field) {
+  const H = IMP.headers.map(normHeader);
+  // exact match first, then "contains" either direction
+  for (const s of field.syn) { const i = H.indexOf(normHeader(s)); if (i >= 0) return i; }
+  for (const s of field.syn) {
+    const ns = normHeader(s);
+    const i = H.findIndex(h => h && (h.includes(ns) || ns.includes(h)));
+    if (i >= 0) return i;
+  }
+  return -1;
+}
+function buildMappingUI() {
+  const used = new Set();
+  const grid = document.getElementById('imp-map-grid');
+  let html = '';
+  IMP.map = {};
+  IMP_FIELD_ORDER().forEach(field => {
+    let sel = autoDetectColumn(field);
+    if (sel >= 0 && used.has(sel)) sel = -1; // don't map two fields to the same column
+    if (sel >= 0) used.add(sel);
+    IMP.map[field.key] = sel;
+    const opts = ['<option value="-1">— לא לייבא —</option>']
+      .concat(IMP.headers.map((h, i) => `<option value="${i}" ${i === sel ? 'selected' : ''}>${esc(h || ('עמודה ' + (i+1)))}</option>`))
+      .join('');
+    html += `<div class="modal-row" style="margin:0">
+      <label style="font-size:0.76rem">${esc(field.label)}${field.required ? ' <span style="color:#dc2626">*</span>' : ''}</label>
+      <select data-fk="${field.key}" onchange="IMP.map['${field.key}']=parseInt(this.value)" style="width:100%">${opts}</select>
+    </div>`;
+  });
+  grid.innerHTML = html;
+}
+function IMP_FIELD_ORDER() { return IMPORT_FIELDS; }
+
+function importToPreview() {
+  if (IMP.map.plate == null || IMP.map.plate < 0) {
+    toast('חובה למפות את עמודת "מספר רכב"', true); return;
+  }
+  const rows = buildImportedVehicles();
+  const shown = rows.slice(0, 5);
+  // preview table: only mapped fields
+  const cols = IMPORT_FIELDS.filter(f => IMP.map[f.key] >= 0);
+  let html = '<thead><tr>' + cols.map(c => `<th style="padding:5px 8px;border-bottom:1px solid var(--border);text-align:right;background:#f8fafc;position:sticky;top:0">${esc(c.label)}</th>`).join('') + '</tr></thead><tbody>';
+  html += shown.map(v => '<tr>' + cols.map(c => `<td style="padding:5px 8px;border-bottom:1px solid #eef2f7">${esc(v[c.key] || '')}</td>`).join('') + '</tr>').join('');
+  html += '</tbody>';
+  document.getElementById('imp-prev-table').innerHTML = html;
+  document.getElementById('imp-prev-total').textContent = rows.length;
+  // duplicate warning
+  const existing = new Set(VEHICLES.map(v => (v.plate||'').replace(/\D/g,'')));
+  const dupes = rows.filter(v => existing.has((v.plate||'').replace(/\D/g,''))).length;
+  const note = document.getElementById('imp-dupe-note');
+  if (dupes) { note.textContent = `⚠ ${dupes} מהרכבים כבר קיימים בצי — "ייבא לצי" יעדכן אותם, "החלף הכל" ימחק הכל ויתחיל מחדש.`; note.style.display = 'block'; }
+  else note.style.display = 'none';
+  window._impBuilt = rows;
+  showImportStep('preview');
+}
+
+function buildImportedVehicles() {
+  const cell = (r, key) => { const i = IMP.map[key]; return (i != null && i >= 0) ? String(r[i] == null ? '' : r[i]).trim() : ''; };
+  return IMP.rows.map((r, idx) => {
+    const v = { id: Date.now() + idx };
+    IMPORT_FIELDS.forEach(f => { const val = cell(r, f.key); if (val) v[f.key] = val; });
+    return v;
+  }).filter(v => (v.plate || '').trim() !== ''); // must have a plate
+}
+
+async function doImport(mode) {
+  const rows = window._impBuilt || buildImportedVehicles();
+  if (!rows.length) { toast('אין רכבים לייבוא', true); return; }
+  if (mode === 'replace' && !confirm(`פעולה זו תמחק את כל ${VEHICLES.length} הרכבים הקיימים ותייבא ${rows.length} רכבים חדשים במקומם.\n\nלהמשיך?`)) return;
+  if (mode === 'replace') {
+    VEHICLES = rows;
+  } else {
+    // upsert by plate (compare on digits only)
+    const norm = p => (p || '').replace(/\D/g, '');
+    const byPlate = new Map(VEHICLES.map(v => [norm(v.plate), v]));
+    rows.forEach(nv => {
+      const k = norm(nv.plate);
+      const ex = byPlate.get(k);
+      if (ex) { Object.assign(ex, nv, { id: ex.id }); } // keep existing id
+      else { VEHICLES.unshift(nv); byPlate.set(k, nv); }
+    });
+  }
+  // rebuild driver directory entries for imported names
+  rows.forEach(v => {
+    const dk = driverKey(v.driverName);
+    if (!dk) return;
+    DRIVERS[dk] = DRIVERS[dk] || {};
+    if (v.licenseExpiry) DRIVERS[dk].licenseExpiry = v.licenseExpiry;
+    if (v.trafficRecord) DRIVERS[dk].trafficRecord = v.trafficRecord;
+    if (v.driverPhone) DRIVERS[dk].driverPhone = v.driverPhone;
+  });
+  try {
+    localStorage.setItem('fleet_vehicles', JSON.stringify(VEHICLES));
+    saveToFirestore('vehicles', VEHICLES);
+    saveToFirestore('drivers', DRIVERS);
+    document.getElementById('imp-done-msg').textContent =
+      (mode === 'replace' ? 'הצי הוחלף' : 'הייבוא הושלם') + ` — ${rows.length} רכבים`;
+    showImportStep('done');
+    renderFleet(); renderDashboard(); renderAlerts();
+    setTimeout(closeImportWizard, 1800);
+    toast(`✓ יובאו ${rows.length} רכבים`);
+  } catch (e) {
+    toast('⚠ שגיאת שמירה: ' + (e.code || e.message || e), true);
+  }
 }
 
 // ── INIT ──
