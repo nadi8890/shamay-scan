@@ -3813,21 +3813,34 @@ const TENANT_DATA = () => db.collection('tenants').doc(TENANT).collection('data'
 // Stage-2 cutover switch. OFF = legacy fleet/* . ON = per-tenant isolation (tenants/{tid}/data).
 let USE_TENANT = true;
 function fcol() { return USE_TENANT ? TENANT_DATA() : db.collection('fleet'); }
+// The legacy Nofar owner account has no users/{uid} mapping (it predates the multi-tenant
+// structure). This is the ONLY account allowed to fall back to the 'nofar' tenant; every
+// other unmapped account must get its own isolated tenant, never Nofar's data.
+const NOFAR_OWNER_UID = 'HOv8iAHOEhYy5C4jgGR3PCnME012';
 async function resolveTenant(user) {
-  // TEMP (owner-mapping setup): surface the uid on-screen so it can be recorded once.
-  try { let _b=document.getElementById('_uidbn'); if(!_b){_b=document.createElement('div');_b.id='_uidbn';document.body.appendChild(_b);} _b.style.cssText='position:fixed;top:0;left:0;right:0;z-index:99999;background:#000;color:#22ff66;font:bold 15px monospace;padding:9px;text-align:center;direction:ltr'; _b.textContent='UID: '+user.uid; } catch(e){}
   try {
-    console.log('logged-in uid:', user.uid); // needed once to create the users/{uid} mapping doc
     const snap = await db.collection('users').doc(user.uid).get();
     if (snap.exists) {
       const d = snap.data() || {};
-      if (d.tenantId) TENANT = d.tenantId;
+      TENANT = d.tenantId || user.uid;
       if (d.role) ROLE = d.role;
       if (d.companyName) COMPANY_NAME = d.companyName;
       SUB_ACTIVE = (d.active !== false);       // blocked only if explicitly set false
       SUB_VALID_UNTIL = d.validUntil || '';    // optional expiry date (ISO)
+      return;
     }
-  } catch(e) { console.log('tenant resolve error — defaulting to nofar', e); }
+    // No mapping doc: only the known owner maps to Nofar; anyone else gets an isolated
+    // (empty) tenant keyed by their own uid — closes the "unmapped → sees Nofar" hole.
+    if (user.uid === NOFAR_OWNER_UID) {
+      TENANT = 'nofar'; ROLE = 'manager'; COMPANY_NAME = 'נופר אנרגיה';
+    } else {
+      TENANT = user.uid; COMPANY_NAME = ''; SUB_ACTIVE = true; SUB_VALID_UNTIL = '';
+    }
+  } catch(e) {
+    // On a read failure, preserve isolation — never default a stranger onto Nofar.
+    console.log('tenant resolve error', e);
+    TENANT = (user.uid === NOFAR_OWNER_UID) ? 'nofar' : user.uid;
+  }
 }
 // Is this company's subscription currently valid? The owner (nofar) is never blocked.
 function subscriptionOK() {
