@@ -2223,6 +2223,13 @@ function renderFormsTab() {
 
 // ── MONTHLY KM UPDATE ROUND ──
 const KM_UPDATE_LINK = 'https://nadi8890.github.io/shamay-scan/km-update.html';
+// Every driver link MUST carry the tenant id, or a customer's drivers would fall back to
+// Nofar's data (the driver pages default ?t= to 'nofar'). sep is '?' for a bare base URL
+// or '&' when the link already has a query string.
+function tParam(sep) { return (sep || '&') + 't=' + encodeURIComponent(TENANT || 'nofar'); }
+// Message sign-off uses the signed-in company's name (Nofar for Nofar, the customer's own
+// name for every other tenant) instead of a hardcoded "נופר אנרגיה".
+function coSig() { return COMPANY_NAME ? ('מחלקת הרכב — ' + COMPANY_NAME) : 'מחלקת הרכב'; }
 let KMROUND = {};
 function kmMonthKey() {
   const n = new Date();
@@ -2232,7 +2239,7 @@ function kmMonthName() {
   return new Date().toLocaleDateString('he-IL', { month: 'long', year: 'numeric' });
 }
 function kmGroupMsg() {
-  return `שלום לכולם! 🚗\nסבב עדכון קילומטראז' חודשי — נא להיכנס לקישור, להקליד את מספר הרכב ולעדכן את הק"מ הנוכחי (לוקח 20 שניות):\n${KM_UPDATE_LINK}\n\nתודה, מחלקת הרכב — נופר אנרגיה`;
+  return `שלום לכולם! 🚗\nסבב עדכון קילומטראז' חודשי — נא להיכנס לקישור, להקליד את מספר הרכב ולעדכן את הק"מ הנוכחי (לוקח 20 שניות):\n${KM_UPDATE_LINK}${tParam('?')}\n\nתודה, ${coSig()}`;
 }
 async function copyKmGroupMsg() {
   try { await navigator.clipboard.writeText(kmGroupMsg()); toast('ההודעה הועתקה — הדבק בקבוצת הוואטסאפ ✓'); }
@@ -2310,7 +2317,7 @@ async function maybeSendKmReminder() {
     mirrorToTenant('main', { kmRemind: rem });
     if (MAIL_SETTINGS.gasUrl) {
       await fetch(MAIL_SETTINGS.gasUrl, { method:'POST', mode:'no-cors', headers:{'Content-Type':'text/plain'},
-        body: JSON.stringify({ subject: '🛣️ תזכורת: סבב עדכון ק"מ חודשי', body: 'תחילת חודש!\nשלח לקבוצת הנהגים את הודעת עדכון הק"מ.\nההודעה המוכנה: לשונית טפסים ← סבב עדכון ק"מ ← "העתק הודעה לקבוצה".\n\nקישור הנהגים: ' + KM_UPDATE_LINK, files: [] }) });
+        body: JSON.stringify({ subject: '🛣️ תזכורת: סבב עדכון ק"מ חודשי', body: 'תחילת חודש!\nשלח לקבוצת הנהגים את הודעת עדכון הק"מ.\nההודעה המוכנה: לשונית טפסים ← סבב עדכון ק"מ ← "העתק הודעה לקבוצה".\n\nקישור הנהגים: ' + KM_UPDATE_LINK + tParam('?'), files: [] }) });
     }
   } catch(e) {}
 }
@@ -2320,7 +2327,7 @@ function remindKmDriver(i) {
   const nm = (v.driverName||'').split('-')[0].trim();
   const digits = (v.driverPhone||'').replace(/\D/g,'');
   const intl = digits.startsWith('972') ? digits : '972' + digits.replace(/^0/,'');
-  const msg = `היי ${nm} 👋\nתזכורת קטנה — נא לעדכן את הק"מ הנוכחי של הרכב (${v.plate}) בקישור:\n${KM_UPDATE_LINK}?plate=${v.plate}\n\nלוקח 20 שניות. תודה!\nמחלקת הרכב — נופר אנרגיה`;
+  const msg = `היי ${nm} 👋\nתזכורת קטנה — נא לעדכן את הק"מ הנוכחי של הרכב (${v.plate}) בקישור:\n${KM_UPDATE_LINK}?plate=${v.plate}${tParam('&')}\n\nלוקח 20 שניות. תודה!\n${coSig()}`;
   window.open('https://wa.me/' + intl + '?text=' + encodeURIComponent(msg), '_blank');
 }
 
@@ -2337,7 +2344,7 @@ function openDeclShare(plate) {
   const driver = v ? (v.driverName||'').split('-')[0].trim() : '';
   window._declPlate = plate;
   window._declDriver = driver;
-  window._declLink = `https://nadi8890.github.io/shamay-scan/driver-forms.html?plate=${encodeURIComponent(plate)}`;
+  window._declLink = `https://nadi8890.github.io/shamay-scan/driver-forms.html?plate=${encodeURIComponent(plate)}${tParam('&')}`;
   const digits = (v && v.driverPhone ? v.driverPhone : '').replace(/\D/g,'');
   window._declIntl = digits ? (digits.startsWith('972') ? digits : '972' + digits.replace(/^0/,'')) : '';
   document.getElementById('dsm-info').innerHTML = window._declIntl
@@ -2348,7 +2355,7 @@ function openDeclShare(plate) {
 function sendDeclForm(formKey) {
   const meta = DECL_FORM_META[formKey];
   const link = `${window._declLink}&form=${formKey}`;
-  const msg = `שלום ${window._declDriver || ''},\nנא למלא ולחתום על ${meta.msgName} עבור רכב ${window._declPlate} בקישור:\n${link}\n\nלוקח 2 דקות בטלפון. תודה!\nמחלקת הרכב — נופר אנרגיה`;
+  const msg = `שלום ${window._declDriver || ''},\nנא למלא ולחתום על ${meta.msgName} עבור רכב ${window._declPlate} בקישור:\n${link}\n\nלוקח 2 דקות בטלפון. תודה!\n${coSig()}`;
   const url = window._declIntl
     ? `https://wa.me/${window._declIntl}?text=${encodeURIComponent(msg)}`
     : 'https://wa.me/?text=' + encodeURIComponent(msg);
@@ -2357,7 +2364,7 @@ function sendDeclForm(formKey) {
 // Send the general link (the menu with all 3 receipt forms) straight to WhatsApp,
 // same behaviour as the per-form buttons.
 function sendDeclAll() {
-  const msg = `שלום ${window._declDriver || ''},\nלקראת קבלת רכב ${window._declPlate} נא למלא ולחתום על טפסי קבלת הרכב בקישור:\n${window._declLink}\n\nלוקח כמה דקות בטלפון. תודה!\nמחלקת הרכב — נופר אנרגיה`;
+  const msg = `שלום ${window._declDriver || ''},\nלקראת קבלת רכב ${window._declPlate} נא למלא ולחתום על טפסי קבלת הרכב בקישור:\n${window._declLink}\n\nלוקח כמה דקות בטלפון. תודה!\n${coSig()}`;
   const url = window._declIntl
     ? `https://wa.me/${window._declIntl}?text=${encodeURIComponent(msg)}`
     : 'https://wa.me/?text=' + encodeURIComponent(msg);
@@ -2407,9 +2414,9 @@ function sendInspReminderPlate(plate) {
   const intl = digits ? (digits.startsWith('972') ? digits : '972' + digits.replace(/^0/, '')) : '';
   const t = new Date();
   const sent = `${t.getFullYear()}-${('0'+(t.getMonth()+1)).slice(-2)}-${('0'+t.getDate()).slice(-2)}`;
-  const link = `https://nadi8890.github.io/shamay-scan/inspection-booking.html?plate=${encodeURIComponent(plate)}&sent=${sent}`;
+  const link = `https://nadi8890.github.io/shamay-scan/inspection-booking.html?plate=${encodeURIComponent(plate)}&sent=${sent}${tParam('&')}`;
   // dual-gender wording so one message fits everyone
-  const m = `שלום ${name},\nהגיע מועד ביקורת הבטיחות התקופתית לרכב ${plate} שברשותך.\nאת/ה מתבקש/ת לקבוע מועד נוח לביצוע הביקורת מול קצין הבטיחות, בטווח השבועיים הקרובים, בקישור:\n${link}\n\nהקביעה לוקחת פחות מדקה. תודה על שיתוף הפעולה!\nמחלקת הרכב — נופר אנרגיה`;
+  const m = `שלום ${name},\nהגיע מועד ביקורת הבטיחות התקופתית לרכב ${plate} שברשותך.\nאת/ה מתבקש/ת לקבוע מועד נוח לביצוע הביקורת מול קצין הבטיחות, בטווח השבועיים הקרובים, בקישור:\n${link}\n\nהקביעה לוקחת פחות מדקה. תודה על שיתוף הפעולה!\n${coSig()}`;
   const url = intl ? `https://wa.me/${intl}?text=${encodeURIComponent(m)}` : 'https://wa.me/?text=' + encodeURIComponent(m);
   window.open(url, '_blank');
 }
