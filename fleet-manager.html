@@ -18,6 +18,11 @@
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
+<script>
+// Capture the install prompt as early as possible (it can fire before the app boots).
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); window._pwaPrompt = e; window.dispatchEvent(new Event('pwa-available')); });
+window.addEventListener('appinstalled', () => { window._pwaPrompt = null; try { localStorage.setItem('pwa_installed','1'); } catch(e){} const b = document.getElementById('pwa-install-banner'); if (b) b.style.display = 'none'; });
+</script>
 <!-- SheetJS — reads uploaded Excel/CSV for the customer onboarding import wizard -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
@@ -3918,6 +3923,7 @@ function bootApp() {
   renderInvoices();
   renderTasks();
   agentInit();
+  initPwaBanner();
 }
 // login vs signup toggle for the gate
 let _authMode = 'login';
@@ -5363,5 +5369,47 @@ function renderAgentMsgs(showTyping = false) {
 </div>
 </div>
 
+<!-- PWA install banner -->
+<div id="pwa-install-banner" style="display:none;position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:9999;background:#1e3a8a;color:#fff;border-radius:14px;box-shadow:0 6px 24px rgba(0,0,0,.28);padding:11px 13px;align-items:center;gap:11px;max-width:92vw;font-family:'Heebo',sans-serif">
+  <img src="icon-192.png" alt="" style="width:38px;height:38px;border-radius:9px;flex-shrink:0">
+  <div style="flex:1;min-width:0">
+    <div style="font-weight:800;font-size:0.9rem">התקן את ר.מזור</div>
+    <div id="pwa-banner-sub" style="font-size:0.75rem;opacity:.9">גישה מהירה ממסך הבית — כמו אפליקציה</div>
+  </div>
+  <button id="pwa-install-btn" style="background:#fff;color:#1e3a8a;border:none;border-radius:9px;padding:8px 14px;font-weight:800;font-family:'Heebo',sans-serif;cursor:pointer;white-space:nowrap">התקן</button>
+  <button onclick="dismissPwaBanner()" title="סגור" style="background:transparent;border:none;color:#fff;font-size:1.1rem;cursor:pointer;opacity:.85;flex-shrink:0">✕</button>
+</div>
+<script>
+function isStandalone() { return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true; }
+function dismissPwaBanner() {
+  const b = document.getElementById('pwa-install-banner'); if (b) b.style.display = 'none';
+  try { localStorage.setItem('pwa_banner_dismissed', String(Date.now())); } catch(e){}
+}
+function showPwaBanner(mode) {
+  if (isStandalone()) return;
+  try { if (localStorage.getItem('pwa_installed') === '1') return; } catch(e){}
+  try { const d = +localStorage.getItem('pwa_banner_dismissed') || 0; if (Date.now() - d < 7*864e5) return; } catch(e){} // snooze 7 days after dismiss
+  const b = document.getElementById('pwa-install-banner'); if (!b) return;
+  const btn = document.getElementById('pwa-install-btn'), sub = document.getElementById('pwa-banner-sub');
+  if (mode === 'ios') { btn.style.display = 'none'; sub.innerHTML = 'הקש שיתוף ⬆️ למטה, ואז «הוסף למסך הבית»'; }
+  b.style.display = 'flex';
+}
+function initPwaBanner() {
+  if (isStandalone()) return; // already installed — nothing to offer
+  if (window._pwaPrompt) showPwaBanner('prompt');
+  window.addEventListener('pwa-available', () => showPwaBanner('prompt'));
+  const btn = document.getElementById('pwa-install-btn');
+  if (btn) btn.onclick = async () => {
+    const p = window._pwaPrompt; if (!p) return;
+    p.prompt(); try { await p.userChoice; } catch(e){}
+    window._pwaPrompt = null; dismissPwaBanner();
+  };
+  // iOS Safari has no install event — offer manual instructions instead
+  const ua = navigator.userAgent || '';
+  if (/iphone|ipad|ipod/i.test(ua) && /^((?!crios|fxios|edgios|chrome).)*safari/i.test(ua)) {
+    setTimeout(() => showPwaBanner('ios'), 1500);
+  }
+}
+</script>
 </body>
 </html>
