@@ -3547,6 +3547,8 @@ function vehicleDocIssues(v) {
   return lines;
 }
 let _docMailPlate = null;
+let _docMailTo = []; // selected recipients
+const _emailOk = e => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e);
 function mailDocAlerts(plate) {
   const v = VEHICLES.find(x => x.plate === plate);
   if (!v) return;
@@ -3559,24 +3561,56 @@ function mailDocAlerts(plate) {
   document.getElementById('dm-plate').textContent = plate + who;
   document.getElementById('dm-issues').innerHTML = lines.map(l => `<div>• ${esc(l)}</div>`).join('');
   document.getElementById('dm-list').innerHTML = (c.emails || []).map(e => `<option value="${esc(e)}">`).join('');
-  document.getElementById('dm-email').value = c.byPlate[plate] || '';
+  // preselect the recipients last used for this plate (array, or legacy single string)
+  const prev = c.byPlate[plate];
+  _docMailTo = Array.isArray(prev) ? prev.slice() : (prev ? [prev] : []);
+  document.getElementById('dm-email').value = '';
+  renderDocMailChips();
   document.getElementById('doc-mail-modal').classList.add('open');
   setTimeout(() => document.getElementById('dm-email').focus(), 50);
 }
+function renderDocMailChips() {
+  const chips = document.getElementById('dm-chips');
+  chips.innerHTML = _docMailTo.length
+    ? _docMailTo.map(e => `<span style="display:inline-flex;align-items:center;gap:5px;background:#e0e7ff;color:#3730a3;border-radius:999px;padding:3px 10px;font-size:0.78rem;font-weight:600;direction:ltr">${esc(e)}<button onclick="removeDocMailEmail('${esc(e)}')" style="background:none;border:none;color:#4338ca;cursor:pointer;font-size:0.9rem;line-height:1;padding:0">✕</button></span>`).join('')
+    : '<span style="font-size:0.75rem;color:#94a3b8">לא נבחרו נמענים</span>';
+  const c = loadContacts();
+  const avail = (c.emails || []).filter(e => !_docMailTo.includes(e));
+  document.getElementById('dm-suggestions').innerHTML = avail.length
+    ? '<div style="font-size:0.72rem;color:#64748b;margin-bottom:3px">שמורים:</div>' + avail.map(e => `<button onclick="addDocMailEmailVal('${esc(e)}')" style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:999px;padding:3px 10px;font-size:0.76rem;margin:0 3px 4px 0;cursor:pointer;direction:ltr">+ ${esc(e)}</button>`).join('')
+    : '';
+}
+function addDocMailEmailVal(e) {
+  e = (e || '').trim();
+  if (!_emailOk(e)) { toast('כתובת מייל לא תקינה', true); return; }
+  if (!_docMailTo.includes(e)) _docMailTo.push(e);
+  const c = loadContacts();
+  if (!c.emails.includes(e)) { c.emails.unshift(e); c.emails = c.emails.slice(0,40); saveContacts(); }
+  renderDocMailChips();
+}
+function addDocMailEmail() {
+  const inp = document.getElementById('dm-email');
+  addDocMailEmailVal(inp.value);
+  inp.value = ''; inp.focus();
+}
+function removeDocMailEmail(e) { _docMailTo = _docMailTo.filter(x => x !== e); renderDocMailChips(); }
 function sendDocMail() {
-  const to = (document.getElementById('dm-email').value || '').trim();
-  if (!to || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(to)) { toast('כתובת מייל לא תקינה', true); return; }
+  // include anything still typed in the box but not yet added
+  const typed = (document.getElementById('dm-email').value || '').trim();
+  if (typed && _emailOk(typed) && !_docMailTo.includes(typed)) _docMailTo.push(typed);
+  if (!_docMailTo.length) { toast('הוסף לפחות נמען אחד', true); return; }
   const v = VEHICLES.find(x => x.plate === _docMailPlate);
   if (!v) return;
   const lines = vehicleDocIssues(v);
   const drv = (v.driverName || '').trim();
   const who = drv ? ' (' + drv.split('-')[0].trim() + ')' : '';
-  // remember this email (global list + per-plate default)
+  // remember recipients (global list + per-plate set)
   const c = loadContacts();
-  if (!c.emails.includes(to)) c.emails.unshift(to);
+  _docMailTo.forEach(e => { if (!c.emails.includes(e)) c.emails.unshift(e); });
   c.emails = c.emails.slice(0, 40);
-  c.byPlate[_docMailPlate] = to;
+  c.byPlate[_docMailPlate] = _docMailTo.slice();
   saveContacts();
+  const to = _docMailTo.join(',');
   const subject = `מסמכים חסרים/פגים — רכב ${_docMailPlate}`;
   const body = `שלום,\n\nלרכב ${_docMailPlate}${who} נדרש טיפול במסמכים הבאים:\n\n• ${lines.join('\n• ')}\n\nנא להשלים/לחדש בהקדם.\n\nתודה,\n${COMPANY_NAME || 'מחלקת הרכב'}`;
   // Open Gmail's web compose (uses the Google account you're signed into) instead of the OS
@@ -5682,11 +5716,16 @@ function renderAgentMsgs(showTyping = false) {
       <div style="font-weight:800;font-size:0.9rem" id="dm-plate"></div>
       <div style="font-size:0.8rem;color:#334155;margin-top:5px;line-height:1.7" id="dm-issues"></div>
     </div>
-    <div class="modal-row"><label>מייל איש הקשר</label>
-      <input id="dm-email" type="email" list="dm-list" style="direction:ltr" placeholder="name@example.com" onkeydown="if(event.key==='Enter')sendDocMail()">
+    <div class="modal-row"><label>נמענים (אפשר כמה)</label>
+      <div id="dm-chips" style="display:flex;flex-wrap:wrap;gap:5px;min-height:8px;margin-bottom:6px"></div>
+      <div style="display:flex;gap:6px">
+        <input id="dm-email" type="email" list="dm-list" style="direction:ltr;flex:1" placeholder="name@example.com" onkeydown="if(event.key==='Enter'){event.preventDefault();addDocMailEmail();}">
+        <button class="btn btn-secondary" style="padding:8px 12px;white-space:nowrap" onclick="addDocMailEmail()">➕ הוסף</button>
+      </div>
       <datalist id="dm-list"></datalist>
     </div>
-    <div style="font-size:0.72rem;color:#94a3b8;margin-top:3px">מיילים שהזנת נשמרים ומוצעים אוטומטית בפעם הבאה.</div>
+    <div id="dm-suggestions" style="margin-top:6px"></div>
+    <div style="font-size:0.72rem;color:#94a3b8;margin-top:5px">מיילים שהזנת נשמרים — לחץ על הצעה כדי להוסיף.</div>
     <div class="btn-row">
       <button class="btn btn-gray" onclick="document.getElementById('doc-mail-modal').classList.remove('open')">ביטול</button>
       <button class="btn btn-green" onclick="sendDocMail()">📧 פתח מייל</button>
