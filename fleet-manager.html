@@ -3606,6 +3606,45 @@ function addDocMailEmail() {
   inp.value = ''; inp.focus();
 }
 function removeDocMailEmail(e) { _docMailTo = _docMailTo.filter(x => x !== e); renderDocMailChips(); }
+// Builds {to, subject, body} from the current selection + typed box, and saves the contacts.
+function _docMailPayload() {
+  const typed = (document.getElementById('dm-email').value || '').trim();
+  if (typed && _emailOk(typed) && !_docMailTo.includes(typed)) _docMailTo.push(typed);
+  if (!_docMailTo.length) return null;
+  const v = VEHICLES.find(x => x.plate === _docMailPlate);
+  if (!v) return null;
+  const lines = vehicleDocIssues(v);
+  const drv = (v.driverName || '').trim();
+  const who = drv ? ' (' + drv.split('-')[0].trim() + ')' : '';
+  const c = loadContacts();
+  _docMailTo.forEach(e => { if (!c.emails.includes(e)) c.emails.unshift(e); });
+  c.emails = c.emails.slice(0, 40);
+  c.byPlate[_docMailPlate] = _docMailTo.slice();
+  saveContacts();
+  return {
+    to: _docMailTo.join(','),
+    subject: `מסמכים חסרים/פגים — רכב ${_docMailPlate}`,
+    body: `שלום,\n\nלרכב ${_docMailPlate}${who} נדרש טיפול במסמכים הבאים:\n\n• ${lines.join('\n• ')}\n\nנא להשלים/לחדש בהקדם.\n\nתודה,\n${COMPANY_NAME || 'מחלקת הרכב'}`
+  };
+}
+// Copy the whole message (recipients + subject + body) so it can be pasted into a new
+// message in the RIGHT account — the reliable path when several mail accounts are signed in.
+function copyDocMail() {
+  const p = _docMailPayload();
+  if (!p) { toast('הוסף לפחות נמען אחד', true); return; }
+  renderDocMailChips();
+  const full = `אל: ${p.to.replace(/,/g, ', ')}\nנושא: ${p.subject}\n\n${p.body}`;
+  const done = () => toast('הועתק ✓ — הדבק בהודעה חדשה בחשבון הנכון');
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(full).then(done).catch(() => _fallbackCopy(full, done));
+  } else _fallbackCopy(full, done);
+}
+function _fallbackCopy(text, done) {
+  const ta = document.createElement('textarea'); ta.value = text;
+  ta.style.cssText = 'position:fixed;left:-9999px'; document.body.appendChild(ta); ta.select();
+  try { document.execCommand('copy'); done(); } catch(e) { toast('ההעתקה נכשלה', true); }
+  document.body.removeChild(ta);
+}
 function sendDocMail() {
   // include anything still typed in the box but not yet added
   const typed = (document.getElementById('dm-email').value || '').trim();
@@ -5753,6 +5792,7 @@ function renderAgentMsgs(showTyping = false) {
     <div style="font-size:0.72rem;color:#94a3b8;margin-top:5px">מיילים שהזנת נשמרים — לחץ על הצעה כדי להוסיף.</div>
     <div class="btn-row">
       <button class="btn btn-gray" onclick="document.getElementById('doc-mail-modal').classList.remove('open')">ביטול</button>
+      <button class="btn btn-secondary" onclick="copyDocMail()" title="העתק נמענים+נושא+תוכן להדבקה בחשבון הנכון">📋 העתק</button>
       <button class="btn btn-green" onclick="sendDocMail()">📧 פתח מייל</button>
     </div>
   </div>
