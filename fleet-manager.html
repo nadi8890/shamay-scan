@@ -1137,6 +1137,7 @@ async function loadFromFirestore() {
       if (d.drivers) { DRIVERS = d.drivers; }
       if (typeof d.agentRules === 'string') { AGENT_RULES = d.agentRules; }
       if (typeof d.officerSignature === 'string') { window.OFFICER_SIGNATURE = d.officerSignature; }
+      if (d.officerInfo && typeof d.officerInfo === 'object') { window.OFFICER_INFO = d.officerInfo; try { localStorage.setItem('fleet_officerInfo', JSON.stringify(d.officerInfo)); } catch(e){} }
       rebuildDriversDirectory();
       if (typeof updateKmBanner === 'function') updateKmBanner();
       if (typeof maybeSendKmReminder === 'function') maybeSendKmReminder();
@@ -2189,13 +2190,132 @@ function renderViolations() {
       <td>${v.points ? `<span class="badge badge-orange">${esc(v.points)}</span>` : '—'}</td>
       <td style="font-weight:700">${esc(v.fine)||'—'}</td>
       <td style="white-space:nowrap">${statusHtml}</td>
-      <td><button class="btn btn-secondary" style="padding:3px 9px;font-size:0.75rem" onclick="openViolEdit(${v.id})">✏️ עריכה</button></td>
+      <td style="white-space:nowrap"><button class="btn btn-secondary" style="padding:3px 9px;font-size:0.75rem" onclick="openViolEdit(${v.id})">✏️ עריכה</button> <button class="btn btn-secondary" style="padding:3px 9px;font-size:0.75rem;background:#eef2ff;color:#4338ca" onclick="openTransferForm(${v.id})" title="בקשה להסבת הדוח לנהג">📄 הסבה</button></td>
     </tr>`;
   }).join('');
 }
 function persistViolations() {
   try { localStorage.setItem('fleet_violations', JSON.stringify(VIOLATIONS)); } catch(e){}
   saveToFirestore('violations', VIOLATIONS);
+}
+
+// ═══ TRAFFIC-REPORT TRANSFER (הסבת דוח) ═══
+function loadOfficerInfo() {
+  if (window.OFFICER_INFO) return window.OFFICER_INFO;
+  try { window.OFFICER_INFO = JSON.parse(localStorage.getItem('fleet_officerInfo') || '{}'); } catch(e){ window.OFFICER_INFO = {}; }
+  return window.OFFICER_INFO;
+}
+function tfToggleAuthority() {
+  const isMuni = document.getElementById('tf-recipient').value === 'רשות מקומית';
+  document.getElementById('tf-authority-wrap').style.display = isMuni ? '' : 'none';
+}
+let _transferViolId = null;
+function openTransferForm(id) {
+  const v = VIOLATIONS.find(x => x.id === id);
+  if (!v) return;
+  _transferViolId = id;
+  const norm = p => (p||'').replace(/\D/g,'');
+  const veh = VEHICLES.find(x => norm(x.plate) === norm(v.plate)) || {};
+  const oi = loadOfficerInfo();
+  const t = new Date();
+  const today = `${('0'+t.getDate()).slice(-2)}/${('0'+(t.getMonth()+1)).slice(-2)}/${t.getFullYear()}`;
+  const set = (id2, val) => { const el = document.getElementById(id2); if (el) el.value = val || ''; };
+  set('tf-recipient', 'משטרת ישראל'); tfToggleAuthority();
+  set('tf-authority', '');
+  set('tf-date', today);
+  set('tf-notice', v.reportNum);
+  set('tf-notice-date', v.date);
+  set('tf-plate', v.plate);
+  set('tf-company', veh.company || COMPANY_NAME || '');
+  set('tf-driver', v.driver || veh.driverName || '');
+  set('tf-driver-id', veh.driverId || '');
+  set('tf-driver-addr', ''); // address is per-driver — left blank for the officer to fill
+  set('tf-cert', oi.certNum);
+  set('tf-officer-id', oi.officerId);
+  set('tf-phone', oi.phone || (MAIL_SETTINGS && MAIL_SETTINGS.phone) || '');
+  set('tf-fax', oi.fax);
+  set('tf-addr', oi.addr);
+  const sig = window.OFFICER_SIGNATURE;
+  document.getElementById('tf-sig-note').innerHTML = sig
+    ? '✅ חתימת קצין הבטיחות השמורה תוטבע אוטומטית. חותמת — תוסיף ידנית על ההדפסה.'
+    : '⚠ אין חתימת קצין שמורה (לשונית טפסים ← חתימת קצין). ה-PDF ייווצר בלי חתימה.';
+  document.getElementById('transfer-modal').classList.add('open');
+}
+function _tfEsc(s){ return String(s==null?'':s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+function buildTransferHtml(d) {
+  const val = (v,w) => `<span style="display:inline-block;border-bottom:1px solid #000;min-width:${w||120}px;text-align:center;padding:0 6px;font-weight:700">${_tfEsc(v)||'&nbsp;'}</span>`;
+  const toName = d.recipient === 'רשות מקומית' ? ('רשות מקומית' + (d.authority ? ' — ' + _tfEsc(d.authority) : '')) : 'משטרת ישראל';
+  const sigImg = window.OFFICER_SIGNATURE ? `<img src="${window.OFFICER_SIGNATURE}" style="max-width:150px;max-height:70px">` : '';
+  return `<div style="width:720px;background:#fff;color:#000;font-family:'Heebo',Arial,sans-serif;direction:rtl;padding:34px 40px;font-size:14px;line-height:1.9">
+    <div style="text-align:left;margin-bottom:18px">תאריך: ${val(d.date,110)}</div>
+    <div style="font-weight:800">לכבוד</div>
+    <div style="font-weight:800;margin-bottom:2px">${toName}</div>
+    <div style="border-bottom:1px solid #000;width:260px;margin-bottom:22px"></div>
+    <div style="text-align:center;font-weight:800;text-decoration:underline;margin-bottom:16px">הנדון: בקשה להסבת דוח תעבורה</div>
+    <p>בתאריך ${val(d.date,90)} התקבלה במשרדי החברה הודעתכם על העבירה שפרטיה כלהלן:</p>
+    <div style="margin:6px 0 2px">הודעת עבירה מס׳ ${val(d.notice,150)} מתאריך ${val(d.noticeDate,110)}</div>
+    <div style="margin:6px 0 2px">מס׳ רישוי הרכב ${val(d.plate,150)} <span>(להלן "הרכב")</span></div>
+    <div style="margin:6px 0 12px">הרשום על שם ${val(d.company,200)} <span>(להלן "החברה")</span></div>
+    <p>לפי הרשום בספרי החברה, הועמד הרכב הנ״ל הרשום במשרד הרישוי ע״ש החברה, לצורך עבודתו ולשירותיו האישי של עובד/ת החברה.</p>
+    <p>לאחר בדיקה ובירור הסתבר כי במועד ביצוע העבירה הרכב היה בחזקת עובד/ת החברה אשר פרטיו/ה האישיים הם:</p>
+    <table style="width:100%;border-collapse:collapse;margin:12px 0;text-align:center;font-size:13px">
+      <tr><td style="border:1px solid #000;padding:7px;font-weight:700">שם + שם משפחה</td><td style="border:1px solid #000;padding:7px;font-weight:700">מספר תעודת זהות</td><td style="border:1px solid #000;padding:7px;font-weight:700">כתובת</td></tr>
+      <tr><td style="border:1px solid #000;padding:9px;font-weight:700">${_tfEsc(d.driver)||'&nbsp;'}</td><td style="border:1px solid #000;padding:9px;font-weight:700;direction:ltr">${_tfEsc(d.driverId)||'&nbsp;'}</td><td style="border:1px solid #000;padding:9px">${_tfEsc(d.driverAddr)||'&nbsp;'}</td></tr>
+    </table>
+    <p>מצ״ב הצהרת הנהג/נהגת הרכב + צילום רישיון רכב ורישיון נהיגה / מסמך תומך (כגון: צילום יומן רכב / מסמך המעיד כי הרכב היה ברשות הנהג).</p>
+    <p>כמו כן, הריני להצהיר בזאת כי מר/גב׳ הרי״מ החזיק/ה ברכב במועד ובשעה בה בוצעה העבירה נשוא הודעת התשלום שבנדון.</p>
+    <p>בהסתמך על תקנה 162(ב) לתקנות התעבורה, אבקש להסב דוח זה על שם העובד/ת הנ״ל.</p>
+    <div style="margin:8px 0">לבירורים נא לפנות לטלפון: ${val(d.phone,120)} פקס: ${val(d.fax,110)}</div>
+    <div style="margin:6px 0 20px">כתובת: ${val(d.addr,320)}</div>
+    <div style="font-weight:800">בברכה,</div>
+    <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-top:6px">
+      <div>
+        <div style="font-weight:800">קצין בטיחות בתעבורה</div>
+        <div>ת.ז. ${val(d.officerId,100)} · מס׳ הסמכה ${val(d.cert,110)}</div>
+        <div style="margin-top:26px;border-top:1px solid #000;width:230px;padding-top:3px;font-size:12px">חתימה וחותמת קצין הבטיחות</div>
+      </div>
+      <div style="text-align:center;min-width:160px">${sigImg}</div>
+    </div>
+  </div>`;
+}
+async function transferPdf() {
+  const g = id => (document.getElementById(id).value || '').trim();
+  const d = {
+    recipient: g('tf-recipient'), authority: g('tf-authority'), date: g('tf-date'),
+    notice: g('tf-notice'), noticeDate: g('tf-notice-date'), plate: g('tf-plate'),
+    company: g('tf-company'), driver: g('tf-driver'), driverId: g('tf-driver-id'),
+    driverAddr: g('tf-driver-addr'), cert: g('tf-cert'), officerId: g('tf-officer-id'),
+    phone: g('tf-phone'), fax: g('tf-fax'), addr: g('tf-addr')
+  };
+  // remember officer details for next time
+  window.OFFICER_INFO = { certNum: d.cert, officerId: d.officerId, phone: d.phone, fax: d.fax, addr: d.addr };
+  try { localStorage.setItem('fleet_officerInfo', JSON.stringify(window.OFFICER_INFO)); } catch(e){}
+  try { fcol().doc('main').set({ officerInfo: window.OFFICER_INFO }, { merge: true }); } catch(e){}
+  const holder = document.createElement('div');
+  holder.style.cssText = 'position:absolute;left:-9999px;top:0';
+  holder.innerHTML = buildTransferHtml(d);
+  document.body.appendChild(holder);
+  try {
+    const fname = `הסבת דוח ${d.notice || d.plate || ''}.pdf`;
+    await html2pdf().set({
+      margin: 8, filename: fname,
+      image: { type: 'jpeg', quality: 0.95 },
+      html2canvas: { scale: 2, backgroundColor: '#ffffff' },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    }).from(holder.firstElementChild).save();
+    // mark the report as transferred (הוסב)
+    const v = VIOLATIONS.find(x => x.id === _transferViolId);
+    if (v) {
+      v.stHosav = true;
+      if (!v.stHosavDate) v.stHosavDate = d.date;
+      persistViolations();
+      renderViolations();
+    }
+    toast('✓ טופס ההסבה נוצר והדוח סומן כ"הוסב"');
+    document.getElementById('transfer-modal').classList.remove('open');
+  } catch(e) {
+    toast('⚠ יצירת ה-PDF נכשלה: ' + (e.message || e), true);
+  } finally { document.body.removeChild(holder); }
 }
 let editingViolId = null;
 function openViolEdit(id) {
@@ -5429,6 +5549,43 @@ function renderAgentMsgs(showTyping = false) {
 <button class="btn btn-green" onclick="saveEditReturn()">💾 שמור</button>
 </div>
 </div>
+</div>
+
+<!-- ═══════════ TRAFFIC-REPORT TRANSFER (הסבת דוח) ═══════════ -->
+<div class="modal-overlay" id="transfer-modal">
+  <div class="modal" style="max-width:640px">
+    <h3>📄 בקשה להסבת דוח תעבורה</h3>
+    <p style="font-size:0.8rem;color:var(--muted);margin-bottom:10px">הפרטים מולאו מהדוח ומהרכב — השלם את החסר וייצא PDF מוכן לשליחה.</p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <div class="modal-row"><label>לכבוד</label>
+        <select id="tf-recipient" onchange="tfToggleAuthority()">
+          <option value="משטרת ישראל">משטרת ישראל</option>
+          <option value="רשות מקומית">רשות מקומית</option>
+        </select>
+      </div>
+      <div class="modal-row" id="tf-authority-wrap" style="display:none"><label>שם הרשות המקומית</label><input id="tf-authority" type="text" placeholder="לדוגמה: עיריית חיפה"></div>
+      <div class="modal-row"><label>תאריך הבקשה</label><input id="tf-date" type="text" placeholder="יי.חח.שש"></div>
+      <div class="modal-row"><label>מס׳ הודעת עבירה</label><input id="tf-notice" type="text" style="direction:ltr"></div>
+      <div class="modal-row"><label>מתאריך (הודעת העבירה)</label><input id="tf-notice-date" type="text"></div>
+      <div class="modal-row"><label>מס׳ רישוי הרכב</label><input id="tf-plate" type="text" style="direction:ltr"></div>
+      <div class="modal-row"><label>הרשום על שם (חברה)</label><input id="tf-company" type="text"></div>
+      <div style="grid-column:1/-1;border-top:1px solid var(--border);margin:4px 0 2px;padding-top:6px;font-weight:800;font-size:0.82rem;color:#1e3a8a">פרטי הנהג/ת</div>
+      <div class="modal-row"><label>שם מלא</label><input id="tf-driver" type="text"></div>
+      <div class="modal-row"><label>תעודת זהות</label><input id="tf-driver-id" type="text" style="direction:ltr"></div>
+      <div class="modal-row" style="grid-column:1/-1"><label>כתובת</label><input id="tf-driver-addr" type="text" placeholder="רחוב, עיר"></div>
+      <div style="grid-column:1/-1;border-top:1px solid var(--border);margin:4px 0 2px;padding-top:6px;font-weight:800;font-size:0.82rem;color:#1e3a8a">פרטי קצין הבטיחות <span style="font-weight:400;color:#94a3b8;font-size:0.72rem">(נשמר לפעם הבאה)</span></div>
+      <div class="modal-row"><label>מס׳ הסמכה</label><input id="tf-cert" type="text" placeholder="השלם"></div>
+      <div class="modal-row"><label>ת״ז קצין</label><input id="tf-officer-id" type="text" style="direction:ltr" placeholder="השלם"></div>
+      <div class="modal-row"><label>טלפון לבירורים</label><input id="tf-phone" type="text" style="direction:ltr"></div>
+      <div class="modal-row"><label>פקס</label><input id="tf-fax" type="text" style="direction:ltr"></div>
+      <div class="modal-row" style="grid-column:1/-1"><label>כתובת (למכתב)</label><input id="tf-addr" type="text"></div>
+    </div>
+    <div id="tf-sig-note" style="font-size:0.76rem;color:#64748b;margin-top:8px"></div>
+    <div class="btn-row">
+      <button class="btn btn-gray" onclick="document.getElementById('transfer-modal').classList.remove('open')">ביטול</button>
+      <button class="btn btn-green" onclick="transferPdf()">📄 צור PDF</button>
+    </div>
+  </div>
 </div>
 
 <!-- PWA install banner -->
