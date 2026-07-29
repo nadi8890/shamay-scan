@@ -3579,9 +3579,13 @@ function sendDocMail() {
   saveContacts();
   const subject = `מסמכים חסרים/פגים — רכב ${_docMailPlate}`;
   const body = `שלום,\n\nלרכב ${_docMailPlate}${who} נדרש טיפול במסמכים הבאים:\n\n• ${lines.join('\n• ')}\n\nנא להשלים/לחדש בהקדם.\n\nתודה,\n${COMPANY_NAME || 'מחלקת הרכב'}`;
-  window.location.href = `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  // Open Gmail's web compose (uses the Google account you're signed into) instead of the OS
+  // default mail app, which was composing from the wrong account.
+  const gmail = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(to)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  const w = window.open(gmail, '_blank');
+  if (!w) window.location.href = `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`; // fallback if popup blocked
   document.getElementById('doc-mail-modal').classList.remove('open');
-  toast('נפתחה הודעת מייל ✓');
+  toast('נפתחה הודעת מייל ב-Gmail ✓');
 }
 
 // ── EXPORT TO EXCEL (CSV with BOM) ──
