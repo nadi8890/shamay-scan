@@ -686,6 +686,7 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
       <div class="insp-section-hdr">⚙️ לאן נשלחות הביקורות במייל</div>
       <div style="padding:10px">
         <div class="modal-row"><label>כתובת מייל לקבלת ביקורות (מייל עבודה)</label><input id="ms-recipient" type="email" placeholder="name@company.co.il" style="direction:ltr"></div>
+        <div class="modal-row" style="margin-top:6px"><label>מייל השולח (חשבון Gmail לפתיחת הודעות)<span style="font-weight:400;color:#94a3b8;font-size:0.7rem"> — התראות מסמכים נפתחות מחשבון זה</span></label><input id="ms-from" type="email" placeholder="name@company.co.il" style="direction:ltr"></div>
         <div class="modal-row" style="margin-top:6px"><label>מפתח Web3Forms — לשליחה אוטומטית</label><input id="ms-key" type="text" placeholder="הדבק כאן את המפתח" style="direction:ltr"></div>
         <div class="modal-row" style="margin-top:6px"><label>כתובת Apps Script — לשליחת קובץ הביקורת במייל</label><input id="ms-gas" type="text" placeholder="https://script.google.com/macros/s/..." style="direction:ltr"></div>
         <div style="font-size:0.7rem;color:var(--muted);margin:6px 0 10px">להפקת מפתח חינם (פעם אחת): היכנס ל-<b>web3forms.com</b>, הזן את מייל העבודה ולחץ Create Access Key. המפתח יגיע למייל — הדבק אותו כאן. אם מוגדרת כתובת Apps Script — המייל יישלח מה-Gmail שלך עם קובץ ה-PDF מצורף.</div>
@@ -2389,6 +2390,7 @@ try { MAIL_SETTINGS = JSON.parse(localStorage.getItem('fleet_mailSettings')) || 
 function saveMailSettings() {
   MAIL_SETTINGS = {
     recipient: document.getElementById('ms-recipient').value.trim(),
+    fromEmail: document.getElementById('ms-from').value.trim(),
     web3formsKey: document.getElementById('ms-key').value.trim(),
     gasUrl: document.getElementById('ms-gas').value.trim()
   };
@@ -2410,6 +2412,7 @@ function renderFormsTab() {
   document.getElementById('forms-menu').style.display = '';
   document.getElementById('inspection-form').style.display = 'none';
   document.getElementById('ms-recipient').value = MAIL_SETTINGS.recipient || '';
+  document.getElementById('ms-from').value = MAIL_SETTINGS.fromEmail || '';
   document.getElementById('ms-key').value = MAIL_SETTINGS.web3formsKey || '';
   document.getElementById('ms-gas').value = MAIL_SETTINGS.gasUrl || '';
   loadInspectionHistory();
@@ -3613,9 +3616,10 @@ function sendDocMail() {
   const to = _docMailTo.join(',');
   const subject = `מסמכים חסרים/פגים — רכב ${_docMailPlate}`;
   const body = `שלום,\n\nלרכב ${_docMailPlate}${who} נדרש טיפול במסמכים הבאים:\n\n• ${lines.join('\n• ')}\n\nנא להשלים/לחדש בהקדם.\n\nתודה,\n${COMPANY_NAME || 'מחלקת הרכב'}`;
-  // Open Gmail's web compose (uses the Google account you're signed into) instead of the OS
-  // default mail app, which was composing from the wrong account.
-  const gmail = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(to)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  // Open Gmail's web compose in the configured sender account (authuser) instead of the OS
+  // default mail app / the wrong Google account.
+  const from = (MAIL_SETTINGS && MAIL_SETTINGS.fromEmail || '').trim();
+  const gmail = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(to)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}${from ? '&authuser=' + encodeURIComponent(from) : ''}`;
   const w = window.open(gmail, '_blank');
   if (!w) window.location.href = `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`; // fallback if popup blocked
   document.getElementById('doc-mail-modal').classList.remove('open');
