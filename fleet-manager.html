@@ -1138,6 +1138,7 @@ async function loadFromFirestore() {
       if (typeof d.agentRules === 'string') { AGENT_RULES = d.agentRules; }
       if (typeof d.officerSignature === 'string') { window.OFFICER_SIGNATURE = d.officerSignature; }
       if (d.officerInfo && typeof d.officerInfo === 'object') { window.OFFICER_INFO = d.officerInfo; try { localStorage.setItem('fleet_officerInfo', JSON.stringify(d.officerInfo)); } catch(e){} }
+      if (d.contacts && typeof d.contacts === 'object') { window.CONTACTS = { emails: d.contacts.emails || [], byPlate: d.contacts.byPlate || {} }; try { localStorage.setItem('fleet_contacts', JSON.stringify(window.CONTACTS)); } catch(e){} }
       rebuildDriversDirectory();
       if (typeof updateKmBanner === 'function') updateKmBanner();
       if (typeof maybeSendKmReminder === 'function') maybeSendKmReminder();
@@ -3496,8 +3497,9 @@ function renderAlerts() {
   document.getElementById('alerts-tab-body').innerHTML = groups.map(g => {
     const cls = worstCls(g.alerts);
     const hasInsp = g.alerts.some(a => String(a.type || '').includes('ביקורת'));
-    const hasMissing = g.alerts.some(a => a.missing);
-    const missBtn = hasMissing ? `<button class="btn" style="padding:3px 9px;font-size:0.68rem;background:#eef2ff;color:#4338ca;margin-top:4px" title="שליחת התראה על מסמכים חסרים לאיש קשר במייל" onclick="mailMissingDocs('${esc(g.plate)}')">📧 שלח לאיש קשר</button>` : '';
+    const DOC_ALERT_TYPES = ['תוקף רישוי','תוקף ביטוח חובה','רישיון נהג'];
+    const hasDoc = g.alerts.some(a => a.missing || DOC_ALERT_TYPES.includes(a.type));
+    const missBtn = hasDoc ? `<button class="btn" style="padding:3px 9px;font-size:0.68rem;background:#eef2ff;color:#4338ca;margin-top:4px" title="שליחת התראה על מסמכים חסרים/פגים לאיש קשר במייל" onclick="mailDocAlerts('${esc(g.plate)}')">📧 שלח לאיש קשר</button>` : '';
     const gVeh = VEHICLES.find(x => x.plate === g.plate);
     const scheduled = gVeh && gVeh.inspectionScheduled;
     const inspBtns = hasInsp ? `<div style="margin-top:5px">
@@ -3515,27 +3517,71 @@ function renderAlerts() {
   }).join('');
 }
 
-// Missing-documents email: pops up the plate + the list of missing documents, asks for a
-// contact email, and opens a ready-to-send message (from the officer's own mailbox).
-function mailMissingDocs(plate) {
-  const v = VEHICLES.find(x => x.plate === plate);
-  if (!v) return;
+// ═══ DOCUMENT-ALERT EMAIL (missing OR expiring documents) ═══
+// Saved contacts: a list of emails for autocomplete + the last email used per plate.
+function loadContacts() {
+  if (window.CONTACTS) return window.CONTACTS;
+  try { window.CONTACTS = JSON.parse(localStorage.getItem('fleet_contacts') || '{}'); } catch(e){ window.CONTACTS = {}; }
+  if (!window.CONTACTS.emails) window.CONTACTS.emails = [];
+  if (!window.CONTACTS.byPlate) window.CONTACTS.byPlate = {};
+  return window.CONTACTS;
+}
+function saveContacts() {
+  try { localStorage.setItem('fleet_contacts', JSON.stringify(window.CONTACTS)); } catch(e){}
+  try { fcol().doc('main').set({ contacts: window.CONTACTS }, { merge: true }); } catch(e){}
+}
+// Which documents are missing or about to expire for this vehicle (returns text lines).
+function vehicleDocIssues(v) {
   const drv = (v.driverName || '').trim();
   const trailer = !drv || drv.includes('נגרר') || drv.includes('ללא נהג');
-  const missing = [];
-  if (!String(v.registrationExpiry || '').trim()) missing.push('תוקף רישוי (טסט)');
-  if (!String(v.insuranceExpiry || '').trim()) missing.push('תוקף ביטוח חובה');
-  if (!trailer && !String(v.licenseExpiry || '').trim()) missing.push('רישיון נהיגה');
-  if (!missing.length) { toast('אין מסמכים חסרים לרכב זה'); return; }
-  const who = drv ? ' (' + drv.split('-')[0].trim() + ')' : '';
-  const email = prompt(
-    `שליחת התראת מסמכים חסרים\n\nרכב: ${plate}${who}\nמסמכים חסרים:\n• ${missing.join('\n• ')}\n\nהכנס את כתובת המייל של איש הקשר:`, '');
-  if (email === null) return;
-  const to = email.trim();
+  const lines = [];
+  const check = (name, val) => {
+    const s = String(val || '').trim();
+    if (!s) { lines.push(`${name} — חסר`); return; }
+    const d = daysUntil(val);
+    if (d !== null && d <= 7) lines.push(d < 0 ? `${name} — פג באיחור ${Math.abs(d)} ימים (${s})` : `${name} — פג בעוד ${d} ימים (${s})`);
+  };
+  check('תוקף רישוי (טסט)', v.registrationExpiry);
+  check('תוקף ביטוח חובה', v.insuranceExpiry);
+  if (!trailer) check('רישיון נהיגה', v.licenseExpiry);
+  return lines;
+}
+let _docMailPlate = null;
+function mailDocAlerts(plate) {
+  const v = VEHICLES.find(x => x.plate === plate);
+  if (!v) return;
+  const lines = vehicleDocIssues(v);
+  if (!lines.length) { toast('אין מסמכים חסרים/פגים לרכב זה'); return; }
+  _docMailPlate = plate;
+  const c = loadContacts();
+  const drv = (v.driverName || '').trim();
+  const who = drv ? ' · ' + drv.split('-')[0].trim() : '';
+  document.getElementById('dm-plate').textContent = plate + who;
+  document.getElementById('dm-issues').innerHTML = lines.map(l => `<div>• ${esc(l)}</div>`).join('');
+  document.getElementById('dm-list').innerHTML = (c.emails || []).map(e => `<option value="${esc(e)}">`).join('');
+  document.getElementById('dm-email').value = c.byPlate[plate] || '';
+  document.getElementById('doc-mail-modal').classList.add('open');
+  setTimeout(() => document.getElementById('dm-email').focus(), 50);
+}
+function sendDocMail() {
+  const to = (document.getElementById('dm-email').value || '').trim();
   if (!to || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(to)) { toast('כתובת מייל לא תקינה', true); return; }
-  const subject = `חוסר במסמכים — רכב ${plate}`;
-  const body = `שלום,\n\nלרכב ${plate}${who} חסרים המסמכים הבאים במערכת:\n\n• ${missing.join('\n• ')}\n\nנא להשלים/לשלוח בהקדם.\n\nתודה,\n${COMPANY_NAME || 'מחלקת הרכב'}`;
+  const v = VEHICLES.find(x => x.plate === _docMailPlate);
+  if (!v) return;
+  const lines = vehicleDocIssues(v);
+  const drv = (v.driverName || '').trim();
+  const who = drv ? ' (' + drv.split('-')[0].trim() + ')' : '';
+  // remember this email (global list + per-plate default)
+  const c = loadContacts();
+  if (!c.emails.includes(to)) c.emails.unshift(to);
+  c.emails = c.emails.slice(0, 40);
+  c.byPlate[_docMailPlate] = to;
+  saveContacts();
+  const subject = `מסמכים חסרים/פגים — רכב ${_docMailPlate}`;
+  const body = `שלום,\n\nלרכב ${_docMailPlate}${who} נדרש טיפול במסמכים הבאים:\n\n• ${lines.join('\n• ')}\n\nנא להשלים/לחדש בהקדם.\n\nתודה,\n${COMPANY_NAME || 'מחלקת הרכב'}`;
   window.location.href = `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  document.getElementById('doc-mail-modal').classList.remove('open');
+  toast('נפתחה הודעת מייל ✓');
 }
 
 // ── EXPORT TO EXCEL (CSV with BOM) ──
@@ -5620,6 +5666,26 @@ function renderAgentMsgs(showTyping = false) {
     <div class="btn-row">
       <button class="btn btn-gray" onclick="document.getElementById('transfer-modal').classList.remove('open')">ביטול</button>
       <button class="btn btn-green" onclick="transferPdf()">📄 צור PDF</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ DOCUMENT-ALERT EMAIL ═══ -->
+<div class="modal-overlay" id="doc-mail-modal">
+  <div class="modal" style="max-width:440px">
+    <h3>📧 שליחת התראת מסמכים</h3>
+    <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:10px 12px;margin-bottom:10px">
+      <div style="font-weight:800;font-size:0.9rem" id="dm-plate"></div>
+      <div style="font-size:0.8rem;color:#334155;margin-top:5px;line-height:1.7" id="dm-issues"></div>
+    </div>
+    <div class="modal-row"><label>מייל איש הקשר</label>
+      <input id="dm-email" type="email" list="dm-list" style="direction:ltr" placeholder="name@example.com" onkeydown="if(event.key==='Enter')sendDocMail()">
+      <datalist id="dm-list"></datalist>
+    </div>
+    <div style="font-size:0.72rem;color:#94a3b8;margin-top:3px">מיילים שהזנת נשמרים ומוצעים אוטומטית בפעם הבאה.</div>
+    <div class="btn-row">
+      <button class="btn btn-gray" onclick="document.getElementById('doc-mail-modal').classList.remove('open')">ביטול</button>
+      <button class="btn btn-green" onclick="sendDocMail()">📧 פתח מייל</button>
     </div>
   </div>
 </div>
