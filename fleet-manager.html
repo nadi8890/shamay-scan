@@ -2220,8 +2220,6 @@ function openTransferForm(id) {
   const t = new Date();
   const today = `${('0'+t.getDate()).slice(-2)}/${('0'+(t.getMonth()+1)).slice(-2)}/${t.getFullYear()}`;
   const set = (id2, val) => { const el = document.getElementById(id2); if (el) el.value = val || ''; };
-  set('tf-recipient', 'משטרת ישראל'); tfToggleAuthority();
-  set('tf-authority', '');
   set('tf-date', today);
   set('tf-notice', v.reportNum);
   set('tf-notice-date', v.date);
@@ -2244,12 +2242,11 @@ function openTransferForm(id) {
 function _tfEsc(s){ return String(s==null?'':s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
 function buildTransferHtml(d) {
   const val = (v,w) => `<span style="display:inline-block;border-bottom:1px solid #000;min-width:${w||120}px;text-align:center;padding:0 6px;font-weight:700">${_tfEsc(v)||'&nbsp;'}</span>`;
-  const toName = d.recipient === 'רשות מקומית' ? ('רשות מקומית' + (d.authority ? ' — ' + _tfEsc(d.authority) : '')) : 'משטרת ישראל';
   const sigImg = window.OFFICER_SIGNATURE ? `<img src="${window.OFFICER_SIGNATURE}" style="max-width:150px;max-height:70px">` : '';
-  return `<div style="width:720px;background:#fff;color:#000;font-family:'Heebo',Arial,sans-serif;direction:rtl;padding:34px 40px;font-size:14px;line-height:1.9">
+  return `<div style="width:720px;background:#fff;color:#000;font-family:'Heebo','Segoe UI','Arial Hebrew',Arial,sans-serif;letter-spacing:normal;word-spacing:normal;direction:rtl;padding:34px 40px;font-size:14px;line-height:1.9">
     <div style="text-align:left;margin-bottom:18px">תאריך: ${val(d.date,110)}</div>
     <div style="font-weight:800">לכבוד</div>
-    <div style="font-weight:800;margin-bottom:2px">${toName}</div>
+    <div style="font-weight:800;margin-bottom:2px">משטרת ישראל / רשות מקומית</div>
     <div style="border-bottom:1px solid #000;width:260px;margin-bottom:22px"></div>
     <div style="text-align:center;font-weight:800;text-decoration:underline;margin-bottom:16px">הנדון: בקשה להסבת דוח תעבורה</div>
     <p>בתאריך ${val(d.date,90)} התקבלה במשרדי החברה הודעתכם על העבירה שפרטיה כלהלן:</p>
@@ -2279,9 +2276,9 @@ function buildTransferHtml(d) {
   </div>`;
 }
 async function transferPdf() {
-  const g = id => (document.getElementById(id).value || '').trim();
+  const g = id => { const el = document.getElementById(id); return el ? (el.value || '').trim() : ''; };
   const d = {
-    recipient: g('tf-recipient'), authority: g('tf-authority'), date: g('tf-date'),
+    date: g('tf-date'),
     notice: g('tf-notice'), noticeDate: g('tf-notice-date'), plate: g('tf-plate'),
     company: g('tf-company'), driver: g('tf-driver'), driverId: g('tf-driver-id'),
     driverAddr: g('tf-driver-addr'), cert: g('tf-cert'), officerId: g('tf-officer-id'),
@@ -2291,6 +2288,9 @@ async function transferPdf() {
   window.OFFICER_INFO = { certNum: d.cert, officerId: d.officerId, phone: d.phone, fax: d.fax, addr: d.addr };
   try { localStorage.setItem('fleet_officerInfo', JSON.stringify(window.OFFICER_INFO)); } catch(e){}
   try { fcol().doc('main').set({ officerInfo: window.OFFICER_INFO }, { merge: true }); } catch(e){}
+  // wait for the Hebrew web font so html2canvas doesn't render with a fallback that
+  // mangles/overlaps the letters ("מחובר")
+  try { if (document.fonts && document.fonts.ready) await document.fonts.ready; } catch(e){}
   const holder = document.createElement('div');
   holder.style.cssText = 'position:absolute;left:-9999px;top:0';
   holder.innerHTML = buildTransferHtml(d);
@@ -5557,13 +5557,7 @@ function renderAgentMsgs(showTyping = false) {
     <h3>📄 בקשה להסבת דוח תעבורה</h3>
     <p style="font-size:0.8rem;color:var(--muted);margin-bottom:10px">הפרטים מולאו מהדוח ומהרכב — השלם את החסר וייצא PDF מוכן לשליחה.</p>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-      <div class="modal-row"><label>לכבוד</label>
-        <select id="tf-recipient" onchange="tfToggleAuthority()">
-          <option value="משטרת ישראל">משטרת ישראל</option>
-          <option value="רשות מקומית">רשות מקומית</option>
-        </select>
-      </div>
-      <div class="modal-row" id="tf-authority-wrap" style="display:none"><label>שם הרשות המקומית</label><input id="tf-authority" type="text" placeholder="לדוגמה: עיריית חיפה"></div>
+      <div class="modal-row" style="grid-column:1/-1"><label>לכבוד</label><input type="text" value="משטרת ישראל / רשות מקומית" disabled style="background:#f1f5f9;color:#475569"></div>
       <div class="modal-row"><label>תאריך הבקשה</label><input id="tf-date" type="text" placeholder="יי.חח.שש"></div>
       <div class="modal-row"><label>מס׳ הודעת עבירה</label><input id="tf-notice" type="text" style="direction:ltr"></div>
       <div class="modal-row"><label>מתאריך (הודעת העבירה)</label><input id="tf-notice-date" type="text"></div>
