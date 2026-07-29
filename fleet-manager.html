@@ -3411,6 +3411,20 @@ function buildDynamicAlerts() {
     addDate('רישיון נהג', v.licenseExpiry);
     addDate('עבר תעבורתי', dateAddYears(v.trafficRecord, 3));
     addDate('נהלים', dateAddYears(v.procedures, 5));
+    // MISSING DOCUMENTS — a blank document field (not an expiry) is its own alert type,
+    // so the officer can chase it. Skipped for employees with no vehicle; license is
+    // skipped for trailers (no driver).
+    if (!v.noVehicle) {
+      const _d = (v.driverName || '').trim();
+      const _trailer = !_d || _d.includes('נגרר') || _d.includes('ללא נהג');
+      const missDoc = (type, val) => {
+        if (!String(val || '').trim())
+          alerts.push({ plate:v.plate, driver:v.driverName, type, missing:true, dueDate:'—', daysLeft:null, prevKm:null, kmAlert:null, currentKm:null, kmDiff:null });
+      };
+      missDoc('חסר: תוקף רישוי (טסט)', v.registrationExpiry);
+      missDoc('חסר: תוקף ביטוח חובה', v.insuranceExpiry);
+      if (!_trailer) missDoc('חסר: רישיון נהיגה', v.licenseExpiry);
+    }
     // Safety inspection — dynamic: last inspection date + 3 months (>3yr vehicle) or 6 months
     const inspDays = daysUntilNextInsp(v);
     if (inspDays !== null && inspDays <= 7) {
@@ -3455,6 +3469,9 @@ function renderAlerts() {
 
   function alertBadge(a) {
     let badge, color;
+    if (a.missing) {
+      return `<div style="margin-bottom:3px;font-size:0.75rem"><span style="font-weight:600;margin-left:5px">${esc(a.type)}</span><span class="badge badge-red">❗ חסר מסמך</span></div>`;
+    }
     if (a.daysLeft === null) {
       const over = a.kmDiff - a.kmAlert;
       badge = over >= 0
@@ -3479,6 +3496,8 @@ function renderAlerts() {
   document.getElementById('alerts-tab-body').innerHTML = groups.map(g => {
     const cls = worstCls(g.alerts);
     const hasInsp = g.alerts.some(a => String(a.type || '').includes('ביקורת'));
+    const hasMissing = g.alerts.some(a => a.missing);
+    const missBtn = hasMissing ? `<button class="btn" style="padding:3px 9px;font-size:0.68rem;background:#eef2ff;color:#4338ca;margin-top:4px" title="שליחת התראה על מסמכים חסרים לאיש קשר במייל" onclick="mailMissingDocs('${esc(g.plate)}')">📧 שלח לאיש קשר</button>` : '';
     const gVeh = VEHICLES.find(x => x.plate === g.plate);
     const scheduled = gVeh && gVeh.inspectionScheduled;
     const inspBtns = hasInsp ? `<div style="margin-top:5px">
@@ -3491,9 +3510,32 @@ function renderAlerts() {
       <td style="font-weight:700;color:var(--accent);direction:ltr;font-size:0.85rem;white-space:nowrap">${esc(g.plate)}</td>
       <td style="font-size:0.8rem;font-weight:600;white-space:nowrap">${esc(g.driver)}</td>
       <td style="padding:8px 13px">${g.alerts.map(alertBadge).join('')}</td>
-      <td style="white-space:nowrap"><button class="btn btn-gray" style="padding:3px 8px;font-size:0.7rem" onclick="editVehicle('${esc(g.plate)}')">✏️ ערוך</button>${inspBtns}</td>
+      <td style="white-space:nowrap"><button class="btn btn-gray" style="padding:3px 8px;font-size:0.7rem" onclick="editVehicle('${esc(g.plate)}')">✏️ ערוך</button>${missBtn ? '<br>'+missBtn : ''}${inspBtns}</td>
     </tr>`;
   }).join('');
+}
+
+// Missing-documents email: pops up the plate + the list of missing documents, asks for a
+// contact email, and opens a ready-to-send message (from the officer's own mailbox).
+function mailMissingDocs(plate) {
+  const v = VEHICLES.find(x => x.plate === plate);
+  if (!v) return;
+  const drv = (v.driverName || '').trim();
+  const trailer = !drv || drv.includes('נגרר') || drv.includes('ללא נהג');
+  const missing = [];
+  if (!String(v.registrationExpiry || '').trim()) missing.push('תוקף רישוי (טסט)');
+  if (!String(v.insuranceExpiry || '').trim()) missing.push('תוקף ביטוח חובה');
+  if (!trailer && !String(v.licenseExpiry || '').trim()) missing.push('רישיון נהיגה');
+  if (!missing.length) { toast('אין מסמכים חסרים לרכב זה'); return; }
+  const who = drv ? ' (' + drv.split('-')[0].trim() + ')' : '';
+  const email = prompt(
+    `שליחת התראת מסמכים חסרים\n\nרכב: ${plate}${who}\nמסמכים חסרים:\n• ${missing.join('\n• ')}\n\nהכנס את כתובת המייל של איש הקשר:`, '');
+  if (email === null) return;
+  const to = email.trim();
+  if (!to || !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(to)) { toast('כתובת מייל לא תקינה', true); return; }
+  const subject = `חוסר במסמכים — רכב ${plate}`;
+  const body = `שלום,\n\nלרכב ${plate}${who} חסרים המסמכים הבאים במערכת:\n\n• ${missing.join('\n• ')}\n\nנא להשלים/לשלוח בהקדם.\n\nתודה,\n${COMPANY_NAME || 'מחלקת הרכב'}`;
+  window.location.href = `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 }
 
 // ── EXPORT TO EXCEL (CSV with BOM) ──
