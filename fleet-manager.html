@@ -3575,9 +3575,8 @@ function mailDocAlerts(plate) {
   document.getElementById('dm-plate').textContent = plate + who;
   document.getElementById('dm-issues').innerHTML = lines.map(l => `<div>• ${esc(l)}</div>`).join('');
   document.getElementById('dm-list').innerHTML = (c.emails || []).map(e => `<option value="${esc(e)}">`).join('');
-  // preselect the recipients last used for this plate (array, or legacy single string)
-  const prev = c.byPlate[plate];
-  _docMailTo = Array.isArray(prev) ? prev.slice() : (prev ? [prev] : []);
+  // nothing preselected — the officer picks recipients from the saved list each time
+  _docMailTo = [];
   document.getElementById('dm-email').value = '';
   renderDocMailChips();
   document.getElementById('doc-mail-modal').classList.add('open');
@@ -3621,7 +3620,6 @@ function _docMailPayload() {
   const c = loadContacts();
   _docMailTo.forEach(e => { if (!c.emails.includes(e)) c.emails.unshift(e); });
   c.emails = c.emails.slice(0, 40);
-  c.byPlate[_docMailPlate] = _docMailTo.slice();
   saveContacts();
   return {
     to: _docMailTo.join(','),
@@ -3661,7 +3659,6 @@ function sendDocMail() {
   const c = loadContacts();
   _docMailTo.forEach(e => { if (!c.emails.includes(e)) c.emails.unshift(e); });
   c.emails = c.emails.slice(0, 40);
-  c.byPlate[_docMailPlate] = _docMailTo.slice();
   saveContacts();
   const to = _docMailTo.join(',');
   const subject = `מסמכים חסרים/פגים — רכב ${_docMailPlate}`;
