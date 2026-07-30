@@ -743,7 +743,7 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
     <div class="insp-section">
       <div class="insp-section-hdr">פרטי הרכב</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:10px">
-        <div class="modal-row"><label>מספר רכב</label><input id="if-plate" list="if-plates" inputmode="numeric" placeholder="12345678" oninput="inspFillFromPlate()" onchange="inspFillFromPlate()"><datalist id="if-plates"></datalist></div>
+        <div class="modal-row"><label>מספר רכב</label><input id="if-plate" type="text" inputmode="numeric" autocomplete="off" placeholder="12345678" oninput="inspFillFromPlate()"></div>
         <div class="modal-row"><label>סוג ביקורת</label><select id="if-type"><option>חציונית</option><option>רבעונית</option><option>שנתית</option></select></div>
         <div class="modal-row"><label>סוג רכב</label><input id="if-model" type="text"></div>
         <div class="modal-row"><label>קריאת מד אוץ (ק"מ)</label><input id="if-km" type="number" inputmode="numeric" placeholder="52336"></div>
@@ -3093,8 +3093,6 @@ async function loadInspectionHistory() {
 function openInspectionForm() {
   document.getElementById('forms-menu').style.display = 'none';
   document.getElementById('inspection-form').style.display = '';
-  // plates datalist
-  document.getElementById('if-plates').innerHTML = VEHICLES.map(v => `<option value="${esc(v.plate)}">${esc(v.driverName||'')} — ${esc(v.make||'')} ${esc(v.model||'')}</option>`).join('');
   ['if-plate','if-model','if-km','if-notes'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('if-driver-name').textContent = '—';
   initSignaturePad();
