@@ -949,17 +949,27 @@ async function analyzePhoto() {
       ]);
       text = result.response.text();
     } else if (key.startsWith('sk-ant-')) {
-      // Anthropic
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true' },
-        body: JSON.stringify({ model:'claude-opus-4-5', max_tokens:1200, messages:[{ role:'user', content:[
-          { type:'image', source:{ type:'base64', media_type:photoMime, data:photoBase64 } },
-          { type:'text', text:prompt }
-        ]}]})
-      });
-      if (!res.ok) { const t = await res.text(); throw new Error('Anthropic ' + res.status + ': ' + t.slice(0,300)); }
-      const data = await res.json();
+      // Anthropic — retry transient overloads (429 rate-limit, 500/503, 529 overloaded)
+      // with exponential backoff so a momentarily busy server doesn't fail the scan.
+      let res, data;
+      for (let attempt = 0; ; attempt++) {
+        res = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: { 'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true' },
+          body: JSON.stringify({ model:'claude-opus-4-5', max_tokens:1200, messages:[{ role:'user', content:[
+            { type:'image', source:{ type:'base64', media_type:photoMime, data:photoBase64 } },
+            { type:'text', text:prompt }
+          ]}]})
+        });
+        if (res.ok) break;
+        const t = await res.text();
+        const transient = [429, 500, 503, 529].includes(res.status);
+        if (!transient || attempt >= 3) throw new Error('Anthropic ' + res.status + ': ' + t.slice(0,300));
+        status.textContent = `⏳ שרתי ה-AI עמוסים כרגע — מנסה שוב (${attempt + 2}/4)...`;
+        status.style.color = 'var(--muted)';
+        await new Promise(r => setTimeout(r, 1500 * Math.pow(2, attempt))); // 1.5s → 3s → 6s
+      }
+      data = await res.json();
       text = data.content?.[0]?.text || '';
     } else {
       // OpenRouter (sk-or-) or OpenAI
