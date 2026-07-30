@@ -2137,9 +2137,9 @@ function renderIncidents() {
   buildIncColFilterRow();
   filtered.sort((a, b) => (+a.id || 0) - (+b.id || 0)); // always show in running-number order
   document.getElementById('inc-count').textContent = filtered.length;
-  document.getElementById('inc-body').innerHTML = filtered.map(i => `
+  document.getElementById('inc-body').innerHTML = filtered.map((i, idx) => `
     <tr style="cursor:pointer" title="לחץ לעריכה" onclick="openIncidentModal(${i.id})">
-      <td style="color:var(--muted)">${i.id}</td>
+      <td style="color:var(--muted)">${idx + 1}</td>
       <td style="font-weight:700;color:var(--accent);direction:ltr">${esc(i.plate)}</td>
       <td style="font-size:0.75rem">${esc(i.driver)}</td>
       <td style="white-space:nowrap">${esc(i.date)}</td>
