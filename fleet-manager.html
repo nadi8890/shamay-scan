@@ -977,6 +977,7 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
     </div>
     <div class="btn-row">
       <button class="btn btn-secondary" onclick="document.getElementById('incident-modal').classList.remove('open')">ביטול</button>
+      <button class="btn" id="im-delete-btn" style="display:none;background:#dc2626;color:#fff" onclick="deleteIncidentForm()">🗑️ מחק אירוע</button>
       <button class="btn btn-primary" onclick="saveIncidentForm()">💾 שמור</button>
     </div>
   </div>
@@ -3875,7 +3876,21 @@ function openIncidentModal(id, plate, driver) {
   set('im-damage', inc ? String(inc.damage || '').replace(/\D/g, '') : '');
   set('im-deductible', inc ? String(inc.deductible || '').replace(/\D/g, '') : '');
   set('im-notes', inc ? inc.notes : '');
+  const del = document.getElementById('im-delete-btn'); if (del) del.style.display = inc ? '' : 'none';
   document.getElementById('incident-modal').classList.add('open');
+}
+function deleteIncidentForm() {
+  if (!_editIncidentId) return;
+  const inc = INCIDENTS.find(x => x.id === _editIncidentId);
+  if (!confirm(`למחוק את האירוע${inc ? ' של ' + (inc.driver || inc.plate || '') : ''}?`)) return;
+  INCIDENTS = INCIDENTS.filter(x => x.id !== _editIncidentId);
+  try { localStorage.setItem('fleet_incidents', JSON.stringify(INCIDENTS)); } catch(e){}
+  saveToFirestore('incidents', INCIDENTS);
+  document.getElementById('incident-modal').classList.remove('open');
+  renderIncidents();
+  if (typeof renderDashboard === 'function') renderDashboard();
+  toast('האירוע נמחק ✓');
+  _editIncidentId = null;
 }
 function saveIncidentForm() {
   const g = eid => (document.getElementById(eid).value || '').trim();
