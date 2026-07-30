@@ -52,6 +52,13 @@ if ('serviceWorker' in navigator) {
     if (document.querySelector('.modal-overlay.open')) return false;
     const f = document.getElementById('inspection-form');
     if (f && f.style.display !== 'none') return false;
+    // never reload while the user is typing in a field (was kicking people out of
+    // the inspection form the moment they focused the plate box on mobile)
+    const ae = document.activeElement;
+    if (ae && ['INPUT', 'TEXTAREA', 'SELECT'].includes(ae.tagName)) return false;
+    // never reload while the forms tab is open — inspection/km flows live there
+    const forms = document.getElementById('tab-forms');
+    if (forms && forms.classList.contains('active')) return false;
     return true;
   }
   async function checkVersion() {
