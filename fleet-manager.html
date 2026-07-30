@@ -2135,6 +2135,7 @@ function renderIncidents() {
     return true;
   });
   buildIncColFilterRow();
+  filtered.sort((a, b) => (+a.id || 0) - (+b.id || 0)); // always show in running-number order
   document.getElementById('inc-count').textContent = filtered.length;
   document.getElementById('inc-body').innerHTML = filtered.map(i => `
     <tr style="cursor:pointer" title="לחץ לעריכה" onclick="openIncidentModal(${i.id})">
