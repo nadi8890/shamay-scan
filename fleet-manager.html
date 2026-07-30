@@ -96,7 +96,7 @@ header{background:#1e40af;padding:11px 16px;display:flex;align-items:center;just
 .nav-btn .icon{font-size:1.25rem;padding:2px 8px;border-radius:8px;transition:background .15s}
 /* Content */
 .tab-content{display:none;max-width:980px;margin:0 auto;padding:14px 12px}
-#tab-fleet,#tab-violations{max-width:100%;padding:10px 6px}
+#tab-fleet,#tab-violations,#tab-incidents{max-width:100%;padding:10px 6px}
 .tab-content.active{display:block}
 /* Cards */
 .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:12px;box-shadow:var(--shadow)}
@@ -898,6 +898,7 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
     <div class="modal-row" style="grid-column:1/-1"><label>הערות</label><textarea id="m-notes" rows="2"></textarea></div>
     <div class="btn-row">
       <button class="btn btn-gray" onclick="closeModal()">ביטול</button>
+      <button class="btn btn-primary" style="background:#1e3a8a" onclick="inspectFromModal()">🛡️ ביקורת בטיחות</button>
       <button class="btn btn-primary" style="background:var(--orange)" id="modal-incident-btn" onclick="openIncidentFromModal()">💥 דיווח תאונה</button>
       <button class="btn btn-green" onclick="saveVehicle()">💾 שמור</button>
     </div>
@@ -967,7 +968,7 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
       <div class="modal-row"><label>מס׳ רישוי</label><input id="im-plate" type="text" placeholder="12345678"></div>
       <div class="modal-row"><label>שם הנהג</label><input id="im-driver" type="text"></div>
-      <div class="modal-row"><label>תאריך אירוע</label><input id="im-date" type="date"></div>
+      <div class="modal-row"><label>תאריך אירוע</label><input id="im-date" type="text" inputmode="numeric" placeholder="יי.חח.שש"></div>
       <div class="modal-row"><label>ביטוח / בעלות</label><select id="im-insurance"><option>ביטוח</option><option>ליסינג</option><option>בעלות</option><option>אחר</option></select></div>
       <div class="modal-row"><label>מס׳ אירוע</label><input id="im-reportNum" type="text"></div>
       <div class="modal-row"><label>סכום נזק (₪)</label><input id="im-damage" type="number" placeholder="0"></div>
@@ -2078,7 +2079,7 @@ function renderFleet() {
     const blank = s => !String(s==null?'':s).trim();
     // yellow if empty — but never for a no-vehicle employee (vehicle fields don't apply)
     const yc = (val, cls) => (!noVeh && blank(val)) ? 'cell-yellow' : (cls||'');
-    return `<tr class="${rowCls}">
+    return `<tr class="${rowCls}" style="cursor:pointer" title="לחץ לעריכה" onclick="editVehicle('${esc(v.plate)}')">
       <td class="${noVeh?'':yc(v.plate)}" style="font-weight:700;color:var(--accent);direction:ltr;font-size:0.78rem;white-space:nowrap">${noVeh ? '<span style="color:#7c3aed">👤 ללא רכב</span>' : (esc(v.plate)||'—')}</td>
       <td class="${yc((v.make||'')+(v.model||''))}" style="font-size:0.73rem">${esc(v.make)} ${esc(v.model)}<br><span style="color:var(--muted);font-size:0.65rem">${esc(v.year)}</span></td>
       <td class="${isTrailer?'':yc(drvNm)}" style="font-size:0.73rem">${esc((v.driverName||'').split('-')[0])||'—'}</td>
@@ -2089,7 +2090,7 @@ function renderFleet() {
       ${isTrailer
         ? `<td><span class="badge badge-gray">—</span></td>`
         : `<td class="${yc(v.nextServiceKm)}">${kmStatus(v.currentKm, v.nextServiceKm)}<br><span style="color:var(--muted);font-size:0.63rem">${esc(v.nextServiceKm)||'—'} ק"מ</span></td>`}
-      <td class="${yc(v.inspection, cellCls(inspDays))}">${statusBadge(inspDays)}<br><span style="color:var(--muted);font-size:0.63rem">הבאה: ${nextInspectionStr(v)||'—'}</span><br><span style="color:var(--muted);font-size:0.58rem">אחרונה: ${esc(v.inspection)||'—'}</span>${v.inspectionScheduled ? `<br><span class="badge" style="background:#dbeafe;color:#1e40af;font-size:0.57rem;padding:1px 5px;cursor:pointer" title="לחץ לביטול המועד" onclick="cancelInspBooking('${esc(v.plate)}')">📅 נקבע: ${esc(v.inspectionScheduled)} ✕</span>` : ''}</td>
+      <td class="${yc(v.inspection, cellCls(inspDays))}">${statusBadge(inspDays)}<br><span style="color:var(--muted);font-size:0.63rem">הבאה: ${nextInspectionStr(v)||'—'}</span><br><span style="color:var(--muted);font-size:0.58rem">אחרונה: ${esc(v.inspection)||'—'}</span>${v.inspectionScheduled ? `<br><span class="badge" style="background:#dbeafe;color:#1e40af;font-size:0.57rem;padding:1px 5px;cursor:pointer" title="לחץ לביטול המועד" onclick="event.stopPropagation();cancelInspBooking('${esc(v.plate)}')">📅 נקבע: ${esc(v.inspectionScheduled)} ✕</span>` : ''}</td>
       <td class="${isTrailer?'':yc(v.trafficRecord, cellCls(daysUntil(dateAddYears(v.trafficRecord,3))))}">${statusBadge(daysUntil(dateAddYears(v.trafficRecord,3)))}<br><span style="color:var(--muted);font-size:0.63rem">בוצע: ${esc(v.trafficRecord)||'—'}</span><br><span style="color:var(--muted);font-size:0.58rem">תוקף: ${dateAddYears(v.trafficRecord,3)||'—'}</span></td>
       ${(() => {
         const drv = (v.driverName||'').trim();
@@ -2102,9 +2103,9 @@ function renderFleet() {
       })()}
       <td class="${yc(v.vehicleFrom)}" style="font-size:0.73rem;white-space:nowrap">${esc(v.vehicleFrom)||'—'}</td>
       <td style="white-space:nowrap">
-        <button class="btn btn-gray" style="padding:3px 8px;font-size:0.7rem" onclick="editVehicle('${esc(v.plate)}')">✏️</button>
-        <button class="btn btn-gray" style="padding:3px 8px;font-size:0.7rem" title="שלח טפסי קבלת רכב לנהג" onclick="openDeclShare('${esc(v.plate)}')">📨</button>
-        <button class="btn btn-gray" style="padding:3px 8px;font-size:0.7rem" title="מחק רכב מהצי" onclick="deleteVehicleRow('${esc(v.plate)}')">🗑️</button>
+        <button class="btn btn-gray" style="padding:3px 8px;font-size:0.7rem" onclick="event.stopPropagation();editVehicle('${esc(v.plate)}')">✏️</button>
+        <button class="btn btn-gray" style="padding:3px 8px;font-size:0.7rem" title="שלח טפסי קבלת רכב לנהג" onclick="event.stopPropagation();openDeclShare('${esc(v.plate)}')">📨</button>
+        <button class="btn btn-gray" style="padding:3px 8px;font-size:0.7rem" title="מחק רכב מהצי" onclick="event.stopPropagation();deleteVehicleRow('${esc(v.plate)}')">🗑️</button>
       </td>
     </tr>`;
   }).join('');
@@ -2135,7 +2136,7 @@ function renderIncidents() {
   buildIncColFilterRow();
   document.getElementById('inc-count').textContent = filtered.length;
   document.getElementById('inc-body').innerHTML = filtered.map(i => `
-    <tr>
+    <tr style="cursor:pointer" title="לחץ לעריכה" onclick="openIncidentModal(${i.id})">
       <td style="color:var(--muted)">${i.id}</td>
       <td style="font-weight:700;color:var(--accent);direction:ltr">${esc(i.plate)}</td>
       <td style="font-size:0.75rem">${esc(i.driver)}</td>
@@ -3090,7 +3091,7 @@ async function loadInspectionHistory() {
   } catch(e) { wrap.innerHTML = '<div style="color:#dc2626;font-size:0.8rem;padding:8px">שגיאה בטעינת היסטוריה</div>'; }
 }
 
-function openInspectionForm() {
+function openInspectionForm(prefillPlate) {
   document.getElementById('forms-menu').style.display = 'none';
   document.getElementById('inspection-form').style.display = '';
   ['if-plate','if-model','if-km','if-notes'].forEach(id => document.getElementById(id).value = '');
@@ -3100,8 +3101,18 @@ function openInspectionForm() {
   inspAnswers = {};
   INSPECTION_SECTIONS.forEach(s => s.items.forEach(it => inspAnswers[it] = 'תקין'));
   renderInspSections();
+  // opened for a specific vehicle (e.g. from the vehicle edit modal) — prefill + autofill
+  if (prefillPlate) { document.getElementById('if-plate').value = prefillPlate; inspFillFromPlate(); }
 }
 function closeInspectionForm() { renderFormsTab(); }
+// Jump straight from the vehicle edit modal into a safety inspection for that vehicle.
+function inspectFromModal() {
+  const plate = document.getElementById('m-plate').value.trim() || editingPlate || '';
+  closeModal();
+  const b = document.querySelector('.nav-btn[onclick*="\'forms\'"]');
+  showTab('forms', b);
+  openInspectionForm(plate);
+}
 
 function renderInspSections() {
   const cls = v => v==='תקין' ? 'sel-ok' : v==='לא תקין' ? 'sel-bad' : 'sel-fixed';
@@ -3848,6 +3859,47 @@ function editVehicle(plate) {
 }
 function closeModal() {
   document.getElementById('vehicle-modal').classList.remove('open');
+}
+// ── INCIDENT (accident) add / edit ──
+let _editIncidentId = null;
+function openIncidentModal(id, plate, driver) {
+  _editIncidentId = id || null;
+  const inc = id ? INCIDENTS.find(x => x.id === id) : null;
+  document.getElementById('incident-modal-title').textContent = inc ? ('✏️ עריכת אירוע #' + inc.id) : '+ הוסף אירוע';
+  const set = (eid, val) => { const el = document.getElementById(eid); if (el) el.value = (val == null ? '' : val); };
+  set('im-plate', inc ? inc.plate : (plate || ''));
+  set('im-driver', inc ? inc.driver : (driver || ''));
+  set('im-date', inc ? inc.date : '');
+  document.getElementById('im-insurance').value = (inc && inc.insurance) || 'ביטוח';
+  set('im-reportNum', inc ? inc.reportNum : '');
+  set('im-damage', inc ? String(inc.damage || '').replace(/\D/g, '') : '');
+  set('im-deductible', inc ? String(inc.deductible || '').replace(/\D/g, '') : '');
+  set('im-notes', inc ? inc.notes : '');
+  document.getElementById('incident-modal').classList.add('open');
+}
+function saveIncidentForm() {
+  const g = eid => (document.getElementById(eid).value || '').trim();
+  if (!g('im-plate') && !g('im-driver')) { toast('הכנס מספר רכב או שם נהג', true); return; }
+  const rec = {
+    plate: g('im-plate'), driver: g('im-driver'), date: g('im-date'),
+    insurance: document.getElementById('im-insurance').value,
+    reportNum: g('im-reportNum'), damage: g('im-damage'),
+    deductible: g('im-deductible'), notes: g('im-notes')
+  };
+  if (_editIncidentId) {
+    const idx = INCIDENTS.findIndex(x => x.id === _editIncidentId);
+    if (idx >= 0) INCIDENTS[idx] = { ...INCIDENTS[idx], ...rec };
+  } else {
+    rec.id = INCIDENTS.reduce((m, x) => Math.max(m, +x.id || 0), 0) + 1;
+    INCIDENTS.unshift(rec);
+  }
+  try { localStorage.setItem('fleet_incidents', JSON.stringify(INCIDENTS)); } catch(e){}
+  saveToFirestore('incidents', INCIDENTS);
+  document.getElementById('incident-modal').classList.remove('open');
+  renderIncidents();
+  if (typeof renderDashboard === 'function') renderDashboard();
+  toast(_editIncidentId ? 'אירוע עודכן ✓' : 'אירוע נוסף ✓');
+  _editIncidentId = null;
 }
 function openIncidentFromModal() {
   const plate = document.getElementById('m-plate').value.trim();
