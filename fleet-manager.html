@@ -689,6 +689,11 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
       <div><div style="font-weight:800;color:#fff;font-size:1rem">ביקורת קצין בטיחות</div>
       <div style="font-size:0.75rem;color:#dbeafe">מילוי דיגיטלי בשטח — נשמר בתיק הרכב ונשלח למייל</div></div>
     </div>
+    <div class="form-card" onclick="copyBotLink()" style="background:linear-gradient(135deg,#4f46e5,#7c3aed);border-color:#4f46e5;margin-top:10px">
+      <span style="font-size:2.2rem">🤖</span>
+      <div><div style="font-weight:800;color:#fff;font-size:1rem">קישור לבוט נדי (לנהגים)</div>
+      <div style="font-size:0.75rem;color:#e0e7ff">לחץ להעתקת קישור הבוט של החברה — שלח לנהגים בוואטסאפ</div></div>
+    </div>
     <div class="insp-section" style="max-width:420px;margin-top:18px">
       <div class="insp-section-hdr">⚙️ לאן נשלחות הביקורות במייל</div>
       <div style="padding:10px">
@@ -2466,6 +2471,15 @@ function kmGroupMsg() {
 async function copyKmGroupMsg() {
   try { await navigator.clipboard.writeText(kmGroupMsg()); toast('ההודעה הועתקה — הדבק בקבוצת הוואטסאפ ✓'); }
   catch(e) { toast('ההעתקה נכשלה', true); }
+}
+// The chatbot ("נדי") link for this company — carries the tenant id so a customer's
+// drivers reach THEIR data, not Nofar's.
+function copyBotLink() {
+  const link = 'https://nadi8890.github.io/chat-bot/?t=' + encodeURIComponent(TENANT || 'nofar');
+  const done = () => toast('קישור הבוט הועתק ✓ — שלח לנהגים בוואטסאפ');
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(link).then(done).catch(() => _fallbackCopy(link, done));
+  } else _fallbackCopy(link, done);
 }
 async function markKmRoundSent() {
   KMROUND[kmMonthKey()] = Date.now();
