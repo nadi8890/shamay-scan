@@ -5593,25 +5593,28 @@ async function syncVehicleFromGov(plate) {
 async function autoFillFromGov(rawPlate) {
   const plate = rawPlate.replace(/\D/g,'');
   if (plate.length < 7) return;
-  if (editingPlate) return;
+  // works in BOTH add and edit ("pencil") modes — fills only empty fields, never overwrites
+  // what you already typed. To re-pull a field, clear it and tab out of the plate box.
   const statusEl = document.getElementById('m-gov-status');
-  if (statusEl) statusEl.textContent = '⏳ מחפש...';
+  if (statusEl) statusEl.textContent = '⏳ מחפש במשרד הרישוי...';
   try {
     const url = `https://data.gov.il/api/3/action/datastore_search?resource_id=053cea08-09bc-40ec-8f7a-156f0677aff3&q=${encodeURIComponent(plate)}&limit=5`;
     const res = await fetch(url);
     const data = await res.json();
     const records = data?.result?.records || [];
     const rec = records.find(r => String(r.mispar_rechev||'').replace(/\D/g,'') === plate) || records[0];
-    if (!rec) { if (statusEl) statusEl.textContent = '❌ לא נמצא'; return; }
+    if (!rec) { if (statusEl) statusEl.textContent = '❌ לא נמצא במשרד הרישוי'; return; }
     const fmtDate = s => { if(!s) return ''; const d=new Date(s); return isNaN(d)?'':('0'+d.getDate()).slice(-2)+'/'+('0'+(d.getMonth()+1)).slice(-2)+'/'+d.getFullYear(); };
-    const fill = (id, val) => { const el=document.getElementById(id); if(el && !el.value && val) el.value=val; };
+    let filled = 0;
+    const fill = (id, val) => { const el=document.getElementById(id); if(el && !el.value && val) { el.value=val; filled++; } };
     fill('m-make', rec.tozeret_nm||'');
     fill('m-model', rec.degem_nm||rec.kinuy_mishari||'');
     fill('m-year',  rec.shnat_yitzur ? String(rec.shnat_yitzur) : '');
     fill('m-regExpiry', fmtDate(rec.tokef_dt));
-    if (statusEl) statusEl.textContent = `✅ ${rec.tozeret_nm||''} ${rec.degem_nm||''}`.trim();
+    const found = `${rec.tozeret_nm||''} ${rec.degem_nm||''}`.trim();
+    if (statusEl) statusEl.textContent = filled ? `✅ נמצא: ${found} (מולאו ${filled} שדות)` : `✅ נמצא: ${found} (השדות כבר מלאים)`;
   } catch(e) {
-    if (statusEl) statusEl.textContent = '❌ שגיאה';
+    if (statusEl) statusEl.textContent = '❌ שגיאה בחיפוש';
   }
 }
 
