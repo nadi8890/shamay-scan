@@ -622,7 +622,6 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
   <button class="nav-btn" onclick="showTab('returns',this)"><span class="icon">🔄</span>החזרות</button>
   <button class="nav-btn" onclick="showTab('damage',this)"><span class="icon">📋</span>אומדן</button>
   <button class="nav-btn" onclick="showTab('forms',this)"><span class="icon">📝</span>טפסים</button>
-  <button class="nav-btn" onclick="showTab('contacts',this)"><span class="icon">👥</span>אנשי קשר</button>
   <button class="nav-btn" onclick="showTab('dashboard',this)"><span class="icon">📊</span>דשבורד</button>
 </nav>
 
@@ -694,6 +693,11 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
       <span style="font-size:2.2rem">🤖</span>
       <div><div style="font-weight:800;color:#fff;font-size:1rem">קישור לבוט נדי (לנהגים)</div>
       <div style="font-size:0.75rem;color:#e0e7ff">לחץ להעתקת קישור הבוט של החברה — שלח לנהגים בוואטסאפ</div></div>
+    </div>
+    <div class="form-card" onclick="openContactsView()" style="background:linear-gradient(135deg,#0891b2,#0e7490);border-color:#0891b2;margin-top:10px">
+      <span style="font-size:2.2rem">👥</span>
+      <div><div style="font-weight:800;color:#fff;font-size:1rem">אנשי קשר</div>
+      <div style="font-size:0.75rem;color:#cffafe">נהל את הנמענים לשליחת התראות — בחירה לפי שם בעת השליחה</div></div>
     </div>
     <div class="insp-section" style="max-width:420px;margin-top:18px">
       <div class="insp-section-hdr">⚙️ לאן נשלחות הביקורות במייל</div>
@@ -778,19 +782,24 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
   </div>
 </div>
 
-<!-- ══ CONTACTS TAB ══ -->
-<div class="tab-content" id="tab-contacts">
-  <div class="section-hdr">
-    <span class="section-title">👥 אנשי קשר</span>
-    <button class="btn btn-primary" style="padding:6px 14px;font-size:0.82rem" onclick="openContactModal()">+ איש קשר חדש</button>
+<!-- ══ CONTACTS VIEW MODAL (opened from the Forms tab) ══ -->
+<div class="modal-overlay" id="contacts-view-modal">
+  <div class="modal" style="max-width:600px">
+    <div class="section-hdr">
+      <span class="section-title">👥 אנשי קשר</span>
+      <button class="btn btn-primary" style="padding:6px 14px;font-size:0.82rem" onclick="openContactModal()">+ חדש</button>
+    </div>
+    <p style="font-size:0.78rem;color:var(--muted);margin:2px 0 12px">שמור כאן את אנשי הקשר שאליהם אתה שולח התראות. בעת שליחת התראת מסמכים — תבחר איש קשר <b>לפי השם</b> והמייל יימלא אוטומטית.</p>
+    <input id="contacts-search" type="text" placeholder="🔍 חיפוש איש קשר…" oninput="renderContacts()" style="width:100%;background:#f8fafc;border:1px solid var(--border);border-radius:9px;padding:9px 12px;font-family:'Heebo',sans-serif;font-size:0.88rem;margin-bottom:12px">
+    <div id="contacts-list" style="max-height:52vh;overflow-y:auto"></div>
+    <div class="btn-row" style="margin-top:14px">
+      <button class="btn btn-secondary" onclick="document.getElementById('contacts-view-modal').classList.remove('open')">סגור</button>
+    </div>
   </div>
-  <p style="font-size:0.8rem;color:var(--muted);margin:2px 2px 14px;max-width:640px">שמור כאן את אנשי הקשר שאליהם אתה שולח התראות (מוסך, מנהל, נהג, מבטח וכו'). בעת שליחת התראת מסמכים — תבחר איש קשר <b>לפי השם</b> והמייל שלו יימלא אוטומטית, בלי להקליד כתובות מחדש.</p>
-  <input id="contacts-search" type="text" placeholder="🔍 חיפוש איש קשר…" oninput="renderContacts()" style="width:100%;max-width:640px;background:#f8fafc;border:1px solid var(--border);border-radius:9px;padding:9px 12px;font-family:'Heebo',sans-serif;font-size:0.88rem;margin-bottom:12px">
-  <div id="contacts-list" style="max-width:640px"></div>
 </div>
 
 <!-- ══ CONTACT EDIT MODAL ══ -->
-<div class="modal-overlay" id="contact-modal">
+<div class="modal-overlay" id="contact-modal" style="z-index:660">
   <div class="modal">
     <h3 id="cm-title">איש קשר חדש</h3>
     <div class="modal-row"><label>שם *</label><input id="cm-name" type="text" placeholder="שם מלא / תפקיד"></div>
@@ -1813,7 +1822,6 @@ function showTab(name, btn) {
   if (name==='tasks') renderTasks();
   if (name==='returns') renderReturns();
   if (name==='forms') renderFormsTab();
-  if (name==='contacts') renderContacts();
   if (name==='dashboard') renderManagerDashboard();
 }
 
@@ -3621,8 +3629,13 @@ function saveContacts() {
   try { fcol().doc('main').set({ contacts: window.CONTACTS }, { merge: true }); } catch(e){}
 }
 
-// ═══ CONTACTS TAB — managed directory (name → email) ═══
+// ═══ CONTACTS — managed directory (name → email), opened from the Forms tab ═══
 let _editContactId = null;
+function openContactsView() {
+  const s = document.getElementById('contacts-search'); if (s) s.value = '';
+  renderContacts();
+  document.getElementById('contacts-view-modal').classList.add('open');
+}
 function renderContacts() {
   const c = loadContacts();
   const q = (document.getElementById('contacts-search')?.value || '').trim().toLowerCase();
