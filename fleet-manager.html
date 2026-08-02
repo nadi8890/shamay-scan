@@ -4520,10 +4520,11 @@ function agentInit() {
   if (agentApiKey) {
     document.getElementById('agent-key-input').value = agentApiKey;
   }
-  // Welcome message
+  // Welcome message — שם החברה דינמי לפי הדייר (ריק ללקוח = "מחלקת הרכב")
+  const _coName = (COMPANY_NAME && COMPANY_NAME.trim()) ? COMPANY_NAME.trim() : 'מחלקת הרכב';
   agentMessages = [{
     role: 'assistant',
-    content: 'שלום! אני הסוכן החכם של נופר אנרגי 👋\n\nאני יכול לעזור לך:\n• לחפש רכב לפי מספר או נהג\n• להציג התראות ומועדים קרובים\n• לנווט לכל קטגוריה במערכת\n• להוסיף משימות\n• לייצא נתונים לאקסל\n\nמה תרצה לדעת?'
+    content: `שלום! אני הסוכן החכם של ${_coName} 👋\n\nאני יכול לעזור לך:\n• לחפש רכב לפי מספר או נהג\n• להציג התראות ומועדים קרובים\n• לנווט לכל קטגוריה במערכת\n• להוסיף משימות\n• לייצא נתונים לאקסל\n\nמה תרצה לדעת?`
   }];
   renderAgentMsgs();
 }
@@ -4556,7 +4557,8 @@ function buildSystemPrompt() {
   const _p2 = x => String(x).padStart(2,'0');
   const _days = ['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'];
   const todayStr = `${_p2(_n.getDate())}/${_p2(_n.getMonth()+1)}/${_n.getFullYear()}`;
-  return `אתה סוכן AI מקצועי לניהול ציי רכב של חברת נופר אנרגי. אתה עוזר לקציני רכב ופקידים לנהל את הצי ביעילות.
+  const _co = (COMPANY_NAME && COMPANY_NAME.trim()) ? COMPANY_NAME.trim() : 'החברה';
+  return `אתה סוכן AI מקצועי לניהול ציי רכב של חברת ${_co}. אתה עוזר לקציני רכב ופקידים לנהל את הצי ביעילות.
 תמיד ענה בעברית, בצורה תמציתית ומקצועית.
 
 ═══ התאריך והשעה כעת ═══
@@ -4977,6 +4979,9 @@ ${info.tire}`;
     }).join('\n\n---\n\n');
   }
   // --- Policy keyword match ---
+  // בסיס הידע (ליסינג/תדלוק/בטיחות) הוא של נופר בלבד. לחברות אחרות אין נהלים קשיחים —
+  // מדלגים על ההתאמה המקומית ומשאירים את המענה לסוכן ה-AI לפי נתוני החברה שלהן.
+  if (TENANT !== 'nofar') return null;
   const text = rawText.toLowerCase();
   let best = null, bestScore = 0;
   for (const item of POLICY) {
