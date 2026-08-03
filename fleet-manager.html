@@ -934,6 +934,7 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
       <div class="modal-row"><label>תאריך קבלת רכב</label><input id="m-from" type="text" placeholder="יי.חח.שש" inputmode="numeric" oninput="dateAutoMask(this)"></div>
       <div class="modal-row"><label>ק״מ נוכחי</label><input id="m-km" type="text" placeholder="45000"></div>
       <div class="modal-row"><label>טיפול הבא (ק״מ)</label><input id="m-nextKm" type="text" placeholder="60000"></div>
+      <div class="modal-row"><label>תאריך טיפול אחרון <span style="font-weight:400;color:#94a3b8;font-size:0.7rem">(טיפול שנתי — כל 15 אלף ק"מ או שנה)</span></label><input id="m-serviceDate" type="text" placeholder="יי.חח.שש" inputmode="numeric" oninput="dateAutoMask(this)"></div>
       <div class="modal-row"><label>עבר תעבורתי (תאריך ביצוע)</label><input id="m-traffic" type="text" placeholder="יי.חח.שש" inputmode="numeric" oninput="dateAutoMask(this)"></div>
       <div class="modal-row"><label>נהלים (תאריך ביצוע)</label><input id="m-procedures" type="text" placeholder="יי.חח.שש" inputmode="numeric" oninput="dateAutoMask(this)"></div>
     </div>
@@ -3517,13 +3518,30 @@ function buildDynamicAlerts() {
       const label = ageYrs <= 3 ? 'ביקורת בטיחות חציונית' : 'ביקורת בטיחות רבעונית';
       alerts.push({ plate:v.plate, driver:v.driverName, type:label, dueDate:nextInspectionStr(v), daysLeft:inspDays, prevKm:null, kmAlert:null, currentKm:null, kmDiff:null });
     }
-    // KM service — alert within 2000 km of next service or overdue (trailers aren't serviced)
+    // Service due at 15,000 km OR 1 year from the last service — whichever comes first
+    // (per manufacturer). Trailers aren't serviced.
     const _drv = (v.driverName || '').trim();
     const _isTrailer = !_drv || _drv.includes('נגרר') || _drv.includes('ללא נהג');
     const cur = parseKm(v.currentKm);
     const nxt = parseKm(v.nextServiceKm);
+    // KM side — alert within 2000 km of next service or overdue
+    const kmOverdue = cur > 0 && nxt > 0 && cur >= nxt;
     if (!_isTrailer && cur > 0 && nxt > 0 && cur >= nxt - 2000)
-      alerts.push({ plate:v.plate, driver:v.driverName, type:'טיפול הבא', dueDate:'—', daysLeft:null, prevKm:null, kmAlert:2000, currentKm:cur, kmDiff: cur - nxt + 2000 });
+      alerts.push({ plate:v.plate, driver:v.driverName, type:'טיפול הבא (ק"מ)', dueDate:'—', daysLeft:null, prevKm:null, kmAlert:2000, currentKm:cur, kmDiff: cur - nxt + 2000 });
+    // TIME side — 1 year (SERVICE_INTERVAL_MONTHS) after the last service date.
+    // Only when a last-service date exists; suppressed if the km-service is already overdue
+    // (so the earlier-of-the-two shows a single alert, not two).
+    if (!_isTrailer && v.serviceDate && !kmOverdue) {
+      const base = parseDate(v.serviceDate);
+      if (base) {
+        const due = new Date(base.getFullYear(), base.getMonth() + 12, base.getDate());
+        const svcDays = Math.ceil((due - new Date()) / 86400000);
+        if (svcDays <= 14) {
+          const dd = ('0'+due.getDate()).slice(-2)+'/'+('0'+(due.getMonth()+1)).slice(-2)+'/'+due.getFullYear();
+          alerts.push({ plate:v.plate, driver:v.driverName, type:'טיפול שנתי', dueDate:dd, daysLeft:svcDays, prevKm:null, kmAlert:null, currentKm:null, kmDiff:null });
+        }
+      }
+    }
   }
   alerts.sort((a,b) => {
     const score = x => x.daysLeft !== null ? x.daysLeft : (x.kmDiff >= x.kmAlert ? -((x.kmDiff - x.kmAlert) * 30) : (x.kmAlert - x.kmDiff));
@@ -3849,8 +3867,8 @@ function sendDocMail() {
 function exportSection(section) {
   let headers = [], rows = [];
   if (section === 'fleet') {
-    headers = ['מס׳ רישוי','יצרן','דגם','שנה','נהג','ת.ז נהג','חברה','קוד רכב','תוקף רישוי','תוקף ביטוח','רישיון נהג','ק"מ נוכחי','ק"מ טיפול הבא','ביקורת בטיחות','ילדים','רכב מתאריך','רישום תנועה','נהלים'];
-    rows = VEHICLES.map(v => [v.plate,v.make,v.model,v.year,v.driverName,v.driverId||'',v.company,v.code||'',v.registrationExpiry,v.insuranceExpiry,v.licenseExpiry,v.currentKm,v.nextServiceKm,v.inspection,v.children||'',v.vehicleFrom||'',v.trafficRecord||'',v.procedures||'']);
+    headers = ['מס׳ רישוי','יצרן','דגם','שנה','נהג','ת.ז נהג','חברה','קוד רכב','תוקף רישוי','תוקף ביטוח','רישיון נהג','ק"מ נוכחי','ק"מ טיפול הבא','תאריך טיפול אחרון','ביקורת בטיחות','ילדים','רכב מתאריך','רישום תנועה','נהלים'];
+    rows = VEHICLES.map(v => [v.plate,v.make,v.model,v.year,v.driverName,v.driverId||'',v.company,v.code||'',v.registrationExpiry,v.insuranceExpiry,v.licenseExpiry,v.currentKm,v.nextServiceKm,v.serviceDate||'',v.inspection,v.children||'',v.vehicleFrom||'',v.trafficRecord||'',v.procedures||'']);
   } else if (section === 'incidents') {
     headers = ['#','מס׳ רישוי','נהג','תאריך','ביטוח/בעלות','מס׳ ארוע','סכום נזק','השתתפות עצמית','הערות'];
     rows = INCIDENTS.map(i => [i.id,i.plate,i.driver,i.date,i.insurance,i.reportNum,i.damage,i.deductible,i.notes]);
@@ -3968,7 +3986,7 @@ let editingPlate = null;
 function openAddVehicle() {
   editingPlate = null;
   document.getElementById('modal-title').textContent = 'הוסף רכב חדש';
-  ['m-plate','m-make','m-model','m-year','m-driver','m-phone','m-regExpiry','m-insExpiry','m-licExpiry','m-inspection','m-from','m-km','m-nextKm','m-traffic','m-procedures','m-notes'].forEach(id => {
+  ['m-plate','m-make','m-model','m-year','m-driver','m-phone','m-regExpiry','m-insExpiry','m-licExpiry','m-inspection','m-from','m-km','m-nextKm','m-serviceDate','m-traffic','m-procedures','m-notes'].forEach(id => {
     document.getElementById(id).value = '';
   });
   const govSt = document.getElementById('m-gov-status');
@@ -3993,6 +4011,7 @@ function editVehicle(plate) {
   document.getElementById('m-from').value = v.vehicleFrom||'';
   document.getElementById('m-km').value = v.currentKm||'';
   document.getElementById('m-nextKm').value = v.nextServiceKm||'';
+  document.getElementById('m-serviceDate').value = v.serviceDate||'';
   document.getElementById('m-traffic').value = v.trafficRecord||'';
   document.getElementById('m-procedures').value = v.procedures||'';
   document.getElementById('m-notes').value = v.notes||'';
@@ -4089,6 +4108,7 @@ function saveVehicle() {
     vehicleFrom: document.getElementById('m-from').value.trim(),
     currentKm: document.getElementById('m-km').value.trim(),
     nextServiceKm: document.getElementById('m-nextKm').value.trim() || (!editingPlate && !_noVeh ? String((parseInt(document.getElementById('m-km').value)||0)+15000) : ''),
+    serviceDate: document.getElementById('m-serviceDate').value.trim() || (!editingPlate && !_noVeh ? (document.getElementById('m-from').value.trim() || _today) : ''),
     trafficRecord: document.getElementById('m-traffic').value.trim(),
     procedures: document.getElementById('m-procedures').value.trim(),
     notes: document.getElementById('m-notes').value.trim(),
@@ -4151,6 +4171,7 @@ const IMPORT_FIELDS = [
   { key:'insuranceExpiry',    label:'תוקף ביטוח',        syn:['תוקף ביטוח','ביטוח','ביטוח מקיף','insurance'] },
   { key:'currentKm',          label:'ק"מ נוכחי',         syn:['ק"מ נוכחי','קילומטראז','קילומטר','ק"מ','קמ','מד אוץ','km','mileage','odometer'] },
   { key:'nextServiceKm',      label:'טיפול הבא (ק"מ)',   syn:['טיפול הבא','טיפול','ק"מ טיפול','service','next service'] },
+  { key:'serviceDate',        label:'תאריך טיפול אחרון', syn:['תאריך טיפול אחרון','טיפול אחרון','תאריך טיפול','last service','service date'] },
   { key:'vehicleFrom',        label:'תאריך קבלת רכב',    syn:['תאריך קבלה','קבלת רכב','תאריך קבלת רכב','מתאריך','from date','start date'] },
   { key:'inspection',         label:'ביקורת בטיחות',     syn:['ביקורת בטיחות','ביקורת','תאריך ביקורת','inspection'] },
   { key:'trafficRecord',      label:'עבר תעבורתי',       syn:['עבר תעבורתי','עבר תעבורה','traffic record'] },
@@ -4731,8 +4752,9 @@ ${VEHICLES.map(v=>`• ${v.plate} | ${v.make} ${v.model} ${v.year||''} | נהג:
 
 עדכון שדה ברכב קיים:
 [[ACTION:updateVehicle:מס_רישוי|שדה|ערך]]
-שדות: registrationExpiry / insuranceExpiry / licenseExpiry / inspection / currentKm / nextServiceKm / driverName / make / model / company
+שדות: registrationExpiry / insuranceExpiry / licenseExpiry / inspection / currentKm / nextServiceKm / serviceDate / driverName / make / model / company
 דוגמה: [[ACTION:updateVehicle:83945203|registrationExpiry|17/11/2027]]
+כשבוצע טיפול: עדכן גם serviceDate (תאריך הטיפול) וגם nextServiceKm (+15000 מהק"מ הנוכחי). הטיפול הבא הוא כל 15,000 ק"מ או שנה — המוקדם מביניהם.
 
 הוספת אירוע נזק:
 [[ACTION:addIncident:רישוי|נהג|תאריך(DD/MM/YYYY)|סכום_נזק|הערות]]
@@ -5294,7 +5316,7 @@ function agentExecAction(action, param) {
     const fieldLabels = {
       registrationExpiry:'תוקף רישוי', insuranceExpiry:'תוקף ביטוח',
       licenseExpiry:'רישיון נהג', inspection:'ביקורת בטיחות',
-      currentKm:'ק"מ נוכחי', nextServiceKm:'ק"מ לטיפול', driverName:'שם נהג',
+      currentKm:'ק"מ נוכחי', nextServiceKm:'ק"מ לטיפול', serviceDate:'תאריך טיפול אחרון', driverName:'שם נהג',
       make:'יצרן', model:'דגם', company:'חברה'
     };
     const oldVal = vehicle[field];
@@ -5558,7 +5580,8 @@ async function addVehicleWithLookup(param) {
     inspection: inspection||_today,
     vehicleFrom: _today,
     currentKm: currentKm||'0',
-    nextServiceKm: nextServiceKm||String((parseInt(currentKm)||0)+15000)
+    nextServiceKm: nextServiceKm||String((parseInt(currentKm)||0)+15000),
+    serviceDate: _today   // starts the yearly-service clock on receipt
   };
   VEHICLES.push(v);
   localStorage.setItem('fleet_vehicles', JSON.stringify(VEHICLES));
