@@ -229,13 +229,13 @@ canvas.sig{width:100%;height:130px;border:1.5px dashed #94a3b8;border-radius:10p
 
   <!-- signature -->
   <div class="card">
-    <div class="card-hdr">✍️ חתימת העובד/ת
+    <div class="card-hdr"><span id="sig-hdr-text">✍️ חתימת העובד/ת</span>
       <button class="btn btn-gray" onclick="clearSig()">🗑️ נקה</button>
     </div>
     <div class="card-body">
-      <div class="clause" style="font-weight:700">הנני מצהיר/ה בזאת כי כל הצהרותיי לעיל אמת.</div>
+      <div class="clause" style="font-weight:700" id="sig-clause">הנני מצהיר/ה בזאת כי כל הצהרותיי לעיל אמת.</div>
       <canvas id="sig" class="sig" width="560" height="170"></canvas>
-      <div style="font-size:0.7rem;color:#64748b;margin-top:4px">חתום/חתמי עם האצבע</div>
+      <div style="font-size:0.7rem;color:#64748b;margin-top:4px" id="sig-note">חתום/חתמי עם האצבע</div>
     </div>
   </div>
 
@@ -335,6 +335,15 @@ function openForm(key) {
   renderThumbs(); renderDocThumbs();
   const hint = document.getElementById('lic-hint');
   if (hint) hint.textContent = FORMS[key].photoHint || '';
+  // Signature belongs to the person the form is about. On the family declaration
+  // it's the FAMILY MEMBER who signs — make that explicit so the employee doesn't sign here.
+  const _isFamily = key === 'family';
+  const _sigHdr   = document.getElementById('sig-hdr-text');
+  const _sigClause= document.getElementById('sig-clause');
+  const _sigNote  = document.getElementById('sig-note');
+  if (_sigHdr)   _sigHdr.textContent   = _isFamily ? '✍️ חתימת בן/בת המשפחה' : '✍️ חתימת העובד/ת';
+  if (_sigClause)_sigClause.textContent= _isFamily ? 'הנני, בן/בת המשפחה הנוהג/ת ברכב, מצהיר/ה כי כל הפרטים לעיל נכונים.' : 'הנני מצהיר/ה בזאת כי כל הצהרותיי לעיל אמת.';
+  if (_sigNote)  _sigNote.textContent  = _isFamily ? 'החתימה של בן/בת המשפחה — לא של העובד/ת. חתום/חתמי עם האצבע' : 'חתום/חתמי עם האצבע';
   clearSig(); clearSig2();
   // stamp the safety officer's saved signature so they don't re-sign every time
   if (FORMS[key].officerSig && OFFICER_SIG) applySavedOfficerSig();
@@ -515,10 +524,10 @@ function buildDocHtml(r) {
       ${r.testDrive.notes ? `<tr><td colspan="2" style="border:1px solid #64748b;padding:7px 10px"><b>הערות קצין הבטיחות:</b> ${r.testDrive.notes}</td></tr>` : ''}
     </table>` : ''}
     <div style="page-break-inside:avoid;margin-top:18px;border-top:2px solid #1e3a8a;padding-top:12px">
-      <p style="font-size:13px;font-weight:800;margin:0 0 8px">${r.testDrive ? 'מצהיר/ה בזאת כי עברתי הדרכה הכוללת תפעול הרכב, ואני בקיא/ה בהפעלתו.' : 'הנני מצהיר/ה בזאת כי כל הצהרותיי לעיל אמת.'}</p>
+      <p style="font-size:13px;font-weight:800;margin:0 0 8px">${r.testDrive ? 'מצהיר/ה בזאת כי עברתי הדרכה הכוללת תפעול הרכב, ואני בקיא/ה בהפעלתו.' : r.formType === 'family' ? 'הנני, בן/בת המשפחה הנוהג/ת ברכב, מצהיר/ה כי כל הפרטים לעיל נכונים.' : 'הנני מצהיר/ה בזאת כי כל הצהרותיי לעיל אמת.'}</p>
       <table style="width:100%;font-size:12px"><tr>
         <td><b>שם:</b> ${r.name}<br><br><b>תאריך:</b> ${r.dateStr}</td>
-        <td style="text-align:left"><div style="font-size:11px;color:#475569">חתימת העובד/ת:</div><img src="${r.signature}" style="width:190px;border-bottom:1.5px solid #0f172a"></td>
+        <td style="text-align:left"><div style="font-size:11px;color:#475569">${r.formType === 'family' ? 'חתימת בן/בת המשפחה:' : 'חתימת העובד/ת:'}</div><img src="${r.signature}" style="width:190px;border-bottom:1.5px solid #0f172a"></td>
       </tr></table>
       ${r.officerSignature ? `<table style="width:100%;font-size:12px;margin-top:14px"><tr>
         <td style="width:55%"></td>
