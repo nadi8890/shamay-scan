@@ -2857,7 +2857,7 @@ async function scanDatesFromImages(images, promptText) {
   const resp = await fetch('https://api.anthropic.com/v1/messages', {
     method:'POST',
     headers:{ 'Content-Type':'application/json', 'x-api-key': agentApiKey, 'anthropic-version':'2023-06-01', 'anthropic-dangerous-direct-browser-access':'true' },
-    body: JSON.stringify({ model: AGENT_MODEL, max_tokens:300, messages:[{ role:'user', content }] })
+    body: JSON.stringify({ model: AGENT_MODEL, max_tokens:300, thinking:{type:'disabled'}, messages:[{ role:'user', content }] })
   });
   const data = await resp.json();
   if (!resp.ok) throw new Error((data.error && data.error.message) || 'API error');
@@ -2971,7 +2971,7 @@ async function scanVehicleDoc(i) {
       method:'POST',
       headers:{ 'Content-Type':'application/json', 'x-api-key': agentApiKey,
         'anthropic-version':'2023-06-01', 'anthropic-dangerous-direct-browser-access':'true' },
-      body: JSON.stringify({ model: AGENT_MODEL, max_tokens:300, messages:[{ role:'user', content }] })
+      body: JSON.stringify({ model: AGENT_MODEL, max_tokens:300, thinking:{type:'disabled'}, messages:[{ role:'user', content }] })
     });
     const data = await resp.json();
     if (!resp.ok) throw new Error((data.error && data.error.message) || 'שגיאת API');
@@ -4641,7 +4641,7 @@ let agentMessages = [];
 let agentTyping = false;
 let agentApiKey = localStorage.getItem('ai_key') || localStorage.getItem('nofar_agent_key') || '';
 // The model the agent runs on. Haiku = cheapest, Sonnet = balanced, Opus = smartest/priciest.
-const AGENT_MODEL = 'claude-haiku-4-5-20251001';
+const AGENT_MODEL = 'claude-sonnet-5';   // חכם ומהיר; חשיבה מורחבת כבויה למטה כדי לשמור על טורבו + טוקנים נמוכים
 const AGENT_MODEL_LABEL = (m => {
   if (m.includes('haiku')) return '⚡ Haiku · חסכוני';
   if (m.includes('sonnet')) return '⚖️ Sonnet · מאוזן';
@@ -4711,7 +4711,7 @@ function buildSystemPrompt() {
 תמיד ענה בעברית, בצורה תמציתית ומקצועית.
 
 ═══ התאריך והשעה כעת ═══
-היום: יום ${_days[_n.getDay()]}, ${todayStr}, שעה ${_p2(_n.getHours())}:${_p2(_n.getMinutes())}
+היום: יום ${_days[_n.getDay()]}, ${todayStr}
 כשמדובר על פעולה שקרתה "היום" / "עכשיו" / בלי תאריך מפורש — התאריך הוא ${todayStr}. אל תנחש תאריך אחר לעולם.
 ${rulesBlock}
 ═══ נתוני הצי (עדכני) ═══
@@ -4838,7 +4838,8 @@ ${RETURNS.slice(0,5).map(r=>`• ${r.employee} | ${r.plate} | ${r.fromDate||'?'}
 אם לא ברור — שאל לאיזה רכב לשייך.
 
 ═══ כלל ברזל ═══
-אל תשאל "האם לבצע?" — פשוט בצע את הפעולה ודווח מה עשית.`;
+אל תשאל "האם לבצע?" — פשוט בצע את הפעולה ודווח מה עשית.
+לפני שאתה שואל את המשתמש שאלה — בדוק קודם ברשימת הצי, ההתראות, האירועים והדוחות שכבר נמצאים למעלה. כמעט כל פרט (רכב, נהג, תוקף, ק"מ, חברה, טיפול) כבר קיים שם. שאל את המשתמש רק אם המידע באמת חסר לחלוטין מהנתונים. אם המשתמש נותן מספר רכב או שם נהג חלקי — מצא את ההתאמה בעצמך בצי.`;
 }
 
 function handleAgentImage(input) {
@@ -5226,7 +5227,9 @@ async function agentSend() {
       body: JSON.stringify({
         model: AGENT_MODEL,
         max_tokens:2000,
-        system: buildSystemPrompt(),
+        thinking:{type:'disabled'},   // טורבו: מענה מיידי בלי חשיבה מורחבת (Sonnet 5 חכם מספיק לנתוני הצי)
+        // prompt caching: רשימת הצי הגדולה נשמרת ב-cache ועולה ~10% בכל הודעת המשך
+        system: [{ type:'text', text: buildSystemPrompt(), cache_control:{ type:'ephemeral' } }],
         messages:[...historyMsgs, { role:'user', content: currentContent }]
       })
     });
