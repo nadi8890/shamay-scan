@@ -1024,7 +1024,8 @@ async function analyzePhoto() {
 function saveRecord() {
   const items = getRows();
   const w = getWorkTotals();
-  const total = items.reduce((s, r) => s + r.parts, 0) + w.paint + w.body + w.electric;
+  // include extra ("+ עבודה נוספת") works in the saved/exported total — matches calcTotal()
+  const total = items.reduce((s, r) => s + r.parts, 0) + w.paint + w.body + w.electric + (w.extra || 0);
   const record = {
     id:     editingId || Date.now(),
     date:   document.getElementById('f-date').value,
