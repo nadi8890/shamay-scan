@@ -4176,11 +4176,17 @@ function saveVehicle() {
 // ══════════════ מסמכי רכב — Firebase Storage (מאובטח פר-חברה) ══════════════
 // נתיב: tenants/{TENANT}/vehicles/{plate}/{type}-{ts}.ext  — כללי האבטחה מבודדים כל חברה.
 // שומרים רק את הנתיב ברשומת הרכב; הצפייה דרך גישה מאומתת (getDownloadURL על-פי דרישה).
+// מתג התכונה: כבוי עד שמפעילים Storage בקונסולה. כבוי = אזור המסמכים מוסתר לגמרי
+// (לך וללקוחות) — בלי כפתורים מתים. הפעלה: להחליף ל-true ולפרוס.
+const STORAGE_FEATURE_ON = false;
 const _DOC_TYPES = [['registration','🚗 רישיון רכב (טסט)'], ['insurance','🛡️ ביטוח'], ['license','🪪 רישיון נהיגה']];
 let _pendingDocType = null;
 function _plateKey(p) { return String(p == null ? '' : p).replace(/[^0-9A-Za-z_-]/g, '_'); }
 function _vehByEditing() { return VEHICLES.find(x => String(x.plate).trim() === String(editingPlate).trim()); }
 function renderVehicleDocsUI() {
+  const wrap = document.getElementById('m-docs-wrap');
+  if (wrap) wrap.style.display = STORAGE_FEATURE_ON ? '' : 'none';   // מוסתר עד שמפעילים Storage
+  if (!STORAGE_FEATURE_ON) return;
   const box = document.getElementById('m-docs-list'), hint = document.getElementById('m-docs-hint');
   if (!box) return;
   if (!editingPlate) { box.innerHTML = ''; if (hint) hint.textContent = 'שמור את הרכב תחילה — ואז ניתן לצרף מסמכים.'; return; }
