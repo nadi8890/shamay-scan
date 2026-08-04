@@ -1547,22 +1547,29 @@ async function saveToFirestore(key, value) {
 // Upsert a single vehicle into the LATEST cloud array so a stale local array
 // can never delete other vehicles. The edited vehicle (from the form) wins;
 // all other vehicles keep their freshest cloud values.
-async function saveVehiclesSafely(editedPlate, dk) {
+async function saveVehiclesSafely(editedPlate, dk, origPlate) {
   // must be signed in to write (rules require auth) — surface the problem loudly
   if (!auth.currentUser) {
     toast('⚠ לא מחובר — התחבר מחדש כדי לשמור! הנתונים לא נשמרו', true);
     return;
   }
+  // Robust plate compare: normalize to a trimmed string so a number-vs-string or
+  // whitespace mismatch between the local array and the cloud can never make the
+  // vehicle look "not found" (which used to unshift a DUPLICATE row on edit).
+  const _pk = p => String(p == null ? '' : p).trim();
+  // Where the record lives in the cloud = its ORIGINAL plate (edits may change the plate);
+  // falls back to the new plate for a fresh add.
+  const _findKey = _pk(origPlate || editedPlate);
   try {
     // capture the edited vehicle BEFORE the await — a realtime snapshot (e.g. from the
     // drivers-save that runs just before) can replace the VEHICLES array mid-await,
     // which previously made a brand-new record look "not found".
-    const edited = VEHICLES.find(v => v.plate === editedPlate);
+    const edited = VEHICLES.find(v => _pk(v.plate) === _pk(editedPlate));
     if (!edited) { toast('⚠ שגיאה: הרכב לא נמצא', true); return; }
     const snap = await fcol().doc('main').get();
     let cloud = (snap.data() || {}).vehicles;
     if (!Array.isArray(cloud)) cloud = VEHICLES.slice();
-    const idx = cloud.findIndex(v => v.plate === editedPlate);
+    const idx = cloud.findIndex(v => _pk(v.plate) === _findKey);
     if (idx >= 0) cloud[idx] = edited; else cloud.unshift(edited);
     if (dk) cloud.forEach(v => {
       if (driverKey(v.driverName) === dk) {
@@ -1581,7 +1588,7 @@ async function saveVehiclesSafely(editedPlate, dk) {
     // read back to confirm it actually persisted
     const verify = await fcol().doc('main').get();
     const saved = (verify.data() || {}).vehicles || [];
-    const ok = saved.find(v => v.plate === editedPlate);
+    const ok = saved.find(v => _pk(v.plate) === _pk(editedPlate));
     if (ok) toast('✓ נשמר בענן');
     else toast('⚠ השמירה לא אומתה — נסה שוב', true);
   } catch(e) {
@@ -4145,7 +4152,7 @@ function saveVehicle() {
   localStorage.setItem('fleet_vehicles_version', VEHICLES_VERSION);
   // SAFE SAVE: read the latest cloud array and upsert only this vehicle, so a
   // stale in-memory array can never wipe other vehicles' data.
-  saveVehiclesSafely(v.plate, _dk);
+  saveVehiclesSafely(v.plate, _dk, editingPlate);   // editingPlate = מספר הרכב המקורי (null בהוספה)
   closeModal();
   renderDashboard();
   renderAlerts();
