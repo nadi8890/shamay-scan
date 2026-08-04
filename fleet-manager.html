@@ -1972,24 +1972,34 @@ async function loadMonthlyMileage(active, cleanName, bars) {
     Object.entries(byPlate).forEach(([p, reps]) => {
       if (!activePlates.has(p)) return;
       reps.sort((a,b) => String(b.monthKey||'').localeCompare(String(a.monthKey||'')) || (b.created||0)-(a.created||0));
-      if (reps.length < 2) return;
-      const cur = parseKm(reps[0].km), prev = parseKm(reps[1].km);
+      const latest = reps[0];
+      const cur = parseKm(latest.km);
+      let prev;
+      if (reps.length >= 2) {
+        prev = parseKm(reps[1].km);                 // הפרש בין שני הדיווחים האחרונים (מדויק חודש-על-חודש)
+      } else {
+        prev = parseKm(latest.prevKm);              // סבב יחיד: מול הק"מ הקודם שהיה ברשומה בזמן הדיווח
+        if (!(prev > 0)) return;                     // אין ק"מ קודם תקין → אי אפשר לחשב נסועה
+      }
       const diff = cur - prev;
-      if (diff <= 0) return;
+      if (!(diff > 0)) return;
       const v = active.find(x => String(x.plate||'').replace(/\D/g,'') === p);
-      rows.push({ name: cleanName(reps[0].driver) || (v?cleanName(v.driverName):'') || p, sub: reps[0].plate, val: diff, months: reps[0].monthKey + ' ← ' + reps[1].monthKey });
+      rows.push({ name: cleanName(latest.driver) || (v?cleanName(v.driverName):'') || p, sub: latest.plate, val: diff });
     });
     rows.sort((a,b) => b.val - a.val);
-    const withData = Object.entries(byPlate).filter(([p]) => activePlates.has(p) && byPlate[p].length >= 2).length;
     const totalReports = snap.size;
     if (!rows.length) {
-      wrap.innerHTML = `<div class="empty-note">אין עדיין מספיק נתונים 🏁<br><span style="font-size:0.72rem">הנסועה החודשית מחושבת מ-2 סבבי ק"מ ומעלה של אותו נהג.<br>נאספו עד כה ${totalReports} דיווחי ק"מ. שלח סבב נוסף בחודש הבא כדי לראות מי נוסע הכי הרבה.</span></div>`;
+      wrap.innerHTML = `<div class="empty-note">אין עדיין נתוני נסועה 🏁<br><span style="font-size:0.72rem">הנסועה מחושבת מדיווחי הק"מ של הנהגים לעומת הק"מ הקודם ברשומה.<br>נאספו עד כה ${totalReports} דיווחי ק"מ. שלח סבב ק"מ לנהגים כדי לראות מי נוסע הכי הרבה.</span></div>`;
       return;
     }
-    document.getElementById('dash-mileage-sub').textContent = `${rows.length} נהגים עם 2+ דיווחים`;
+    document.getElementById('dash-mileage-sub').textContent = `${rows.length} נהגים · נסועה מהק"מ האחרון`;
     wrap.innerHTML = bars(rows.slice(0,10), 'linear-gradient(90deg,#34d399,#059669)', v => v.toLocaleString() + ' ק"מ');
   } catch(e) {
-    wrap.innerHTML = '<div class="empty-note">שגיאה בטעינת נסועה</div>';
+    console.log('mileage error', e);
+    const reason = e.code === 'permission-denied'
+      ? 'אין הרשאת קריאה לדיווחי הק"מ (Firestore Rules) — יש לאפשר query על אוסף data'
+      : (e.code || e.message || e);
+    wrap.innerHTML = `<div class="empty-note">שגיאה בטעינת נסועה<br><span style="font-size:0.7rem;color:#dc2626">${esc(String(reason))}</span></div>`;
   }
 }
 
