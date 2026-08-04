@@ -1854,7 +1854,7 @@ function renderManagerDashboard() {
   // active drivers currently in the fleet (skip trailers / unassigned)
   const active = VEHICLES.filter(v => { const n = cleanName(v.driverName); return n && n!=='נגרר' && n!=='ללא נהג'; });
   const activeNames = new Set(active.map(v => cleanName(v.driverName)));
-  const activePlates = new Set(active.map(v => (v.plate||'').replace(/\D/g,'')));
+  const activePlates = new Set(active.map(v => String(v.plate||'').replace(/\D/g,'')));
   // an incident/violation belongs to an active driver if its driver name OR its plate is active
   const isActiveRec = r => {
     const n = cleanName(r.driver);
@@ -1906,7 +1906,7 @@ function renderManagerDashboard() {
   document.getElementById('dash-topkm').innerHTML = bars(kmRows, 'linear-gradient(90deg,#60a5fa,#2563eb)', v=>v.toLocaleString());
 
   // ── accidents per active driver (name resolved from the plate when missing) ──
-  const plateDriver = p => { const v = active.find(x=>(x.plate||'').replace(/\D/g,'')===String(p||'').replace(/\D/g,'')); return v ? cleanName(v.driverName) : ''; };
+  const plateDriver = p => { const v = active.find(x=>String(x.plate||'').replace(/\D/g,'')===String(p||'').replace(/\D/g,'')); return v ? cleanName(v.driverName) : ''; };
   const accMap = {};
   incAll.forEach(i=>{ const n = cleanName(i.driver) || plateDriver(i.plate) || 'לא ידוע'; if (!activeNames.has(n)) return; accMap[n]=(accMap[n]||0)+1; });
   const accRows = Object.entries(accMap).map(([name,val])=>({name,val})).sort((a,b)=>b.val-a.val).slice(0,8);
@@ -1920,7 +1920,7 @@ function renderManagerDashboard() {
 
   // ── most alerts per active vehicle/driver ──
   const alMap = {};
-  alerts.forEach(a=>{ const p=(a.plate||'').replace(/\D/g,''); if(!activePlates.has(p)) return; const n = cleanName(a.driver) + ' · ' + a.plate; alMap[n]=(alMap[n]||0)+1; });
+  alerts.forEach(a=>{ const p=String(a.plate||'').replace(/\D/g,''); if(!activePlates.has(p)) return; const n = cleanName(a.driver) + ' · ' + a.plate; alMap[n]=(alMap[n]||0)+1; });
   const alRows = Object.entries(alMap).map(([name,val])=>({name,val})).sort((a,b)=>b.val-a.val).slice(0,8);
   document.getElementById('dash-alerts').innerHTML = bars(alRows, 'linear-gradient(90deg,#fdba74,#d97706)', v=>v+' התראות');
 
@@ -1963,11 +1963,11 @@ async function loadMonthlyMileage(active, cleanName, bars) {
     const byPlate = {};
     snap.docs.forEach(d => {
       const r = d.data();
-      const p = (r.plate||'').replace(/\D/g,'');
+      const p = String(r.plate||'').replace(/\D/g,'');   // String(): מספר רכב עשוי להיות מספר ולא מחרוזת
       if (!p) return;
       (byPlate[p] = byPlate[p] || []).push(r);
     });
-    const activePlates = new Set(active.map(v => (v.plate||'').replace(/\D/g,'')));
+    const activePlates = new Set(active.map(v => String(v.plate||'').replace(/\D/g,'')));
     const rows = [];
     Object.entries(byPlate).forEach(([p, reps]) => {
       if (!activePlates.has(p)) return;
@@ -1976,7 +1976,7 @@ async function loadMonthlyMileage(active, cleanName, bars) {
       const cur = parseKm(reps[0].km), prev = parseKm(reps[1].km);
       const diff = cur - prev;
       if (diff <= 0) return;
-      const v = active.find(x => (x.plate||'').replace(/\D/g,'') === p);
+      const v = active.find(x => String(x.plate||'').replace(/\D/g,'') === p);
       rows.push({ name: cleanName(reps[0].driver) || (v?cleanName(v.driverName):'') || p, sub: reps[0].plate, val: diff, months: reps[0].monthKey + ' ← ' + reps[1].monthKey });
     });
     rows.sort((a,b) => b.val - a.val);
@@ -2557,13 +2557,13 @@ async function loadKmRound() {
     const snap = await fcol().where('type','==','kmreport').get();
     const mk = kmMonthKey();
     const reports = snap.docs.map(d => d.data()).filter(r => r.monthKey === mk);
-    const reportedPlates = new Set(reports.map(r => (r.plate||'').replace(/\D/g,'')));
+    const reportedPlates = new Set(reports.map(r => String(r.plate||'').replace(/\D/g,'')));
     // vehicles with an actual driver (skip trailers / unassigned)
     const active = VEHICLES.filter(v => {
       const n = (v.driverName||'').split('-')[0].trim();
       return n && n !== 'נגרר' && n !== 'ללא נהג';
     });
-    const missing = active.filter(v => !reportedPlates.has((v.plate||'').replace(/\D/g,'')));
+    const missing = active.filter(v => !reportedPlates.has(String(v.plate||'').replace(/\D/g,'')));
     window._kmMissing = missing;
     document.getElementById('kmround-count').textContent = `${active.length - missing.length}/${active.length}`;
     const doneRows = reports.sort((a,b)=>(b.created||0)-(a.created||0)).map(r => {
@@ -4396,8 +4396,8 @@ function importToPreview() {
   document.getElementById('imp-prev-table').innerHTML = html;
   document.getElementById('imp-prev-total').textContent = rows.length;
   // duplicate warning
-  const existing = new Set(VEHICLES.map(v => (v.plate||'').replace(/\D/g,'')));
-  const dupes = rows.filter(v => existing.has((v.plate||'').replace(/\D/g,''))).length;
+  const existing = new Set(VEHICLES.map(v => String(v.plate||'').replace(/\D/g,'')));
+  const dupes = rows.filter(v => existing.has(String(v.plate||'').replace(/\D/g,''))).length;
   const note = document.getElementById('imp-dupe-note');
   if (dupes) { note.textContent = `⚠ ${dupes} מהרכבים כבר קיימים בצי — "ייבא לצי" יעדכן אותם, "החלף הכל" ימחק הכל ויתחיל מחדש.`; note.style.display = 'block'; }
   else note.style.display = 'none';
