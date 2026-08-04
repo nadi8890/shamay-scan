@@ -1954,20 +1954,36 @@ function renderManagerDashboard() {
   loadMonthlyMileage(active, cleanName, bars);
 }
 
-// monthly mileage = difference between a driver's two most recent km reports
+// monthly mileage — נסועה לפי דיווחי הק"מ של הנהגים.
+// קורא כל דיווח לפי המזהה המדויק (get) במקום query על האוסף (list) — כדי לא להיתקל
+// בהרשאות Firestore. מזהה הדיווח: kmr_{YYYY-MM}_{plate}
 async function loadMonthlyMileage(active, cleanName, bars) {
   const wrap = document.getElementById('dash-mileage');
   wrap.innerHTML = '<div class="empty-note">טוען...</div>';
   try {
-    const snap = await fcol().where('type','==','kmreport').get();
+    // רכבים עם נהג אמיתי בלבד
+    const drivers = active.filter(v => { const n=(v.driverName||'').split('-')[0].trim(); return n && !n.includes('נגרר') && !n.includes('ללא נהג'); });
+    // חודשים לבדיקה: החודשים שבהם נשלחו סבבי ק"מ + 6 החודשים האחרונים (איחוד)
+    const _p2 = n => String(n).padStart(2,'0'), _now = new Date();
+    const monthSet = new Set(Object.keys((typeof KMROUND!=='undefined' && KMROUND) || {}));
+    for (let i=0;i<6;i++){ const d=new Date(_now.getFullYear(), _now.getMonth()-i, 1); monthSet.add(`${d.getFullYear()}-${_p2(d.getMonth()+1)}`); }
+    const months = [...monthSet];
+    // משיכה מקבילה של כל (רכב × חודש) לפי מזהה מדויק
+    const tasks = [];
+    drivers.forEach(v => months.forEach(mk => {
+      tasks.push(fcol().doc(`kmr_${mk}_${v.plate}`).get()
+        .then(s => s.exists ? Object.assign({ _plate:v.plate, monthKey:mk }, s.data()) : null)
+        .catch(() => null));
+    }));
+    const reports = (await Promise.all(tasks)).filter(Boolean);
+    const totalReports = reports.length;
     const byPlate = {};
-    snap.docs.forEach(d => {
-      const r = d.data();
-      const p = String(r.plate||'').replace(/\D/g,'');   // String(): מספר רכב עשוי להיות מספר ולא מחרוזת
+    reports.forEach(r => {
+      const p = String(r.plate || r._plate || '').replace(/\D/g,'');
       if (!p) return;
       (byPlate[p] = byPlate[p] || []).push(r);
     });
-    const activePlates = new Set(active.map(v => String(v.plate||'').replace(/\D/g,'')));
+    const activePlates = new Set(drivers.map(v => String(v.plate||'').replace(/\D/g,'')));
     const rows = [];
     Object.entries(byPlate).forEach(([p, reps]) => {
       if (!activePlates.has(p)) return;
@@ -1987,7 +2003,6 @@ async function loadMonthlyMileage(active, cleanName, bars) {
       rows.push({ name: cleanName(latest.driver) || (v?cleanName(v.driverName):'') || p, sub: latest.plate, val: diff });
     });
     rows.sort((a,b) => b.val - a.val);
-    const totalReports = snap.size;
     if (!rows.length) {
       wrap.innerHTML = `<div class="empty-note">אין עדיין נתוני נסועה 🏁<br><span style="font-size:0.72rem">הנסועה מחושבת מדיווחי הק"מ של הנהגים לעומת הק"מ הקודם ברשומה.<br>נאספו עד כה ${totalReports} דיווחי ק"מ. שלח סבב ק"מ לנהגים כדי לראות מי נוסע הכי הרבה.</span></div>`;
       return;
@@ -1996,10 +2011,7 @@ async function loadMonthlyMileage(active, cleanName, bars) {
     wrap.innerHTML = bars(rows.slice(0,10), 'linear-gradient(90deg,#34d399,#059669)', v => v.toLocaleString() + ' ק"מ');
   } catch(e) {
     console.log('mileage error', e);
-    const reason = e.code === 'permission-denied'
-      ? 'אין הרשאת קריאה לדיווחי הק"מ (Firestore Rules) — יש לאפשר query על אוסף data'
-      : (e.code || e.message || e);
-    wrap.innerHTML = `<div class="empty-note">שגיאה בטעינת נסועה<br><span style="font-size:0.7rem;color:#dc2626">${esc(String(reason))}</span></div>`;
+    wrap.innerHTML = `<div class="empty-note">שגיאה בטעינת נסועה<br><span style="font-size:0.7rem;color:#dc2626">${esc(String(e.code || e.message || e))}</span></div>`;
   }
 }
 
