@@ -287,6 +287,7 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-storage-compat.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.2/html2pdf.bundle.min.js"></script>
 </head>
@@ -939,6 +940,13 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
       <div class="modal-row"><label>נהלים (תאריך ביצוע)</label><input id="m-procedures" type="text" placeholder="יי.חח.שש" inputmode="numeric" oninput="dateAutoMask(this)"></div>
     </div>
     <div class="modal-row" style="grid-column:1/-1"><label>הערות</label><textarea id="m-notes" rows="2"></textarea></div>
+    <!-- ══ מסמכי רכב (Firebase Storage — מאובטח פר-חברה) ══ -->
+    <div id="m-docs-wrap" style="grid-column:1/-1;border-top:1px solid var(--border);margin-top:6px;padding-top:10px">
+      <label style="font-size:0.75rem;color:var(--muted);font-weight:700;display:block;margin-bottom:6px">📎 מסמכי הרכב (סריקות)</label>
+      <div id="m-docs-list"></div>
+      <input type="file" id="m-doc-file" accept="image/*,application/pdf" capture="environment" style="display:none" onchange="uploadVehicleDoc(this)">
+      <div id="m-docs-hint" style="font-size:0.72rem;color:var(--muted);margin-top:4px"></div>
+    </div>
     <div class="btn-row">
       <button class="btn btn-gray" onclick="closeModal()">ביטול</button>
       <button class="btn btn-primary" style="background:#1e3a8a" onclick="inspectFromModal()">🛡️ ביקורת בטיחות</button>
@@ -1120,6 +1128,8 @@ const firebaseConfig = {
 };
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
+let _fbStorage = null;   // lazy — only when a document feature is used
+function fbStorage() { if (!_fbStorage) { try { _fbStorage = firebase.storage(); } catch(e) { _fbStorage = null; } } return _fbStorage; }
 let _firestoreLoaded = false;
 let _snapshotIgnoreNext = false;
 const AI_SPARK_ICON = '<svg viewBox="0 0 24 24" width="18" height="18" style="vertical-align:middle;filter:drop-shadow(0 0 2px rgba(253,224,71,.8))"><defs><linearGradient id="aigm" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fde047"/><stop offset="1" stop-color="#f59e0b"/></linearGradient></defs><path fill="url(#aigm)" d="M12 2c.6 4.8 3.2 7.4 8 8-4.8.6-7.4 3.2-8 8-.6-4.8-3.2-7.4-8-8 4.8-.6 7.4-3.2 8-8z"/></svg>';
@@ -3998,6 +4008,7 @@ function openAddVehicle() {
   });
   const govSt = document.getElementById('m-gov-status');
   if (govSt) govSt.textContent = '';
+  renderVehicleDocsUI();   // shows "save first" hint for a new vehicle
   document.getElementById('vehicle-modal').classList.add('open');
 }
 function editVehicle(plate) {
@@ -4025,6 +4036,7 @@ function editVehicle(plate) {
   const co = v.company||'';
   const sel = document.getElementById('m-company');
   for (let o of sel.options) { if (co.includes(o.value.replace('נופר אנרגי','נופר').split(' ')[0])) { o.selected=true; break; } }
+  renderVehicleDocsUI();   // show this vehicle's saved documents
   document.getElementById('vehicle-modal').classList.add('open');
 }
 function closeModal() {
@@ -4159,6 +4171,94 @@ function saveVehicle() {
   renderFleet();
   checkServiceOverages();
   toast(editingPlate ? 'רכב עודכן ✓' : 'רכב נוסף ✓');
+}
+
+// ══════════════ מסמכי רכב — Firebase Storage (מאובטח פר-חברה) ══════════════
+// נתיב: tenants/{TENANT}/vehicles/{plate}/{type}-{ts}.ext  — כללי האבטחה מבודדים כל חברה.
+// שומרים רק את הנתיב ברשומת הרכב; הצפייה דרך גישה מאומתת (getDownloadURL על-פי דרישה).
+const _DOC_TYPES = [['registration','🚗 רישיון רכב (טסט)'], ['insurance','🛡️ ביטוח'], ['license','🪪 רישיון נהיגה']];
+let _pendingDocType = null;
+function _plateKey(p) { return String(p == null ? '' : p).replace(/[^0-9A-Za-z_-]/g, '_'); }
+function _vehByEditing() { return VEHICLES.find(x => String(x.plate).trim() === String(editingPlate).trim()); }
+function renderVehicleDocsUI() {
+  const box = document.getElementById('m-docs-list'), hint = document.getElementById('m-docs-hint');
+  if (!box) return;
+  if (!editingPlate) { box.innerHTML = ''; if (hint) hint.textContent = 'שמור את הרכב תחילה — ואז ניתן לצרף מסמכים.'; return; }
+  const v = _vehByEditing(), docs = (v && v.docs) || {};
+  let html = '';
+  for (const [t, label] of _DOC_TYPES) {
+    const d = docs[t];
+    html += `<div style="display:flex;align-items:center;gap:6px;margin-bottom:5px;font-size:0.8rem"><span style="flex:1">${label}${d ? ' <span style="color:#059669">✓ קיים</span>' : ''}</span>`;
+    html += d
+      ? `<button class="btn btn-gray" style="padding:3px 8px;font-size:0.72rem" onclick="viewVehicleDoc('${esc(d.path)}')">👁️ צפה</button><button class="btn btn-gray" style="padding:3px 8px;font-size:0.72rem;color:#dc2626" onclick="deleteVehicleDoc('${t}')">🗑️</button>`
+      : `<button class="btn btn-primary" style="padding:3px 10px;font-size:0.72rem" onclick="pickVehicleDoc('${t}')">+ העלה</button>`;
+    html += '</div>';
+  }
+  (docs.other || []).forEach((d, i) => {
+    html += `<div style="display:flex;align-items:center;gap:6px;margin-bottom:5px;font-size:0.8rem"><span style="flex:1">📄 ${esc(d.name || 'מסמך')}</span><button class="btn btn-gray" style="padding:3px 8px;font-size:0.72rem" onclick="viewVehicleDoc('${esc(d.path)}')">👁️</button><button class="btn btn-gray" style="padding:3px 8px;font-size:0.72rem;color:#dc2626" onclick="deleteVehicleDoc('other',${i})">🗑️</button></div>`;
+  });
+  html += `<button class="btn btn-gray" style="padding:3px 10px;font-size:0.72rem;margin-top:2px" onclick="pickVehicleDoc('other')">+ מסמך נוסף</button>`;
+  box.innerHTML = html;
+  if (hint) hint.textContent = '';
+}
+function pickVehicleDoc(t) {
+  if (!editingPlate) { toast('שמור את הרכב תחילה', true); return; }
+  if (!fbStorage()) { toast('אחסון המסמכים לא מופעל — יש להפעיל Storage בקונסולת Firebase', true); return; }
+  _pendingDocType = t;
+  const f = document.getElementById('m-doc-file'); f.value = ''; f.click();
+}
+async function uploadVehicleDoc(input) {
+  const file = input.files && input.files[0]; if (!file) return;
+  const t = _pendingDocType || 'other', plate = editingPlate;
+  const s = fbStorage();
+  if (!plate) { toast('שמור את הרכב תחילה', true); return; }
+  if (!s) { toast('אחסון המסמכים לא מופעל בקונסולה', true); return; }
+  if (file.size > 15 * 1024 * 1024) { toast('הקובץ גדול מדי (מקסימום 15MB)', true); return; }
+  const hint = document.getElementById('m-docs-hint'); if (hint) hint.textContent = '⏳ מעלה מסמך...';
+  try {
+    const ext = ((file.name.split('.').pop() || 'dat').toLowerCase().replace(/[^a-z0-9]/g, '')) || 'dat';
+    const path = `tenants/${TENANT}/vehicles/${_plateKey(plate)}/${t}-${Date.now()}.${ext}`;
+    await s.ref(path).put(file, { contentType: file.type || 'application/octet-stream' });
+    const idx = VEHICLES.findIndex(v => String(v.plate).trim() === String(plate).trim());
+    if (idx < 0) { if (hint) hint.textContent = ''; toast('הרכב לא נמצא', true); return; }
+    VEHICLES[idx].docs = VEHICLES[idx].docs || {};
+    const entry = { path, name: file.name, ts: Date.now() };
+    if (t === 'other') { VEHICLES[idx].docs.other = VEHICLES[idx].docs.other || []; VEHICLES[idx].docs.other.push(entry); }
+    else {
+      const old = VEHICLES[idx].docs[t];
+      if (old && old.path) { try { await s.ref(old.path).delete(); } catch(e){} }  // replace: drop old file
+      VEHICLES[idx].docs[t] = entry;
+    }
+    saveVehiclesSafely(plate, null, plate);
+    renderVehicleDocsUI();
+    if (hint) hint.textContent = '';
+    toast('המסמך נשמר ✓');
+  } catch(e) {
+    if (hint) hint.textContent = '';
+    toast('שגיאת העלאה: ' + (e.code || e.message || e), true);
+  }
+}
+async function viewVehicleDoc(path) {
+  const s = fbStorage(); if (!s) { toast('אחסון לא זמין', true); return; }
+  try {
+    const url = await s.ref(path).getDownloadURL();  // gated by the security rules (read = same tenant)
+    const r = await fetch(url); const blob = await r.blob();
+    const o = URL.createObjectURL(blob); window.open(o, '_blank');
+    setTimeout(() => URL.revokeObjectURL(o), 60000);
+  } catch(e) { toast('שגיאה בפתיחת המסמך: ' + (e.code || e.message || e), true); }
+}
+async function deleteVehicleDoc(t, oi) {
+  if (!confirm('למחוק את המסמך לצמיתות?')) return;
+  const plate = editingPlate, s = fbStorage();
+  const idx = VEHICLES.findIndex(v => String(v.plate).trim() === String(plate).trim());
+  if (idx < 0 || !VEHICLES[idx].docs) return;
+  let entry;
+  if (t === 'other') { entry = (VEHICLES[idx].docs.other || [])[oi]; if (VEHICLES[idx].docs.other) VEHICLES[idx].docs.other.splice(oi, 1); }
+  else { entry = VEHICLES[idx].docs[t]; delete VEHICLES[idx].docs[t]; }
+  if (entry && entry.path && s) { try { await s.ref(entry.path).delete(); } catch(e){} }
+  saveVehiclesSafely(plate, null, plate);
+  renderVehicleDocsUI();
+  toast('המסמך נמחק');
 }
 
 // ══════════════ IMPORT WIZARD (Excel/CSV → fleet) ══════════════
