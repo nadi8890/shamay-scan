@@ -567,7 +567,7 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
   </style>
   <div class="section-hdr"><span class="section-title">📊 דשבורד ניהולי</span><span style="font-size:0.72rem;color:var(--muted)" id="dash-updated"></span></div>
   <div class="dash-grid" id="dash-kpis"></div>
-  <div class="dash-sec"><div class="dash-sec-hdr">🏁 נסועה חודשית — הכי הרבה ק"מ<span style="font-size:0.68rem;color:var(--muted)" id="dash-mileage-sub">בין דיווחי הנהגים</span></div><div id="dash-mileage"></div></div>
+  <div class="dash-sec"><div class="dash-sec-hdr">🏁 נסועה — הכי הרבה ק"מ<span style="font-size:0.68rem;color:var(--muted)" id="dash-mileage-sub">בין דיווחי הנהגים</span></div><div id="dash-mileage"></div></div>
   <div class="dash-2col">
     <div class="dash-sec"><div class="dash-sec-hdr">🛣️ נהגים — הכי הרבה ק"מ<span style="font-size:0.68rem;color:var(--muted)">נוכחי (מצטבר)</span></div><div id="dash-topkm"></div></div>
     <div class="dash-sec"><div class="dash-sec-hdr">💥 תאונות לפי נהג<span style="font-size:0.68rem;color:var(--muted)">מס׳ אירועים</span></div><div id="dash-accidents"></div></div>
@@ -1990,24 +1990,29 @@ async function loadMonthlyMileage(active, cleanName, bars) {
       reps.sort((a,b) => String(b.monthKey||'').localeCompare(String(a.monthKey||'')) || (b.created||0)-(a.created||0));
       const latest = reps[0];
       const cur = parseKm(latest.km);
-      let prev;
+      let prev, multi;
       if (reps.length >= 2) {
-        prev = parseKm(reps[1].km);                 // הפרש בין שני הדיווחים האחרונים (מדויק חודש-על-חודש)
+        prev = parseKm(reps[1].km); multi = true;   // הפרש בין שני הדיווחים האחרונים (מדויק חודש-על-חודש)
       } else {
-        prev = parseKm(latest.prevKm);              // סבב יחיד: מול הק"מ הקודם שהיה ברשומה בזמן הדיווח
+        prev = parseKm(latest.prevKm); multi = false; // סבב יחיד: מול הק"מ הקודם שהיה ברשומה בזמן הדיווח
         if (!(prev > 0)) return;                     // אין ק"מ קודם תקין → אי אפשר לחשב נסועה
       }
       const diff = cur - prev;
       if (!(diff > 0)) return;
       const v = active.find(x => String(x.plate||'').replace(/\D/g,'') === p);
-      rows.push({ name: cleanName(latest.driver) || (v?cleanName(v.driverName):'') || p, sub: latest.plate, val: diff });
+      rows.push({ name: cleanName(latest.driver) || (v?cleanName(v.driverName):'') || p, sub: latest.plate, val: diff, multi });
     });
     rows.sort((a,b) => b.val - a.val);
     if (!rows.length) {
       wrap.innerHTML = `<div class="empty-note">אין עדיין נתוני נסועה 🏁<br><span style="font-size:0.72rem">הנסועה מחושבת מדיווחי הק"מ של הנהגים לעומת הק"מ הקודם ברשומה.<br>נאספו עד כה ${totalReports} דיווחי ק"מ. שלח סבב ק"מ לנהגים כדי לראות מי נוסע הכי הרבה.</span></div>`;
       return;
     }
-    document.getElementById('dash-mileage-sub').textContent = `${rows.length} נהגים · נסועה מהק"מ האחרון`;
+    // תת-כותרת דינמית: סבב יחיד = מצטבר מאז המדידה הקודמת; 2+ סבבים = חודשי מדויק
+    const _anyMulti = rows.some(r => r.multi), _anySingle = rows.some(r => !r.multi);
+    const _sub = _anyMulti && !_anySingle ? 'נסועה חודשית (חודש מול קודם)'
+      : _anyMulti ? 'חלק חודשי · חלק מצטבר מהדיווח הקודם'
+      : 'נסועה מצטברת מאז הדיווח הקודם';
+    document.getElementById('dash-mileage-sub').textContent = `${rows.length} נהגים · ${_sub}`;
     wrap.innerHTML = bars(rows.slice(0,10), 'linear-gradient(90deg,#34d399,#059669)', v => v.toLocaleString() + ' ק"מ');
   } catch(e) {
     console.log('mileage error', e);
