@@ -93,6 +93,7 @@ const fcol = () => db.collection('tenants').doc(TENANT).collection('data');
 const urlPlate = (_kmParams.get('plate') || '').replace(/\D/g,'');
 const parseKmNum = s => parseInt(String(s||'').replace(/\D/g,'')) || 0;
 
+let _kmLoadErr = null, _kmLoaded = false;
 (async function init() {
   await ensureAnonAuth(); // must precede any read so the identity is in place
   try {
@@ -100,19 +101,30 @@ const parseKmNum = s => parseInt(String(s||'').replace(/\D/g,'')) || 0;
     const d = snap.data() || {};
     FLEET = d.vehicles || [];
     MAIL = d.mailSettings || {};
-  } catch(e) {}
+    _kmLoaded = true;
+  } catch(e) { _kmLoadErr = e; }
   if (urlPlate) selectVehicle(urlPlate);
   else document.getElementById('step-plate').style.display = 'block';
 })();
 
 function selectVehicle(plateDigits) {
-  VEH = FLEET.find(v => (v.plate||'').replace(/\D/g,'') === plateDigits);
+  const err = document.getElementById('plate-err');
+  document.getElementById('step-plate').style.display = 'block';
+  // אבחון: הבחנה בין כשל טעינה, רשימה ריקה, ומספר שלא קיים
+  if (_kmLoadErr) {
+    err.textContent = 'שגיאה בטעינת המערכת: ' + (_kmLoadErr.code || _kmLoadErr.message || 'נסה/י שוב') + '. בדוק/י חיבור לאינטרנט.';
+    err.style.display = 'block'; return;
+  }
+  if (!FLEET.length) {
+    err.textContent = 'רשימת הרכבים לא נטענה. ודא/י שהקישור מלא ונסה/י שוב, או פנה/י למחלקת הרכב.';
+    err.style.display = 'block'; return;
+  }
+  VEH = FLEET.find(v => String(v.plate||'').replace(/\D/g,'') === plateDigits);  // String(): מספר רכב עשוי להיות מספר ולא מחרוזת
   if (!VEH) {
-    document.getElementById('step-plate').style.display = 'block';
-    const err = document.getElementById('plate-err');
     if (plateDigits) { err.textContent = 'מספר הרכב לא נמצא במערכת — בדוק/י ונסה/י שוב'; err.style.display = 'block'; }
     return;
   }
+  err.style.display = 'none';
   document.getElementById('step-plate').style.display = 'none';
   document.getElementById('step-km').style.display = 'block';
   const nm = (VEH.driverName||'').split('-')[0].trim();
@@ -174,7 +186,7 @@ async function submitKm() {
       for (let attempt = 0; attempt < 3; attempt++) {
         const snap = await fcol().doc('main').get();
         const vehicles = (snap.data()||{}).vehicles || [];
-        const v = vehicles.find(x => (x.plate||'').replace(/\D/g,'') === (VEH.plate||'').replace(/\D/g,''));
+        const v = vehicles.find(x => String(x.plate||'').replace(/\D/g,'') === String(VEH.plate||'').replace(/\D/g,''));
         if (!v) break;
         if (parseKmNum(v.currentKm) === km) break;
         v.currentKm = String(km);
