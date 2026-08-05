@@ -26,8 +26,16 @@ input{width:100%;border:1.5px solid #dde3ed;border-radius:10px;padding:12px;font
 .veh{background:#f0fdf4;border:1.5px solid #86efac;border-radius:10px;padding:12px;font-size:0.9rem;margin-bottom:12px}
 .err{color:#dc2626;font-size:0.82rem;font-weight:700;margin-top:8px;display:none}
 .hint{font-size:0.72rem;color:#64748b;margin-top:5px;text-align:center}
-#result{display:none;text-align:center;padding:24px 12px}
+#result{display:none;text-align:center;padding:24px 12px;position:relative}
 #result .big{font-size:3rem}
+#result .badge{width:100px;height:100px;margin:2px auto 0;border-radius:50%;background:linear-gradient(135deg,#059669,#10b981);display:flex;align-items:center;justify-content:center;font-size:3.1rem;box-shadow:0 12px 34px rgba(16,185,129,.42);animation:badgePop .6s cubic-bezier(.17,.67,.32,1.5) both}
+#result h2{margin:16px 0 4px;font-size:1.5rem;font-weight:900;background:linear-gradient(90deg,#1e3a8a,#2563eb,#10b981);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;animation:doneUp .5s .1s both}
+#result .done-sub{color:#475569;font-size:0.88rem;animation:doneUp .5s .2s both}
+@keyframes badgePop{0%{transform:scale(0) rotate(-25deg);opacity:0}70%{transform:scale(1.12) rotate(6deg)}100%{transform:scale(1) rotate(0);opacity:1}}
+@keyframes doneUp{0%{opacity:0;transform:translateY(14px)}100%{opacity:1;transform:translateY(0)}}
+#confetti-layer{position:fixed;inset:0;pointer-events:none;overflow:hidden;z-index:9999}
+#confetti-layer i{position:absolute;top:-14px;width:9px;height:15px;border-radius:2px;opacity:0;animation:confFall linear forwards}
+@keyframes confFall{0%{opacity:1;transform:translateY(-14px) rotate(0)}100%{opacity:.85;transform:translateY(112vh) rotate(760deg)}}
 .status-ok{background:#f0fdf4;border:2px solid #22c55e;border-radius:12px;padding:14px;margin-top:14px;font-size:0.9rem}
 .status-warn{background:#fffbeb;border:2px solid #f59e0b;border-radius:12px;padding:14px;margin-top:14px;font-size:0.9rem;font-weight:700}
 .status-due{background:#fef2f2;border:2px solid #ef4444;border-radius:12px;padding:14px;margin-top:14px;font-size:0.95rem;font-weight:800}
@@ -59,8 +67,9 @@ input{width:100%;border:1.5px solid #dde3ed;border-radius:10px;padding:12px;font
 </div>
 
 <div id="result">
-  <div class="big">✅</div>
-  <h2 style="margin:8px 0 4px">הק"מ עודכן — תודה!</h2>
+  <div class="badge" id="km-badge">🎉</div>
+  <h2 id="km-title">כל הכבוד!</h2>
+  <p class="done-sub" id="km-sub">הקילומטראז' עודכן בהצלחה במערכת.</p>
   <div id="service-status"></div>
 </div>
 
@@ -208,11 +217,47 @@ async function submitKm() {
     else if (next) st.innerHTML = `<div class="status-ok">✓ הכל תקין. הטיפול הבא ב-${next.toLocaleString()} ק"מ (עוד ${(next-km).toLocaleString()} ק"מ)</div>`;
     document.getElementById('step-km').style.display = 'none';
     document.getElementById('result').style.display = 'block';
+    celebrate((VEH.driverName||'').split('-')[0].trim());
   } catch(e) {
     btn.disabled = false; btn.textContent = '✅ עדכן קילומטראז\'';
     err.textContent = 'שגיאה בשליחה — בדוק/י חיבור לאינטרנט ונסה/י שוב';
     err.style.display = 'block';
   }
+}
+
+// ═══ הודעת מערכת חגיגית לעובד בסיום עדכון הק"מ ═══
+function celebrate(name) {
+  const first = String(name || '').trim().split(/[\s\-]/)[0] || '';
+  const cheers = [
+    { e: '🎉', t: first ? `כל הכבוד, ${first}!` : 'כל הכבוד!' },
+    { e: '💪', t: first ? `אין עליך, ${first}!` : 'אין עליך!' },
+    { e: '✨', t: 'מושלם!' },
+    { e: '🚀', t: first ? `${first}, אלוף/ה!` : 'אלוף/ה אמיתי/ת!' },
+    { e: '🏆', t: 'עבודה מצוינת!' },
+    { e: '👏', t: first ? `יישר כוח, ${first}!` : 'יישר כוח!' }
+  ];
+  const pick = cheers[Math.floor(Math.random() * cheers.length)];
+  const badge = document.getElementById('km-badge'); if (badge) badge.textContent = pick.e;
+  const title = document.getElementById('km-title'); if (title) title.textContent = pick.t;
+  _confetti();
+}
+function _confetti() {
+  let layer = document.getElementById('confetti-layer');
+  if (layer) layer.remove();
+  layer = document.createElement('div'); layer.id = 'confetti-layer';
+  const colors = ['#f59e0b','#10b981','#2563eb','#ef4444','#8b5cf6','#ec4899','#14b8a6'];
+  for (let i = 0; i < 90; i++) {
+    const c = document.createElement('i');
+    c.style.left = Math.random() * 100 + 'vw';
+    c.style.background = colors[i % colors.length];
+    c.style.animationDuration = (2.2 + Math.random() * 1.8) + 's';
+    c.style.animationDelay = (Math.random() * 0.5) + 's';
+    if (Math.random() < 0.5) c.style.borderRadius = '50%';
+    c.style.transform = `scale(${0.7 + Math.random() * 0.9})`;
+    layer.appendChild(c);
+  }
+  document.body.appendChild(layer);
+  setTimeout(() => layer.remove(), 4600);
 }
 </script>
 </body>
