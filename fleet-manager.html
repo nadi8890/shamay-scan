@@ -810,6 +810,7 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
     <div class="modal-row"><label>אימייל *</label><input id="cm-email" type="email" placeholder="name@company.co.il" style="direction:ltr"></div>
     <div class="modal-row"><label>טלפון (אופציונלי)</label><input id="cm-phone" type="tel" placeholder="050-0000000" style="direction:ltr"></div>
     <div class="modal-row"><label>תפקיד / הערה (אופציונלי)</label><input id="cm-role" type="text" placeholder="למשל: מוסך מרכזי / מנהל אזור / מבטח"></div>
+    <div class="modal-row"><label>קבוצות (אופציונלי)<span style="font-weight:400;color:#94a3b8;font-size:0.7rem"> — הפרד בפסיק, למשל: הנהלת חשבונות, מנהלים</span></label><input id="cm-group" type="text" list="cm-group-list" placeholder="הנהלת חשבונות"><datalist id="cm-group-list"></datalist></div>
     <div class="btn-row">
       <button class="btn btn-danger" id="cm-delete-btn" style="display:none" onclick="deleteContact()">🗑️ מחק</button>
       <button class="btn btn-secondary" onclick="document.getElementById('contact-modal').classList.remove('open')">ביטול</button>
@@ -3761,6 +3762,22 @@ function saveContacts() {
   try { fcol().doc('main').set({ contacts: window.CONTACTS }, { merge: true }); } catch(e){}
 }
 
+// ── קבוצות תפוצה: איש קשר יכול להשתייך לכמה קבוצות (מופרד בפסיקים), למשל "הנהלת חשבונות" ──
+function _contactGroups(x) { return String((x && x.group) || '').split(/[,;]/).map(s => s.trim()).filter(Boolean); }
+function allGroups() {
+  const c = loadContacts(); const m = {};
+  c.list.forEach(x => _contactGroups(x).forEach(g => {
+    if (!m[g]) m[g] = { name: g, emails: [] };
+    if (x.email && !m[g].emails.some(e => e.toLowerCase() === x.email.toLowerCase())) m[g].emails.push(x.email);
+  }));
+  return Object.values(m).sort((a, b) => a.name.localeCompare(b.name, 'he'));
+}
+function groupEmails(name) {
+  const c = loadContacts(); const out = [];
+  c.list.forEach(x => { if (x.email && _contactGroups(x).some(g => g === name) && !out.some(e => e.toLowerCase() === x.email.toLowerCase())) out.push(x.email); });
+  return out;
+}
+
 // ═══ CONTACTS — managed directory (name → email), opened from the Forms tab ═══
 let _editContactId = null;
 function openContactsView() {
@@ -3788,6 +3805,7 @@ function renderContacts() {
         <div style="font-weight:700;font-size:0.9rem">${esc(x.name||'(ללא שם)')}${x.role?` <span style="font-weight:500;color:var(--muted);font-size:0.76rem">· ${esc(x.role)}</span>`:''}</div>
         <div style="font-size:0.8rem;color:#2563eb;direction:ltr;text-align:right;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(x.email)}</div>
         ${x.phone?`<div style="font-size:0.75rem;color:var(--muted);direction:ltr;text-align:right">${esc(x.phone)}</div>`:''}
+        ${_contactGroups(x).length?`<div style="margin-top:4px">${_contactGroups(x).map(g=>`<span style="display:inline-block;background:#eef2ff;color:#4338ca;border-radius:999px;padding:1px 8px;font-size:0.68rem;font-weight:700;margin:0 3px 3px 0">👥 ${esc(g)}</span>`).join('')}</div>`:''}
       </div>
       <span style="color:var(--muted);font-size:0.9rem">✏️</span>
     </div>`).join('');
@@ -3801,6 +3819,8 @@ function openContactModal(id) {
   document.getElementById('cm-email').value = x ? (x.email || '') : '';
   document.getElementById('cm-phone').value = x ? (x.phone || '') : '';
   document.getElementById('cm-role').value  = x ? (x.role  || '') : '';
+  document.getElementById('cm-group').value = x ? (x.group || '') : '';
+  document.getElementById('cm-group-list').innerHTML = allGroups().map(g => `<option value="${esc(g.name)}">`).join('');
   document.getElementById('cm-delete-btn').style.display = x ? '' : 'none';
   document.getElementById('contact-modal').classList.add('open');
   setTimeout(() => document.getElementById('cm-name').focus(), 50);
@@ -3810,6 +3830,7 @@ function saveContactForm() {
   const email = document.getElementById('cm-email').value.trim();
   const phone = document.getElementById('cm-phone').value.trim();
   const role  = document.getElementById('cm-role').value.trim();
+  const group = document.getElementById('cm-group').value.trim();
   if (!name)  { toast('נא להזין שם', true); return; }
   if (!_emailOk(email)) { toast('נא להזין אימייל תקין', true); return; }
   const c = loadContacts();
@@ -3817,9 +3838,9 @@ function saveContactForm() {
   if (dup) { toast('כבר קיים איש קשר עם מייל זה', true); return; }
   if (_editContactId) {
     const x = c.list.find(e => e.id === _editContactId);
-    if (x) { x.name = name; x.email = email; x.phone = phone; x.role = role; }
+    if (x) { x.name = name; x.email = email; x.phone = phone; x.role = role; x.group = group; }
   } else {
-    c.list.unshift({ id: _contactId(), name, email, phone, role });
+    c.list.unshift({ id: _contactId(), name, email, phone, role, group });
   }
   c.emails = c.list.map(x => x.email).filter(Boolean);   // keep legacy list in sync
   saveContacts();
@@ -3889,10 +3910,22 @@ function renderDocMailChips() {
     ? _docMailTo.map(e => `<span style="display:inline-flex;align-items:center;gap:5px;background:#e0e7ff;color:#3730a3;border-radius:999px;padding:3px 10px;font-size:0.78rem;font-weight:600" title="${esc(e)}">${esc(_contactName(e))}<button onclick="removeDocMailEmail('${esc(e)}')" style="background:none;border:none;color:#4338ca;cursor:pointer;font-size:0.9rem;line-height:1;padding:0">✕</button></span>`).join('')
     : '<span style="font-size:0.75rem;color:#94a3b8">לא נבחרו נמענים</span>';
   const c = loadContacts();
+  const groups = allGroups().filter(g => g.emails.some(e => !_docMailTo.some(s => s.toLowerCase() === e.toLowerCase())));
+  const groupHtml = groups.length
+    ? '<div style="font-size:0.72rem;color:#64748b;margin-bottom:3px">קבוצות תפוצה (בחירת כל המיילים בלחיצה):</div>' + groups.map(g => `<button onclick="addGroupToDocMail('${esc(g.name)}')" title="${esc(g.emails.join(', '))}" style="background:#eef2ff;border:1px solid #c7d2fe;color:#4338ca;border-radius:999px;padding:3px 11px;font-size:0.76rem;font-weight:700;margin:0 3px 4px 0;cursor:pointer">👥 ${esc(g.name)} (${g.emails.length})</button>`).join('') + '<div style="height:8px"></div>'
+    : '';
   const avail = c.list.filter(x => x.email && !_docMailTo.some(e => e.toLowerCase() === x.email.toLowerCase()));
-  document.getElementById('dm-suggestions').innerHTML = avail.length
+  document.getElementById('dm-suggestions').innerHTML = groupHtml + (avail.length
     ? '<div style="font-size:0.72rem;color:#64748b;margin-bottom:3px">אנשי קשר שמורים:</div>' + avail.map(x => `<button onclick="addDocMailEmailVal('${esc(x.email)}')" title="${esc(x.email)}" style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:999px;padding:3px 10px;font-size:0.76rem;margin:0 3px 4px 0;cursor:pointer">+ ${esc(x.name || x.email)}</button>`).join('')
-    : '<div style="font-size:0.72rem;color:#94a3b8">אין אנשי קשר שמורים — הוסף בלשונית "אנשי קשר" 👥</div>';
+    : (groups.length ? '' : '<div style="font-size:0.72rem;color:#94a3b8">אין אנשי קשר שמורים — הוסף בלשונית "אנשי קשר" 👥</div>'));
+}
+function addGroupToDocMail(name) {
+  const emails = groupEmails(name);
+  if (!emails.length) { toast('אין מיילים בקבוצה זו', true); return; }
+  let added = 0;
+  emails.forEach(e => { if (!_docMailTo.some(x => x.toLowerCase() === e.toLowerCase())) { _docMailTo.push(e); added++; } });
+  renderDocMailChips();
+  toast(added ? `נוספו ${added} נמענים מקבוצת "${name}"` : 'כל נמעני הקבוצה כבר נבחרו');
 }
 function addDocMailEmailVal(e) {
   e = (e || '').trim();
@@ -5774,7 +5807,26 @@ function openSwapMail(oldPlate, newPlate, driver, dateStr) {
     : `שלום,\n\nלידיעתכם, הוחזר רכב:\n\n• עובד/ת: ${drv || '—'}\n• רכב שהוחזר: ${oldPlate}\n• תאריך: ${dateStr}\n\nנא לעדכן בהתאם ברישומי הנהלת החשבונות.\n\nתודה,\n${COMPANY_NAME || 'מחלקת הרכב'}`;
   document.getElementById('swm-to').value = (MAIL_SETTINGS && MAIL_SETTINGS.accountingEmail) || '';
   document.getElementById('swm-body').value = body;
+  _renderSwapGroups();
   document.getElementById('swap-mail-modal').classList.add('open');
+}
+// כפתורי קבוצות במייל הנה"ח — לחיצה ממלאת את כל מיילי הקבוצה בשדה "אל"
+function _renderSwapGroups() {
+  const box = document.getElementById('swm-groups'); if (!box) return;
+  const groups = allGroups();
+  box.innerHTML = groups.length
+    ? '<div style="font-size:0.72rem;color:#64748b;margin-bottom:3px">קבוצות תפוצה:</div>' + groups.map(g => `<button type="button" onclick="setSwapToGroup('${esc(g.name)}')" title="${esc(g.emails.join(', '))}" style="background:#eef2ff;border:1px solid #c7d2fe;color:#4338ca;border-radius:999px;padding:3px 11px;font-size:0.76rem;font-weight:700;margin:0 3px 4px 0;cursor:pointer">👥 ${esc(g.name)} (${g.emails.length})</button>`).join('')
+    : '<div style="font-size:0.72rem;color:#94a3b8">אין קבוצות עדיין — צור קבוצת "הנהלת חשבונות" באנשי קשר 👥</div>';
+}
+function setSwapToGroup(name) {
+  const emails = groupEmails(name);
+  if (!emails.length) { toast('אין מיילים בקבוצה זו', true); return; }
+  const inp = document.getElementById('swm-to');
+  const cur = String(inp.value || '').split(/[,;]/).map(s => s.trim()).filter(Boolean);
+  let added = 0;
+  emails.forEach(e => { if (!cur.some(x => x.toLowerCase() === e.toLowerCase())) { cur.push(e); added++; } });
+  inp.value = cur.join(', ');
+  toast(added ? `נוספו ${added} נמענים מקבוצת "${name}"` : 'כל נמעני הקבוצה כבר בשדה');
 }
 // כפתור בלשונית ההחזרות: הרכב "שהתקבל" = הרכב הנוכחי של אותו עובד (אם יש)
 function swapMailFromReturn(idx) {
@@ -5783,7 +5835,7 @@ function swapMailFromReturn(idx) {
   openSwapMail(r.plate, newV ? newV.plate : '', r.employee, r.toDate || '');
 }
 function sendSwapMail() {
-  const to = document.getElementById('swm-to').value.trim();
+  const to = String(document.getElementById('swm-to').value || '').split(/[,;]/).map(s => s.trim()).filter(Boolean).join(',');
   const body = document.getElementById('swm-body').value;
   // remember the accounting email for next time
   if (to && MAIL_SETTINGS) { MAIL_SETTINGS.accountingEmail = to; try { localStorage.setItem('fleet_mailSettings', JSON.stringify(MAIL_SETTINGS)); } catch(e){} saveToFirestore('mailSettings', MAIL_SETTINGS); }
@@ -6316,7 +6368,8 @@ function renderAgentMsgs(showTyping = false) {
 <div class="modal-overlay" id="swap-mail-modal">
   <div class="modal" style="max-width:520px">
     <h3>🔄 עדכון הנהלת חשבונות — החלפת רכב</h3>
-    <div class="modal-row"><label>אל (מייל הנהלת חשבונות)</label><input id="swm-to" type="email" placeholder="accounting@company.co.il" style="direction:ltr"></div>
+    <div class="modal-row"><label>אל<span style="font-weight:400;color:#94a3b8;font-size:0.7rem"> — אפשר כמה מיילים, מופרדים בפסיק</span></label><input id="swm-to" type="text" placeholder="accounting@company.co.il" style="direction:ltr"></div>
+    <div id="swm-groups" style="margin:-4px 0 8px"></div>
     <div class="modal-row"><label>תוכן ההודעה (ניתן לערוך)</label><textarea id="swm-body" rows="10" style="width:100%;font-size:0.85rem;font-family:'Heebo',sans-serif;line-height:1.6"></textarea></div>
     <div class="btn-row">
       <button class="btn btn-gray" onclick="document.getElementById('swap-mail-modal').classList.remove('open')">סגור</button>
