@@ -3655,6 +3655,8 @@ function renderAlerts() {
     const DOC_ALERT_TYPES = ['תוקף רישוי','תוקף ביטוח חובה','רישיון נהג'];
     const hasDoc = g.alerts.some(a => a.missing || DOC_ALERT_TYPES.includes(a.type));
     const missBtn = hasDoc ? `<button class="btn" style="padding:3px 9px;font-size:0.68rem;background:#eef2ff;color:#4338ca;margin-top:4px" title="שליחת התראה על מסמכים חסרים/פגים לאיש קשר במייל" onclick="mailDocAlerts('${esc(g.plate)}')">📧 שלח לאיש קשר</button>` : '';
+    const hasKmService = g.alerts.some(a => String(a.type || '').includes('טיפול'));
+    const kmBtn = hasKmService ? `<button class="btn" style="padding:3px 9px;font-size:0.68rem;background:#ecfeff;color:#0e7490;margin-top:4px" title="עדכון ק&quot;מ נוכחי ידני / רישום ביצוע טיפול" onclick="alertUpdateKm('${esc(g.plate)}')">🔧 עדכן ק&quot;מ / טיפול</button>` : '';
     const gVeh = VEHICLES.find(x => x.plate === g.plate);
     const scheduled = gVeh && gVeh.inspectionScheduled;
     const inspBtns = hasInsp ? `<div style="margin-top:5px">
@@ -3667,9 +3669,29 @@ function renderAlerts() {
       <td style="font-weight:700;color:var(--accent);direction:ltr;font-size:0.85rem;white-space:nowrap">${esc(g.plate)}</td>
       <td style="font-size:0.8rem;font-weight:600;white-space:nowrap">${esc(g.driver)}</td>
       <td style="padding:8px 13px">${g.alerts.map(alertBadge).join('')}</td>
-      <td style="white-space:nowrap"><button class="btn btn-gray" style="padding:3px 8px;font-size:0.7rem" onclick="editVehicle('${esc(g.plate)}')">✏️ ערוך</button>${missBtn ? '<br>'+missBtn : ''}${inspBtns}</td>
+      <td style="white-space:nowrap"><button class="btn btn-gray" style="padding:3px 8px;font-size:0.7rem" onclick="editVehicle('${esc(g.plate)}')">✏️ ערוך</button>${kmBtn ? '<br>'+kmBtn : ''}${missBtn ? '<br>'+missBtn : ''}${inspBtns}</td>
     </tr>`;
   }).join('');
+}
+
+// עדכון ק"מ ידני ישירות ממסך ההתראות — וגם רישום ביצוע טיפול שמנקה את ההתראה
+function alertUpdateKm(plate) {
+  const v = VEHICLES.find(x => String(x.plate).trim() === String(plate).trim());
+  if (!v) { toast('הרכב לא נמצא', true); return; }
+  const inp = prompt(`עדכון ק"מ נוכחי — רכב ${plate}\nק"מ נוכחי: ${v.currentKm||'—'}  ·  טיפול הבא ב: ${v.nextServiceKm||'—'}`, v.currentKm || '');
+  if (inp === null) return;                       // ביטול
+  const km = parseInt(String(inp).replace(/\D/g,''));
+  if (!km) { toast('ק"מ לא תקין', true); return; }
+  v.currentKm = String(km);
+  // אם בוצע טיפול עכשיו — עדכון טיפול הבא (+15,000) ותאריך הטיפול, וההתראה תיעלם
+  if (confirm(`האם בוצע כעת טיפול לרכב ${plate}?\n\nאישור = "טיפול הבא" יעודכן ל-${(km+15000).toLocaleString()} ק"מ, ותאריך הטיפול יעודכן להיום.\nביטול = רק הק"מ יעודכן.`)) {
+    v.nextServiceKm = String(km + 15000);
+    const _t = new Date();
+    v.serviceDate = ('0'+_t.getDate()).slice(-2)+'/'+('0'+(_t.getMonth()+1)).slice(-2)+'/'+_t.getFullYear();
+  }
+  saveVehiclesSafely(v.plate, null, v.plate);
+  renderAlerts(); renderFleet(); renderDashboard(); loadKmRound();
+  toast('עודכן ✓');
 }
 
 // ═══ DOCUMENT-ALERT EMAIL (missing OR expiring documents) ═══
