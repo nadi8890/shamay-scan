@@ -2611,7 +2611,6 @@ async function loadKmRound() {
         <span>${parseInt(r.km||0).toLocaleString()} ק"מ</span>
         <span style="color:var(--muted);font-size:0.72rem">${esc(r.dateStr||'')}</span>
         ${flag}
-        <button class="btn" style="padding:2px 8px;font-size:0.66rem;background:#ecfeff;color:#0e7490" title="עדכון ק&quot;מ נוכחי / רישום ביצוע טיפול" onclick="alertUpdateKm('${esc(r.plate||'')}')">🔧 עדכן</button>
       </div>`;
     }).join('');
     const missRows = missing.map((v,i) => {
@@ -2620,6 +2619,7 @@ async function loadKmRound() {
         <span style="font-weight:700">${esc(nm)}</span>
         <span style="color:var(--accent);direction:ltr;font-weight:700">${esc(v.plate)}</span>
         <span class="badge badge-orange">⏳ טרם עדכן</span>
+        <button class="btn" style="padding:3px 10px;font-size:0.72rem;background:#ecfeff;color:#0e7490" title="עדכון ק&quot;מ במקום הנהג — יעביר אותו לרשימת מי שעודכן" onclick="kmRoundUpdateFor('${esc(v.plate)}')">🔧 עדכן במקומו</button>
         ${v.driverPhone ? `<button class="btn btn-green" style="padding:3px 10px;font-size:0.72rem" onclick="remindKmDriver(${i})">💬 תזכר בוואטסאפ</button>` : '<span style="font-size:0.68rem;color:var(--muted)">אין נייד שמור</span>'}
       </div>`;
     }).join('');
@@ -2658,6 +2658,33 @@ function remindKmDriver(i) {
   const intl = digits.startsWith('972') ? digits : '972' + digits.replace(/^0/,'');
   const msg = `היי ${nm} 👋\nתזכורת קטנה — נא לעדכן את הק"מ הנוכחי של הרכב (${v.plate}) בקישור:\n${KM_UPDATE_LINK}?plate=${v.plate}${tParam('&')}\n\nלוקח 20 שניות. תודה!\n${coSig()}`;
   window.open('https://wa.me/' + intl + '?text=' + encodeURIComponent(msg), '_blank');
+}
+// עדכון ק"מ ידני במקום נהג שטרם עדכן — רושם דיווח לחודש כך שהוא עובר לרשימת "עודכנו"
+async function kmRoundUpdateFor(plate) {
+  const v = VEHICLES.find(x => String(x.plate).trim() === String(plate).trim());
+  if (!v) { toast('הרכב לא נמצא', true); return; }
+  const nm = (v.driverName||'').split('-')[0].trim();
+  const inp = prompt(`עדכון ק"מ במקום ${nm} — רכב ${plate}\nק"מ נוכחי ברשומה: ${v.currentKm||'—'}  ·  טיפול הבא ב: ${v.nextServiceKm||'—'}`, v.currentKm || '');
+  if (inp === null) return;
+  const km = parseInt(String(inp).replace(/\D/g,''));
+  if (!km) { toast('ק"מ לא תקין', true); return; }
+  const prev = parseKm(v.currentKm), next = parseKm(v.nextServiceKm);
+  v.currentKm = String(km);
+  saveVehiclesSafely(v.plate, null, v.plate);   // מעדכן את הק"מ ברכב
+  try {
+    const now = new Date(), p2 = n => String(n).padStart(2,'0'), monthKey = kmMonthKey();
+    const serviceDue = next > 0 && km >= next, serviceSoon = next > 0 && !serviceDue && (next - km) <= 1000;
+    await fcol().doc(`kmr_${monthKey}_${v.plate}`).set({
+      type: 'kmreport', created: Date.now(), monthKey,
+      dateStr: `${p2(now.getDate())}/${p2(now.getMonth()+1)}/${now.getFullYear()} ${p2(now.getHours())}:${p2(now.getMinutes())}`,
+      plate: v.plate, driver: nm,
+      km: String(km), prevKm: String(prev||''), nextServiceKm: String(next||''),
+      serviceDue, serviceSoon, applyKm: false, applied: true, byManager: true
+    });
+  } catch(e) { toast('שגיאה בשמירת הדיווח: ' + (e.code||e.message||e), true); return; }
+  renderAlerts(); renderFleet(); renderDashboard();
+  loadKmRound();   // מעביר את הנהג מ"טרם עדכן" ל"עודכן"
+  toast(`ק"מ עודכן עבור ${nm} ✓`);
 }
 
 // ── DRIVER DECLARATION FORMS (driver-forms.html) ──
