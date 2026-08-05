@@ -2594,7 +2594,17 @@ async function loadKmRound() {
     window._kmMissing = missing;
     document.getElementById('kmround-count').textContent = `${active.length - missing.length}/${active.length}`;
     const doneRows = reports.sort((a,b)=>(b.created||0)-(a.created||0)).map(r => {
-      const flag = r.serviceDue ? '<span class="badge badge-red">🔧 נדרש טיפול</span>' : r.serviceSoon ? '<span class="badge badge-orange">טיפול מתקרב</span>' : '<span class="badge badge-green">✓ תקין</span>';
+      // סטטוס הטיפול מחושב לפי מצב הרכב הנוכחי (ק"מ נוכחי מול טיפול הבא) — כך שאם
+      // ביצעת/עדכנת טיפול והחריגה נעלמה מההתראות, גם השורה כאן מתעדכנת אוטומטית.
+      const _pk = String(r.plate||'').replace(/\D/g,'');
+      const _veh = VEHICLES.find(v => String(v.plate||'').replace(/\D/g,'') === _pk);
+      let _due, _soon;
+      if (_veh) {
+        const _cur = parseKm(_veh.currentKm), _nxt = parseKm(_veh.nextServiceKm);
+        _due  = _cur > 0 && _nxt > 0 && _cur >= _nxt;
+        _soon = !_due && _cur > 0 && _nxt > 0 && (_nxt - _cur) <= 1000;
+      } else { _due = r.serviceDue; _soon = r.serviceSoon; }   // גיבוי לדגל השמור אם הרכב לא נמצא
+      const flag = _due ? '<span class="badge badge-red">🔧 נדרש טיפול</span>' : _soon ? '<span class="badge badge-orange">טיפול מתקרב</span>' : '<span class="badge badge-green">✓ תקין</span>';
       return `<div class="insp-hist-row" style="cursor:default">
         <span style="font-weight:700">${esc(r.driver||'')}</span>
         <span style="color:var(--accent);direction:ltr;font-weight:700">${esc(r.plate||'')}</span>
