@@ -714,6 +714,7 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
           </select>
         </div>
         <div class="modal-row" style="margin-top:6px"><label>מייל השולח<span style="font-weight:400;color:#94a3b8;font-size:0.7rem"> — הודעות ההתראה נפתחות מחשבון זה</span></label><input id="ms-from" type="email" placeholder="name@company.co.il" style="direction:ltr"></div>
+        <div class="modal-row" style="margin-top:6px"><label>מייל הנהלת חשבונות<span style="font-weight:400;color:#94a3b8;font-size:0.7rem"> — יעד ברירת מחדל לעדכון על החלפות רכב</span></label><input id="ms-accounting" type="email" placeholder="accounting@company.co.il" style="direction:ltr"></div>
         <div class="modal-row" style="margin-top:6px"><label>מפתח Web3Forms — לשליחה אוטומטית</label><input id="ms-key" type="text" placeholder="הדבק כאן את המפתח" style="direction:ltr"></div>
         <div class="modal-row" style="margin-top:6px"><label>כתובת Apps Script — לשליחת קובץ הביקורת במייל</label><input id="ms-gas" type="text" placeholder="https://script.google.com/macros/s/..." style="direction:ltr"></div>
         <div style="font-size:0.7rem;color:var(--muted);margin:6px 0 10px">להפקת מפתח חינם (פעם אחת): היכנס ל-<b>web3forms.com</b>, הזן את מייל העבודה ולחץ Create Access Key. המפתח יגיע למייל — הדבק אותו כאן. אם מוגדרת כתובת Apps Script — המייל יישלח מה-Gmail שלך עם קובץ ה-PDF מצורף.</div>
@@ -2504,6 +2505,7 @@ function saveMailSettings() {
   MAIL_SETTINGS = {
     recipient: document.getElementById('ms-recipient').value.trim(),
     fromEmail: document.getElementById('ms-from').value.trim(),
+    accountingEmail: document.getElementById('ms-accounting').value.trim(),
     mailProvider: document.getElementById('ms-provider').value,
     web3formsKey: document.getElementById('ms-key').value.trim(),
     gasUrl: document.getElementById('ms-gas').value.trim()
@@ -2527,6 +2529,7 @@ function renderFormsTab() {
   document.getElementById('inspection-form').style.display = 'none';
   document.getElementById('ms-recipient').value = MAIL_SETTINGS.recipient || '';
   document.getElementById('ms-from').value = MAIL_SETTINGS.fromEmail || '';
+  document.getElementById('ms-accounting').value = MAIL_SETTINGS.accountingEmail || '';
   document.getElementById('ms-provider').value = MAIL_SETTINGS.mailProvider || 'outlook';
   document.getElementById('ms-key').value = MAIL_SETTINGS.web3formsKey || '';
   document.getElementById('ms-gas').value = MAIL_SETTINGS.gasUrl || '';
@@ -5755,7 +5758,45 @@ async function replaceVehicleAction(param) {
   renderFleet(); renderDashboard(); renderAlerts();
   if (typeof renderReturns === 'function') renderReturns();
   toast(`✓ ${(old.driverName||'').split('-')[0].trim()}: ${old.plate} הועבר להחזרות, ${newPlate} נוסף`);
+  try { openSwapMail(old.plate, newPlate, old.driverName, recDate); } catch(e) { console.log('swap mail', e); }
   return { type: 'vehicle', action: 'הוחלף', plate: newPlate, oldPlate: old.plate, driver: old.driverName };
+}
+
+// ═══ מייל להנהלת חשבונות על החלפת רכב (הוחזר X / התקבל Y + תאריך) ═══
+let _swapMailSubject = '';
+function openSwapMail(oldPlate, newPlate, driver, dateStr) {
+  const drv = (driver || '').split('-')[0].trim();
+  _swapMailSubject = `החלפת רכב${drv ? ' — ' + drv : ''}: הוחזר ${oldPlate} / התקבל ${newPlate}`;
+  const body = `שלום,\n\nלידיעתכם, בוצעה החלפת רכב לעובד/ת:\n\n• עובד/ת: ${drv || '—'}\n• רכב שהוחזר: ${oldPlate}\n• רכב שהתקבל: ${newPlate}\n• תאריך: ${dateStr}\n\nנא לעדכן בהתאם ברישומי הנהלת החשבונות.\n\nתודה,\n${COMPANY_NAME || 'מחלקת הרכב'}`;
+  document.getElementById('swm-to').value = (MAIL_SETTINGS && MAIL_SETTINGS.accountingEmail) || '';
+  document.getElementById('swm-body').value = body;
+  document.getElementById('swap-mail-modal').classList.add('open');
+}
+function sendSwapMail() {
+  const to = document.getElementById('swm-to').value.trim();
+  const body = document.getElementById('swm-body').value;
+  // remember the accounting email for next time
+  if (to && MAIL_SETTINGS) { MAIL_SETTINGS.accountingEmail = to; try { localStorage.setItem('fleet_mailSettings', JSON.stringify(MAIL_SETTINGS)); } catch(e){} saveToFirestore('mailSettings', MAIL_SETTINGS); }
+  const subject = _swapMailSubject;
+  const from = (MAIL_SETTINGS && MAIL_SETTINGS.fromEmail || '').trim();
+  const provider = (MAIL_SETTINGS && MAIL_SETTINGS.mailProvider) || 'outlook';
+  const mailtoUrl = `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  let composeUrl;
+  if (provider === 'gmail') composeUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(to)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}${from ? '&authuser=' + encodeURIComponent(from) : ''}`;
+  else if (provider === 'outlook') composeUrl = `https://outlook.office.com/mail/deeplink/compose?to=${encodeURIComponent(to)}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  else composeUrl = null;
+  if (composeUrl) { const w = window.open(composeUrl, '_blank'); if (!w) window.location.href = mailtoUrl; }
+  else window.location.href = mailtoUrl;
+  document.getElementById('swap-mail-modal').classList.remove('open');
+  toast('נפתחה הודעת מייל ✓');
+}
+function copySwapMail() {
+  const to = document.getElementById('swm-to').value.trim();
+  const body = document.getElementById('swm-body').value;
+  const full = `אל: ${to}\nנושא: ${_swapMailSubject}\n\n${body}`;
+  const done = () => toast('הועתק ✓ — הדבק בהודעה חדשה בחשבון הנכון');
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(full).then(done).catch(() => _fallbackCopy(full, done));
+  else _fallbackCopy(full, done);
 }
 
 async function addVehicleWithLookup(param) {
@@ -6256,6 +6297,20 @@ function renderAgentMsgs(showTyping = false) {
       <button class="btn btn-gray" onclick="document.getElementById('doc-mail-modal').classList.remove('open')">ביטול</button>
       <button class="btn btn-secondary" onclick="copyDocMail()" title="העתק נמענים+נושא+תוכן להדבקה בחשבון הנכון">📋 העתק</button>
       <button class="btn btn-green" onclick="sendDocMail()">📧 פתח מייל</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ מייל להנהלת חשבונות על החלפת רכב ══ -->
+<div class="modal-overlay" id="swap-mail-modal">
+  <div class="modal" style="max-width:520px">
+    <h3>🔄 עדכון הנהלת חשבונות — החלפת רכב</h3>
+    <div class="modal-row"><label>אל (מייל הנהלת חשבונות)</label><input id="swm-to" type="email" placeholder="accounting@company.co.il" style="direction:ltr"></div>
+    <div class="modal-row"><label>תוכן ההודעה (ניתן לערוך)</label><textarea id="swm-body" rows="10" style="width:100%;font-size:0.85rem;font-family:'Heebo',sans-serif;line-height:1.6"></textarea></div>
+    <div class="btn-row">
+      <button class="btn btn-gray" onclick="document.getElementById('swap-mail-modal').classList.remove('open')">סגור</button>
+      <button class="btn btn-secondary" onclick="copySwapMail()" title="העתק להדבקה בחשבון הנכון">📋 העתק</button>
+      <button class="btn btn-green" onclick="sendSwapMail()">📧 פתח מייל</button>
     </div>
   </div>
 </div>
