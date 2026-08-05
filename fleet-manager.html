@@ -5909,23 +5909,36 @@ function openSwapMail(oldPlate, newPlate, driver, dateStr) {
   _renderSwapGroups();
   document.getElementById('swap-mail-modal').classList.add('open');
 }
-// כפתורי קבוצות במייל הנה"ח — לחיצה ממלאת את כל מיילי הקבוצה בשדה "אל"
+// כפתורי קבוצות + אנשי קשר בודדים במייל הנה"ח — לחיצה מוסיפה לשדה "אל"
 function _renderSwapGroups() {
   const box = document.getElementById('swm-groups'); if (!box) return;
+  const c = loadContacts();
   const groups = allGroups();
-  box.innerHTML = groups.length
-    ? '<div style="font-size:0.72rem;color:#64748b;margin-bottom:3px">קבוצות תפוצה:</div>' + groups.map(g => `<button type="button" onclick="setSwapToGroup('${esc(g.name)}')" title="${esc(g.emails.join(', '))}" style="background:#eef2ff;border:1px solid #c7d2fe;color:#4338ca;border-radius:999px;padding:3px 11px;font-size:0.76rem;font-weight:700;margin:0 3px 4px 0;cursor:pointer">👥 ${esc(g.name)} (${g.emails.length})</button>`).join('')
-    : '<div style="font-size:0.72rem;color:#94a3b8">אין קבוצות עדיין — צור קבוצת "הנהלת חשבונות" באנשי קשר 👥</div>';
+  const groupHtml = groups.length
+    ? '<div style="font-size:0.72rem;color:#64748b;margin-bottom:3px">קבוצות תפוצה (כל המיילים בלחיצה):</div>' + groups.map(g => `<button type="button" onclick="setSwapToGroup('${esc(g.name)}')" title="${esc(g.emails.join(', '))}" style="background:#eef2ff;border:1px solid #c7d2fe;color:#4338ca;border-radius:999px;padding:3px 11px;font-size:0.76rem;font-weight:700;margin:0 3px 4px 0;cursor:pointer">👥 ${esc(g.name)} (${g.emails.length})</button>`).join('') + '<div style="height:8px"></div>'
+    : '';
+  const contactHtml = c.list.length
+    ? '<div style="font-size:0.72rem;color:#64748b;margin-bottom:3px">אנשי קשר שמורים:</div>' + c.list.filter(x => x.email).map(x => `<button type="button" onclick="addSwapToEmail('${esc(x.email)}')" title="${esc(x.email)}" style="background:#f1f5f9;border:1px solid #e2e8f0;border-radius:999px;padding:3px 10px;font-size:0.76rem;margin:0 3px 4px 0;cursor:pointer">+ ${esc(x.name || x.email)}</button>`).join('')
+    : '';
+  box.innerHTML = (groupHtml + contactHtml) || '<div style="font-size:0.72rem;color:#94a3b8">אין אנשי קשר/קבוצות עדיין — הוסף בלשונית "אנשי קשר" 👥</div>';
+}
+function _swapToAdd(emails) {
+  const inp = document.getElementById('swm-to');
+  const cur = String(inp.value || '').split(/[,;]/).map(s => s.trim()).filter(Boolean);
+  let added = 0;
+  emails.forEach(e => { if (e && !cur.some(x => x.toLowerCase() === e.toLowerCase())) { cur.push(e); added++; } });
+  inp.value = cur.join(', ');
+  return added;
 }
 function setSwapToGroup(name) {
   const emails = groupEmails(name);
   if (!emails.length) { toast('אין מיילים בקבוצה זו', true); return; }
-  const inp = document.getElementById('swm-to');
-  const cur = String(inp.value || '').split(/[,;]/).map(s => s.trim()).filter(Boolean);
-  let added = 0;
-  emails.forEach(e => { if (!cur.some(x => x.toLowerCase() === e.toLowerCase())) { cur.push(e); added++; } });
-  inp.value = cur.join(', ');
+  const added = _swapToAdd(emails);
   toast(added ? `נוספו ${added} נמענים מקבוצת "${name}"` : 'כל נמעני הקבוצה כבר בשדה');
+}
+function addSwapToEmail(email) {
+  const added = _swapToAdd([String(email || '').trim()]);
+  toast(added ? 'נוסף נמען ✓' : 'הנמען כבר בשדה');
 }
 // כפתור בלשונית ההחזרות: הרכב "שהתקבל" = הרכב הנוכחי של אותו עובד (אם יש)
 function swapMailFromReturn(idx) {
