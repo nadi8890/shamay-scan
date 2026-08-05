@@ -5766,11 +5766,22 @@ async function replaceVehicleAction(param) {
 let _swapMailSubject = '';
 function openSwapMail(oldPlate, newPlate, driver, dateStr) {
   const drv = (driver || '').split('-')[0].trim();
-  _swapMailSubject = `החלפת רכב${drv ? ' — ' + drv : ''}: הוחזר ${oldPlate} / התקבל ${newPlate}`;
-  const body = `שלום,\n\nלידיעתכם, בוצעה החלפת רכב לעובד/ת:\n\n• עובד/ת: ${drv || '—'}\n• רכב שהוחזר: ${oldPlate}\n• רכב שהתקבל: ${newPlate}\n• תאריך: ${dateStr}\n\nנא לעדכן בהתאם ברישומי הנהלת החשבונות.\n\nתודה,\n${COMPANY_NAME || 'מחלקת הרכב'}`;
+  const isSwap = !!(newPlate && String(newPlate).trim());
+  _swapMailSubject = isSwap
+    ? `החלפת רכב${drv ? ' — ' + drv : ''}: הוחזר ${oldPlate} / התקבל ${newPlate}`
+    : `החזרת רכב${drv ? ' — ' + drv : ''}: ${oldPlate}`;
+  const body = isSwap
+    ? `שלום,\n\nלידיעתכם, בוצעה החלפת רכב לעובד/ת:\n\n• עובד/ת: ${drv || '—'}\n• רכב שהוחזר: ${oldPlate}\n• רכב שהתקבל: ${newPlate}\n• תאריך: ${dateStr}\n\nנא לעדכן בהתאם ברישומי הנהלת החשבונות.\n\nתודה,\n${COMPANY_NAME || 'מחלקת הרכב'}`
+    : `שלום,\n\nלידיעתכם, הוחזר רכב:\n\n• עובד/ת: ${drv || '—'}\n• רכב שהוחזר: ${oldPlate}\n• תאריך: ${dateStr}\n\nנא לעדכן בהתאם ברישומי הנהלת החשבונות.\n\nתודה,\n${COMPANY_NAME || 'מחלקת הרכב'}`;
   document.getElementById('swm-to').value = (MAIL_SETTINGS && MAIL_SETTINGS.accountingEmail) || '';
   document.getElementById('swm-body').value = body;
   document.getElementById('swap-mail-modal').classList.add('open');
+}
+// כפתור בלשונית ההחזרות: הרכב "שהתקבל" = הרכב הנוכחי של אותו עובד (אם יש)
+function swapMailFromReturn(idx) {
+  const r = RETURNS[idx]; if (!r) return;
+  const newV = VEHICLES.find(v => driverKey(v.driverName) === driverKey(r.employee) && String(v.plate).trim() !== String(r.plate).trim());
+  openSwapMail(r.plate, newV ? newV.plate : '', r.employee, r.toDate || '');
 }
 function sendSwapMail() {
   const to = document.getElementById('swm-to').value.trim();
@@ -6053,6 +6064,7 @@ function renderReturns() {
           <td>${esc(r.reason||'—')}</td>
           <td>${esc(r.notes||'')}</td>
           <td style="white-space:nowrap">
+            <button class="btn-export" style="padding:3px 8px;font-size:0.65rem;margin-left:3px;background:#ecfeff;color:#0e7490" title="פתח מייל מובנה להנהלת חשבונות (הוחזר/התקבל + תאריך)" onclick="swapMailFromReturn(${oi})">📧 הנה"ח</button>
             <button class="btn-export" style="padding:3px 8px;font-size:0.65rem;margin-left:3px" onclick="openEditReturn(${oi})">✏️</button>
             <button class="btn-export" style="padding:3px 8px;font-size:0.65rem;color:#dc2626" onclick="removeReturnRow(${oi})">הסר</button>
           </td>
