@@ -791,7 +791,10 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
   <div class="modal" style="max-width:600px">
     <div class="section-hdr">
       <span class="section-title">👥 אנשי קשר</span>
-      <button class="btn btn-primary" style="padding:6px 14px;font-size:0.82rem" onclick="openContactModal()">+ חדש</button>
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-secondary" style="padding:6px 12px;font-size:0.82rem" onclick="openGroupModal()">👥 קבוצה</button>
+        <button class="btn btn-primary" style="padding:6px 14px;font-size:0.82rem" onclick="openContactModal()">+ חדש</button>
+      </div>
     </div>
     <p style="font-size:0.78rem;color:var(--muted);margin:2px 0 12px">שמור כאן את אנשי הקשר שאליהם אתה שולח התראות. בעת שליחת התראת מסמכים — תבחר איש קשר <b>לפי השם</b> והמייל יימלא אוטומטית.</p>
     <input id="contacts-search" type="text" placeholder="🔍 חיפוש איש קשר…" oninput="renderContacts()" style="width:100%;background:#f8fafc;border:1px solid var(--border);border-radius:9px;padding:9px 12px;font-family:'Heebo',sans-serif;font-size:0.88rem;margin-bottom:12px">
@@ -815,6 +818,23 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
       <button class="btn btn-danger" id="cm-delete-btn" style="display:none" onclick="deleteContact()">🗑️ מחק</button>
       <button class="btn btn-secondary" onclick="document.getElementById('contact-modal').classList.remove('open')">ביטול</button>
       <button class="btn btn-primary" onclick="saveContactForm()">💾 שמור</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ GROUP (mailing-list) MODAL — name + paste many emails at once ══ -->
+<div class="modal-overlay" id="group-modal" style="z-index:665">
+  <div class="modal" style="max-width:560px">
+    <h3 id="gm-title">👥 קבוצת תפוצה</h3>
+    <p style="font-size:0.78rem;color:var(--muted);margin:0 0 10px">תן שם לקבוצה והדבק את כל המיילים — כל מייל יתווסף כאיש קשר תחת הקבוצה. מיילים שכבר קיימים פשוט יצורפו לקבוצה.</p>
+    <div class="modal-row"><label>שם הקבוצה *</label><input id="gm-name" type="text" list="gm-name-list" placeholder="למשל: הנהלת חשבונות"><datalist id="gm-name-list"></datalist></div>
+    <div class="modal-row"><label>מיילים *<span style="font-weight:400;color:#94a3b8;font-size:0.7rem"> — כל אחד בשורה או מופרד בפסיק. אפשר גם בפורמט: שם &lt;מייל&gt;</span></label>
+      <textarea id="gm-emails" rows="7" oninput="_gmPreview()" placeholder="dana@acc.co.il&#10;משה גזבר <moshe@acc.co.il>&#10;yael@acc.co.il" style="width:100%;direction:ltr;text-align:left;font-size:0.85rem;font-family:'Heebo',sans-serif;line-height:1.6"></textarea></div>
+    <div id="gm-preview" style="font-size:0.75rem;color:#64748b;margin:-2px 0 4px"></div>
+    <div class="btn-row">
+      <button class="btn btn-danger" id="gm-delete-btn" style="display:none" onclick="deleteGroup()">🗑️ פרק קבוצה</button>
+      <button class="btn btn-secondary" onclick="document.getElementById('group-modal').classList.remove('open')">ביטול</button>
+      <button class="btn btn-primary" onclick="saveGroupForm()">💾 שמור קבוצה</button>
     </div>
   </div>
 </div>
@@ -3777,6 +3797,84 @@ function groupEmails(name) {
   c.list.forEach(x => { if (x.email && _contactGroups(x).some(g => g === name) && !out.some(e => e.toLowerCase() === x.email.toLowerCase())) out.push(x.email); });
   return out;
 }
+// מפענח טקסט חופשי (שורות / פסיקים) לרשימת {name,email}. תומך גם בפורמט: שם <מייל>
+function _parseGroupEntries(text) {
+  const out = [];
+  String(text || '').split(/[\n,;]+/).forEach(raw => {
+    let s = raw.trim(); if (!s) return;
+    let name = '';
+    const lt = s.indexOf('<');
+    if (lt >= 0) { name = s.slice(0, lt).trim().replace(/^["']|["']$/g, ''); s = s.slice(lt + 1).replace(/>.*$/, '').trim(); }
+    s = s.replace(/[<>]/g, '').trim();
+    if (_emailOk(s) && !out.some(e => e.email.toLowerCase() === s.toLowerCase())) out.push({ name, email: s });
+  });
+  return out;
+}
+let _editGroupName = null;
+function openGroupModal(name) {
+  _editGroupName = name || null;
+  document.getElementById('gm-title').textContent = name ? `👥 עריכת קבוצה: ${name}` : '👥 קבוצת תפוצה חדשה';
+  document.getElementById('gm-name').value = name || '';
+  document.getElementById('gm-name-list').innerHTML = allGroups().map(g => `<option value="${esc(g.name)}">`).join('');
+  let txt = '';
+  if (name) {
+    const c = loadContacts();
+    txt = c.list.filter(x => x.email && _contactGroups(x).some(g => g === name))
+                .map(x => x.name ? `${x.name} <${x.email}>` : x.email).join('\n');
+  }
+  document.getElementById('gm-emails').value = txt;
+  document.getElementById('gm-delete-btn').style.display = name ? '' : 'none';
+  _gmPreview();
+  document.getElementById('group-modal').classList.add('open');
+  setTimeout(() => document.getElementById('gm-name').focus(), 50);
+}
+function _gmPreview() {
+  const el = document.getElementById('gm-preview'); if (!el) return;
+  const n = _parseGroupEntries(document.getElementById('gm-emails').value).length;
+  el.textContent = n ? `זוהו ${n} מיילים תקינים` : '';
+}
+function saveGroupForm() {
+  const name = document.getElementById('gm-name').value.trim();
+  if (!name) { toast('נא להזין שם קבוצה', true); return; }
+  const entries = _parseGroupEntries(document.getElementById('gm-emails').value);
+  if (!entries.length) { toast('נא להזין לפחות מייל אחד תקין', true); return; }
+  const c = loadContacts();
+  const oldName = _editGroupName;
+  // בעריכה: קודם מסירים את שיוך הקבוצה הישן מכולם, ואז מוסיפים מחדש לפי הרשימה הנוכחית
+  if (oldName) c.list.forEach(x => { const gs = _contactGroups(x); if (gs.some(g => g === oldName)) x.group = gs.filter(g => g !== oldName).join(', '); });
+  entries.forEach(({ name: nm, email }) => {
+    const ex = c.list.find(x => (x.email || '').toLowerCase() === email.toLowerCase());
+    if (ex) {
+      const gs = _contactGroups(ex);
+      if (!gs.some(g => g === name)) { gs.push(name); ex.group = gs.join(', '); }
+      if (nm && !ex.name) ex.name = nm;
+    } else {
+      c.list.unshift({ id: _contactId(), name: nm || email.split('@')[0], email, phone: '', role: '', group: name });
+    }
+  });
+  c.emails = c.list.map(x => x.email).filter(Boolean);
+  saveContacts();
+  document.getElementById('group-modal').classList.remove('open');
+  renderContacts();
+  toast(`קבוצת "${name}" נשמרה (${entries.length} נמענים) ✓`);
+}
+function deleteGroup() {
+  const name = _editGroupName; if (!name) return;
+  if (!confirm(`לפרק את קבוצת "${name}"? אנשי הקשר יישארו — רק שיוך הקבוצה יוסר מהם.`)) return;
+  const c = loadContacts();
+  c.list.forEach(x => { const gs = _contactGroups(x); if (gs.some(g => g === name)) x.group = gs.filter(g => g !== name).join(', '); });
+  saveContacts();
+  document.getElementById('group-modal').classList.remove('open');
+  renderContacts();
+  toast(`קבוצת "${name}" פורקה`);
+}
+function _groupsBarHtml() {
+  const groups = allGroups();
+  if (!groups.length) return '';
+  return '<div style="margin-bottom:11px;padding-bottom:9px;border-bottom:1px dashed var(--border)"><div style="font-size:0.72rem;color:#64748b;margin-bottom:5px">קבוצות תפוצה (לחץ לעריכה):</div>'
+    + groups.map(g => `<button onclick="openGroupModal('${esc(g.name)}')" title="${esc(g.emails.join(', '))}" style="background:#eef2ff;border:1px solid #c7d2fe;color:#4338ca;border-radius:999px;padding:3px 11px;font-size:0.76rem;font-weight:700;margin:0 4px 5px 0;cursor:pointer">👥 ${esc(g.name)} (${g.emails.length})</button>`).join('')
+    + '</div>';
+}
 
 // ═══ CONTACTS — managed directory (name → email), opened from the Forms tab ═══
 let _editContactId = null;
@@ -3791,14 +3889,15 @@ function renderContacts() {
   const box = document.getElementById('contacts-list');
   if (!box) return;
   if (!c.list.length) {
-    box.innerHTML = '<div style="text-align:center;color:var(--muted);padding:34px 10px;font-size:0.9rem">אין אנשי קשר עדיין.<br>לחץ <b>+ איש קשר חדש</b> כדי להוסיף.</div>';
+    box.innerHTML = '<div style="text-align:center;color:var(--muted);padding:34px 10px;font-size:0.9rem">אין אנשי קשר עדיין.<br>לחץ <b>+ חדש</b> להוספת איש קשר, או <b>👥 קבוצה</b> להזנת קבוצת תפוצה שלמה.</div>';
     return;
   }
+  const gbar = q ? '' : _groupsBarHtml();
   let list = c.list.slice();
-  if (q) list = list.filter(x => (`${x.name||''} ${x.email||''} ${x.role||''} ${x.phone||''}`).toLowerCase().includes(q));
+  if (q) list = list.filter(x => (`${x.name||''} ${x.email||''} ${x.role||''} ${x.phone||''} ${x.group||''}`).toLowerCase().includes(q));
   list.sort((a,b) => (a.name||a.email||'').localeCompare(b.name||b.email||'', 'he'));
   if (!list.length) { box.innerHTML = '<div style="text-align:center;color:var(--muted);padding:22px">לא נמצאו תוצאות</div>'; return; }
-  box.innerHTML = list.map(x => `
+  box.innerHTML = gbar + list.map(x => `
     <div onclick="openContactModal('${x.id}')" style="background:#fff;border:1px solid var(--border);border-radius:12px;padding:11px 14px;margin-bottom:9px;cursor:pointer;display:flex;align-items:center;gap:12px;box-shadow:0 1px 4px rgba(0,0,0,.05)">
       <span style="width:40px;height:40px;border-radius:50%;background:#eff6ff;color:var(--blue);display:flex;align-items:center;justify-content:center;font-size:1.05rem;font-weight:800;flex-shrink:0">${esc((x.name||x.email||'?').trim().charAt(0).toUpperCase())}</span>
       <div style="flex:1;min-width:0">
