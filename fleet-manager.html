@@ -621,7 +621,7 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
 <!-- Bottom Nav -->
 <nav class="bottom-nav">
   <button class="nav-btn active" onclick="showTab('fleet',this)"><span class="icon">🚗</span>ציי רכב</button>
-  <button class="nav-btn" onclick="showTab('alerts',this)"><span class="icon">🔔</span>התראות</button>
+  <button class="nav-btn" style="position:relative" onclick="showTab('alerts',this)"><span class="icon">🔔</span>התראות<span id="alerts-nav-badge" style="display:none;position:absolute;top:1px;left:5px;min-width:17px;height:17px;background:#dc2626;color:#fff;border-radius:999px;font-size:0.62rem;font-weight:800;line-height:17px;text-align:center;padding:0 4px;box-shadow:0 1px 4px rgba(0,0,0,.25)">0</span></button>
   <button class="nav-btn" onclick="showTab('incidents',this)"><span class="icon">💥</span>אירועים</button>
   <button class="nav-btn" onclick="showTab('violations',this)"><span class="icon">📄</span>דוחות</button>
   <button class="nav-btn" onclick="showTab('invoices',this)"><span class="icon">🔧</span>מוסכים</button>
@@ -1731,6 +1731,8 @@ function setupRealtimeSync() {
   watchArchive('violations',   a => { VIOLATIONS = a; localStorage.setItem('fleet_violations', JSON.stringify(a)); },   () => { if (typeof renderViolations === 'function') renderViolations(); });
   watchArchive('replacements', a => { REPLACEMENTS = a; localStorage.setItem('fleet_replacements', JSON.stringify(a)); }, () => { if (typeof renderReturns === 'function') renderReturns(); });
   watchArchive('returns',      a => { RETURNS = a; localStorage.setItem('fleet_returns', JSON.stringify(a)); },      () => { if (typeof renderReturns === 'function') renderReturns(); });
+  // מאזין חי לקריאות שהעובדים מעלים (req_*) — מעדכן את הפעמון ואת מגירת האישורים בזמן אמת
+  try { fcol().where('type', '==', 'requirement').onSnapshot(() => { if (typeof loadPendingRequests === 'function') loadPendingRequests(); }); } catch(e) { console.log('req listener', e); }
 }
 
 // ── UTILS ──
@@ -3807,6 +3809,8 @@ async function loadPendingRequests() {
   try { items = await readDriverDocs('requirement'); } catch(e) { console.log('load reqs', e); }
   PENDING_REQS = items.filter(r => (r.status || 'pending') === 'pending').sort((a, b) => (b.created || 0) - (a.created || 0));
   const cnt = document.getElementById('pending-count'); if (cnt) cnt.textContent = PENDING_REQS.length;
+  const navB = document.getElementById('alerts-nav-badge');
+  if (navB) { if (PENDING_REQS.length) { navB.textContent = PENDING_REQS.length; navB.style.display = 'block'; } else navB.style.display = 'none'; }
   if (!PENDING_REQS.length) { box.style.display = 'none'; return; }
   box.style.display = 'block';
   document.getElementById('pending-list').innerHTML = PENDING_REQS.map(r => {
@@ -3841,7 +3845,10 @@ async function approveRequest(id) {
   const r = PENDING_REQS.find(x => x._docId === id); if (!r) return;
   let markService = false;
   if (r.reqType === 'service') {
-    markService = confirm(`אישור קריאת טיפול — רכב ${r.plate}\n\nאישור = לרשום שהטיפול בוצע (טיפול הבא +15,000 ק"מ, תאריך טיפול = היום) ולסגור את הקריאה.\nביטול = לא לאשר כרגע.`);
+    const v = VEHICLES.find(x => String(x.plate).trim() === String(r.plate).trim());
+    const anchor = v ? (parseKm(v.nextServiceKm) || parseKm(v.currentKm) || 0) : 0; // נקודת הטיפול הקודמת
+    const newNext = anchor + 15000;
+    markService = confirm(`אישור קריאת טיפול — רכב ${r.plate}\n\nאישור = לרשום שהטיפול בוצע:\n• הטיפול הבא יעודכן ל-${newNext.toLocaleString()} ק"מ (15,000 מנקודת הטיפול הקודמת ${anchor.toLocaleString()})\n• תאריך טיפול = היום\n• הקריאה תיסגר\n\nביטול = לא לאשר כרגע.`);
     if (!markService) return;
   } else {
     if (!confirm(`לאשר ולסגור את הקריאה של ${r.plate} (${r.reqLabel || ''})?`)) return;
@@ -3851,8 +3858,8 @@ async function approveRequest(id) {
     if (markService) {
       const v = VEHICLES.find(x => String(x.plate).trim() === String(r.plate).trim());
       if (v) {
-        const base = parseKm(v.currentKm) || parseKm(v.nextServiceKm) || 0;
-        v.nextServiceKm = String(base + 15000);
+        const anchor = parseKm(v.nextServiceKm) || parseKm(v.currentKm) || 0; // עוגן: נקודת הטיפול הקודמת + 15,000
+        v.nextServiceKm = String(anchor + 15000);
         const _t = new Date();
         v.serviceDate = ('0' + _t.getDate()).slice(-2) + '/' + ('0' + (_t.getMonth() + 1)).slice(-2) + '/' + _t.getFullYear();
         saveVehiclesSafely(v.plate, null, v.plate);
