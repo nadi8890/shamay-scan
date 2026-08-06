@@ -1535,12 +1535,9 @@ function checkServiceOverages() {
     return `• ${nm} (${v.plate}) — ${parseKm(v.currentKm).toLocaleString()} ק"מ / טיפול ב-${parseKm(v.nextServiceKm).toLocaleString()} (חריגה ${(parseKm(v.currentKm)-parseKm(v.nextServiceKm)).toLocaleString()} ק"מ)`;
   });
   toast(`🔧 ${fresh.length} רכב בחריגת טיפול — ראה לשונית התראות`, false);
-  if (MAIL_SETTINGS.gasUrl) {
-    try {
-      fetch(MAIL_SETTINGS.gasUrl, { method:'POST', mode:'no-cors', headers:{'Content-Type':'text/plain'},
-        body: JSON.stringify({ subject: `🔧 חריגת טיפול — ${fresh.length} רכב`, body: 'הרכבים הבאים הגיעו/עברו את ק"מ הטיפול:\n\n' + lines.join('\n') + '\n\n(נשלח אוטומטית ע"י מערכת ר.מזור)', files: [] }) });
-    } catch(e) {}
-  }
+  // הערה: לא נשלח מכאן מייל — המייל היחיד על חריגת טיפול נשלח ישירות מדף עדכון הק"מ
+  // ברגע שהעובד מדווח (מכסה גם "טיפול מתקרב"), כדי שלא יתקבלו שני מיילים על אותו אירוע.
+  void lines;
 }
 
 // The large historical logs live in their OWN documents so fleet/main stays
@@ -3730,24 +3727,24 @@ function renderAlerts() {
     const hasInsp = g.alerts.some(a => String(a.type || '').includes('ביקורת'));
     const DOC_ALERT_TYPES = ['תוקף רישוי','תוקף ביטוח חובה','רישיון נהג'];
     const hasDoc = g.alerts.some(a => a.missing || DOC_ALERT_TYPES.includes(a.type));
-    const missBtn = hasDoc ? `<button class="btn" style="padding:3px 9px;font-size:0.68rem;background:#eef2ff;color:#4338ca;margin-top:4px" title="שליחת התראה על מסמכים חסרים/פגים לאיש קשר במייל" onclick="mailDocAlerts('${esc(g.plate)}')">📧 שלח לאיש קשר</button>` : '';
+    const missBtn = hasDoc ? `<button class="btn" style="padding:3px 9px;font-size:0.68rem;background:#eef2ff;color:#4338ca" title="שליחת התראה על מסמכים חסרים/פגים לאיש קשר במייל" onclick="mailDocAlerts('${esc(g.plate)}')">📧 שלח לאיש קשר</button>` : '';
     const hasKmService = g.alerts.some(a => String(a.type || '').includes('טיפול'));
-    const kmBtn = hasKmService ? `<button class="btn" style="padding:3px 9px;font-size:0.68rem;background:#fef9c3;color:#854d0e;margin-top:4px" title="שלח לנהג תזכורת לתיאום טיפול לפי חברת הליסינג" onclick="remindServiceScheduling('${esc(g.plate)}')">🗓️ תזכורת תיאום טיפול</button>` : '';
+    const kmBtn = hasKmService ? `<button class="btn" style="padding:3px 9px;font-size:0.68rem;background:#fef9c3;color:#854d0e" title="שלח לנהג תזכורת לתיאום טיפול לפי חברת הליסינג" onclick="remindServiceScheduling('${esc(g.plate)}')">🗓️ תזכורת תיאום טיפול</button>` : '';
     const canReq = g.alerts.some(a => { const t = String(a.type || ''); return t.includes('טיפול') || t.includes('ביטוח') || t.includes('רישוי') || t.includes('רישיון'); });
-    const reqBtn = canReq ? `<button class="btn" style="padding:3px 9px;font-size:0.68rem;background:#f0fdf4;color:#15803d;margin-top:4px" title="בקש מהעובד לצרף מסמך/אישור — הקריאה תחזור אליך לאישור" onclick="requestDocFromEmployee('${esc(g.plate)}')">📲 בקש מסמך מהעובד</button>` : '';
+    const reqBtn = canReq ? `<button class="btn" style="padding:3px 9px;font-size:0.68rem;background:#f0fdf4;color:#15803d" title="בקש מהעובד לצרף מסמך/אישור — הקריאה תחזור אליך לאישור" onclick="requestDocFromEmployee('${esc(g.plate)}')">📲 בקש מסמך מהעובד</button>` : '';
     const gVeh = VEHICLES.find(x => x.plate === g.plate);
     const scheduled = gVeh && gVeh.inspectionScheduled;
-    const inspBtns = hasInsp ? `<div style="margin-top:5px">
-        ${scheduled
+    const inspBtns = hasInsp
+      ? (scheduled
           ? `<span class="badge" style="background:#dcfce7;color:#166534;border:1px solid #86efac;font-size:0.68rem;padding:3px 8px">📅 הנהג/ת קבע/ה מועד: <b>${esc(scheduled)}</b></span>
-             <button class="btn" style="padding:2px 7px;font-size:0.64rem;background:#fee2e2;color:#b91c1c;margin-right:4px" title="ביטול המועד שנקבע" onclick="cancelInspBooking('${esc(g.plate)}')">✕ בטל מועד</button>`
-          : `<button class="btn btn-green" style="padding:3px 9px;font-size:0.68rem" title="שלח לנהג/ת תזכורת לקביעת מועד ביקורת" onclick="sendInspReminderPlate('${esc(g.plate)}')">🛡️ תזכורת ביקורת</button>`}
-      </div>` : '';
+             <button class="btn" style="padding:2px 7px;font-size:0.64rem;background:#fee2e2;color:#b91c1c" title="ביטול המועד שנקבע" onclick="cancelInspBooking('${esc(g.plate)}')">✕ בטל מועד</button>`
+          : `<button class="btn btn-green" style="padding:3px 9px;font-size:0.68rem" title="שלח לנהג/ת תזכורת לקביעת מועד ביקורת" onclick="sendInspReminderPlate('${esc(g.plate)}')">🛡️ תזכורת ביקורת</button>`)
+      : '';
     return `<tr class="${cls}">
       <td style="font-weight:700;color:var(--accent);direction:ltr;font-size:0.85rem;white-space:nowrap">${esc(g.plate)}</td>
       <td style="font-size:0.8rem;font-weight:600;white-space:nowrap">${esc(g.driver)}</td>
       <td style="padding:8px 13px">${g.alerts.map(alertBadge).join('')}</td>
-      <td style="white-space:nowrap"><button class="btn btn-gray" style="padding:3px 8px;font-size:0.7rem" onclick="editVehicle('${esc(g.plate)}')">✏️ ערוך</button>${kmBtn ? '<br>'+kmBtn : ''}${reqBtn ? '<br>'+reqBtn : ''}${missBtn ? '<br>'+missBtn : ''}${inspBtns}</td>
+      <td><div style="display:flex;flex-wrap:wrap;gap:5px;align-items:center"><button class="btn btn-gray" style="padding:3px 8px;font-size:0.7rem" onclick="editVehicle('${esc(g.plate)}')">✏️ ערוך</button>${kmBtn}${reqBtn}${missBtn}${inspBtns}</div></td>
     </tr>`;
   }).join('');
 }
