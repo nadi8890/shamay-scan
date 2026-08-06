@@ -2897,23 +2897,26 @@ async function openRestoreDeleted() {
       const tsnap = await fcol()
         .orderBy(firebase.firestore.FieldPath.documentId())
         .startAt('trash_').endAt('trash_'+'').get();
-      const trashed = tsnap.docs.map(d => d.data()).sort((a, b) => (b.deletedAt || '').localeCompare(a.deletedAt || ''));
+      const trashed = tsnap.docs.map(d => ({ id: d.id, ...d.data() }));
       for (const t of trashed) {
         const v = t.vehicle; if (!v) continue;
         const pd = String(v.plate || '').replace(/\D/g, '');
         if (!pd || have.has(pd) || seen.has(pd)) continue;
         seen.add(pd);
-        missing.push({ v, from: 'נמחק ' + (t.deletedAt || '') });
+        missing.push({ v, from: 'נמחק ' + (t.deletedAt || ''), _ts: parseInt(String(t.id || '').replace('trash_', '')) || 0 });
       }
     } catch(e) { console.log('trash read failed', e.code || e.message); }
     for (const b of backups) {
+      const bts = Date.parse(b.id.replace('backup_', '')) || 0; // תאריך הגיבוי (YYYY-MM-DD)
       for (const v of (b.vehicles || [])) {
         const pd = String(v.plate || '').replace(/\D/g, '');
         if (!pd || have.has(pd) || seen.has(pd)) continue;
         seen.add(pd);
-        missing.push({ v, from: b.id.replace('backup_', '') });
+        missing.push({ v, from: b.id.replace('backup_', ''), _ts: bts });
       }
     }
+    // מיון אחיד לפי התאריך האחרון קודם (מחיקה/גיבוי) — הכי עדכני למעלה
+    missing.sort((a, b) => (b._ts || 0) - (a._ts || 0));
     window._RESTORE = missing;
     if (!missing.length) {
       body.innerHTML = `<div style="padding:10px;color:var(--muted);font-size:0.85rem">✓ אין רכבים חסרים — הצי תואם לגיבוי האחרון (${esc(backups[0].id.replace('backup_',''))})</div>`;
