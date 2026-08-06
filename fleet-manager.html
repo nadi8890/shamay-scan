@@ -3783,7 +3783,8 @@ function remindServiceScheduling(plate) {
   if (!v) { toast('הרכב לא נמצא', true); return; }
   const nm = (v.driverName || '').split('-')[0].trim();
   const line = _serviceChannel(v.company);
-  const msg = `היי ${nm} 👋\nהרכב ${v.plate} הגיע/מתקרב למועד טיפול תקופתי — נא לתאם טיפול בהקדם:\n\n${line}\n\nלאחר הטיפול אפשר לצרף אישור דרך קישור עדכון הק"מ. תודה!\n${coSig()}`;
+  const uploadLink = `${TASK_LINK}?t=${encodeURIComponent(TENANT || 'nofar')}&plate=${encodeURIComponent(v.plate)}&type=service&req=${encodeURIComponent('אישור טיפול / מסמך רכב')}`;
+  const msg = `היי ${nm} 👋\nהרכב ${v.plate} הגיע/מתקרב למועד טיפול תקופתי — נא לתאם טיפול בהקדם:\n\n${line}\n\n📎 לצירוף אישור/מסמך (טיפול, טסט וכו') — היכנס/י לקישור:\n${uploadLink}\n\nתודה!\n${coSig()}`;
   const digits = (v.driverPhone || '').replace(/\D/g, '');
   if (digits) {
     const intl = digits.startsWith('972') ? digits : '972' + digits.replace(/^0/, '');
