@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ר.מזור — העלאת מסמך</title>
+<meta name="theme-color" content="#1e3a8a">
+<meta name="apple-mobile-web-app-title" content="ר.מזור">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;600;700;900&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Heebo',sans-serif;background:#f0f4f8;color:#1e293b;padding:16px;max-width:520px;margin:0 auto}
+.hdr{background:linear-gradient(135deg,#1e3a8a,#2563eb);color:#fff;border-radius:14px;padding:18px;text-align:center;margin-bottom:16px}
+.hdr h1{font-size:1.15rem;font-weight:900}
+.hdr .sub{font-size:0.78rem;opacity:.9;margin-top:4px}
+.card{background:#fff;border:1.5px solid #dde3ed;border-radius:14px;padding:16px;margin-bottom:14px;box-shadow:0 1px 5px rgba(0,0,0,.05)}
+.veh{background:#eff6ff;border:1.5px solid #bfdbfe;border-radius:10px;padding:12px;font-size:0.9rem;margin-bottom:12px;line-height:1.7}
+.req{background:#fff7ed;border:1.5px solid #fdba74;border-radius:10px;padding:12px;font-size:0.9rem;font-weight:700;color:#9a3412;margin-bottom:14px}
+label{display:block;font-size:0.8rem;font-weight:700;color:#475569;margin-bottom:6px}
+textarea{width:100%;border:1.5px solid #dde3ed;border-radius:10px;padding:11px;font-family:'Heebo',sans-serif;font-size:0.9rem;resize:vertical}
+.btn{border:none;border-radius:11px;padding:14px;font-family:'Heebo',sans-serif;font-size:1rem;font-weight:800;cursor:pointer;width:100%;background:#059669;color:#fff}
+.btn:disabled{opacity:.6}
+.btn-upload{background:#eef2ff;color:#3730a3;border:1.5px dashed #a5b4fc}
+.thumbs{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}
+.thumb{position:relative;width:74px;height:74px;border-radius:9px;overflow:hidden;border:1.5px solid #dde3ed;background:#f8fafc;display:flex;align-items:center;justify-content:center;font-size:0.62rem;color:#475569;text-align:center;padding:3px}
+.thumb img{width:100%;height:100%;object-fit:cover}
+.thumb button{position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;border:none;background:rgba(220,38,38,.92);color:#fff;font-size:0.72rem;line-height:1;cursor:pointer;padding:0}
+.hint{font-size:0.72rem;color:#64748b;margin-top:5px}
+.err{color:#dc2626;font-size:0.82rem;font-weight:700;margin-top:8px;display:none}
+#result{display:none;text-align:center;padding:24px 12px;position:relative}
+#result .badge{width:100px;height:100px;margin:2px auto 0;border-radius:50%;background:linear-gradient(135deg,#059669,#10b981);display:flex;align-items:center;justify-content:center;font-size:3.1rem;box-shadow:0 12px 34px rgba(16,185,129,.42);animation:badgePop .6s cubic-bezier(.17,.67,.32,1.5) both}
+#result h2{margin:16px 0 4px;font-size:1.5rem;font-weight:900;background:linear-gradient(90deg,#1e3a8a,#2563eb,#10b981);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;animation:doneUp .5s .1s both}
+#result .done-sub{color:#475569;font-size:0.9rem;animation:doneUp .5s .2s both;line-height:1.6}
+@keyframes badgePop{0%{transform:scale(0) rotate(-25deg);opacity:0}70%{transform:scale(1.12) rotate(6deg)}100%{transform:scale(1) rotate(0);opacity:1}}
+@keyframes doneUp{0%{opacity:0;transform:translateY(14px)}100%{opacity:1;transform:translateY(0)}}
+#confetti-layer{position:fixed;inset:0;pointer-events:none;overflow:hidden;z-index:9999}
+#confetti-layer i{position:absolute;top:-14px;width:9px;height:15px;border-radius:2px;opacity:0;animation:confFall linear forwards}
+@keyframes confFall{0%{opacity:1;transform:translateY(-14px) rotate(0)}100%{opacity:.85;transform:translateY(112vh) rotate(760deg)}}
+.loading{text-align:center;padding:30px;color:#64748b}
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <h1>📎 העלאת מסמך</h1>
+  <div class="sub">ר.מזור — מחלקת הרכב</div>
+</div>
+
+<div id="loading" class="loading">טוען…</div>
+
+<div id="main-card" class="card" style="display:none">
+  <div class="veh" id="veh-info"></div>
+  <div class="req" id="req-info"></div>
+
+  <label>צרף/י מסמך (צילום או קובץ PDF) — אפשר כמה</label>
+  <button type="button" class="btn btn-upload" onclick="document.getElementById('file-inp').click()">📷 צלם / בחר קובץ</button>
+  <input id="file-inp" type="file" accept="image/*,application/pdf" multiple capture="environment" style="display:none" onchange="onFiles(this.files)">
+  <div class="thumbs" id="thumbs"></div>
+  <div class="hint" id="size-hint"></div>
+
+  <label style="margin-top:12px">הערה (אופציונלי)</label>
+  <textarea id="note" rows="3" placeholder="למשל: הטיפול בוצע במוסך X בתאריך ..."></textarea>
+
+  <div class="err" id="err"></div>
+  <button class="btn" style="margin-top:14px" id="send-btn" onclick="submitTask()">✅ שליחה וסגירת הקריאה</button>
+</div>
+
+<div id="result">
+  <div class="badge" id="done-badge">🎉</div>
+  <h2 id="done-title">כל הכבוד!</h2>
+  <p class="done-sub" id="done-sub">המסמך נשלח בהצלחה לבדיקת מחלקת הרכב.<br>אפשר לסגור את החלון — הקריאה טופלה ✅</p>
+</div>
+
+<script>
+firebase.initializeApp({
+  apiKey: "AIzaSyDW6mzShTVBgHH-c5f0hb7FvIRophpgp78",
+  authDomain: "niholrechev.firebaseapp.com",
+  projectId: "niholrechev",
+  storageBucket: "niholrechev.firebasestorage.app",
+  messagingSenderId: "347809967171",
+  appId: "1:347809967171:web:af3eb5cdeefc827b41f8f6"
+});
+const db = firebase.firestore();
+async function ensureAnonAuth() {
+  try {
+    if (firebase.auth().currentUser) return;
+    try { await firebase.auth().setPersistence(firebase.auth.Auth.Persistence.NONE); } catch(e) {}
+    await firebase.auth().signInAnonymously();
+  } catch(e) { console.log('anon auth unavailable, continuing', e.code || e.message); }
+}
+const params = new URLSearchParams(location.search);
+const TENANT = (params.get('t') || 'nofar');
+const fcol = () => db.collection('tenants').doc(TENANT).collection('data');
+const PLATE = (params.get('plate') || '').trim();
+const REQ_TYPE = (params.get('type') || 'general').trim();
+const REQ_LABEL = (params.get('req') || '').trim();
+const LABELS = { service:'טיפול תקופתי', insurance:'ביטוח חובה', registration:'רישוי (טסט)', license:'רישיון נהיגה', general:'דרישת מחלקת הרכב' };
+/* Firestore rules: anonymous drivers must be allowed to create req_* docs — see firestore-rules-hardened.rules */
+function reqLabel() { return REQ_LABEL || LABELS[REQ_TYPE] || LABELS.general; }
+
+let VEH = null;
+const FILES = []; // {kind:'image'|'pdf', name, data(base64 no prefix), mime, previewUrl}
+const MAX_TOTAL = 900 * 1024; // ~900KB — נשאר מתחת למגבלת המסמך של פיירסטור (1MB)
+
+(async function init() {
+  await ensureAnonAuth();
+  try {
+    const snap = await fcol().doc('main').get();
+    const d = snap.data() || {};
+    const vehicles = d.vehicles || [];
+    VEH = vehicles.find(v => String(v.plate||'').replace(/\D/g,'') === PLATE.replace(/\D/g,'')) || null;
+  } catch(e) { console.log('main read failed', e.code || e.message); }
+  document.getElementById('loading').style.display = 'none';
+  document.getElementById('main-card').style.display = 'block';
+  const drv = VEH ? (VEH.driverName || '').split('-')[0].trim() : '';
+  document.getElementById('veh-info').innerHTML = VEH
+    ? `🚗 <b>${esc(VEH.make||'')} ${esc(VEH.model||'')}</b> · <span dir="ltr">${esc(VEH.plate)}</span>${drv ? `<br>נהג/ת: <b>${esc(drv)}</b>` : ''}`
+    : `🚗 רכב <span dir="ltr">${esc(PLATE)}</span>`;
+  document.getElementById('req-info').innerHTML = `נדרש: ${esc(reqLabel())}`;
+})();
+
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+function fmtSize(n){ return n < 1024*1024 ? Math.round(n/1024)+' KB' : (n/1048576).toFixed(1)+' MB'; }
+function totalBytes(){ return FILES.reduce((s,f)=> s + Math.ceil(f.data.length*0.75), 0); }
+function refreshHint(){
+  const el = document.getElementById('size-hint');
+  if (!FILES.length) { el.textContent = 'אפשר לצלם קבלה/אישור או להעלות PDF.'; return; }
+  const t = totalBytes();
+  el.textContent = `${FILES.length} קבצים · ${fmtSize(t)}` + (t > MAX_TOTAL ? ' — גדול מדי, הסר/החלף קובץ' : '');
+  el.style.color = t > MAX_TOTAL ? '#dc2626' : '#64748b';
+}
+
+// דחיסת תמונה דרך canvas לגודל סביר
+function compressImage(file){
+  return new Promise((res, rej) => {
+    const fr = new FileReader();
+    fr.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const max = 1400;
+        let { width:w, height:h } = img;
+        if (w > max || h > max){ const r = Math.min(max/w, max/h); w = Math.round(w*r); h = Math.round(h*r); }
+        const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+        cv.getContext('2d').drawImage(img, 0, 0, w, h);
+        const dataUrl = cv.toDataURL('image/jpeg', 0.6);
+        res({ kind:'image', name:file.name||'photo.jpg', mime:'image/jpeg', data:dataUrl.split(',')[1], previewUrl:dataUrl });
+      };
+      img.onerror = rej; img.src = fr.result;
+    };
+    fr.onerror = rej; fr.readAsDataURL(file);
+  });
+}
+function readPdf(file){
+  return new Promise((res, rej) => {
+    const fr = new FileReader();
+    fr.onload = () => res({ kind:'pdf', name:file.name||'document.pdf', mime:'application/pdf', data:String(fr.result).split(',')[1], previewUrl:null });
+    fr.onerror = rej; fr.readAsDataURL(file);
+  });
+}
+async function onFiles(list){
+  const arr = Array.from(list || []);
+  for (const file of arr){
+    if (FILES.length >= 6){ showErr('אפשר עד 6 קבצים'); break; }
+    try {
+      const item = file.type === 'application/pdf' ? await readPdf(file) : await compressImage(file);
+      FILES.push(item);
+    } catch(e){ showErr('קובץ לא נתמך: ' + (file.name||'')); }
+  }
+  document.getElementById('file-inp').value = '';
+  renderThumbs(); refreshHint();
+}
+function renderThumbs(){
+  document.getElementById('thumbs').innerHTML = FILES.map((f,i) =>
+    `<div class="thumb">${f.kind==='image' ? `<img src="${f.previewUrl}">` : `📄<br>${esc((f.name||'PDF').slice(0,14))}`}<button onclick="removeFile(${i})">✕</button></div>`
+  ).join('');
+}
+function removeFile(i){ FILES.splice(i,1); renderThumbs(); refreshHint(); }
+function showErr(m){ const e = document.getElementById('err'); e.textContent = m; e.style.display = 'block'; }
+
+async function submitTask(){
+  const err = document.getElementById('err'); err.style.display = 'none';
+  if (!FILES.length){ showErr('נא לצרף לפחות מסמך אחד'); return; }
+  if (totalBytes() > MAX_TOTAL){ showErr('הקבצים גדולים מדי (מעל ~900KB). הסר/החלף קובץ או צלם באיכות נמוכה יותר.'); return; }
+  const btn = document.getElementById('send-btn'); btn.disabled = true; btn.textContent = 'שולח…';
+  const drv = VEH ? (VEH.driverName || '').split('-')[0].trim() : '';
+  const created = Date.now();
+  const rec = {
+    type: 'requirement',
+    reqType: REQ_TYPE,
+    reqLabel: reqLabel(),
+    plate: VEH ? VEH.plate : PLATE,
+    driver: drv,
+    note: (document.getElementById('note').value || '').trim(),
+    files: FILES.map(f => ({ name:f.name, mime:f.mime, kind:f.kind, base64:f.data })),
+    status: 'pending',
+    created,
+    dateStr: new Date(created).toLocaleDateString('he-IL'),
+    scanned:false, applied:false
+  };
+  try {
+    await fcol().doc('req_' + created).set(rec);
+    document.getElementById('main-card').style.display = 'none';
+    document.getElementById('result').style.display = 'block';
+    celebrate(drv);
+  } catch(e){
+    btn.disabled = false; btn.textContent = '✅ שליחה וסגירת הקריאה';
+    showErr('שגיאה בשליחה — בדוק/י חיבור לאינטרנט ונסה/י שוב');
+    console.log('submit error', e);
+  }
+}
+
+// מסך סיום חגיגי
+function celebrate(name){
+  const first = String(name||'').trim().split(/[\s\-]/)[0] || '';
+  const cheers = [
+    { e:'🎉', t: first ? `כל הכבוד, ${first}!` : 'כל הכבוד!' },
+    { e:'💪', t: first ? `אין עליך, ${first}!` : 'אין עליך!' },
+    { e:'✨', t: 'מושלם!' },
+    { e:'🏆', t: 'עבודה מצוינת!' },
+    { e:'👏', t: first ? `יישר כוח, ${first}!` : 'יישר כוח!' }
+  ];
+  const p = cheers[Math.floor(Math.random()*cheers.length)];
+  document.getElementById('done-badge').textContent = p.e;
+  document.getElementById('done-title').textContent = p.t;
+  _confetti();
+}
+function _confetti(){
+  let layer = document.getElementById('confetti-layer'); if (layer) layer.remove();
+  layer = document.createElement('div'); layer.id = 'confetti-layer';
+  const colors = ['#f59e0b','#10b981','#2563eb','#ef4444','#8b5cf6','#ec4899','#14b8a6'];
+  for (let i=0;i<80;i++){ const c=document.createElement('i');
+    c.style.left = Math.random()*100+'vw'; c.style.background = colors[i%colors.length];
+    c.style.animationDuration = (2.2+Math.random()*1.8)+'s'; c.style.animationDelay = (Math.random()*0.5)+'s';
+    if (Math.random()<0.5) c.style.borderRadius='50%'; c.style.transform = `scale(${0.7+Math.random()*0.9})`;
+    layer.appendChild(c); }
+  document.body.appendChild(layer); setTimeout(()=>layer.remove(), 4600);
+}
+</script>
+</body>
+</html>

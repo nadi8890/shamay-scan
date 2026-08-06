@@ -588,6 +588,11 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
     <div style="font-weight:800;font-size:0.9rem">🛣️ תחילת חודש — זמן לשלוח סבב עדכון ק"מ לנהגים!</div>
     <button class="btn" style="background:#fff;color:#4f46e5;padding:6px 14px;font-size:0.8rem;font-weight:800" onclick="sendKmRoundToDrivers()">📲 שלח לנהגים עכשיו</button>
   </div>
+  <div id="pending-reqs" style="display:none;margin-bottom:14px;background:#f0fdf4;border:1.5px solid #86efac;border-radius:12px;padding:12px 14px">
+    <div class="section-hdr" style="margin-bottom:8px"><div style="display:flex;align-items:center;gap:8px"><span class="section-title" style="color:#166534">📥 קריאות לאישור</span><span class="count-badge" id="pending-count" style="background:#16a34a">0</span></div>
+      <button class="btn btn-gray" style="padding:3px 10px;font-size:0.7rem" onclick="loadPendingRequests()" title="רענן">🔄</button></div>
+    <div id="pending-list"></div>
+  </div>
   <div class="stats-row" id="stats-row" style="margin-bottom:14px"></div>
   <div class="section-hdr">
     <div style="display:flex;align-items:center;gap:8px">
@@ -1861,7 +1866,7 @@ function showTab(name, btn) {
     const fst = document.getElementById('fleet-status'); if (fst) fst.value = '';
     renderFleet();
   }
-  if (name==='alerts') renderAlerts();
+  if (name==='alerts') { renderAlerts(); loadPendingRequests(); }
   if (name==='incidents') renderIncidents();
   if (name==='violations') { renderViolations(); buildViolColFilterRow(); }
   if (name==='invoices') { renderInvoices(); buildInvColFilterRow(); }
@@ -3723,6 +3728,8 @@ function renderAlerts() {
     const missBtn = hasDoc ? `<button class="btn" style="padding:3px 9px;font-size:0.68rem;background:#eef2ff;color:#4338ca;margin-top:4px" title="שליחת התראה על מסמכים חסרים/פגים לאיש קשר במייל" onclick="mailDocAlerts('${esc(g.plate)}')">📧 שלח לאיש קשר</button>` : '';
     const hasKmService = g.alerts.some(a => String(a.type || '').includes('טיפול'));
     const kmBtn = hasKmService ? `<button class="btn" style="padding:3px 9px;font-size:0.68rem;background:#ecfeff;color:#0e7490;margin-top:4px" title="עדכון ק&quot;מ נוכחי ידני / רישום ביצוע טיפול" onclick="alertUpdateKm('${esc(g.plate)}')">🔧 עדכן ק&quot;מ / טיפול</button>` : '';
+    const canReq = g.alerts.some(a => { const t = String(a.type || ''); return t.includes('טיפול') || t.includes('ביטוח') || t.includes('רישוי') || t.includes('רישיון'); });
+    const reqBtn = canReq ? `<button class="btn" style="padding:3px 9px;font-size:0.68rem;background:#f0fdf4;color:#15803d;margin-top:4px" title="בקש מהעובד לצרף מסמך/אישור — הקריאה תחזור אליך לאישור" onclick="requestDocFromEmployee('${esc(g.plate)}')">📲 בקש מסמך מהעובד</button>` : '';
     const gVeh = VEHICLES.find(x => x.plate === g.plate);
     const scheduled = gVeh && gVeh.inspectionScheduled;
     const inspBtns = hasInsp ? `<div style="margin-top:5px">
@@ -3735,7 +3742,7 @@ function renderAlerts() {
       <td style="font-weight:700;color:var(--accent);direction:ltr;font-size:0.85rem;white-space:nowrap">${esc(g.plate)}</td>
       <td style="font-size:0.8rem;font-weight:600;white-space:nowrap">${esc(g.driver)}</td>
       <td style="padding:8px 13px">${g.alerts.map(alertBadge).join('')}</td>
-      <td style="white-space:nowrap"><button class="btn btn-gray" style="padding:3px 8px;font-size:0.7rem" onclick="editVehicle('${esc(g.plate)}')">✏️ ערוך</button>${kmBtn ? '<br>'+kmBtn : ''}${missBtn ? '<br>'+missBtn : ''}${inspBtns}</td>
+      <td style="white-space:nowrap"><button class="btn btn-gray" style="padding:3px 8px;font-size:0.7rem" onclick="editVehicle('${esc(g.plate)}')">✏️ ערוך</button>${kmBtn ? '<br>'+kmBtn : ''}${reqBtn ? '<br>'+reqBtn : ''}${missBtn ? '<br>'+missBtn : ''}${inspBtns}</td>
     </tr>`;
   }).join('');
 }
@@ -3758,6 +3765,108 @@ function alertUpdateKm(plate) {
   saveVehiclesSafely(v.plate, null, v.plate);
   renderAlerts(); renderFleet(); renderDashboard(); loadKmRound();
   toast('עודכן ✓');
+}
+
+// ═══ קריאות לעובד: בקשת מסמך + מגירת אישורים (טיפול/ביטוח/רישוי/רישיון — לא ביקורת) ═══
+const TASK_LINK = 'https://nadi8890.github.io/shamay-scan/driver-task.html';
+const _REQ_LABELS = { service:'טיפול תקופתי', insurance:'ביטוח חובה', registration:'רישוי (טסט)', license:'רישיון נהיגה' };
+function _alertReqType(a) {
+  const t = String(a.type || '');
+  if (t.includes('טיפול')) return 'service';
+  if (t.includes('ביטוח')) return 'insurance';
+  if (t.includes('רישוי')) return 'registration';
+  if (t.includes('רישיון')) return 'license';
+  return null; // ביקורת בטיחות ואחרים — לא נשלחים לעובד
+}
+function requestDocFromEmployee(plate) {
+  const v = VEHICLES.find(x => x.plate === plate);
+  if (!v) { toast('הרכב לא נמצא', true); return; }
+  const mine = buildDynamicAlerts().filter(a => a.plate === plate);
+  const types = [], items = [];
+  mine.forEach(a => { const rt = _alertReqType(a); if (rt && !types.includes(rt)) { types.push(rt); items.push(_REQ_LABELS[rt]); } });
+  if (!types.length) { toast('אין דרישה מתאימה לשליחה לעובד', true); return; }
+  const primary = types.includes('service') ? 'service' : (types.length === 1 ? types[0] : 'general');
+  const label = items.join(' + ');
+  const nm = (v.driverName || '').split('-')[0].trim();
+  const link = `${TASK_LINK}?t=${encodeURIComponent(TENANT || 'nofar')}&plate=${encodeURIComponent(v.plate)}&type=${encodeURIComponent(primary)}&req=${encodeURIComponent(label)}`;
+  const msg = `היי ${nm} 👋\nנדרש מסמך/אישור עבור הרכב ${v.plate}:\n• ${items.join('\n• ')}\n\nנא להיכנס לקישור, לצרף צילום/מסמך ולשלוח (דקה):\n${link}\n\nתודה!\n${coSig()}`;
+  const digits = (v.driverPhone || '').replace(/\D/g, '');
+  if (digits) {
+    const intl = digits.startsWith('972') ? digits : '972' + digits.replace(/^0/, '');
+    window.open('https://wa.me/' + intl + '?text=' + encodeURIComponent(msg), '_blank');
+  } else {
+    try { if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(msg); } catch(e) {}
+    window.open('https://wa.me/?text=' + encodeURIComponent(msg), '_blank');
+    toast('אין נייד שמור — ההודעה הועתקה, בחר צ\'אט בוואטסאפ');
+  }
+}
+let PENDING_REQS = [];
+async function loadPendingRequests() {
+  const box = document.getElementById('pending-reqs'); if (!box) return;
+  let items = [];
+  try { items = await readDriverDocs('requirement'); } catch(e) { console.log('load reqs', e); }
+  PENDING_REQS = items.filter(r => (r.status || 'pending') === 'pending').sort((a, b) => (b.created || 0) - (a.created || 0));
+  const cnt = document.getElementById('pending-count'); if (cnt) cnt.textContent = PENDING_REQS.length;
+  if (!PENDING_REQS.length) { box.style.display = 'none'; return; }
+  box.style.display = 'block';
+  document.getElementById('pending-list').innerHTML = PENDING_REQS.map(r => {
+    const files = r.files || [];
+    const fileBtns = files.map((f, i) => `<button class="btn btn-gray" style="padding:2px 8px;font-size:0.68rem;margin:2px 3px 2px 0" onclick="viewReqFile('${esc(r._docId)}',${i})">${f.kind === 'pdf' ? '📄' : '🖼️'} ${esc((f.name || ('קובץ ' + (i + 1))).slice(0, 16))}</button>`).join('');
+    return `<div style="background:#fff;border:1px solid #d1fae5;border-radius:11px;padding:11px 13px;margin-bottom:9px">
+      <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px;align-items:center">
+        <div style="font-size:0.85rem"><b style="direction:ltr">${esc(r.plate)}</b>${r.driver ? ` · ${esc(r.driver)}` : ''} <span style="font-size:0.7rem;color:#64748b">· ${esc(r.dateStr || '')}</span></div>
+        <span class="badge" style="background:#fff7ed;color:#9a3412;border:1px solid #fdba74;font-size:0.7rem;padding:2px 9px">${esc(r.reqLabel || 'דרישה')}</span>
+      </div>
+      ${r.note ? `<div style="font-size:0.8rem;color:#334155;margin-top:6px">📝 ${esc(r.note)}</div>` : ''}
+      <div style="margin-top:8px">${fileBtns || '<span style="font-size:0.72rem;color:#94a3b8">אין קבצים</span>'}</div>
+      <div style="margin-top:9px;display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-green" style="padding:5px 12px;font-size:0.74rem" onclick="approveRequest('${esc(r._docId)}')">✅ אשר וסגור</button>
+        <button class="btn" style="padding:5px 12px;font-size:0.74rem;background:#fee2e2;color:#b91c1c" onclick="rejectRequest('${esc(r._docId)}')">❌ דחה</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+function viewReqFile(id, idx) {
+  const r = PENDING_REQS.find(x => x._docId === id); if (!r) return;
+  const f = (r.files || [])[idx]; if (!f || !f.base64) { toast('הקובץ לא זמין', true); return; }
+  try {
+    const bin = atob(f.base64); const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    const blob = new Blob([bytes], { type: f.mime || 'application/octet-stream' });
+    const url = URL.createObjectURL(blob); window.open(url, '_blank');
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  } catch(e) { toast('שגיאה בפתיחת הקובץ', true); }
+}
+async function approveRequest(id) {
+  const r = PENDING_REQS.find(x => x._docId === id); if (!r) return;
+  let markService = false;
+  if (r.reqType === 'service') {
+    markService = confirm(`אישור קריאת טיפול — רכב ${r.plate}\n\nאישור = לרשום שהטיפול בוצע (טיפול הבא +15,000 ק"מ, תאריך טיפול = היום) ולסגור את הקריאה.\nביטול = לא לאשר כרגע.`);
+    if (!markService) return;
+  } else {
+    if (!confirm(`לאשר ולסגור את הקריאה של ${r.plate} (${r.reqLabel || ''})?`)) return;
+  }
+  try {
+    if (r._ref) await r._ref.set({ status: 'approved', closedAt: Date.now() }, { merge: true });
+    if (markService) {
+      const v = VEHICLES.find(x => String(x.plate).trim() === String(r.plate).trim());
+      if (v) {
+        const base = parseKm(v.currentKm) || parseKm(v.nextServiceKm) || 0;
+        v.nextServiceKm = String(base + 15000);
+        const _t = new Date();
+        v.serviceDate = ('0' + _t.getDate()).slice(-2) + '/' + ('0' + (_t.getMonth() + 1)).slice(-2) + '/' + _t.getFullYear();
+        saveVehiclesSafely(v.plate, null, v.plate);
+      }
+    }
+    toast('הקריאה אושרה ונסגרה ✓');
+    loadPendingRequests(); renderAlerts(); renderFleet(); renderDashboard();
+  } catch(e) { toast('שגיאה באישור', true); console.log(e); }
+}
+async function rejectRequest(id) {
+  const r = PENDING_REQS.find(x => x._docId === id); if (!r) return;
+  if (!confirm(`לדחות את הקריאה של ${r.plate}? (תסומן כנדחתה; אפשר לבקש מהעובד לשלוח מחדש)`)) return;
+  try { if (r._ref) await r._ref.set({ status: 'rejected', closedAt: Date.now() }, { merge: true }); toast('הקריאה נדחתה'); loadPendingRequests(); }
+  catch(e) { toast('שגיאה', true); }
 }
 
 // ═══ DOCUMENT-ALERT EMAIL (missing OR expiring documents) ═══
