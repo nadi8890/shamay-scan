@@ -3777,7 +3777,8 @@ function _serviceChannel(company) {
   const c = String(company || '');
   if (c.includes('הרץ')) return '📞 חייג/י למוקד הרץ לתיאום טיפול: *3113';
   if (c.includes('שלמה') || c.includes('סיקסט')) return '📞 חייג/י למוקד שלמה סיקסט לתיאום טיפול: *6603';
-  if (c.includes('ליסקאר') || c.includes('נופר')) return '🔧 יש לתאם טיפול דרך אחד המוסכים המורשים של החברה.';
+  if (c.includes('נופר')) return '🔧 תיאום טיפול דרך מוסך מורשה, בתיאום מול מחלקת הרכב.';
+  if (c.includes('ליסקאר')) return '🔧 תיאום טיפול דרך אחד המוסכים המורשים.';
   return '🔧 נא לתאם טיפול מול מחלקת הרכב.';
 }
 function remindServiceScheduling(plate) {
