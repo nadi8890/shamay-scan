@@ -71,6 +71,18 @@ input{width:100%;border:1.5px solid #dde3ed;border-radius:10px;padding:12px;font
   <h2 id="km-title">כל הכבוד!</h2>
   <p class="done-sub" id="km-sub">הקילומטראז' עודכן בהצלחה במערכת.</p>
   <div id="service-status"></div>
+
+  <div id="service-upload" style="display:none;margin-top:16px;text-align:right;background:#fff;border:1.5px solid #fdba74;border-radius:12px;padding:14px">
+    <div style="font-weight:800;color:#9a3412;font-size:0.92rem;margin-bottom:5px">כבר ביצעת את הטיפול? ✅</div>
+    <div style="font-size:0.8rem;color:#475569;margin-bottom:11px;line-height:1.5">צרף/י אישור / חשבונית טיפול — היא תישלח ישירות למחלקת הרכב לאישור וסגירה.</div>
+    <button type="button" class="btn" style="background:#eef2ff;color:#3730a3;border:1.5px dashed #a5b4fc" onclick="document.getElementById('svc-file').click()">📷 צלם / בחר קובץ</button>
+    <input id="svc-file" type="file" accept="image/*,application/pdf" multiple capture="environment" style="display:none" onchange="onSvcFiles(this.files)">
+    <div id="svc-thumbs" style="display:flex;flex-wrap:wrap;gap:8px;margin:11px 0"></div>
+    <textarea id="svc-note" rows="2" placeholder="הערה (אופציונלי): שם המוסך, תאריך הטיפול..." style="width:100%;border:1.5px solid #dde3ed;border-radius:10px;padding:10px;font-family:'Heebo',sans-serif;font-size:0.88rem;resize:vertical"></textarea>
+    <div class="err" id="svc-err" style="display:none"></div>
+    <button class="btn" id="svc-send" style="margin-top:11px" onclick="submitServiceDoc()">📤 שלח אישור טיפול למחלקת הרכב</button>
+  </div>
+  <div id="svc-done" style="display:none;margin-top:16px;background:#ecfdf5;border:1.5px solid #86efac;border-radius:12px;padding:16px;font-weight:800;color:#047857">✅ האישור נשלח למחלקת הרכב — תודה!</div>
 </div>
 
 <script>
@@ -218,11 +230,72 @@ async function submitKm() {
     document.getElementById('step-km').style.display = 'none';
     document.getElementById('result').style.display = 'block';
     celebrate((VEH.driverName||'').split('-')[0].trim());
+    // חריגת טיפול — לאפשר לעובד לצרף אישור טיפול שיישלח למחלקת הרכב (מייל + מגירת אישורים)
+    window._svcKm = km;
+    if (serviceDue || serviceSoon) document.getElementById('service-upload').style.display = 'block';
   } catch(e) {
     btn.disabled = false; btn.textContent = '✅ עדכן קילומטראז\'';
     err.textContent = 'שגיאה בשליחה — בדוק/י חיבור לאינטרנט ונסה/י שוב';
     err.style.display = 'block';
   }
+}
+
+// ═══ צירוף אישור טיפול (בחריגת טיפול) — נשלח למחלקת הרכב במייל + נכנס למגירת הקריאות ═══
+const SVC_FILES = [];
+const SVC_MAX = 900 * 1024;
+function _svcBytes(){ return SVC_FILES.reduce((s,f)=> s + Math.ceil(f.data.length*0.75), 0); }
+function _svcCompress(file){
+  return new Promise((res,rej)=>{
+    const fr = new FileReader();
+    fr.onload = () => { const img = new Image();
+      img.onload = () => { const max=1400; let w=img.width,h=img.height;
+        if(w>max||h>max){ const r=Math.min(max/w,max/h); w=Math.round(w*r); h=Math.round(h*r); }
+        const cv=document.createElement('canvas'); cv.width=w; cv.height=h; cv.getContext('2d').drawImage(img,0,0,w,h);
+        const u=cv.toDataURL('image/jpeg',0.6); res({kind:'image',name:file.name||'photo.jpg',mime:'image/jpeg',data:u.split(',')[1],preview:u}); };
+      img.onerror=rej; img.src=fr.result; };
+    fr.onerror=rej; fr.readAsDataURL(file);
+  });
+}
+function _svcPdf(file){ return new Promise((res,rej)=>{ const fr=new FileReader(); fr.onload=()=>res({kind:'pdf',name:file.name||'document.pdf',mime:'application/pdf',data:String(fr.result).split(',')[1],preview:null}); fr.onerror=rej; fr.readAsDataURL(file); }); }
+async function onSvcFiles(list){
+  for(const file of Array.from(list||[])){
+    if(SVC_FILES.length>=5){ _svcErr('אפשר עד 5 קבצים'); break; }
+    try { SVC_FILES.push(file.type==='application/pdf' ? await _svcPdf(file) : await _svcCompress(file)); } catch(e){ _svcErr('קובץ לא נתמך'); }
+  }
+  document.getElementById('svc-file').value='';
+  _svcThumbs();
+}
+function _svcThumbs(){
+  document.getElementById('svc-thumbs').innerHTML = SVC_FILES.map((f,i)=>
+    `<div style="position:relative;width:70px;height:70px;border-radius:9px;overflow:hidden;border:1.5px solid #dde3ed;background:#f8fafc;display:flex;align-items:center;justify-content:center;font-size:0.6rem;color:#475569;text-align:center;padding:3px">${f.kind==='image'?`<img src="${f.preview}" style="width:100%;height:100%;object-fit:cover">`:'📄 PDF'}<button onclick="_svcRemove(${i})" style="position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;border:none;background:rgba(220,38,38,.92);color:#fff;font-size:0.7rem;line-height:1;cursor:pointer;padding:0">✕</button></div>`
+  ).join('');
+}
+function _svcRemove(i){ SVC_FILES.splice(i,1); _svcThumbs(); }
+function _svcErr(m){ const e=document.getElementById('svc-err'); e.textContent=m; e.style.display='block'; }
+async function submitServiceDoc(){
+  const e=document.getElementById('svc-err'); e.style.display='none';
+  if(!SVC_FILES.length){ _svcErr('נא לצרף לפחות קובץ אחד'); return; }
+  if(_svcBytes()>SVC_MAX){ _svcErr('הקבצים גדולים מדי (~900KB). צלם/י באיכות נמוכה יותר או הסר/י קובץ.'); return; }
+  const btn=document.getElementById('svc-send'); btn.disabled=true; btn.textContent='שולח…';
+  const drv=(VEH.driverName||'').split('-')[0].trim();
+  const note=(document.getElementById('svc-note').value||'').trim();
+  const created=Date.now();
+  const rec={ type:'requirement', reqType:'service', reqLabel:'אישור טיפול תקופתי', plate:VEH.plate, driver:drv,
+    note, files:SVC_FILES.map(f=>({name:f.name,mime:f.mime,kind:f.kind,base64:f.data})),
+    status:'pending', created, dateStr:new Date(created).toLocaleDateString('he-IL'), km:String(window._svcKm||''), scanned:false, applied:false };
+  try {
+    await fcol().doc('req_'+created).set(rec);
+    if(MAIL.gasUrl){
+      try {
+        await fetch(MAIL.gasUrl,{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain'},
+          body:JSON.stringify({ subject:`🔧 אישור טיפול — רכב ${VEH.plate} (${drv})`,
+            body:`${drv} צירף/ה אישור טיפול לרכב ${VEH.make||''} ${VEH.model||''} (${VEH.plate}).\nק"מ נוכחי: ${(window._svcKm||0).toLocaleString()}\n${note?('הערה: '+note+'\n'):''}\nהקריאה ממתינה לאישור במסך ההתראות ← קריאות לאישור.`,
+            files:SVC_FILES.map((f,i)=>({ base64:f.data, mimeType:f.mime, filename:f.name||('svc'+(i+1)+(f.kind==='pdf'?'.pdf':'.jpg')) })) }) });
+      } catch(err){}
+    }
+    document.getElementById('service-upload').style.display='none';
+    document.getElementById('svc-done').style.display='block';
+  } catch(err){ btn.disabled=false; btn.textContent='📤 שלח אישור טיפול למחלקת הרכב'; _svcErr('שגיאה בשליחה — בדוק/י חיבור ונסה/י שוב'); console.log(err); }
 }
 
 // ═══ הודעת מערכת חגיגית לעובד בסיום עדכון הק"מ ═══
