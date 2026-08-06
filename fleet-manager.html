@@ -3732,7 +3732,7 @@ function renderAlerts() {
     const hasDoc = g.alerts.some(a => a.missing || DOC_ALERT_TYPES.includes(a.type));
     const missBtn = hasDoc ? `<button class="btn" style="padding:3px 9px;font-size:0.68rem;background:#eef2ff;color:#4338ca;margin-top:4px" title="שליחת התראה על מסמכים חסרים/פגים לאיש קשר במייל" onclick="mailDocAlerts('${esc(g.plate)}')">📧 שלח לאיש קשר</button>` : '';
     const hasKmService = g.alerts.some(a => String(a.type || '').includes('טיפול'));
-    const kmBtn = hasKmService ? `<button class="btn" style="padding:3px 9px;font-size:0.68rem;background:#ecfeff;color:#0e7490;margin-top:4px" title="עדכון ק&quot;מ נוכחי ידני / רישום ביצוע טיפול" onclick="alertUpdateKm('${esc(g.plate)}')">🔧 עדכן ק&quot;מ / טיפול</button>` : '';
+    const kmBtn = hasKmService ? `<button class="btn" style="padding:3px 9px;font-size:0.68rem;background:#fef9c3;color:#854d0e;margin-top:4px" title="שלח לנהג תזכורת לתיאום טיפול לפי חברת הליסינג" onclick="remindServiceScheduling('${esc(g.plate)}')">🗓️ תזכורת תיאום טיפול</button>` : '';
     const canReq = g.alerts.some(a => { const t = String(a.type || ''); return t.includes('טיפול') || t.includes('ביטוח') || t.includes('רישוי') || t.includes('רישיון'); });
     const reqBtn = canReq ? `<button class="btn" style="padding:3px 9px;font-size:0.68rem;background:#f0fdf4;color:#15803d;margin-top:4px" title="בקש מהעובד לצרף מסמך/אישור — הקריאה תחזור אליך לאישור" onclick="requestDocFromEmployee('${esc(g.plate)}')">📲 בקש מסמך מהעובד</button>` : '';
     const gVeh = VEHICLES.find(x => x.plate === g.plate);
@@ -3770,6 +3770,31 @@ function alertUpdateKm(plate) {
   saveVehiclesSafely(v.plate, null, v.plate);
   renderAlerts(); renderFleet(); renderDashboard(); loadKmRound();
   toast('עודכן ✓');
+}
+
+// ═══ תזכורת לתיאום טיפול לפי חברת הליסינג של הרכב ═══
+function _serviceChannel(company) {
+  const c = String(company || '');
+  if (c.includes('הרץ')) return '📞 חייג/י למוקד הרץ לתיאום טיפול: *3113';
+  if (c.includes('שלמה') || c.includes('סיקסט')) return '📞 חייג/י למוקד שלמה סיקסט לתיאום טיפול: *6603';
+  if (c.includes('ליסקאר') || c.includes('נופר')) return '🔧 יש לתאם טיפול דרך אחד המוסכים המורשים של החברה.';
+  return '🔧 נא לתאם טיפול מול מחלקת הרכב.';
+}
+function remindServiceScheduling(plate) {
+  const v = VEHICLES.find(x => x.plate === plate);
+  if (!v) { toast('הרכב לא נמצא', true); return; }
+  const nm = (v.driverName || '').split('-')[0].trim();
+  const line = _serviceChannel(v.company);
+  const msg = `היי ${nm} 👋\nהרכב ${v.plate} הגיע/מתקרב למועד טיפול תקופתי — נא לתאם טיפול בהקדם:\n\n${line}\n\nלאחר הטיפול אפשר לצרף אישור דרך קישור עדכון הק"מ. תודה!\n${coSig()}`;
+  const digits = (v.driverPhone || '').replace(/\D/g, '');
+  if (digits) {
+    const intl = digits.startsWith('972') ? digits : '972' + digits.replace(/^0/, '');
+    window.open('https://wa.me/' + intl + '?text=' + encodeURIComponent(msg), '_blank');
+  } else {
+    try { if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(msg); } catch(e) {}
+    window.open('https://wa.me/?text=' + encodeURIComponent(msg), '_blank');
+    toast('אין נייד שמור — ההודעה הועתקה, בחר צ\'אט בוואטסאפ');
+  }
 }
 
 // ═══ קריאות לעובד: בקשת מסמך + מגירת אישורים (טיפול/ביטוח/רישוי/רישיון — לא ביקורת) ═══
