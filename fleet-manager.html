@@ -1046,8 +1046,8 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
   <div class="modal">
     <h3 id="incident-modal-title">+ הוסף אירוע</h3>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-      <div class="modal-row"><label>מס׳ רישוי</label><input id="im-plate" type="text" placeholder="12345678"></div>
-      <div class="modal-row"><label>שם הנהג</label><input id="im-driver" type="text"></div>
+      <div class="modal-row"><label>מס׳ רישוי</label><input id="im-plate" type="text" placeholder="12345678" onblur="autoFillFromPlate('im-plate','im-driver')"></div>
+      <div class="modal-row"><label>שם הנהג</label><input id="im-driver" type="text" onblur="autoFillFromDriver('im-plate','im-driver')"></div>
       <div class="modal-row"><label>תאריך אירוע</label><input id="im-date" type="text" inputmode="numeric" placeholder="יי.חח.שש"></div>
       <div class="modal-row"><label>ביטוח / בעלות</label><select id="im-insurance"><option>ביטוח</option><option>ליסינג</option><option>בעלות</option><option>אחר</option></select></div>
       <div class="modal-row"><label>מס׳ אירוע</label><input id="im-reportNum" type="text"></div>
@@ -1079,8 +1079,8 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
   <div class="modal">
     <h3 id="violation-modal-title">+ הוסף דוח</h3>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-      <div class="modal-row"><label>מס׳ רישוי</label><input id="vm-plate" type="text" placeholder="12345678"></div>
-      <div class="modal-row"><label>שם הנהג</label><input id="vm-driver" type="text"></div>
+      <div class="modal-row"><label>מס׳ רישוי</label><input id="vm-plate" type="text" placeholder="12345678" onblur="autoFillFromPlate('vm-plate','vm-driver')"></div>
+      <div class="modal-row"><label>שם הנהג</label><input id="vm-driver" type="text" onblur="autoFillFromDriver('vm-plate','vm-driver')"></div>
       <div class="modal-row"><label>מס׳ דוח</label><input id="vm-reportNum" type="text"></div>
       <div class="modal-row"><label>תאריך עבירה</label><input id="vm-date" type="date"></div>
       <div class="modal-row" style="grid-column:1/-1"><label>תיאור עבירה</label><input id="vm-offense" type="text"></div>
@@ -1120,8 +1120,8 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
   <div class="modal">
     <h3 id="invoice-modal-title">+ הוסף חשבונית</h3>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-      <div class="modal-row"><label>מס׳ רישוי</label><input id="invm-plate" type="text" placeholder="12345678"></div>
-      <div class="modal-row"><label>שם הנהג</label><input id="invm-driver" type="text"></div>
+      <div class="modal-row"><label>מס׳ רישוי</label><input id="invm-plate" type="text" placeholder="12345678" onblur="autoFillFromPlate('invm-plate','invm-driver')"></div>
+      <div class="modal-row"><label>שם הנהג</label><input id="invm-driver" type="text" onblur="autoFillFromDriver('invm-plate','invm-driver')"></div>
       <div class="modal-row"><label>מוסך</label><input id="invm-garage" type="text"></div>
       <div class="modal-row"><label>תאריך</label><input id="invm-date" type="date"></div>
       <div class="modal-row" style="grid-column:1/-1"><label>סוג עבודה</label><input id="invm-workType" type="text"></div>
@@ -1141,8 +1141,8 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
     <h3 id="task-modal-title">+ הוסף משימה</h3>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
       <div class="modal-row" style="grid-column:1/-1"><label>תיאור המשימה</label><input id="tm-text" type="text" placeholder="תאר את המשימה..."></div>
-      <div class="modal-row"><label>מס׳ רישוי (אופציונלי)</label><input id="tm-plate" type="text" placeholder="12345678"></div>
-      <div class="modal-row"><label>נהג (אופציונלי)</label><input id="tm-driver" type="text"></div>
+      <div class="modal-row"><label>מס׳ רישוי (אופציונלי)</label><input id="tm-plate" type="text" placeholder="12345678" onblur="autoFillFromPlate('tm-plate','tm-driver')"></div>
+      <div class="modal-row"><label>נהג (אופציונלי)</label><input id="tm-driver" type="text" onblur="autoFillFromDriver('tm-plate','tm-driver')"></div>
       <div class="modal-row"><label>תאריך יעד</label><input id="tm-date" type="date"></div>
       <div class="modal-row"><label>עדיפות</label><select id="tm-priority"><option value="normal">רגילה</option><option value="high">גבוהה 🔴</option><option value="low">נמוכה 🔵</option></select></div>
       <div class="modal-row" style="grid-column:1/-1"><label>הערות</label><input id="tm-notes" type="text"></div>
@@ -2252,6 +2252,19 @@ function buildIncColFilterRow() {
   const ph = { plate:'רישוי...', driver:'נהג...', date:'תאריך...', insurance:'ביטוח...', reportNum:'מס׳...', damage:'סכום...', notes:'הערות...' };
   const inp = col => `<th><input class="col-filter-inp" type="text" placeholder="${ph[col]||'חפש...'}" value="${esc(incColFilters[col]||'')}" oninput="incColFilters['${col}']=this.value;renderIncidents()"></th>`;
   row.innerHTML = '<th></th>'+inp('plate')+inp('driver')+inp('date')+inp('insurance')+inp('reportNum')+inp('damage')+'<th></th>'+'<th></th>';
+}
+// ── זיהוי הדדי אוטומטי רכב↔נהג בכל הטפסים: ממלא את השדה החסר לפי מי שהרכב צמוד אליו ──
+function _vehByPlate(p) { const pd = String(p || '').replace(/\D/g, ''); if (!pd) return null; return VEHICLES.find(v => String(v.plate || '').replace(/\D/g, '') === pd) || null; }
+function _vehByDriver(name) { const n = String(name || '').trim().toLowerCase(); if (n.length < 2) return null; return VEHICLES.find(v => { const dn = String(v.driverName || '').split('-')[0].trim().toLowerCase(); return dn && (dn === n || dn.includes(n)); }) || null; }
+function autoFillFromPlate(plateId, driverId) {
+  const v = _vehByPlate((document.getElementById(plateId) || {}).value);
+  const d = document.getElementById(driverId);
+  if (v && d && !d.value.trim()) { const nm = (v.driverName || '').split('-')[0].trim(); if (nm) d.value = nm; }
+}
+function autoFillFromDriver(plateId, driverId) {
+  const v = _vehByDriver((document.getElementById(driverId) || {}).value);
+  const p = document.getElementById(plateId);
+  if (v && p && !p.value.trim()) p.value = v.plate;
 }
 function renderIncidents() {
   const q = (document.getElementById('inc-search').value||'').toLowerCase();
