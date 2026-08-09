@@ -1606,7 +1606,7 @@ async function writePubRoster() {
   try {
     const vehicles = (Array.isArray(VEHICLES) ? VEHICLES : []).map(v => ({
       plate: v.plate, make: v.make || '', model: v.model || '', year: v.year || '',
-      driverName: v.driverName || '', company: v.company || '',
+      driverName: v.driverName || '', driverPhone: v.driverPhone || '', company: v.company || '',
       currentKm: v.currentKm || '', nextServiceKm: v.nextServiceKm || '',
       registrationExpiry: v.registrationExpiry || '', insuranceExpiry: v.insuranceExpiry || '',
       licenseExpiry: v.licenseExpiry || '', inspection: v.inspection || ''
