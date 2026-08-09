@@ -2790,6 +2790,24 @@ function remindKmDriver(i) {
   window.open('https://wa.me/' + intl + '?text=' + encodeURIComponent(msg), '_blank');
 }
 // עדכון ק"מ ידני במקום נהג שטרם עדכן — רושם דיווח לחודש כך שהוא עובר לרשימת "עודכנו"
+// רושם דיווח ק"מ לחודש הנוכחי (kmr_) כדי שהרכב ייחשב "עודכן החודש" בסבב הק"מ וההתראה תרד.
+// נקרא מכל מקום שבו הק"מ מתעדכן ידנית ע"י המנהל (ביקורת, עריכת רכב וכו').
+async function recordKmReport(v, km, prevKm) {
+  if (!v || !km) return;
+  try {
+    const now = new Date(), p2 = n => String(n).padStart(2, '0'), monthKey = kmMonthKey();
+    const next = parseKm(v.nextServiceKm);
+    const serviceDue = next > 0 && km >= next, serviceSoon = next > 0 && !serviceDue && (next - km) <= 1000;
+    await fcol().doc(`kmr_${monthKey}_${v.plate}`).set({
+      type: 'kmreport', created: Date.now(), monthKey,
+      dateStr: `${p2(now.getDate())}/${p2(now.getMonth() + 1)}/${now.getFullYear()} ${p2(now.getHours())}:${p2(now.getMinutes())}`,
+      plate: v.plate, driver: (v.driverName || '').split('-')[0].trim(),
+      km: String(km), prevKm: String(prevKm || ''), nextServiceKm: String(next || ''),
+      serviceDue, serviceSoon, applyKm: false, applied: true, byManager: true
+    });
+    if (typeof loadKmRound === 'function') loadKmRound();
+  } catch(e) { console.log('recordKmReport error', e); }
+}
 async function kmRoundUpdateFor(plate) {
   const v = VEHICLES.find(x => String(x.plate).trim() === String(plate).trim());
   if (!v) { toast('הרכב לא נמצא', true); return; }
@@ -3582,9 +3600,12 @@ async function submitInspection() {
     if (v) {
       v.inspection = `${p2(now.getDate())}/${p2(now.getMonth()+1)}/${now.getFullYear()}`;
       if (v.inspectionScheduled) delete v.inspectionScheduled; // booking fulfilled
-      if (rec.km) v.currentKm = rec.km;
+      let _kmForRound = 0, _prevKmForRound = 0;
+      if (rec.km) { _prevKmForRound = parseKm(v.currentKm); v.currentKm = rec.km; _kmForRound = parseKm(rec.km); }
       try { localStorage.setItem('fleet_vehicles', JSON.stringify(VEHICLES)); } catch(e){}
       saveToFirestore('vehicles', VEHICLES);
+      // עדכון ק"מ בביקורת נחשב כדיווח ק"מ לחודש — הרכב עובר ל"עודכן" והתראת עדכון הק"מ יורדת
+      if (_kmForRound) recordKmReport(v, _kmForRound, _prevKmForRound);
     }
     // 3. email a copy — Web3Forms auto-send if configured, FormSubmit second, mail-app dialog as last resort
     const subject = `ביקורת בטיחות למספר רכב ${plate}`;
@@ -4577,6 +4598,7 @@ function saveVehicle() {
   const _noVeh = !plate;
   if (_noVeh && !_driver) { toast('הכנס מספר רכב או שם עובד/ת', true); return; }
   if (_noVeh) plate = editingPlate || ('emp_' + Date.now()); // stable internal key, shown as "ללא רכב"
+  const _prevKmSV = editingPlate ? parseKm((VEHICLES.find(x => x.plate === editingPlate) || {}).currentKm) : 0; // ק"מ לפני העריכה
   const _t = new Date();
   const _today = ('0'+_t.getDate()).slice(-2)+'/'+('0'+(_t.getMonth()+1)).slice(-2)+'/'+_t.getFullYear();
   const v = {
@@ -4638,6 +4660,8 @@ function saveVehicle() {
   renderFleet();
   checkServiceOverages();
   loadKmRound();   // רענון מיידי של סטטוס הטיפול בשורות עדכון הק"מ אחרי עדכון הרכב
+  // אם הק"מ עודכן בעריכת הרכב — נרשום דיווח ק"מ לחודש כך שהרכב ייחשב "עודכן" והתראת הק"מ תרד
+  if (editingPlate) { const _nk = parseKm(v.currentKm); if (_nk > 0 && _nk !== _prevKmSV) recordKmReport(v, _nk, _prevKmSV); }
   toast(editingPlate ? 'רכב עודכן ✓' : 'רכב נוסף ✓');
 }
 
