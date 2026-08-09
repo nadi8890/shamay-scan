@@ -1599,6 +1599,23 @@ async function saveToFirestore(key, value) {
 // Upsert a single vehicle into the LATEST cloud array so a stale local array
 // can never delete other vehicles. The edited vehicle (from the form) wins;
 // all other vehicles keep their freshest cloud values.
+// ── עותק ציבורי מסונן של הצי לקריאת הנהגים (בלי מידע רגיש) ──
+// הנהגים קוראים רק את pubroster; main (עם ת"ז/טלפון/ילדים/עבר תעבורתי/הערות) נשאר לקריאת המנהל בלבד.
+async function writePubRoster() {
+  if (!auth.currentUser) return;
+  try {
+    const vehicles = (Array.isArray(VEHICLES) ? VEHICLES : []).map(v => ({
+      plate: v.plate, make: v.make || '', model: v.model || '', year: v.year || '',
+      driverName: v.driverName || '', company: v.company || '',
+      currentKm: v.currentKm || '', nextServiceKm: v.nextServiceKm || '',
+      registrationExpiry: v.registrationExpiry || '', insuranceExpiry: v.insuranceExpiry || '',
+      licenseExpiry: v.licenseExpiry || '', inspection: v.inspection || ''
+    }));
+    const ms = (typeof MAIL_SETTINGS !== 'undefined' && MAIL_SETTINGS) ? MAIL_SETTINGS : {};
+    const mailSettings = { gasUrl: ms.gasUrl || '', mailProvider: ms.mailProvider || '', fromEmail: ms.fromEmail || '' };
+    await fcol().doc('pubroster').set({ vehicles: stripUndef(vehicles), mailSettings, officerSignature: (window.OFFICER_SIGNATURE || ''), updatedAt: Date.now() });
+  } catch(e) { console.log('pubroster write failed', e.code || e.message); }
+}
 async function saveVehiclesSafely(editedPlate, dk, origPlate) {
   // must be signed in to write (rules require auth) — surface the problem loudly
   if (!auth.currentUser) {
@@ -1637,6 +1654,7 @@ async function saveVehiclesSafely(editedPlate, dk, origPlate) {
     // generic "save failed" (this was the real cause of vanishing edits)
     await fcol().doc('main').set({ vehicles: stripUndef(cloud) }, { merge: true });
     mirrorToTenant('main', { vehicles: cloud });
+    writePubRoster(); // רענון העותק המסונן לנהגים
     // read back to confirm it actually persisted
     const verify = await fcol().doc('main').get();
     const saved = (verify.data() || {}).vehicles || [];
@@ -2624,6 +2642,7 @@ function saveMailSettings() {
   };
   try { localStorage.setItem('fleet_mailSettings', JSON.stringify(MAIL_SETTINGS)); } catch(e) {}
   saveToFirestore('mailSettings', MAIL_SETTINGS);
+  writePubRoster(); // שה-gasUrl לשליחת מייל יתעדכן גם בעותק המסונן לנהגים
   toast('הגדרות המייל נשמרו ✓');
 }
 const INSPECTION_SECTIONS = [
@@ -2894,6 +2913,7 @@ async function cancelInspBooking(plate) {
     localStorage.setItem('fleet_vehicles', JSON.stringify(VEHICLES));
     await fcol().doc('main').set({ vehicles: stripUndef(cloud) }, { merge: true });
     mirrorToTenant('main', { vehicles: cloud });
+    writePubRoster(); // רענון העותק המסונן לנהגים
     // mark the booking docs for this plate applied, so they aren't re-applied on next load
     try {
       const q = await fcol().where('applyBooking', '==', true).get();
@@ -3051,6 +3071,7 @@ async function restoreVehicle(i) {
     localStorage.setItem('fleet_vehicles', JSON.stringify(VEHICLES));
     await fcol().doc('main').set({ vehicles: stripUndef(cloud) }, { merge: true });
     mirrorToTenant('main', { vehicles: cloud });
+    writePubRoster(); // רענון העותק המסונן לנהגים
     rebuildDriversDirectory();
     renderFleet(); renderAlerts(); renderDashboard();
     toast(`✓ רכב ${m.v.plate} שוחזר`);
@@ -5121,6 +5142,7 @@ function bootApp() {
     renderFleet();
     setupRealtimeSync();
     copyToTenant(); // Stage 1: mirror data into the isolated tenant namespace
+    writePubRoster(); // כתיבת/רענון העותק המסונן לנהגים בכל פתיחת אפליקציה
     autoScanDriverDocs(); // auto-read expiry dates off any new driver-uploaded documents
     // notifyNewDeclarations() removed — the driver's own email (with the PDF) works again,
     // so the manager-side fallback was sending a duplicate (fileless) email.

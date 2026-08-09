@@ -97,8 +97,9 @@ function windowStart() {
 (async function init() {
   await ensureAnonAuth();
   try {
-    const snap = await fcol().doc('main').get();
-    const d = snap.data() || {};
+    let d = {};
+    try { const s = await fcol().doc('pubroster').get(); if (s.exists && Array.isArray((s.data()||{}).vehicles)) d = s.data(); } catch(e) {}
+    if (!Array.isArray(d.vehicles)) { try { const s = await fcol().doc('main').get(); d = s.data() || {}; } catch(e) {} }
     MAIL = d.mailSettings || {};
     VEH = (d.vehicles || []).find(v => (v.plate||'').replace(/\D/g,'') === PLATE);
   } catch(e) {}

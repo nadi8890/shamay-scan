@@ -111,8 +111,9 @@ const MAX_TOTAL = 900 * 1024; // ~900KB — נשאר מתחת למגבלת המ�
 (async function init() {
   await ensureAnonAuth();
   try {
-    const snap = await fcol().doc('main').get();
-    const d = snap.data() || {};
+    let d = {};
+    try { const s = await fcol().doc('pubroster').get(); if (s.exists && Array.isArray((s.data()||{}).vehicles)) d = s.data(); } catch(e) {}
+    if (!Array.isArray(d.vehicles)) { try { const s = await fcol().doc('main').get(); d = s.data() || {}; } catch(e) {} }
     const vehicles = d.vehicles || [];
     MAIL = d.mailSettings || {};
     VEH = vehicles.find(v => String(v.plate||'').replace(/\D/g,'') === PLATE.replace(/\D/g,'')) || null;
