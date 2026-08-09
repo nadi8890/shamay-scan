@@ -67,8 +67,8 @@ textarea{resize:vertical}
 
   <div class="card">
     <div class="sec-title">📷 תמונות הנזק ברכב שלך</div>
-    <button type="button" class="btn btn-upload" onclick="document.getElementById('own-file').click()">צלם / בחר תמונות</button>
-    <input id="own-file" type="file" accept="image/*" multiple capture="environment" style="display:none" onchange="onFiles('own', this.files)">
+    <button type="button" class="btn btn-upload" onclick="document.getElementById('own-file').click()">📷 העלה / צלם תמונות</button>
+    <input id="own-file" type="file" accept="image/*" multiple style="display:none" onchange="onFiles('own', this.files)">
     <div class="thumbs" id="own-thumbs"></div>
   </div>
 
@@ -81,8 +81,8 @@ textarea{resize:vertical}
       <div><label>חברת ביטוח צד ג'</label><input id="tp-insurance" type="text"></div>
     </div>
     <label>תמונות רכב צד ג'</label>
-    <button type="button" class="btn btn-upload" onclick="document.getElementById('tp-file').click()">צלם / בחר תמונות</button>
-    <input id="tp-file" type="file" accept="image/*" multiple capture="environment" style="display:none" onchange="onFiles('tp', this.files)">
+    <button type="button" class="btn btn-upload" onclick="document.getElementById('tp-file').click()">📷 העלה / צלם תמונות</button>
+    <input id="tp-file" type="file" accept="image/*" multiple style="display:none" onchange="onFiles('tp', this.files)">
     <div class="thumbs" id="tp-thumbs"></div>
   </div>
 
@@ -126,18 +126,20 @@ const MAX_TOTAL = 950 * 1024;
 function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
 (async function init(){
-  await ensureAnonAuth();
+  // מציגים את הטופס מיד — לא חוסמים על רשת/פיירבייס, כדי שכפתורי ההעלאה תמיד יופיעו
+  document.getElementById('loading').style.display = 'none';
+  document.getElementById('main-card').style.display = 'block';
+  const t = new Date();
+  document.getElementById('f-date').value = ('0'+t.getDate()).slice(-2)+'.'+('0'+(t.getMonth()+1)).slice(-2)+'.'+String(t.getFullYear()).slice(-2);
+  if (urlPlate) document.getElementById('f-plate').value = urlPlate;
   try {
+    await ensureAnonAuth();
     const snap = await fcol().doc('main').get();
     const d = snap.data() || {};
     FLEET = d.vehicles || [];
     MAIL = d.mailSettings || {};
-  } catch(e) { console.log('main read failed', e.code || e.message); }
-  document.getElementById('loading').style.display = 'none';
-  document.getElementById('main-card').style.display = 'block';
-  if (urlPlate) { document.getElementById('f-plate').value = urlPlate; lookupPlate(); }
-  const t = new Date();
-  document.getElementById('f-date').value = ('0'+t.getDate()).slice(-2)+'.'+('0'+(t.getMonth()+1)).slice(-2)+'.'+String(t.getFullYear()).slice(-2);
+    if (urlPlate) lookupPlate();
+  } catch(e) { console.log('load failed', e.code || e.message); }
 })();
 
 function lookupPlate(){

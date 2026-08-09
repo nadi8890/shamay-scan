@@ -2238,6 +2238,7 @@ function renderFleet() {
       <td style="white-space:nowrap">
         <button class="btn btn-gray" style="padding:3px 8px;font-size:0.7rem" onclick="event.stopPropagation();editVehicle('${esc(v.plate)}')">✏️</button>
         <button class="btn btn-gray" style="padding:3px 8px;font-size:0.7rem" title="שלח טפסי קבלת רכב לנהג" onclick="event.stopPropagation();openDeclShare('${esc(v.plate)}')">📨</button>
+        <button class="btn btn-gray" style="padding:3px 8px;font-size:0.7rem" title="שלח לנהג קישור לדיווח נזק (תמונות הרכב שלו + צד ג')" onclick="event.stopPropagation();shareDamageLinkFor('${esc(v.plate)}')">💥</button>
         <button class="btn btn-gray" style="padding:3px 8px;font-size:0.7rem" title="מחק רכב מהצי" onclick="event.stopPropagation();deleteVehicleRow('${esc(v.plate)}')">🗑️</button>
       </td>
     </tr>`;
@@ -2325,6 +2326,23 @@ function shareDamageLink() {
   const done = () => toast('קישור דיווח הנזק הועתק ✓ — שלח לנהג בוואטסאפ');
   if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(msg).then(done).catch(() => _fallbackCopy(msg, done));
   else _fallbackCopy(msg, done);
+}
+// קישור דיווח נזק לרכב ספציפי (מכפתור 💥 בשורת הצי) — מס' הרכב כבר ממולא, נשלח ישירות לנהג בוואטסאפ
+function shareDamageLinkFor(plate) {
+  const v = VEHICLES.find(x => x.plate === plate);
+  if (!v) { toast('הרכב לא נמצא', true); return; }
+  const nm = (v.driverName || '').split('-')[0].trim();
+  const link = `https://nadi8890.github.io/shamay-scan/driver-damage.html?t=${encodeURIComponent(TENANT || 'nofar')}&plate=${encodeURIComponent(v.plate)}`;
+  const msg = `היי ${nm} 👋\nלדיווח נזק / תאונה לרכב ${v.plate} — מלא/י את הפרטים וצרף/י תמונות של הנזק (כולל רכב צד ג' אם יש):\n${link}\n\n${typeof coSig === 'function' ? coSig() : ''}`;
+  const digits = (v.driverPhone || '').replace(/\D/g, '');
+  if (digits) {
+    const intl = digits.startsWith('972') ? digits : '972' + digits.replace(/^0/, '');
+    window.open('https://wa.me/' + intl + '?text=' + encodeURIComponent(msg), '_blank');
+  } else {
+    try { if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(msg); } catch(e) {}
+    window.open('https://wa.me/?text=' + encodeURIComponent(msg), '_blank');
+    toast('אין נייד שמור — ההודעה הועתקה, בחר צ\'אט בוואטסאפ');
+  }
 }
 
 // ── VIOLATIONS ──
