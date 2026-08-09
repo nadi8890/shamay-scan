@@ -46,7 +46,7 @@ textarea{resize:vertical}
 <body>
 
 <div class="hdr">
-  <h1>💥 דיווח נזק / תאונה</h1>
+  <h1>💥 דיווח נזק</h1>
   <div class="sub">ר.מזור — מחלקת הרכב</div>
 </div>
 
@@ -63,6 +63,13 @@ textarea{resize:vertical}
     </div>
     <label>תיאור האירוע *</label>
     <textarea id="f-desc" rows="3" placeholder="מה קרה? היכן נפגע הרכב?"></textarea>
+    <label>מה גרם לתאונה?</label>
+    <textarea id="f-cause" rows="2" placeholder="למשל: בלימת פתע, החלקה, אי-מתן זכות קדימה..."></textarea>
+    <div class="grid2">
+      <div><label>מי אשם לדעתך?</label><select id="f-fault"><option value="">— בחר/י —</option><option>צד ג'</option><option>אני</option><option>משותף</option><option>לא ידוע</option></select></div>
+      <div><label>נפגעים בגוף?</label><select id="f-injuries"><option value="">— בחר/י —</option><option>לא</option><option>כן</option></select></div>
+      <div><label>מעורבת משטרה?</label><select id="f-police"><option value="">— בחר/י —</option><option>לא</option><option>כן</option></select></div>
+    </div>
   </div>
 
   <div class="card">
@@ -216,6 +223,10 @@ async function submitDamage(){
     tpPlate: (document.getElementById('tp-plate').value || '').trim(),
     tpPhone: (document.getElementById('tp-phone').value || '').trim(),
     tpInsurance: (document.getElementById('tp-insurance').value || '').trim(),
+    cause: (document.getElementById('f-cause').value || '').trim(),
+    fault: document.getElementById('f-fault').value || '',
+    injuries: document.getElementById('f-injuries').value || '',
+    police: document.getElementById('f-police').value || '',
     ownPhotos: OWN.map(f => f.data),
     tpPhotos: TP.map(f => f.data),
     status: 'new', applied: false,
@@ -230,7 +241,7 @@ async function submitDamage(){
                        ...TP.map((f,i)=>({base64:f.data,mimeType:f.mime,filename:`צד_ג_${i+1}.jpg`}))];
         await fetch(MAIL.gasUrl, { method:'POST', mode:'no-cors', headers:{'Content-Type':'text/plain'},
           body: JSON.stringify({ subject:`💥 דיווח נזק — רכב ${rec.plate}${drv?' ('+drv+')':''}`,
-            body:`דיווח נזק חדש מהעובד/ת ${drv||'—'}:\n\nרכב: ${(VEH&&VEH.make)||''} ${(VEH&&VEH.model)||''} (${rec.plate})\nתאריך: ${rec.date}\nמיקום: ${rec.location||'—'}\nתיאור: ${rec.description}\n${tp?('צד ג\': '+tp):'ללא צד ג\''}\n\nהאירוע נכנס אוטומטית ללשונית "אירועים". התמונות מצורפות.`,
+            body:`דיווח נזק חדש מהעובד/ת ${drv||'—'}:\n\nרכב: ${(VEH&&VEH.make)||''} ${(VEH&&VEH.model)||''} (${rec.plate})\nתאריך: ${rec.date}\nמיקום: ${rec.location||'—'}\nתיאור: ${rec.description}\n${rec.cause?('גורם התאונה: '+rec.cause+'\n'):''}${rec.fault?('מי אשם לדעת הנהג: '+rec.fault+'\n'):''}${rec.injuries?('נפגעים בגוף: '+rec.injuries+'\n'):''}${rec.police?('מעורבת משטרה: '+rec.police+'\n'):''}${tp?('צד ג\': '+tp):'ללא צד ג\''}\n\nהאירוע נכנס אוטומטית ללשונית "אירועים". התמונות מצורפות.`,
             files }) });
       } catch(e){}
     }

@@ -2288,7 +2288,7 @@ async function maybeApplyIncidentReport(doc) {
   const r = doc.data(); if (r.applied) return;
   if (INCIDENTS.some(x => x._increpId === doc.id)) { try { await doc.ref.set({ applied: true }, { merge: true }); } catch(e) {} return; }
   const tp = [r.tpName && ('שם: ' + r.tpName), r.tpPlate && ('רכב: ' + r.tpPlate), r.tpPhone && ('טל: ' + r.tpPhone), r.tpInsurance && ('ביטוח: ' + r.tpInsurance)].filter(Boolean).join(', ');
-  const notes = [r.description, r.location && ('מיקום: ' + r.location), tp && ("צד ג': " + tp), '📷 דיווח נהג'].filter(Boolean).join(' | ');
+  const notes = [r.description, r.cause && ('גורם: ' + r.cause), r.fault && ('אשם: ' + r.fault), r.injuries && ('נפגעים בגוף: ' + r.injuries), r.police && ('משטרה: ' + r.police), r.location && ('מיקום: ' + r.location), tp && ("צד ג': " + tp), '📷 דיווח נהג'].filter(Boolean).join(' | ');
   const id = INCIDENTS.reduce((m, x) => Math.max(m, +x.id || 0), 0) + 1;
   INCIDENTS.unshift({ id, plate: r.plate || '', driver: r.driver || '', date: r.date || '', insurance: 'ביטוח', reportNum: '', damage: '', deductible: '', notes, _increpId: doc.id, _driverReported: true });
   try { localStorage.setItem('fleet_incidents', JSON.stringify(INCIDENTS)); } catch(e) {}
