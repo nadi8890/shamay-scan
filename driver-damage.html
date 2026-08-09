@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ר.מזור — דיווח נזק</title>
+<meta name="theme-color" content="#1e3a8a">
+<meta name="apple-mobile-web-app-title" content="ר.מזור">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png">
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;600;700;900&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Heebo',sans-serif;background:#f0f4f8;color:#1e293b;padding:16px;max-width:540px;margin:0 auto}
+.hdr{background:linear-gradient(135deg,#b91c1c,#dc2626);color:#fff;border-radius:14px;padding:18px;text-align:center;margin-bottom:16px}
+.hdr h1{font-size:1.15rem;font-weight:900}
+.hdr .sub{font-size:0.78rem;opacity:.9;margin-top:4px}
+.card{background:#fff;border:1.5px solid #dde3ed;border-radius:14px;padding:16px;margin-bottom:14px;box-shadow:0 1px 5px rgba(0,0,0,.05)}
+.sec-title{font-weight:800;font-size:0.92rem;color:#1e3a8a;margin:4px 0 10px;display:flex;align-items:center;gap:6px}
+label{display:block;font-size:0.78rem;font-weight:700;color:#475569;margin-bottom:5px;margin-top:10px}
+input,textarea,select{width:100%;border:1.5px solid #dde3ed;border-radius:10px;padding:10px;font-family:'Heebo',sans-serif;font-size:0.9rem;background:#fff}
+textarea{resize:vertical}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.btn{border:none;border-radius:11px;padding:14px;font-family:'Heebo',sans-serif;font-size:1rem;font-weight:800;cursor:pointer;width:100%;background:#059669;color:#fff}
+.btn:disabled{opacity:.6}
+.btn-upload{background:#eef2ff;color:#3730a3;border:1.5px dashed #a5b4fc}
+.thumbs{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0}
+.thumb{position:relative;width:72px;height:72px;border-radius:9px;overflow:hidden;border:1.5px solid #dde3ed;background:#f8fafc;display:flex;align-items:center;justify-content:center;font-size:0.6rem;color:#475569;text-align:center;padding:3px}
+.thumb img{width:100%;height:100%;object-fit:cover}
+.thumb button{position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;border:none;background:rgba(220,38,38,.92);color:#fff;font-size:0.72rem;line-height:1;cursor:pointer;padding:0}
+.hint{font-size:0.72rem;color:#64748b;margin-top:5px}
+.err{color:#dc2626;font-size:0.82rem;font-weight:700;margin-top:8px;display:none}
+.veh{background:#eff6ff;border:1.5px solid #bfdbfe;border-radius:10px;padding:11px;font-size:0.88rem;margin-bottom:6px;line-height:1.6}
+#result{display:none;text-align:center;padding:24px 12px;position:relative}
+#result .badge{width:100px;height:100px;margin:2px auto 0;border-radius:50%;background:linear-gradient(135deg,#059669,#10b981);display:flex;align-items:center;justify-content:center;font-size:3.1rem;box-shadow:0 12px 34px rgba(16,185,129,.42);animation:badgePop .6s cubic-bezier(.17,.67,.32,1.5) both}
+#result h2{margin:16px 0 4px;font-size:1.5rem;font-weight:900;background:linear-gradient(90deg,#1e3a8a,#2563eb,#10b981);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;animation:doneUp .5s .1s both}
+#result .done-sub{color:#475569;font-size:0.9rem;animation:doneUp .5s .2s both;line-height:1.6}
+@keyframes badgePop{0%{transform:scale(0) rotate(-25deg);opacity:0}70%{transform:scale(1.12) rotate(6deg)}100%{transform:scale(1) rotate(0);opacity:1}}
+@keyframes doneUp{0%{opacity:0;transform:translateY(14px)}100%{opacity:1;transform:translateY(0)}}
+.loading{text-align:center;padding:30px;color:#64748b}
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <h1>💥 דיווח נזק / תאונה</h1>
+  <div class="sub">ר.מזור — מחלקת הרכב</div>
+</div>
+
+<div id="loading" class="loading">טוען…</div>
+
+<div id="main-card" style="display:none">
+  <div class="card">
+    <div class="veh" id="veh-info"></div>
+    <label>מספר רכב *</label>
+    <input id="f-plate" inputmode="numeric" placeholder="12345678" onblur="lookupPlate()">
+    <div class="grid2">
+      <div><label>תאריך האירוע</label><input id="f-date" type="text" inputmode="numeric" placeholder="יי.חח.שש"></div>
+      <div><label>מיקום (אופציונלי)</label><input id="f-location" type="text" placeholder="עיר / כביש"></div>
+    </div>
+    <label>תיאור האירוע *</label>
+    <textarea id="f-desc" rows="3" placeholder="מה קרה? היכן נפגע הרכב?"></textarea>
+  </div>
+
+  <div class="card">
+    <div class="sec-title">📷 תמונות הנזק ברכב שלך</div>
+    <button type="button" class="btn btn-upload" onclick="document.getElementById('own-file').click()">צלם / בחר תמונות</button>
+    <input id="own-file" type="file" accept="image/*" multiple capture="environment" style="display:none" onchange="onFiles('own', this.files)">
+    <div class="thumbs" id="own-thumbs"></div>
+  </div>
+
+  <div class="card">
+    <div class="sec-title">🚗 פרטי צד ג' ותמונות (אם יש)</div>
+    <div class="grid2">
+      <div><label>שם נהג צד ג'</label><input id="tp-name" type="text"></div>
+      <div><label>מס' רכב צד ג'</label><input id="tp-plate" type="text" inputmode="numeric"></div>
+      <div><label>טלפון צד ג'</label><input id="tp-phone" type="tel" inputmode="numeric" style="direction:ltr"></div>
+      <div><label>חברת ביטוח צד ג'</label><input id="tp-insurance" type="text"></div>
+    </div>
+    <label>תמונות רכב צד ג'</label>
+    <button type="button" class="btn btn-upload" onclick="document.getElementById('tp-file').click()">צלם / בחר תמונות</button>
+    <input id="tp-file" type="file" accept="image/*" multiple capture="environment" style="display:none" onchange="onFiles('tp', this.files)">
+    <div class="thumbs" id="tp-thumbs"></div>
+  </div>
+
+  <div class="hint" id="size-hint" style="text-align:center"></div>
+  <div class="err" id="err" style="text-align:center"></div>
+  <button class="btn" style="margin-top:6px" id="send-btn" onclick="submitDamage()">✅ שליחת דיווח הנזק</button>
+  <div style="height:24px"></div>
+</div>
+
+<div id="result">
+  <div class="badge" id="done-badge">✅</div>
+  <h2 id="done-title">הדיווח נשלח!</h2>
+  <p class="done-sub">דיווח הנזק נקלט במערכת מחלקת הרכב.<br>אפשר לסגור את החלון — טופל ✅</p>
+</div>
+
+<script>
+firebase.initializeApp({
+  apiKey: "AIzaSyDW6mzShTVBgHH-c5f0hb7FvIRophpgp78",
+  authDomain: "niholrechev.firebaseapp.com",
+  projectId: "niholrechev",
+  storageBucket: "niholrechev.firebasestorage.app",
+  messagingSenderId: "347809967171",
+  appId: "1:347809967171:web:af3eb5cdeefc827b41f8f6"
+});
+const db = firebase.firestore();
+async function ensureAnonAuth() {
+  try {
+    if (firebase.auth().currentUser) return;
+    try { await firebase.auth().setPersistence(firebase.auth.Auth.Persistence.NONE); } catch(e) {}
+    await firebase.auth().signInAnonymously();
+  } catch(e) { console.log('anon auth unavailable, continuing', e.code || e.message); }
+}
+const params = new URLSearchParams(location.search);
+const TENANT = (params.get('t') || 'nofar');
+const fcol = () => db.collection('tenants').doc(TENANT).collection('data');
+const urlPlate = (params.get('plate') || '').trim();
+let FLEET = [], MAIL = {}, VEH = null;
+const OWN = [], TP = []; // {kind,name,mime,data,preview}
+const MAX_TOTAL = 950 * 1024;
+
+function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+(async function init(){
+  await ensureAnonAuth();
+  try {
+    const snap = await fcol().doc('main').get();
+    const d = snap.data() || {};
+    FLEET = d.vehicles || [];
+    MAIL = d.mailSettings || {};
+  } catch(e) { console.log('main read failed', e.code || e.message); }
+  document.getElementById('loading').style.display = 'none';
+  document.getElementById('main-card').style.display = 'block';
+  if (urlPlate) { document.getElementById('f-plate').value = urlPlate; lookupPlate(); }
+  const t = new Date();
+  document.getElementById('f-date').value = ('0'+t.getDate()).slice(-2)+'.'+('0'+(t.getMonth()+1)).slice(-2)+'.'+String(t.getFullYear()).slice(-2);
+})();
+
+function lookupPlate(){
+  const pd = (document.getElementById('f-plate').value || '').replace(/\D/g,'');
+  VEH = FLEET.find(v => String(v.plate||'').replace(/\D/g,'') === pd) || null;
+  const box = document.getElementById('veh-info');
+  if (VEH){
+    const drv = (VEH.driverName||'').split('-')[0].trim();
+    box.innerHTML = `🚗 <b>${esc(VEH.make||'')} ${esc(VEH.model||'')}</b> · <span dir="ltr">${esc(VEH.plate)}</span>${drv?`<br>נהג/ת: <b>${esc(drv)}</b>`:''}`;
+    box.style.display = 'block';
+  } else { box.style.display = 'none'; }
+}
+
+function totalBytes(){ return [...OWN, ...TP].reduce((s,f)=> s + Math.ceil(f.data.length*0.75), 0); }
+function fmtSize(n){ return n < 1048576 ? Math.round(n/1024)+' KB' : (n/1048576).toFixed(1)+' MB'; }
+function refreshHint(){
+  const el = document.getElementById('size-hint');
+  const nt = OWN.length + TP.length;
+  if (!nt){ el.textContent = ''; return; }
+  const t = totalBytes();
+  el.textContent = `${nt} תמונות · ${fmtSize(t)}` + (t > MAX_TOTAL ? ' — גדול מדי, הסר תמונה' : '');
+  el.style.color = t > MAX_TOTAL ? '#dc2626' : '#64748b';
+}
+function compressImage(file){
+  return new Promise((res, rej) => {
+    const fr = new FileReader();
+    fr.onload = () => { const img = new Image();
+      img.onload = () => { const max = 1400; let w = img.width, h = img.height;
+        if (w > max || h > max){ const r = Math.min(max/w, max/h); w = Math.round(w*r); h = Math.round(h*r); }
+        const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+        cv.getContext('2d').drawImage(img, 0, 0, w, h);
+        const u = cv.toDataURL('image/jpeg', 0.55);
+        res({ kind:'image', name:file.name||'photo.jpg', mime:'image/jpeg', data:u.split(',')[1], preview:u }); };
+      img.onerror = rej; img.src = fr.result; };
+    fr.onerror = rej; fr.readAsDataURL(file);
+  });
+}
+async function onFiles(which, list){
+  const arr = which === 'own' ? OWN : TP;
+  for (const file of Array.from(list||[])){
+    if (arr.length >= 6){ showErr('אפשר עד 6 תמונות בכל קבוצה'); break; }
+    try { arr.push(await compressImage(file)); } catch(e){ showErr('קובץ לא נתמך'); }
+  }
+  document.getElementById(which === 'own' ? 'own-file' : 'tp-file').value = '';
+  renderThumbs(which); refreshHint();
+}
+function renderThumbs(which){
+  const arr = which === 'own' ? OWN : TP;
+  document.getElementById(which === 'own' ? 'own-thumbs' : 'tp-thumbs').innerHTML = arr.map((f,i) =>
+    `<div class="thumb"><img src="${f.preview}"><button onclick="removeFile('${which}',${i})">✕</button></div>`).join('');
+}
+function removeFile(which, i){ (which === 'own' ? OWN : TP).splice(i,1); renderThumbs(which); refreshHint(); }
+function showErr(m){ const e = document.getElementById('err'); e.textContent = m; e.style.display = 'block'; }
+
+async function submitDamage(){
+  const err = document.getElementById('err'); err.style.display = 'none';
+  const plate = (document.getElementById('f-plate').value || '').trim();
+  const desc = (document.getElementById('f-desc').value || '').trim();
+  if (!plate){ showErr('נא להזין מספר רכב'); return; }
+  if (!desc){ showErr('נא לתאר את האירוע'); return; }
+  if (!OWN.length){ showErr('נא לצרף לפחות תמונה אחת של הנזק ברכב שלך'); return; }
+  if (totalBytes() > MAX_TOTAL){ showErr('התמונות גדולות מדי — הסר/י כמה או צלם/י באיכות נמוכה יותר'); return; }
+  const btn = document.getElementById('send-btn'); btn.disabled = true; btn.textContent = 'שולח…';
+  const drv = VEH ? (VEH.driverName||'').split('-')[0].trim() : '';
+  const created = Date.now();
+  const rec = {
+    type: 'incidentreport',
+    plate: VEH ? VEH.plate : plate,
+    driver: drv,
+    date: (document.getElementById('f-date').value || '').trim(),
+    location: (document.getElementById('f-location').value || '').trim(),
+    description: desc,
+    tpName: (document.getElementById('tp-name').value || '').trim(),
+    tpPlate: (document.getElementById('tp-plate').value || '').trim(),
+    tpPhone: (document.getElementById('tp-phone').value || '').trim(),
+    tpInsurance: (document.getElementById('tp-insurance').value || '').trim(),
+    ownPhotos: OWN.map(f => f.data),
+    tpPhotos: TP.map(f => f.data),
+    status: 'new', applied: false,
+    created, dateStr: new Date(created).toLocaleDateString('he-IL')
+  };
+  try {
+    await fcol().doc('increp_' + created).set(rec);
+    if (MAIL.gasUrl){
+      try {
+        const tp = [rec.tpName, rec.tpPlate, rec.tpPhone, rec.tpInsurance].filter(Boolean).join(' · ');
+        const files = [...OWN.map((f,i)=>({base64:f.data,mimeType:f.mime,filename:`רכב_שלי_${i+1}.jpg`})),
+                       ...TP.map((f,i)=>({base64:f.data,mimeType:f.mime,filename:`צד_ג_${i+1}.jpg`}))];
+        await fetch(MAIL.gasUrl, { method:'POST', mode:'no-cors', headers:{'Content-Type':'text/plain'},
+          body: JSON.stringify({ subject:`💥 דיווח נזק — רכב ${rec.plate}${drv?' ('+drv+')':''}`,
+            body:`דיווח נזק חדש מהעובד/ת ${drv||'—'}:\n\nרכב: ${(VEH&&VEH.make)||''} ${(VEH&&VEH.model)||''} (${rec.plate})\nתאריך: ${rec.date}\nמיקום: ${rec.location||'—'}\nתיאור: ${rec.description}\n${tp?('צד ג\': '+tp):'ללא צד ג\''}\n\nהאירוע נכנס אוטומטית ללשונית "אירועים". התמונות מצורפות.`,
+            files }) });
+      } catch(e){}
+    }
+    document.getElementById('main-card').style.display = 'none';
+    document.getElementById('result').style.display = 'block';
+  } catch(e){
+    btn.disabled = false; btn.textContent = '✅ שליחת דיווח הנזק';
+    showErr('שגיאה בשליחה — בדוק/י חיבור לאינטרנט ונסה/י שוב'); console.log('damage submit error', e);
+  }
+}
+</script>
+</body>
+</html>

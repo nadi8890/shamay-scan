@@ -388,7 +388,7 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
       <span class="section-title">אירועי נזק</span>
       <span class="count-badge" id="inc-count">0</span>
     </div>
-    <div style="display:flex;gap:8px"><button class="btn btn-primary" style="padding:5px 12px;font-size:0.78rem" onclick="openIncidentModal()">+ הוסף אירוע</button><button class="btn-export" onclick="exportSection('incidents')">📥 ייצוא Excel</button></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn btn-primary" style="padding:5px 12px;font-size:0.78rem" onclick="openIncidentModal()">+ הוסף אירוע</button><button class="btn" style="padding:5px 12px;font-size:0.78rem;background:#fee2e2;color:#b91c1c" title="העתק/שלח לנהג קישור לדיווח נזק עם תמונות" onclick="shareDamageLink()">📲 קישור דיווח נזק</button><button class="btn-export" onclick="exportSection('incidents')">📥 ייצוא Excel</button></div>
   </div>
   <div class="tbl-wrap">
     <table>
@@ -1062,6 +1062,17 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
   </div>
 </div>
 
+<!-- ══ INCIDENT PHOTOS MODAL (driver-reported damage) ══ -->
+<div class="modal-overlay" id="incphoto-modal" style="z-index:670">
+  <div class="modal" style="max-width:560px">
+    <h3>📷 תמונות דיווח הנזק</h3>
+    <div id="incphoto-body" style="max-height:62vh;overflow-y:auto"></div>
+    <div class="btn-row">
+      <button class="btn btn-secondary" onclick="document.getElementById('incphoto-modal').classList.remove('open')">סגור</button>
+    </div>
+  </div>
+</div>
+
 <!-- ══ VIOLATION MODAL ══ -->
 <div class="modal-overlay" id="violation-modal">
   <div class="modal">
@@ -1730,6 +1741,8 @@ function setupRealtimeSync() {
   watchArchive('returns',      a => { RETURNS = a; localStorage.setItem('fleet_returns', JSON.stringify(a)); },      () => { if (typeof renderReturns === 'function') renderReturns(); });
   // מאזין חי לקריאות שהעובדים מעלים (req_*) — מעדכן את הפעמון ואת מגירת האישורים בזמן אמת
   try { fcol().where('type', '==', 'requirement').onSnapshot(() => { if (typeof loadPendingRequests === 'function') loadPendingRequests(); }); } catch(e) { console.log('req listener', e); }
+  // מאזין חי לדיווחי נזק מנהגים (increp_*) — מכניס אותם אוטומטית ללשונית האירועים
+  try { fcol().where('type', '==', 'incidentreport').onSnapshot(snap => { snap.docChanges().forEach(ch => { if (ch.type === 'added' && typeof maybeApplyIncidentReport === 'function') maybeApplyIncidentReport(ch.doc); }); }); } catch(e) { console.log('increp listener', e); }
 }
 
 // ── UTILS ──
@@ -2266,8 +2279,52 @@ function renderIncidents() {
       <td style="color:var(--muted);font-size:0.72rem">${esc(i.reportNum)}</td>
       <td style="font-weight:700;color:var(--red)">${esc(i.damage) ? '₪'+esc(i.damage) : '—'}</td>
       <td>${esc(i.deductible)||'—'}</td>
-      <td style="font-size:0.72rem;max-width:180px;color:var(--muted)">${esc(i.notes)}</td>
+      <td style="font-size:0.72rem;max-width:180px;color:var(--muted)">${esc(i.notes)}${i._increpId ? ` <button onclick="event.stopPropagation();viewIncidentPhotos('${esc(i._increpId)}')" style="background:#eff6ff;border:1px solid #bfdbfe;color:#2563eb;border-radius:6px;padding:1px 7px;font-size:0.68rem;cursor:pointer;white-space:nowrap;font-weight:700">📷 תמונות</button>` : ''}</td>
     </tr>`).join('');
+}
+// דיווחי נזק מנהגים (increp_*) — נכנסים אוטומטית ללשונית אירועים; התמונות נשמרות במסמך הדיווח לצפייה
+async function maybeApplyIncidentReport(doc) {
+  const r = doc.data(); if (r.applied) return;
+  if (INCIDENTS.some(x => x._increpId === doc.id)) { try { await doc.ref.set({ applied: true }, { merge: true }); } catch(e) {} return; }
+  const tp = [r.tpName && ('שם: ' + r.tpName), r.tpPlate && ('רכב: ' + r.tpPlate), r.tpPhone && ('טל: ' + r.tpPhone), r.tpInsurance && ('ביטוח: ' + r.tpInsurance)].filter(Boolean).join(', ');
+  const notes = [r.description, r.location && ('מיקום: ' + r.location), tp && ("צד ג': " + tp), '📷 דיווח נהג'].filter(Boolean).join(' | ');
+  const id = INCIDENTS.reduce((m, x) => Math.max(m, +x.id || 0), 0) + 1;
+  INCIDENTS.unshift({ id, plate: r.plate || '', driver: r.driver || '', date: r.date || '', insurance: 'ביטוח', reportNum: '', damage: '', deductible: '', notes, _increpId: doc.id, _driverReported: true });
+  try { localStorage.setItem('fleet_incidents', JSON.stringify(INCIDENTS)); } catch(e) {}
+  saveToFirestore('incidents', INCIDENTS);
+  try { await doc.ref.set({ applied: true }, { merge: true }); } catch(e) {}
+  if (typeof renderIncidents === 'function') renderIncidents();
+  if (typeof renderDashboard === 'function') renderDashboard();
+  toast(`💥 דיווח נזק חדש מ-${r.driver || r.plate} נכנס ללשונית אירועים`, false);
+}
+let _incPhotoBusy = false;
+async function viewIncidentPhotos(increpId) {
+  if (_incPhotoBusy) return; _incPhotoBusy = true;
+  const modal = document.getElementById('incphoto-modal');
+  const body = document.getElementById('incphoto-body');
+  body.innerHTML = '<div style="padding:20px;text-align:center;color:var(--muted)">טוען תמונות…</div>';
+  modal.classList.add('open');
+  try {
+    const snap = await fcol().doc(increpId).get();
+    const r = snap.data() || {};
+    const grp = (title, arr) => (arr && arr.length) ? `<div style="font-weight:800;color:#1e3a8a;margin:10px 0 6px">${title} (${arr.length})</div><div style="display:flex;flex-wrap:wrap;gap:8px">` +
+      arr.map(b64 => `<img src="data:image/jpeg;base64,${b64}" style="width:120px;height:120px;object-fit:cover;border-radius:9px;border:1.5px solid var(--border);cursor:pointer" onclick="window.open(this.src,'_blank')">`).join('') + '</div>' : '';
+    const own = grp('📷 נזק ברכב שלנו', r.ownPhotos);
+    const tp = grp("🚗 רכב צד ג'", r.tpPhotos);
+    body.innerHTML = (own || tp) ? (own + tp) + '<div style="font-size:0.72rem;color:var(--muted);margin-top:10px">לחיצה על תמונה פותחת אותה בגודל מלא.</div>'
+      : '<div style="padding:20px;text-align:center;color:var(--muted)">אין תמונות לדיווח זה</div>';
+  } catch(e) {
+    body.innerHTML = '<div style="padding:20px;text-align:center;color:#dc2626">שגיאה בטעינת התמונות</div>';
+  }
+  _incPhotoBusy = false;
+}
+// קישור דיווח נזק לנהג — הנהג ממלא פרטים ומצרף תמונות (רכב שלו + צד ג'); הדיווח נכנס אוטומטית לאירועים
+function shareDamageLink() {
+  const link = `https://nadi8890.github.io/shamay-scan/driver-damage.html?t=${encodeURIComponent(TENANT || 'nofar')}`;
+  const msg = `דיווח נזק / תאונה לרכב 🚗\nנא למלא את הפרטים ולצרף תמונות של הנזק (כולל רכב צד ג' אם יש):\n${link}\n\n${typeof coSig === 'function' ? coSig() : ''}`;
+  const done = () => toast('קישור דיווח הנזק הועתק ✓ — שלח לנהג בוואטסאפ');
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(msg).then(done).catch(() => _fallbackCopy(msg, done));
+  else _fallbackCopy(msg, done);
 }
 
 // ── VIOLATIONS ──
