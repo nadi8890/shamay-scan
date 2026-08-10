@@ -3642,6 +3642,10 @@ async function submitInspection() {
     if (v) {
       v.inspection = `${p2(now.getDate())}/${p2(now.getMonth()+1)}/${now.getFullYear()}`;
       if (v.inspectionScheduled) delete v.inspectionScheduled; // booking fulfilled
+      // ליקויי ביקורת ('לא תקין') → דגל על הרכב לצורך התראה; ביקורת נקייה מנקה אותו
+      const _findings = Object.entries(rec.items || {}).filter(([, val]) => val === 'לא תקין');
+      if (_findings.length) { v.inspectionFindings = _findings.length; v.inspectionFindingsItems = _findings.map(x => x[0]).join(', '); v.inspectionFindingsDate = v.inspection; }
+      else { delete v.inspectionFindings; delete v.inspectionFindingsItems; delete v.inspectionFindingsDate; }
       let _kmForRound = 0, _prevKmForRound = 0;
       if (rec.km) { _prevKmForRound = parseKm(v.currentKm); v.currentKm = rec.km; _kmForRound = parseKm(rec.km); }
       try { localStorage.setItem('fleet_vehicles', JSON.stringify(VEHICLES)); } catch(e){}
@@ -3796,6 +3800,10 @@ function buildDynamicAlerts() {
       const label = ageYrs <= 3 ? 'ביקורת בטיחות חציונית' : 'ביקורת בטיחות רבעונית';
       alerts.push({ plate:v.plate, driver:v.driverName, type:label, dueDate:nextInspectionStr(v), daysLeft:inspDays, prevKm:null, kmAlert:null, currentKm:null, kmDiff:null });
     }
+    // ליקויי ביקורת בטיחות — נשמרו על הרכב אחרי ביקורת עם פריטים 'לא תקין'
+    if (parseInt(v.inspectionFindings) > 0) {
+      alerts.push({ plate:v.plate, driver:v.driverName, type:'ביקורת בטיחות — ליקויים', inspFinding:true, findings:parseInt(v.inspectionFindings), findingsItems:v.inspectionFindingsItems||'', dueDate:v.inspectionFindingsDate||'—', daysLeft:null, prevKm:null, kmAlert:null, currentKm:null, kmDiff:null });
+    }
     // Service due at 15,000 km OR 1 year from the last service — whichever comes first
     // (per manufacturer). Trailers aren't serviced.
     const _drv = (v.driverName || '').trim();
@@ -3842,6 +3850,7 @@ function renderAlerts() {
 
   // Worst severity per group (for row color)
   function worstCls(alerts) {
+    if (alerts.some(a => a.inspFinding)) return 'row-expired';
     if (alerts.some(a => a.daysLeft !== null ? a.daysLeft < 0 : a.kmDiff >= a.kmAlert)) return 'row-expired';
     if (alerts.some(a => a.daysLeft !== null ? a.daysLeft <= 3 : false)) return 'row-soon';
     return 'row-warn';
@@ -3849,6 +3858,9 @@ function renderAlerts() {
 
   function alertBadge(a) {
     let badge, color;
+    if (a.inspFinding) {
+      return `<div style="margin-bottom:3px;font-size:0.75rem"><span style="font-weight:600;margin-left:5px">${esc(a.type)}</span><span class="badge badge-red">❗ ${a.findings} ליקויים</span>${a.findingsItems ? `<div style="color:var(--muted);font-size:0.68rem;margin-top:1px">${esc(a.findingsItems)}</div>` : ''}</div>`;
+    }
     if (a.missing) {
       return `<div style="margin-bottom:3px;font-size:0.75rem"><span style="font-weight:600;margin-left:5px">${esc(a.type)}</span><span class="badge badge-red">❗ חסר מסמך</span></div>`;
     }
@@ -3883,6 +3895,8 @@ function renderAlerts() {
     const kmBtn = hasKmService ? `<button class="btn" style="padding:3px 9px;font-size:0.68rem;background:#fef9c3;color:#854d0e" title="שלח לנהג תזכורת לתיאום טיפול לפי חברת הליסינג" onclick="remindServiceScheduling('${esc(g.plate)}')">🗓️ תזכורת תיאום טיפול</button>` : '';
     const canReq = g.alerts.some(a => { const t = String(a.type || ''); return t.includes('טיפול') || t.includes('ביטוח') || t.includes('רישוי') || t.includes('רישיון'); });
     const reqBtn = canReq ? `<button class="btn" style="padding:3px 9px;font-size:0.68rem;background:#f0fdf4;color:#15803d" title="בקש מהעובד לצרף מסמך/אישור — הקריאה תחזור אליך לאישור" onclick="requestDocFromEmployee('${esc(g.plate)}')">📲 בקש מסמך מהעובד</button>` : '';
+    const hasInspFinding = g.alerts.some(a => a.inspFinding);
+    const inspFixBtn = hasInspFinding ? `<button class="btn" style="padding:3px 9px;font-size:0.68rem;background:#dcfce7;color:#166534" title="סמן שליקויי הביקורת טופלו — יוריד את ההתראה" onclick="resolveInspFinding('${esc(g.plate)}')">✓ ליקויים טופלו</button>` : '';
     const gVeh = VEHICLES.find(x => x.plate === g.plate);
     const scheduled = gVeh && gVeh.inspectionScheduled;
     const inspBtns = hasInsp
@@ -3895,7 +3909,7 @@ function renderAlerts() {
       <td style="font-weight:700;color:var(--accent);direction:ltr;font-size:0.85rem;white-space:nowrap">${esc(g.plate)}</td>
       <td style="font-size:0.8rem;font-weight:600;white-space:nowrap">${esc(g.driver)}</td>
       <td style="padding:8px 13px">${g.alerts.map(alertBadge).join('')}</td>
-      <td><div style="display:flex;flex-wrap:wrap;gap:5px;align-items:center">${kmBtn}${reqBtn}${missBtn}${inspBtns}</div></td>
+      <td><div style="display:flex;flex-wrap:wrap;gap:5px;align-items:center">${kmBtn}${reqBtn}${inspFixBtn}${missBtn}${inspBtns}</div></td>
     </tr>`;
   }).join('');
 }
@@ -3918,6 +3932,17 @@ function alertUpdateKm(plate) {
   saveVehiclesSafely(v.plate, null, v.plate);
   renderAlerts(); renderFleet(); renderDashboard(); loadKmRound();
   toast('עודכן ✓');
+}
+
+// ═══ סימון שליקויי ביקורת הבטיחות טופלו — מוריד את ההתראה ═══
+function resolveInspFinding(plate) {
+  const v = VEHICLES.find(x => String(x.plate).trim() === String(plate).trim());
+  if (!v) { toast('הרכב לא נמצא', true); return; }
+  if (!confirm(`לסמן שליקויי ביקורת הבטיחות ברכב ${plate} טופלו?\n(${v.inspectionFindingsItems || ''})\n\nההתראה תרד מהלוח.`)) return;
+  delete v.inspectionFindings; delete v.inspectionFindingsItems; delete v.inspectionFindingsDate;
+  saveVehiclesSafely(v.plate, null, v.plate);
+  renderAlerts(); renderFleet();
+  toast('ליקויי הביקורת סומנו כטופלו ✓');
 }
 
 // ═══ תזכורת לתיאום טיפול לפי חברת הליסינג של הרכב ═══
