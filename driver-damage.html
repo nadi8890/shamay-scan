@@ -12,6 +12,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:'Heebo',sans-serif;background:#f0f4f8;color:#1e293b;padding:16px;max-width:540px;margin:0 auto}
@@ -202,6 +203,58 @@ function renderThumbs(which){
 function removeFile(which, i){ (which === 'own' ? OWN : TP).splice(i,1); renderThumbs(which); refreshHint(); }
 function showErr(m){ const e = document.getElementById('err'); e.textContent = m; e.style.display = 'block'; }
 
+// ── בניית PDF מסודר של דיווח הנזק (פרטים + כל התמונות) לתיוק בתיק נהג ──
+async function _htmlToCanvasImg(html, W){
+  const holder = document.createElement('div');
+  holder.style.cssText = 'position:absolute;left:-9999px;top:0;width:' + W + 'px';
+  holder.innerHTML = html;
+  document.body.appendChild(holder);
+  const el = holder.firstElementChild;
+  const H = el.scrollHeight;
+  const xhtml = new XMLSerializer().serializeToString(el);
+  document.body.removeChild(holder);
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}"><foreignObject width="100%" height="100%">${xhtml}</foreignObject></svg>`;
+  const img = new Image();
+  await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg); });
+  const scale = 2, cv = document.createElement('canvas'); cv.width = W * scale; cv.height = H * scale;
+  const ctx = cv.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, cv.width, cv.height); ctx.drawImage(img, 0, 0, cv.width, cv.height);
+  return { dataUrl: cv.toDataURL('image/jpeg', 0.9), H };
+}
+async function buildDamagePdfB64(rec){
+  if (!window.jspdf) return null;
+  const { jsPDF } = window.jspdf;
+  const pdf = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
+  const rows = [
+    ['מספר רכב', rec.plate], ['נהג/ת', rec.driver || '—'], ['תאריך האירוע', rec.date || '—'],
+    ['מיקום', rec.location || '—'], ['תיאור האירוע', rec.description || '—'], ['גורם התאונה', rec.cause || '—'],
+    ['מי אשם (לדעת הנהג)', rec.fault || '—'], ['נפגעים בגוף', rec.injuries || '—'], ['מעורבת משטרה', rec.police || '—'],
+    ["צד ג' — שם", rec.tpName || '—'], ["צד ג' — מס' רכב", rec.tpPlate || '—'], ["צד ג' — טלפון", rec.tpPhone || '—'], ["צד ג' — ביטוח", rec.tpInsurance || '—']
+  ];
+  const html = `<div style="direction:rtl;font-family:Heebo,Arial,sans-serif;width:740px;padding:26px;color:#0f172a;box-sizing:border-box">
+    <div style="font-size:27px;font-weight:900;color:#b91c1c">💥 דיווח נזק / תאונה</div>
+    <div style="font-size:13px;color:#64748b;margin:4px 0 18px">ר.מזור — מחלקת הרכב · נשלח: ${rec.dateStr || ''}</div>
+    <table style="width:100%;border-collapse:collapse;font-size:15px">
+      ${rows.map(r => `<tr><td style="border:1px solid #cbd5e1;padding:8px 11px;font-weight:800;background:#f8fafc;width:40%">${r[0]}</td><td style="border:1px solid #cbd5e1;padding:8px 11px">${String(r[1]).replace(/</g,'&lt;')}</td></tr>`).join('')}
+    </table>
+    <div style="font-size:12px;color:#94a3b8;margin-top:14px">התמונות המצורפות בעמודים הבאים — נזק ברכב שלנו ורכב צד ג'.</div>
+  </div>`;
+  try { const im = await _htmlToCanvasImg(html, 740); pdf.addImage(im.dataUrl, 'JPEG', 8, 10, 194, im.H * 194 / 740); }
+  catch(e){ pdf.text('Damage Report ' + (rec.plate||''), 105, 20, { align: 'center' }); }
+  const addPhotos = async (arr) => {
+    for (const b64 of (arr || [])){
+      pdf.addPage();
+      const dataUrl = 'data:image/jpeg;base64,' + b64;
+      const im = new Image(); await new Promise(res => { im.onload = res; im.onerror = res; im.src = dataUrl; });
+      const maxW = 185, maxH = 260, ratio = Math.min(maxW / (im.width || 1), maxH / (im.height || 1));
+      const w = (im.width || 100) * ratio, h = (im.height || 100) * ratio;
+      pdf.addImage(dataUrl, 'JPEG', (210 - w) / 2, 18, w, h);
+    }
+  };
+  await addPhotos(rec.ownPhotos);
+  await addPhotos(rec.tpPhotos);
+  const blob = pdf.output('blob');
+  return await new Promise(res => { const fr = new FileReader(); fr.onload = () => res(String(fr.result).split(',')[1]); fr.readAsDataURL(blob); });
+}
 async function submitDamage(){
   const err = document.getElementById('err'); err.style.display = 'none';
   const plate = (document.getElementById('f-plate').value || '').trim();
@@ -238,8 +291,14 @@ async function submitDamage(){
     if (MAIL.gasUrl){
       try {
         const tp = [rec.tpName, rec.tpPlate, rec.tpPhone, rec.tpInsurance].filter(Boolean).join(' · ');
-        const files = [...OWN.map((f,i)=>({base64:f.data,mimeType:f.mime,filename:`רכב_שלי_${i+1}.jpg`})),
-                       ...TP.map((f,i)=>({base64:f.data,mimeType:f.mime,filename:`צד_ג_${i+1}.jpg`}))];
+        let files;
+        const pdfB64 = await buildDamagePdfB64(rec).catch(()=>null);
+        if (pdfB64) {
+          files = [{ base64: pdfB64, mimeType: 'application/pdf', filename: `דיווח נזק - ${rec.plate}.pdf` }];
+        } else {
+          files = [...OWN.map((f,i)=>({base64:f.data,mimeType:f.mime,filename:`רכב_שלי_${i+1}.jpg`})),
+                   ...TP.map((f,i)=>({base64:f.data,mimeType:f.mime,filename:`צד_ג_${i+1}.jpg`}))];
+        }
         await fetch(MAIL.gasUrl, { method:'POST', mode:'no-cors', headers:{'Content-Type':'text/plain'},
           body: JSON.stringify({ subject:`💥 דיווח נזק — רכב ${rec.plate}${drv?' ('+drv+')':''}`,
             body:`דיווח נזק חדש מהעובד/ת ${drv||'—'}:\n\nרכב: ${(VEH&&VEH.make)||''} ${(VEH&&VEH.model)||''} (${rec.plate})\nתאריך: ${rec.date}\nמיקום: ${rec.location||'—'}\nתיאור: ${rec.description}\n${rec.cause?('גורם התאונה: '+rec.cause+'\n'):''}${rec.fault?('מי אשם לדעת הנהג: '+rec.fault+'\n'):''}${rec.injuries?('נפגעים בגוף: '+rec.injuries+'\n'):''}${rec.police?('מעורבת משטרה: '+rec.police+'\n'):''}${tp?('צד ג\': '+tp):'ללא צד ג\''}\n\nהאירוע נכנס אוטומטית ללשונית "אירועים". התמונות מצורפות.`,
