@@ -577,6 +577,7 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
     <div class="dash-sec"><div class="dash-sec-hdr">📄 דוחות תנועה לפי נהג<span style="font-size:0.68rem;color:var(--muted)">נקודות · דוחות</span></div><div id="dash-viol"></div></div>
     <div class="dash-sec"><div class="dash-sec-hdr">⚠️ הכי הרבה חוסרים/התראות<span style="font-size:0.68rem;color:var(--muted)">פתוחים</span></div><div id="dash-alerts"></div></div>
   </div>
+  <div class="dash-sec"><div class="dash-sec-hdr">🏷️ חלוקה לפי חטיבה — נופר ישראל / ע.י (מטה)</div><div id="dash-divisions"></div></div>
   <div class="dash-sec"><div class="dash-sec-hdr">🏢 התפלגות הצי לפי חברת ליסינג</div><div id="dash-companies"></div></div>
   <div class="dash-sec"><div class="dash-sec-hdr">💰 עלויות ותחזוקה</div><div id="dash-costs"></div></div>
   <div style="height:20px"></div>
@@ -1997,6 +1998,26 @@ function renderManagerDashboard() {
   document.getElementById('dash-companies').innerHTML =
     `<div class="co-seg">${coEntries.map(([c,n])=>`<div style="width:${n/coTotal*100}%;background:${coColors[c]||'#64748b'}" title="${c}: ${n}">${n/coTotal>0.08?n:''}</div>`).join('')}</div>` +
     coEntries.map(([c,n])=>`<div class="dash-row"><span style="width:12px;height:12px;border-radius:3px;background:${coColors[c]||'#64748b'};flex-shrink:0"></span><div class="dash-name">${esc(c)}</div><div class="dash-val">${n} רכב · ${Math.round(n/coTotal*100)}%</div></div>`).join('');
+
+  // ── חלוקה לפי חטיבה: נופר ישראל (ישראל) / ע.י (מטה) ──
+  const _div = v => { const a = driverAffiliation(v.driverName); if (a.includes('מטה')) return 'ע.י'; if (a.includes('ישראל')) return 'נופר ישראל'; return 'ללא שיוך'; };
+  const divOrder = ['נופר ישראל', 'ע.י', 'ללא שיוך'];
+  const divColors = { 'נופר ישראל': '#2563eb', 'ע.י': '#059669', 'ללא שיוך': '#64748b' };
+  const divStats = {}; divOrder.forEach(k => divStats[k] = { count: 0, service: 0, overdue: 0, alerts: 0 });
+  active.forEach(v => { const k = _div(v); if (!divStats[k]) divStats[k] = { count: 0, service: 0, overdue: 0, alerts: 0 }; divStats[k].count++; const c = parseKm(v.currentKm), n = parseKm(v.nextServiceKm); if (c > 0 && n > 0 && c >= n) divStats[k].service++; });
+  const plateDiv = {}; active.forEach(v => { plateDiv[String(v.plate||'').replace(/\D/g,'')] = _div(v); });
+  alerts.forEach(a => { const k = plateDiv[String(a.plate||'').replace(/\D/g,'')]; if (!k || !divStats[k]) return; divStats[k].alerts++; if (a.daysLeft !== null && a.daysLeft < 0) divStats[k].overdue++; });
+  const divShown = divOrder.filter(k => divStats[k] && divStats[k].count > 0);
+  const divTotal = active.length || 1;
+  document.getElementById('dash-divisions').innerHTML =
+    `<div class="co-seg">${divShown.map(k => `<div style="width:${divStats[k].count/divTotal*100}%;background:${divColors[k]}" title="${k}: ${divStats[k].count}">${divStats[k].count/divTotal>0.06?divStats[k].count:''}</div>`).join('')}</div>` +
+    divShown.map(k => { const s = divStats[k]; return `<div style="border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-top:8px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px"><span style="width:12px;height:12px;border-radius:3px;background:${divColors[k]};flex-shrink:0"></span><b style="font-size:0.92rem">${esc(k)}</b><span style="color:var(--muted);font-size:0.8rem">· ${s.count} רכבים (${Math.round(s.count/divTotal*100)}%)</span></div>
+      <div style="display:flex;gap:14px;flex-wrap:wrap;font-size:0.78rem">
+        <span>🔧 חריגת טיפול: <b style="color:var(--orange)">${s.service}</b></span>
+        <span>📄 מסמכים שפגו: <b style="color:var(--red)">${s.overdue}</b></span>
+        <span>🔔 התראות פתוחות: <b style="color:#d97706">${s.alerts}</b></span>
+      </div></div>`; }).join('');
 
   // ── costs / maintenance (active drivers only) ──
   const withDamage = incAll.filter(i => parseMoney(i.damage) > 0).length;
