@@ -586,7 +586,6 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
           <option value="fuel">⛽ דלק</option>
           <option value="leasing">🚗 ליסינג</option>
           <option value="wash">🧼 שטיפה</option>
-          <option value="garage">🔧 מוסך</option>
           <option value="insurance">🛡️ ביטוח</option>
           <option value="other">📄 אחר</option>
         </select>
@@ -1094,6 +1093,17 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
   </div>
 </div>
 
+<!-- ══ VEHICLE COST DETAIL MODAL ══ -->
+<div class="modal-overlay" id="vcost-modal" style="z-index:670">
+  <div class="modal" style="max-width:440px">
+    <h3 id="vcost-title">💰 עלות רכב</h3>
+    <div id="vcost-body"></div>
+    <div class="btn-row">
+      <button class="btn btn-secondary" onclick="document.getElementById('vcost-modal').classList.remove('open')">סגור</button>
+    </div>
+  </div>
+</div>
+
 <!-- ══ VIOLATION MODAL ══ -->
 <div class="modal-overlay" id="violation-modal">
   <div class="modal">
@@ -1150,6 +1160,7 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
     </div>
     <div class="btn-row">
       <button class="btn btn-secondary" onclick="document.getElementById('invoice-modal').classList.remove('open')">ביטול</button>
+      <button class="btn btn-danger" id="invm-delete-btn" style="display:none" onclick="deleteInvoiceForm()">🗑️ מחק</button>
       <button class="btn btn-primary" onclick="saveInvoiceForm()">💾 שמור</button>
     </div>
   </div>
@@ -1257,6 +1268,7 @@ async function loadFromFirestore() {
       }
       if (Array.isArray(d.tasks)) { TASKS = d.tasks; localStorage.setItem('fleet_tasks', JSON.stringify(TASKS)); }
       if (Array.isArray(d.incidents)) { INCIDENTS = d.incidents; localStorage.setItem('fleet_incidents', JSON.stringify(INCIDENTS)); }
+      if (Array.isArray(d.invoices) && typeof INVOICES !== 'undefined') { INVOICES = d.invoices; localStorage.setItem('fleet_invoices', JSON.stringify(INVOICES)); }
       if (Array.isArray(d.violations)) { VIOLATIONS = d.violations; localStorage.setItem('fleet_violations', JSON.stringify(VIOLATIONS)); }
       if (Array.isArray(d.replacements)) { REPLACEMENTS = d.replacements; localStorage.setItem('fleet_replacements', JSON.stringify(REPLACEMENTS)); }
       if (Array.isArray(d.returns)) { RETURNS = d.returns; localStorage.setItem('fleet_returns', JSON.stringify(RETURNS)); }
@@ -1747,6 +1759,7 @@ function setupRealtimeSync() {
     if (Array.isArray(d.vehicles)) { VEHICLES = d.vehicles; changed = true; }
     if (Array.isArray(d.tasks)) { TASKS = d.tasks; }
     if (Array.isArray(d.incidents)) { INCIDENTS = d.incidents; }
+    if (Array.isArray(d.invoices) && typeof INVOICES !== 'undefined') { INVOICES = d.invoices; localStorage.setItem('fleet_invoices', JSON.stringify(INVOICES)); if (typeof renderInvoices === 'function') renderInvoices(); }
     if (Array.isArray(d.violations)) { VIOLATIONS = d.violations; }
     if (Array.isArray(d.replacements)) { REPLACEMENTS = d.replacements; }
     if (Array.isArray(d.returns)) { RETURNS = d.returns; }
@@ -1938,8 +1951,38 @@ function parseMoney(s) {
   return m ? Math.round(parseFloat(m[0])) : 0;
 }
 // ── ייבוא חשבוניות כללי: קטגוריה נבחרת + זיהוי אוטומטי של עמודות רכב/סכום. דלק = פרסר קבוע. ──
-const COST_CATS = ['fuel', 'leasing', 'wash', 'garage', 'insurance', 'other'];
-const COST_LABEL = { fuel: 'דלק', leasing: 'ליסינג', wash: 'שטיפה', garage: 'מוסך', insurance: 'ביטוח', other: 'אחר' };
+const COST_CATS = ['fuel', 'leasing', 'wash', 'insurance', 'other']; // מיובאות; מוסך+נזקים מגיעים אוטומטית מהמערכת
+const COST_LABEL = { fuel: 'דלק', leasing: 'ליסינג', wash: 'שטיפה', insurance: 'ביטוח', other: 'אחר', garage: 'מוסך', damages: 'נזקים' };
+const _cpk = p => String(p == null ? '' : p).replace(/\D/g, '');
+function _costMonthOf(s) {
+  s = String(s || '');
+  let m = s.match(/^(\d{4})-(\d{2})/); if (m) return `${m[1]}-${m[2]}`;
+  m = s.match(/(\d{1,2})[.\/](\d{1,2})[.\/](\d{2,4})/); if (m) { const y = m[3].length === 2 ? '20' + m[3] : m[3]; return `${y}-${m[2].padStart(2, '0')}`; }
+  return '';
+}
+// עלות מלאה של רכב לחודש: קטגוריות מיובאות + מוסך (חשבוניות) + נזקים (השתתפות עצמית)
+function vehicleMonthCost(pk, month) {
+  const c = (COSTS[month] && COSTS[month][pk]) || {};
+  const brk = {};
+  COST_CATS.forEach(k => { const v = Number(c[k]) || 0; if (v > 0) brk[k] = Math.round(v); });
+  let garage = 0; (typeof INVOICES !== 'undefined' ? INVOICES : []).forEach(inv => { if (_cpk(inv.plate) === pk && _costMonthOf(inv.date) === month) garage += parseMoney(inv.amount); });
+  if (garage > 0) brk.garage = garage;
+  let damages = 0; (typeof INCIDENTS !== 'undefined' ? INCIDENTS : []).forEach(i => { if (_cpk(i.plate) === pk && _costMonthOf(i.date) === month) damages += parseMoney(i.deductible); });
+  if (damages > 0) brk.damages = damages;
+  const total = Object.values(brk).reduce((s, v) => s + v, 0);
+  return { total, brk };
+}
+function openVehicleCost(plate, month) {
+  const pk = _cpk(plate);
+  const { total, brk } = vehicleMonthCost(pk, month);
+  const vv = VEHICLES.find(x => _cpk(x.plate) === pk);
+  const name = vv ? (vv.driverName || '').split('-')[0].trim() : '';
+  document.getElementById('vcost-title').textContent = `💰 ${vv ? vv.plate : plate}${name ? ' · ' + name : ''} — ${month}`;
+  const order = ['fuel', 'leasing', 'wash', 'insurance', 'garage', 'damages', 'other'];
+  const rows = order.filter(k => brk[k] > 0).map(k => `<tr><td style="padding:8px 12px;border:1px solid var(--border)">${COST_LABEL[k] || k}</td><td style="padding:8px 12px;border:1px solid var(--border);text-align:left;font-weight:700">₪${brk[k].toLocaleString()}</td></tr>`).join('');
+  document.getElementById('vcost-body').innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:0.9rem">${rows || '<tr><td style="padding:10px;color:var(--muted)">אין עלויות לחודש זה</td></tr>'}<tr style="background:#f0fdf4"><td style="padding:9px 12px;border:1px solid var(--border);font-weight:900">סה"כ</td><td style="padding:9px 12px;border:1px solid var(--border);text-align:left;font-weight:900;color:#059669">₪${total.toLocaleString()}</td></tr></table><div style="font-size:0.72rem;color:var(--muted);margin-top:8px">דלק/ליסינג/שטיפה — מייבוא חשבוניות · מוסך/נזקים — אוטומטית מהמערכת.</div>`;
+  document.getElementById('vcost-modal').classList.add('open');
+}
 async function onCostFile(input) {
   const file = input.files && input.files[0]; if (!file) return;
   const category = (document.getElementById('cost-category') || {}).value || 'other';
@@ -2108,23 +2151,42 @@ function renderManagerDashboard() {
     `<div class="co-seg">${coEntries.map(([c,n])=>`<div style="width:${n/coTotal*100}%;background:${coColors[c]||'#64748b'}" title="${c}: ${n}">${n/coTotal>0.08?n:''}</div>`).join('')}</div>` +
     coEntries.map(([c,n])=>`<div class="dash-row"><span style="width:12px;height:12px;border-radius:3px;background:${coColors[c]||'#64748b'};flex-shrink:0"></span><div class="dash-name">${esc(c)}</div><div class="dash-val">${n} רכב · ${Math.round(n/coTotal*100)}%</div></div>`).join('');
 
-  // ── עלות כוללת לכל רכב (סכום כל הקטגוריות, מהחודש האחרון שיובא) ──
-  const _costMonths = Object.keys(COSTS || {}).filter(mk => /^\d{4}-\d{2}$/.test(mk)).sort();
-  const _lastMonth = _costMonths[_costMonths.length - 1];
-  const _cd = _lastMonth ? (COSTS[_lastMonth] || {}) : {};
-  const _vtot = c => COST_CATS.reduce((s, k) => s + (Number(c[k]) || 0), 0);
-  const _costRows = Object.entries(_cd).map(([plate, c]) => {
-    const vv = VEHICLES.find(x => String(x.plate || '').replace(/\D/g, '') === String(plate).replace(/\D/g, ''));
-    const brk = COST_CATS.filter(k => Number(c[k]) > 0).map(k => `${COST_LABEL[k]} ₪${Math.round(c[k]).toLocaleString()}`).join(' · ');
-    return { name: vv ? cleanName(vv.driverName) : ('רכב ' + plate), sub: brk || plate, val: Math.round(_vtot(c)) };
-  }).filter(r => r.val > 0).sort((a, b) => b.val - a.val).slice(0, 12);
-  const _grand = Object.values(_cd).reduce((s, c) => s + _vtot(c), 0);
+  // ── עלות כוללת לכל רכב: מיובא (דלק/ליסינג/שטיפה/ביטוח) + מוסך + נזקים (מהחודש האחרון) ──
+  const _mset = new Set(Object.keys(COSTS || {}).filter(mk => /^\d{4}-\d{2}$/.test(mk)));
+  (typeof INVOICES !== 'undefined' ? INVOICES : []).forEach(i => { const m = _costMonthOf(i.date); if (m && parseMoney(i.amount) > 0) _mset.add(m); });
+  (typeof INCIDENTS !== 'undefined' ? INCIDENTS : []).forEach(i => { const m = _costMonthOf(i.date); if (m && parseMoney(i.deductible) > 0) _mset.add(m); });
+  const _monthsArr = [..._mset].sort();
+  const _lastMonth = _monthsArr[_monthsArr.length - 1];
+  const _plateSet = new Set();
+  if (_lastMonth) {
+    Object.keys(COSTS[_lastMonth] || {}).forEach(p => _plateSet.add(_cpk(p)));
+    (typeof INVOICES !== 'undefined' ? INVOICES : []).forEach(i => { if (_costMonthOf(i.date) === _lastMonth) _plateSet.add(_cpk(i.plate)); });
+    (typeof INCIDENTS !== 'undefined' ? INCIDENTS : []).forEach(i => { if (_costMonthOf(i.date) === _lastMonth && parseMoney(i.deductible) > 0) _plateSet.add(_cpk(i.plate)); });
+  }
+  const _rows = [..._plateSet].filter(Boolean).map(pk => {
+    const rr = vehicleMonthCost(pk, _lastMonth);
+    const vv = VEHICLES.find(x => _cpk(x.plate) === pk);
+    return { plate: pk, name: vv ? cleanName(vv.driverName) : ('רכב ' + pk), total: rr.total, brk: rr.brk };
+  }).filter(r => r.total > 0).sort((a, b) => b.total - a.total);
+  const _grand = _rows.reduce((s, r) => s + r.total, 0);
   const _monthEl = document.getElementById('dash-cost-month');
   if (_monthEl) _monthEl.textContent = _lastMonth ? `חודש ${_lastMonth} · סה"כ צי ₪${Math.round(_grand).toLocaleString()}` : '';
   const _cvEl = document.getElementById('dash-costs-view');
-  if (_cvEl) _cvEl.innerHTML = _lastMonth
-    ? bars(_costRows, 'linear-gradient(90deg,#4ade80,#059669)', v => `₪${v.toLocaleString()}`)
-    : '<div class="empty-note">אין עדיין נתוני עלות.<br><span style="font-size:0.72rem">בחר קטגוריה (דלק/ליסינג/שטיפה...) ולחץ "📥 ייבוא חשבונית" כדי לראות עלות לכל רכב.</span></div>';
+  if (_cvEl) {
+    if (!_lastMonth || !_rows.length) {
+      _cvEl.innerHTML = '<div class="empty-note">אין עדיין נתוני עלות.<br><span style="font-size:0.72rem">בחר קטגוריה ולחץ "📥 ייבוא חשבוניות כלליות". מוסך ונזקים נספרים אוטומטית מהמערכת.</span></div>';
+    } else {
+      const _max = Math.max(..._rows.map(r => r.total), 1);
+      _cvEl.innerHTML = _rows.slice(0, 15).map((r, i) => {
+        const short = Object.entries(r.brk).map(([k, v]) => `${COST_LABEL[k] || k} ₪${v.toLocaleString()}`).join(' · ');
+        return `<div class="dash-row" style="cursor:pointer" title="לחץ לפירוט מלא" onclick="openVehicleCost('${esc(r.plate)}','${_lastMonth}')">
+          <div class="dash-rank ${i < 3 ? 'top' : ''}">${i + 1}</div>
+          <div class="dash-name">${esc(r.name)} <span style="color:var(--muted);font-weight:400;font-size:0.66rem">${esc(short)}</span></div>
+          <div class="dash-bar-wrap"><div class="dash-bar" style="width:${Math.round(r.total / _max * 100)}%;background:linear-gradient(90deg,#4ade80,#059669)"></div></div>
+          <div class="dash-val">₪${r.total.toLocaleString()}</div></div>`;
+      }).join('');
+    }
+  }
 
   // ── חלוקה לפי חטיבה: נופר ישראל (ישראל) / ע.י (מטה) ──
   const _div = v => { const a = driverAffiliation(v.driverName); if (a.includes('מטה')) return 'ע.י'; if (a.includes('ישראל')) return 'נופר ישראל'; return 'ללא שיוך'; };
@@ -3881,7 +3943,7 @@ function renderInvoices() {
   });
   document.getElementById('inv-count').textContent = filtered.length;
   document.getElementById('inv-body').innerHTML = filtered.map(i => `
-    <tr>
+    <tr style="cursor:pointer" title="לחץ לעריכה" onclick="openInvoiceModal('${esc(String(i.id))}')">
       <td style="color:var(--muted)">${i.id}</td>
       <td style="font-weight:700;color:var(--accent);direction:ltr">${esc(i.plate)}</td>
       <td style="font-size:0.78rem">${esc(i.garage)}</td>
@@ -3889,6 +3951,58 @@ function renderInvoices() {
       <td style="font-size:0.75rem;max-width:200px">${esc(i.workType)}</td>
       <td style="font-size:0.75rem">${esc(i.driver)}</td>
     </tr>`).join('');
+}
+let _editInvoiceId = null;
+function openInvoiceModal(id, plate, driver) {
+  _editInvoiceId = (id != null && id !== '') ? id : null;
+  const inv = _editInvoiceId ? INVOICES.find(x => String(x.id) === String(_editInvoiceId)) : null;
+  document.getElementById('invoice-modal-title').textContent = inv ? ('✏️ עריכת חשבונית #' + inv.id) : '+ הוסף חשבונית';
+  const set = (eid, val) => { const el = document.getElementById(eid); if (el) el.value = (val == null ? '' : val); };
+  set('invm-plate', inv ? inv.plate : (plate || ''));
+  set('invm-driver', inv ? inv.driver : (driver || ''));
+  set('invm-garage', inv ? inv.garage : '');
+  set('invm-date', inv ? inv.date : '');
+  set('invm-workType', inv ? inv.workType : '');
+  set('invm-amount', inv ? String(inv.amount || '').replace(/[^\d.]/g, '') : '');
+  set('invm-notes', inv ? inv.notes : '');
+  const del = document.getElementById('invm-delete-btn'); if (del) del.style.display = inv ? '' : 'none';
+  document.getElementById('invoice-modal').classList.add('open');
+}
+function deleteInvoiceForm() {
+  if (!_editInvoiceId) return;
+  const inv = INVOICES.find(x => String(x.id) === String(_editInvoiceId));
+  if (!confirm(`למחוק את החשבונית${inv ? ' של ' + (inv.garage || inv.plate || '') : ''}?`)) return;
+  INVOICES = INVOICES.filter(x => String(x.id) !== String(_editInvoiceId));
+  try { localStorage.setItem('fleet_invoices', JSON.stringify(INVOICES)); } catch(e){}
+  saveToFirestore('invoices', INVOICES);
+  document.getElementById('invoice-modal').classList.remove('open');
+  renderInvoices();
+  refreshDashboardIfOpen();
+  toast('החשבונית נמחקה ✓');
+  _editInvoiceId = null;
+}
+function saveInvoiceForm() {
+  const g = eid => (document.getElementById(eid).value || '').trim();
+  if (!g('invm-plate') && !g('invm-driver')) { toast('הכנס מספר רכב או שם נהג', true); return; }
+  const rec = {
+    plate: g('invm-plate'), driver: g('invm-driver'), garage: g('invm-garage'),
+    date: g('invm-date'), workType: g('invm-workType'),
+    amount: g('invm-amount'), notes: g('invm-notes')
+  };
+  if (_editInvoiceId) {
+    const idx = INVOICES.findIndex(x => String(x.id) === String(_editInvoiceId));
+    if (idx >= 0) INVOICES[idx] = { ...INVOICES[idx], ...rec };
+  } else {
+    rec.id = INVOICES.reduce((m, x) => Math.max(m, +x.id || 0), 0) + 1;
+    INVOICES.unshift(rec);
+  }
+  try { localStorage.setItem('fleet_invoices', JSON.stringify(INVOICES)); } catch(e){}
+  saveToFirestore('invoices', INVOICES);
+  document.getElementById('invoice-modal').classList.remove('open');
+  renderInvoices();
+  refreshDashboardIfOpen();
+  toast(_editInvoiceId ? 'חשבונית עודכנה ✓' : 'חשבונית נוספה ✓');
+  _editInvoiceId = null;
 }
 
 // ── ALERTS ──
