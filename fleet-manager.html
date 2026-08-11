@@ -577,6 +577,17 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
     <div class="dash-sec"><div class="dash-sec-hdr">📄 דוחות תנועה לפי נהג<span style="font-size:0.68rem;color:var(--muted)">נקודות · דוחות</span></div><div id="dash-viol"></div></div>
     <div class="dash-sec"><div class="dash-sec-hdr">⚠️ הכי הרבה חוסרים/התראות<span style="font-size:0.68rem;color:var(--muted)">פתוחים</span></div><div id="dash-alerts"></div></div>
   </div>
+  <div class="dash-sec">
+    <div class="dash-sec-hdr" style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+      <span>💰 עלות דלק לכל רכב</span>
+      <span style="display:flex;gap:8px;align-items:center">
+        <span id="dash-fuel-month" style="font-size:0.7rem;color:var(--muted);font-weight:400"></span>
+        <button class="btn btn-primary" style="padding:4px 11px;font-size:0.74rem" onclick="document.getElementById('fuel-file').click()">📥 ייבוא דוח דלק</button>
+      </span>
+    </div>
+    <input id="fuel-file" type="file" accept=".csv,text/csv" style="display:none" onchange="onFuelFile(this)">
+    <div id="dash-fuelcost"></div>
+  </div>
   <div class="dash-sec"><div class="dash-sec-hdr">🏷️ חלוקה לפי חטיבה — נופר ישראל / ע.י (מטה)</div><div id="dash-divisions"></div></div>
   <div class="dash-sec"><div class="dash-sec-hdr">🏢 התפלגות הצי לפי חברת ליסינג</div><div id="dash-companies"></div></div>
   <div class="dash-sec"><div class="dash-sec-hdr">💰 עלויות ותחזוקה</div><div id="dash-costs"></div></div>
@@ -1249,6 +1260,7 @@ async function loadFromFirestore() {
       await loadArchiveDoc('returns',      a => { RETURNS = a;      localStorage.setItem('fleet_returns', JSON.stringify(a)); });
       if (d.mailSettings) { MAIL_SETTINGS = d.mailSettings; localStorage.setItem('fleet_mailSettings', JSON.stringify(MAIL_SETTINGS)); }
       if (d.kmRound && typeof KMROUND !== 'undefined') { KMROUND = d.kmRound; }
+      if (d.costs && typeof COSTS !== 'undefined') { COSTS = d.costs; }
       if (d.serviceNotified) { SERVICE_NOTIFIED = d.serviceNotified; }
       if (d.drivers) { DRIVERS = d.drivers; }
       if (typeof d.agentRules === 'string') { AGENT_RULES = d.agentRules; }
@@ -1732,6 +1744,7 @@ function setupRealtimeSync() {
     if (Array.isArray(d.returns)) { RETURNS = d.returns; }
     if (d.mailSettings) { MAIL_SETTINGS = d.mailSettings; }
     if (d.kmRound && typeof KMROUND !== 'undefined') { KMROUND = d.kmRound; if (typeof updateKmBanner === 'function') updateKmBanner(); }
+    if (d.costs && typeof COSTS !== 'undefined') { COSTS = d.costs; if (typeof renderManagerDashboard === 'function') refreshDashboardIfOpen(); }
     if (d.serviceNotified) { SERVICE_NOTIFIED = d.serviceNotified; }
     if (d.drivers) { DRIVERS = d.drivers; }
     if (typeof d.agentRules === 'string') { AGENT_RULES = d.agentRules; }
@@ -1914,6 +1927,41 @@ function parseMoney(s) {
   const m = String(s||'').replace(/,/g,'').match(/\d+(\.\d+)?/);
   return m ? Math.round(parseFloat(m[0])) : 0;
 }
+// ── ייבוא דוח דלק (CSV, פורמט קבוע ללא כותרות): plate=[5], date=[3], liters=[10], amount=[11] ──
+async function onFuelFile(input) {
+  const file = input.files && input.files[0]; if (!file) return;
+  let text = '';
+  try { text = await file.text(); } catch(e) { toast('שגיאה בקריאת הקובץ', true); input.value = ''; return; }
+  const byMonth = {}; let parsed = 0, total = 0; const plates = new Set();
+  for (const line of text.split(/\r?\n/)) {
+    if (!line.trim()) continue;
+    const r = line.split(',');
+    if (r.length < 13) continue;
+    const plate = String(r[5] || '').trim().replace(/\D/g, '');
+    const amt = parseFloat(r[11]); const lt = parseFloat(r[10]);
+    if (!plate || /^0+$/.test(plate) || isNaN(amt) || amt <= 0) continue;
+    const dm = String(r[3] || '').match(/(\d{2})\/(\d{2})\/(\d{4})/);
+    const mk = dm ? `${dm[3]}-${dm[2]}` : 'ללא-תאריך';
+    byMonth[mk] = byMonth[mk] || {};
+    const c = byMonth[mk][plate] = byMonth[mk][plate] || { fuel: 0, fuelLiters: 0, fuelFills: 0 };
+    c.fuel += amt; c.fuelLiters += (isNaN(lt) ? 0 : lt); c.fuelFills += 1;
+    parsed++; total += amt; plates.add(plate);
+  }
+  input.value = '';
+  if (!parsed) { toast('לא זוהו רשומות תדלוק — בדוק שזה קובץ דוח הדלק הנכון', true); return; }
+  const months = Object.keys(byMonth).sort();
+  if (!confirm(`זוהו ${parsed} תדלוקים\nסה"כ: ₪${Math.round(total).toLocaleString()}\nרכבים: ${plates.size}\nחודשים: ${months.join(', ')}\n\nלייבא ולשמור את עלויות הדלק?`)) return;
+  Object.entries(byMonth).forEach(([mk, pl]) => {
+    COSTS[mk] = COSTS[mk] || {};
+    Object.entries(pl).forEach(([plate, c]) => {
+      COSTS[mk][plate] = { ...(COSTS[mk][plate] || {}), fuel: Math.round(c.fuel * 100) / 100, fuelLiters: Math.round(c.fuelLiters), fuelFills: c.fuelFills };
+    });
+  });
+  saveToFirestore('costs', COSTS);
+  try { localStorage.setItem('fleet_costs', JSON.stringify(COSTS)); } catch(e) {}
+  renderManagerDashboard();
+  toast(`✓ יובאו עלויות דלק ל-${plates.size} רכבים`);
+}
 function renderManagerDashboard() {
   const cleanName = s => (s||'').split('-')[0].replace(/['"׳]/g,'').trim();
   // active drivers currently in the fleet (skip trailers / unassigned)
@@ -1998,6 +2046,22 @@ function renderManagerDashboard() {
   document.getElementById('dash-companies').innerHTML =
     `<div class="co-seg">${coEntries.map(([c,n])=>`<div style="width:${n/coTotal*100}%;background:${coColors[c]||'#64748b'}" title="${c}: ${n}">${n/coTotal>0.08?n:''}</div>`).join('')}</div>` +
     coEntries.map(([c,n])=>`<div class="dash-row"><span style="width:12px;height:12px;border-radius:3px;background:${coColors[c]||'#64748b'};flex-shrink:0"></span><div class="dash-name">${esc(c)}</div><div class="dash-val">${n} רכב · ${Math.round(n/coTotal*100)}%</div></div>`).join('');
+
+  // ── עלות דלק לכל רכב (מהחודש האחרון שיובא) ──
+  const _costMonths = Object.keys(COSTS || {}).filter(mk => /^\d{4}-\d{2}$/.test(mk)).sort();
+  const _lastMonth = _costMonths[_costMonths.length - 1];
+  const _cd = _lastMonth ? (COSTS[_lastMonth] || {}) : {};
+  const _fuelRows = Object.entries(_cd).map(([plate, c]) => {
+    const vv = VEHICLES.find(x => String(x.plate || '').replace(/\D/g, '') === String(plate).replace(/\D/g, ''));
+    return { name: vv ? cleanName(vv.driverName) : ('רכב ' + plate), sub: plate, val: Math.round(c.fuel || 0), liters: c.fuelLiters || 0 };
+  }).filter(r => r.val > 0).sort((a, b) => b.val - a.val).slice(0, 12);
+  const _fuelTotal = Object.values(_cd).reduce((s, c) => s + (c.fuel || 0), 0);
+  const _monthEl = document.getElementById('dash-fuel-month');
+  if (_monthEl) _monthEl.textContent = _lastMonth ? `חודש ${_lastMonth} · סה"כ ₪${Math.round(_fuelTotal).toLocaleString()}` : '';
+  const _fcEl = document.getElementById('dash-fuelcost');
+  if (_fcEl) _fcEl.innerHTML = _lastMonth
+    ? bars(_fuelRows, 'linear-gradient(90deg,#4ade80,#059669)', (v, r) => `₪${v.toLocaleString()}${r.liters ? ` · ${r.liters}L` : ''}`)
+    : '<div class="empty-note">אין עדיין נתוני דלק.<br><span style="font-size:0.72rem">לחץ "📥 ייבוא דוח דלק" והעלה את קובץ ה-CSV מחברת הדלק — ותראה עלות לכל רכב.</span></div>';
 
   // ── חלוקה לפי חטיבה: נופר ישראל (ישראל) / ע.י (מטה) ──
   const _div = v => { const a = driverAffiliation(v.driverName); if (a.includes('מטה')) return 'ע.י'; if (a.includes('ישראל')) return 'נופר ישראל'; return 'ללא שיוך'; };
@@ -2702,6 +2766,7 @@ function tParam(sep) { return (sep || '&') + 't=' + encodeURIComponent(TENANT ||
 // name for every other tenant) instead of a hardcoded "נופר אנרגיה".
 function coSig() { return COMPANY_NAME ? ('מחלקת הרכב — ' + COMPANY_NAME) : 'מחלקת הרכב'; }
 let KMROUND = {};
+let COSTS = {}; // עלויות לרכב לפי חודש: { 'YYYY-MM': { plate: { fuel, fuelLiters, fuelFills } } }
 function kmMonthKey() {
   const n = new Date();
   return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}`;
