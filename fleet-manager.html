@@ -2837,7 +2837,7 @@ async function loadKmRound() {
       if (_veh) {
         const _cur = parseKm(_veh.currentKm), _nxt = parseKm(_veh.nextServiceKm);
         _due  = _cur > 0 && _nxt > 0 && _cur >= _nxt;
-        _soon = !_due && _cur > 0 && _nxt > 0 && (_nxt - _cur) <= 1000;
+        _soon = !_due && _cur > 0 && _nxt > 0 && (_nxt - _cur) <= 500;
       } else { _due = r.serviceDue; _soon = r.serviceSoon; }   // גיבוי לדגל השמור אם הרכב לא נמצא
       const flag = _due ? '<span class="badge badge-red">🔧 נדרש טיפול</span>' : _soon ? '<span class="badge badge-orange">טיפול מתקרב</span>' : '<span class="badge badge-green">✓ תקין</span>';
       return `<div class="insp-hist-row" style="cursor:default">
@@ -2902,7 +2902,7 @@ async function recordKmReport(v, km, prevKm) {
   try {
     const now = new Date(), p2 = n => String(n).padStart(2, '0'), monthKey = kmMonthKey();
     const next = parseKm(v.nextServiceKm);
-    const serviceDue = next > 0 && km >= next, serviceSoon = next > 0 && !serviceDue && (next - km) <= 1000;
+    const serviceDue = next > 0 && km >= next, serviceSoon = next > 0 && !serviceDue && (next - km) <= 500;
     await fcol().doc(`kmr_${monthKey}_${v.plate}`).set({
       type: 'kmreport', created: Date.now(), monthKey,
       dateStr: `${p2(now.getDate())}/${p2(now.getMonth() + 1)}/${now.getFullYear()} ${p2(now.getHours())}:${p2(now.getMinutes())}`,
@@ -2926,7 +2926,7 @@ async function kmRoundUpdateFor(plate) {
   saveVehiclesSafely(v.plate, null, v.plate);   // מעדכן את הק"מ ברכב
   try {
     const now = new Date(), p2 = n => String(n).padStart(2,'0'), monthKey = kmMonthKey();
-    const serviceDue = next > 0 && km >= next, serviceSoon = next > 0 && !serviceDue && (next - km) <= 1000;
+    const serviceDue = next > 0 && km >= next, serviceSoon = next > 0 && !serviceDue && (next - km) <= 500;
     await fcol().doc(`kmr_${monthKey}_${v.plate}`).set({
       type: 'kmreport', created: Date.now(), monthKey,
       dateStr: `${p2(now.getDate())}/${p2(now.getMonth()+1)}/${now.getFullYear()} ${p2(now.getHours())}:${p2(now.getMinutes())}`,
@@ -3877,8 +3877,8 @@ function buildDynamicAlerts() {
     const nxt = parseKm(v.nextServiceKm);
     // KM side — alert within 2000 km of next service or overdue
     const kmOverdue = cur > 0 && nxt > 0 && cur >= nxt;
-    if (!_isTrailer && cur > 0 && nxt > 0 && cur >= nxt - 2000)
-      alerts.push({ plate:v.plate, driver:v.driverName, type:'טיפול הבא (ק"מ)', dueDate:'—', daysLeft:null, prevKm:null, kmAlert:2000, currentKm:cur, kmDiff: cur - nxt + 2000 });
+    if (!_isTrailer && cur > 0 && nxt > 0 && cur >= nxt - 500)
+      alerts.push({ plate:v.plate, driver:v.driverName, type:'טיפול הבא (ק"מ)', dueDate:'—', daysLeft:null, prevKm:null, kmAlert:500, currentKm:cur, kmDiff: cur - nxt + 500 });
     // TIME side — 1 year (SERVICE_INTERVAL_MONTHS) after the last service date.
     // Only when a last-service date exists; suppressed if the km-service is already overdue
     // (so the earlier-of-the-two shows a single alert, not two).

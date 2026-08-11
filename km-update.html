@@ -191,7 +191,7 @@ async function submitKm() {
   const monthKey = `${now.getFullYear()}-${p2(now.getMonth()+1)}`;
   const next = parseKmNum(VEH.nextServiceKm);
   const serviceDue = next > 0 && km >= next;
-  const serviceSoon = next > 0 && !serviceDue && (next - km) <= 1000;
+  const serviceSoon = next > 0 && !serviceDue && (next - km) <= 500;
   try {
     // 1. km report (one per vehicle per month — overwrites on repeat fill).
     // applyKm flags it so the signed-in manager writes the km onto the vehicle.
