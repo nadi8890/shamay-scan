@@ -2578,6 +2578,7 @@ function renderFleet() {
       <td style="white-space:nowrap">
         <button class="btn btn-gray" style="padding:3px 8px;font-size:0.7rem" onclick="event.stopPropagation();editVehicle('${esc(v.plate)}')">✏️</button>
         <button class="btn btn-gray" style="padding:3px 8px;font-size:0.7rem" title="שלח טפסי קבלת רכב לנהג" onclick="event.stopPropagation();openDeclShare('${esc(v.plate)}')">📨</button>
+        <button class="btn btn-gray" style="padding:3px 8px;font-size:0.7rem" title="אישור החזקה ברכב לעירייה (PDF)" onclick="event.stopPropagation();openCityPermit('${esc(v.plate)}')">🏛️</button>
         <button class="btn btn-gray" style="padding:3px 8px;font-size:0.7rem" title="מחק רכב מהצי" onclick="event.stopPropagation();deleteVehicleRow('${esc(v.plate)}')">🗑️</button>
       </td>
     </tr>`;
@@ -2881,6 +2882,131 @@ async function transferPdf() {
     toast('✓ טופס ההסבה נוצר והדוח סומן כ"הוסב"');
     document.getElementById('transfer-modal').classList.remove('open');
   } catch(e) {
+    toast('⚠ יצירת ה-PDF נכשלה: ' + (e.message || e), true);
+  } finally { document.body.removeChild(holder); }
+}
+
+// ═══ אישור החזקה ברכב לעירייה ═══
+// חברת ההעסקה נקבעת לפי אם בשם העובד רשום "ישראל" או "מטה" → קובע את הח.פ.
+const CITY_PERMIT_COMPANIES = {
+  israel: { name: 'נופר אנרגיה בישראל בע"מ', hp: '517252987' },
+  mata:   { name: 'ע.י נופר אנרג\'י בע"מ',    hp: '514599943' }
+};
+// רשימת רשויות ל"לכבוד" (ניתן גם להקליד חופשי)
+const CITY_PERMIT_AUTHORITIES = ['משטרת ישראל','עיריית תל אביב-יפו','עיריית ירושלים','עיריית חיפה','עיריית ראשון לציון','עיריית פתח תקווה','עיריית אשדוד','עיריית נתניה','עיריית באר שבע','עיריית בני ברק','עיריית חולון','עיריית רמת גן','עיריית אשקלון','עיריית רחובות','עיריית בת ים','עיריית בית שמש','עיריית כפר סבא','עיריית הרצליה','עיריית חדרה','עיריית מודיעין-מכבים-רעות','עיריית לוד','עיריית רמלה','עיריית רעננה','עיריית גבעתיים','עיריית הוד השרון','עיריית קריית אתא','עיריית קריית גת','עיריית נהריה','עיריית קריית ביאליק','עיריית אילת','עיריית ראש העין','עיריית עפולה','עיריית קריית אונו','עיריית קריית מוצקין','עיריית אום אל-פחם','עיריית טבריה','עיריית נס ציונה','עיריית יבנה','עיריית אור יהודה','עיריית מודיעין עילית','עיריית ביתר עילית','עיריית נוף הגליל','עיריית דימונה','עיריית טמרה','עיריית סח\'נין','עיריית שפרעם','עיריית קריית ים','עיריית כרמיאל','עיריית טייבה','עיריית נתיבות','עיריית קלנסווה','עיריית אריאל','עיריית מגדל העמק','עיריית יהוד-מונוסון','עיריית צפת','עיריית אופקים','עיריית קריית שמונה','עיריית טירה','עיריית רהט','עיריית ערד','עיריית גבעת שמואל','עיריית שדרות','עיריית טירת כרמל','עיריית קריית מלאכי','עיריית נשר','עיריית באקה אל-גרביה','עיריית כפר קאסם','עיריית אור עקיבא','עיריית בית שאן','עיריית מעלה אדומים','עיריית מעלות-תרשיחא','עיריית עכו','עיריית צור הדסה','עיריית זכרון יעקב','מועצה מקומית כפר יונה','מועצה מקומית פרדס חנה-כרכור'];
+function _cpCleanName(name){
+  let n = String(name||'').split('-')[0].trim();        // מה שלפני הערת המקף
+  n = n.replace(/[\s,·]*(ישראל|מטה)[\s,·]*$/,'').trim(); // הסרת סימון החטיבה אם מופיע בסוף בלי מקף
+  return n;
+}
+function _cpDetectDivision(name){
+  const s = String(name||'');
+  if (s.includes('מטה')) return 'mata';
+  if (s.includes('ישראל')) return 'israel';
+  return null;
+}
+async function _cpGovColor(plate){
+  try {
+    const p = String(plate||'').replace(/\D/g,'');
+    if(!p) return '';
+    const url = `https://data.gov.il/api/3/action/datastore_search?resource_id=053cea08-09bc-40ec-8f7a-156f0677aff3&q=${encodeURIComponent(p)}&limit=5`;
+    const res = await fetch(url);
+    if(!res.ok) return '';
+    const data = await res.json();
+    const recs = data?.result?.records || [];
+    const rec = recs.find(r => String(r.mispar_rechev||'').replace(/\D/g,'') === p) || recs[0];
+    return rec ? (rec.tzeva_rechev || '') : '';
+  } catch(e){ return ''; }
+}
+function cpSetCompany(){
+  const val = (document.querySelector('input[name="cp-div"]:checked')||{}).value || 'israel';
+  const c = CITY_PERMIT_COMPANIES[val];
+  const set = (id,v) => { const el = document.getElementById(id); if(el) el.value = v; };
+  set('cp-company', c.name); set('cp-hp', c.hp);
+}
+function openCityPermit(plate){
+  const v = _vehByPlate(plate);
+  if(!v){ toast('הרכב לא נמצא', true); return; }
+  // מילוי רשימת הרשויות פעם אחת
+  const dl = document.getElementById('cp-cities');
+  if(dl && !dl.children.length) dl.innerHTML = CITY_PERMIT_AUTHORITIES.map(c=>`<option value="${c}">`).join('');
+  const t = new Date();
+  const today = `${('0'+t.getDate()).slice(-2)}/${('0'+(t.getMonth()+1)).slice(-2)}/${t.getFullYear()}`;
+  const set = (id,val) => { const el = document.getElementById(id); if(el) el.value = val || ''; };
+  set('cp-date', today);
+  set('cp-recipient', '');
+  set('cp-plate', v.plate);
+  set('cp-driver', _cpCleanName(v.driverName));
+  set('cp-driver-id', v.driverId || '');
+  set('cp-make', ((v.make||'')+' '+(v.model||'')).trim());
+  set('cp-color', '');
+  // זיהוי חטיבה מתוך שם הנהג (ברירת מחדל: ישראל, עם מתג ידני כגיבוי)
+  const div = _cpDetectDivision(v.driverName) || 'israel';
+  const radio = document.querySelector(`input[name="cp-div"][value="${div}"]`);
+  if(radio) radio.checked = true;
+  cpSetCompany();
+  const detected = _cpDetectDivision(v.driverName);
+  const dn = document.getElementById('cp-div-note');
+  if(dn) dn.textContent = detected
+    ? `זוהה אוטומטית מתוך שם העובד: ${detected==='mata'?'מטה':'ישראל'}`
+    : '⚠ לא זוהה ישראל/מטה בשם העובד — בחר ידנית (ברירת מחדל: ישראל).';
+  const sig = window.OFFICER_SIGNATURE;
+  document.getElementById('cp-sig-note').innerHTML = sig
+    ? '✅ חתימת קצין הבטיחות השמורה תוטבע אוטומטית. חותמת — תוסיף ידנית על ההדפסה.'
+    : '⚠ אין חתימת קצין שמורה (לשונית טפסים ← חתימת קצין). ה-PDF ייווצר בלי חתימה.';
+  document.getElementById('city-permit-modal').classList.add('open');
+  // משיכת צבע מהמאגר הממשלתי (אסינכרוני)
+  const cl = document.getElementById('cp-color-load');
+  if(cl) cl.textContent = '(טוען מהמאגר...)';
+  _cpGovColor(v.plate).then(c => {
+    const el = document.getElementById('cp-color');
+    if(el && !el.value && c) el.value = c;
+    if(cl) cl.textContent = c ? '(מהמאגר הממשלתי)' : '(לא נמצא — מלא ידנית)';
+  });
+}
+function buildCityPermitHtml(d){
+  const val = (v,w) => `<span style="display:inline-block;border-bottom:1px solid #000;min-width:${w||120}px;text-align:center;padding:0 6px;font-weight:700">${_tfEsc(v)||'&nbsp;'}</span>`;
+  const sigImg = window.OFFICER_SIGNATURE ? `<img src="${window.OFFICER_SIGNATURE}" style="max-width:150px;max-height:70px">` : '';
+  return `<div style="width:720px;background:#fff;color:#000;font-family:'Heebo','Segoe UI','Arial Hebrew',Arial,sans-serif;letter-spacing:normal;word-spacing:normal;direction:rtl;padding:44px 48px;font-size:15px;line-height:2.1">
+    <div style="text-align:left;margin-bottom:28px">תאריך: ${val(d.date,110)}</div>
+    <div style="font-weight:800">לכבוד</div>
+    <div style="font-weight:800;margin-bottom:2px">${_tfEsc(d.recipient)||'&nbsp;'}</div>
+    <div style="border-bottom:1px solid #000;width:280px;margin-bottom:30px"></div>
+    <div style="text-align:center;font-weight:800;text-decoration:underline;margin-bottom:24px;font-size:16px">אישור החזקה ברכב חברה</div>
+    <p style="margin:0 0 16px">הנני לאשר בזאת, כי למר/גברת: ${val(d.driver,180)}, ת.ז: ${val(d.driverId,130)}, שעובד/ת בחברת: ${val(d.company,240)}, ח.פ: ${val(d.hp,130)}.</p>
+    <p style="margin:0 0 16px">מוצמד רכב כחוק, רישוי: ${val(d.plate,140)}, מסוג: ${val(d.make,200)}, בצבע: ${val(d.color,120)}</p>
+    <p style="margin:0 0 44px">ומנוכה ממשכורתו/ה כחוק.</p>
+    <div style="display:flex;justify-content:space-between;align-items:flex-end;margin-top:54px">
+      <div>
+        <div style="border-top:1px solid #000;width:250px;padding-top:5px;font-weight:700">חשב בחברה / ק. בטיחות בתעבורה</div>
+        <div style="font-size:13px;margin-top:3px">חתימה + חותמת</div>
+      </div>
+      <div style="text-align:center;min-width:160px">${sigImg}</div>
+    </div>
+  </div>`;
+}
+async function cityPermitPdf(){
+  const g = id => { const el = document.getElementById(id); return el ? (el.value||'').trim() : ''; };
+  const d = {
+    date:g('cp-date'), recipient:g('cp-recipient'), driver:g('cp-driver'), driverId:g('cp-driver-id'),
+    company:g('cp-company'), hp:g('cp-hp'), plate:g('cp-plate'), make:g('cp-make'), color:g('cp-color')
+  };
+  try { if (document.fonts && document.fonts.ready) await document.fonts.ready; } catch(e){}
+  const holder = document.createElement('div');
+  holder.style.cssText = 'position:absolute;left:-9999px;top:0';
+  holder.innerHTML = buildCityPermitHtml(d);
+  document.body.appendChild(holder);
+  try {
+    const fname = `אישור לעירייה ${d.plate||''}.pdf`;
+    await html2pdf().set({
+      margin: 8, filename: fname,
+      image: { type: 'jpeg', quality: 0.95 },
+      html2canvas: { scale: 2, backgroundColor: '#ffffff' },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    }).from(holder.firstElementChild).save();
+    toast('✓ אישור החזקה לעירייה נוצר');
+    document.getElementById('city-permit-modal').classList.remove('open');
+  } catch(e){
     toast('⚠ יצירת ה-PDF נכשלה: ' + (e.message || e), true);
   } finally { document.body.removeChild(holder); }
 }
@@ -7130,6 +7256,41 @@ function renderAgentMsgs(showTyping = false) {
     <div class="btn-row">
       <button class="btn btn-gray" onclick="document.getElementById('transfer-modal').classList.remove('open')">ביטול</button>
       <button class="btn btn-green" onclick="transferPdf()">📄 צור PDF</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ אישור החזקה ברכב לעירייה ═══ -->
+<div class="modal-overlay" id="city-permit-modal">
+  <div class="modal" style="max-width:600px">
+    <h3>🏛️ אישור החזקה ברכב חברה — לעירייה</h3>
+    <p style="font-size:0.8rem;color:var(--muted);margin-bottom:10px">הפרטים מולאו אוטומטית מהרכב ומהמאגר הממשלתי (צבע) — בחר עירייה וייצא PDF חתום.</p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <div class="modal-row" style="grid-column:1/-1"><label>לכבוד (עירייה / רשות)</label>
+        <input id="cp-recipient" type="text" list="cp-cities" placeholder="הקלד או בחר — משטרת ישראל / עיריית...">
+        <datalist id="cp-cities"></datalist>
+      </div>
+      <div class="modal-row"><label>תאריך</label><input id="cp-date" type="text" placeholder="dd/mm/yyyy"></div>
+      <div class="modal-row"><label>מס׳ רישוי</label><input id="cp-plate" type="text" style="direction:ltr"></div>
+      <div class="modal-row"><label>שם העובד/ת</label><input id="cp-driver" type="text"></div>
+      <div class="modal-row"><label>תעודת זהות</label><input id="cp-driver-id" type="text" style="direction:ltr"></div>
+      <div class="modal-row"><label>סוג הרכב (יצרן/דגם)</label><input id="cp-make" type="text"></div>
+      <div class="modal-row"><label>צבע <span id="cp-color-load" style="color:#94a3b8;font-size:0.7rem;font-weight:400"></span></label><input id="cp-color" type="text" placeholder="נמשך מהמאגר..."></div>
+      <div style="grid-column:1/-1;border-top:1px solid var(--border);margin:4px 0 2px;padding-top:6px;font-weight:800;font-size:0.82rem;color:#1e3a8a">חברה מעסיקה / ח.פ</div>
+      <div class="modal-row" style="grid-column:1/-1">
+        <div style="display:flex;flex-wrap:wrap;gap:16px;margin-bottom:4px">
+          <label style="font-weight:600;font-size:0.85rem;display:flex;align-items:center;gap:5px;cursor:pointer"><input type="radio" name="cp-div" value="israel" onchange="cpSetCompany()"> נופר אנרגיה בישראל בע"מ <span style="color:#94a3b8;direction:ltr">(517252987)</span></label>
+          <label style="font-weight:600;font-size:0.85rem;display:flex;align-items:center;gap:5px;cursor:pointer"><input type="radio" name="cp-div" value="mata" onchange="cpSetCompany()"> ע.י נופר אנרג'י בע"מ <span style="color:#94a3b8;direction:ltr">(514599943)</span></label>
+        </div>
+        <div id="cp-div-note" style="font-size:0.72rem;color:#64748b"></div>
+      </div>
+      <div class="modal-row"><label>שם החברה (בטופס)</label><input id="cp-company" type="text"></div>
+      <div class="modal-row"><label>ח.פ</label><input id="cp-hp" type="text" style="direction:ltr"></div>
+    </div>
+    <div id="cp-sig-note" style="font-size:0.76rem;color:#64748b;margin-top:8px"></div>
+    <div class="btn-row">
+      <button class="btn btn-gray" onclick="document.getElementById('city-permit-modal').classList.remove('open')">ביטול</button>
+      <button class="btn btn-green" onclick="cityPermitPdf()">📄 צור PDF</button>
     </div>
   </div>
 </div>
