@@ -738,11 +738,6 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
       <div><div style="font-weight:800;color:#fff;font-size:1rem">אנשי קשר</div>
       <div style="font-size:0.75rem;color:#cffafe">נהל את הנמענים לשליחת התראות — בחירה לפי שם בעת השליחה</div></div>
     </div>
-    <div class="form-card" onclick="openCityPermitPicker()" style="background:linear-gradient(135deg,#047857,#059669);border-color:#047857;margin-top:10px">
-      <span style="font-size:2.2rem">🏛️</span>
-      <div><div style="font-weight:800;color:#fff;font-size:1rem">אישור החזקה ברכב לעירייה</div>
-      <div style="font-size:0.75rem;color:#d1fae5">בחר רכב — מילוי אוטומטי (נהג, ח.פ לפי ישראל/מטה, צבע מהמאגר) → PDF להדפסה</div></div>
-    </div>
     <div class="insp-section" style="max-width:420px;margin-top:18px">
       <div class="insp-section-hdr">⚙️ לאן נשלחות הביקורות במייל</div>
       <div style="padding:10px">
@@ -937,8 +932,9 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
     <button class="btn btn-secondary" style="width:100%;margin-bottom:10px" onclick="declCopyLink()">📋 העתק קישור כללי</button>
     <div style="border-top:1px dashed var(--border);padding-top:10px;margin-bottom:2px">
       <button class="btn" style="width:100%;background:#dc2626;color:#fff;margin-bottom:7px" onclick="shareDamageLinkFor(window._declPlate)">💬 💥 דיווח נזק</button>
+      <button class="btn" style="width:100%;background:#047857;color:#fff;margin-bottom:7px" onclick="shareCityPermitFor(window._declPlate)">💬 🏛️ אישור החזקה לעירייה</button>
       <button class="btn" style="width:100%;background:var(--orange);color:#fff" onclick="sendDeclForm('accident')">💬 🚧 תחקיר תאונת דרכים</button>
-      <p style="font-size:0.68rem;color:var(--muted);margin-top:4px">נשלחים בנפרד — לאירוע תאונה, לא חלק מטפסי קבלת הרכב</p>
+      <p style="font-size:0.68rem;color:var(--muted);margin-top:4px">נשלחים בנפרד — לאירוע/צורך נקודתי, לא חלק מטפסי קבלת הרכב</p>
     </div>
     <p style="font-size:0.72rem;color:var(--muted)">כל טופס נחתם ונשלח בנפרד. טופס הנהלים מעדכן אוטומטית את תאריך הנהלים ברכב, וכולם נשמרים בלשונית "טפסים" ומגיעים אליך למייל כ-PDF.</p>
     <div class="btn-row">
@@ -2702,6 +2698,24 @@ function shareDamageLinkFor(plate) {
   const nm = (v.driverName || '').split('-')[0].trim();
   const link = `https://nadi8890.github.io/shamay-scan/driver-damage.html?t=${encodeURIComponent(TENANT || 'nofar')}&plate=${encodeURIComponent(v.plate)}`;
   const msg = `היי ${nm} 👋\nלדיווח נזק / תאונה לרכב ${v.plate} — מלא/י את הפרטים וצרף/י תמונות של הנזק (כולל רכב צד ג' אם יש):\n${link}\n\n${typeof coSig === 'function' ? coSig() : ''}`;
+  const digits = (v.driverPhone || '').replace(/\D/g, '');
+  if (digits) {
+    const intl = digits.startsWith('972') ? digits : '972' + digits.replace(/^0/, '');
+    window.open('https://wa.me/' + intl + '?text=' + encodeURIComponent(msg), '_blank');
+  } else {
+    try { if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(msg); } catch(e) {}
+    window.open('https://wa.me/?text=' + encodeURIComponent(msg), '_blank');
+    toast('אין נייד שמור — ההודעה הועתקה, בחר צ\'אט בוואטסאפ');
+  }
+}
+// קישור אישור החזקה ברכב לעירייה — הנהג פותח, פרטיו+הרכב נטענים אוטומטית (כולל צבע מהמאגר),
+// בוחר את העיר, ומקבל PDF חתום בחתימת הקצין — מוכן להדפסה + חותמת
+function shareCityPermitFor(plate) {
+  const v = VEHICLES.find(x => x.plate === plate);
+  if (!v) { toast('הרכב לא נמצא', true); return; }
+  const nm = (v.driverName || '').split('-')[0].trim();
+  const link = `https://nadi8890.github.io/shamay-scan/city-permit.html?t=${encodeURIComponent(TENANT || 'nofar')}&plate=${encodeURIComponent(v.plate)}`;
+  const msg = `היי ${nm} 👋\nלהפקת אישור החזקה ברכב ${v.plate} עבור העירייה (למשל לתו חניה) — הפרטים כבר ממולאים, רק בחר/י את העיר והורד/י PDF להדפסה:\n${link}\n\n${typeof coSig === 'function' ? coSig() : ''}`;
   const digits = (v.driverPhone || '').replace(/\D/g, '');
   if (digits) {
     const intl = digits.startsWith('972') ? digits : '972' + digits.replace(/^0/, '');
