@@ -727,6 +727,11 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
       <div><div style="font-weight:800;color:#fff;font-size:1rem">אנשי קשר</div>
       <div style="font-size:0.75rem;color:#cffafe">נהל את הנמענים לשליחת התראות — בחירה לפי שם בעת השליחה</div></div>
     </div>
+    <div class="form-card" onclick="openCityPermitPicker()" style="background:linear-gradient(135deg,#047857,#059669);border-color:#047857;margin-top:10px">
+      <span style="font-size:2.2rem">🏛️</span>
+      <div><div style="font-weight:800;color:#fff;font-size:1rem">אישור החזקה ברכב לעירייה</div>
+      <div style="font-size:0.75rem;color:#d1fae5">בחר רכב — מילוי אוטומטי (נהג, ח.פ לפי ישראל/מטה, צבע מהמאגר) → PDF להדפסה</div></div>
+    </div>
     <div class="insp-section" style="max-width:420px;margin-top:18px">
       <div class="insp-section-hdr">⚙️ לאן נשלחות הביקורות במייל</div>
       <div style="padding:10px">
@@ -2578,7 +2583,6 @@ function renderFleet() {
       <td style="white-space:nowrap">
         <button class="btn btn-gray" style="padding:3px 8px;font-size:0.7rem" onclick="event.stopPropagation();editVehicle('${esc(v.plate)}')">✏️</button>
         <button class="btn btn-gray" style="padding:3px 8px;font-size:0.7rem" title="שלח טפסי קבלת רכב לנהג" onclick="event.stopPropagation();openDeclShare('${esc(v.plate)}')">📨</button>
-        <button class="btn btn-gray" style="padding:3px 8px;font-size:0.7rem" title="אישור החזקה ברכב לעירייה (PDF)" onclick="event.stopPropagation();openCityPermit('${esc(v.plate)}')">🏛️</button>
         <button class="btn btn-gray" style="padding:3px 8px;font-size:0.7rem" title="מחק רכב מהצי" onclick="event.stopPropagation();deleteVehicleRow('${esc(v.plate)}')">🗑️</button>
       </td>
     </tr>`;
@@ -2924,22 +2928,20 @@ function cpSetCompany(){
   const set = (id,v) => { const el = document.getElementById(id); if(el) el.value = v; };
   set('cp-company', c.name); set('cp-hp', c.hp);
 }
-function openCityPermit(plate){
-  const v = _vehByPlate(plate);
-  if(!v){ toast('הרכב לא נמצא', true); return; }
-  // מילוי רשימת הרשויות פעם אחת
-  const dl = document.getElementById('cp-cities');
-  if(dl && !dl.children.length) dl.innerHTML = CITY_PERMIT_AUTHORITIES.map(c=>`<option value="${c}">`).join('');
-  const t = new Date();
-  const today = `${('0'+t.getDate()).slice(-2)}/${('0'+(t.getMonth()+1)).slice(-2)}/${t.getFullYear()}`;
-  const set = (id,val) => { const el = document.getElementById(id); if(el) el.value = val || ''; };
-  set('cp-date', today);
-  set('cp-recipient', '');
-  set('cp-plate', v.plate);
-  set('cp-driver', _cpCleanName(v.driverName));
-  set('cp-driver-id', v.driverId || '');
-  set('cp-make', ((v.make||'')+' '+(v.model||'')).trim());
-  set('cp-color', '');
+function cpPopulateVehicles(){
+  const dl = document.getElementById('cp-vehicles');
+  if(dl) dl.innerHTML = (window.VEHICLES||[]).map(v => `<option value="${_tfEsc(v.plate)} — ${_tfEsc(_cpCleanName(v.driverName))}">`).join('');
+}
+function _cpTodayStr(){ const t=new Date(); return `${('0'+t.getDate()).slice(-2)}/${('0'+(t.getMonth()+1)).slice(-2)}/${t.getFullYear()}`; }
+function _cpSet(id,val){ const el=document.getElementById(id); if(el) el.value = val==null?'':val; }
+function _cpFillFromVehicle(v){
+  if(!v) return;
+  _cpSet('cp-vehicle', `${v.plate} — ${_cpCleanName(v.driverName)}`);
+  _cpSet('cp-plate', v.plate);
+  _cpSet('cp-driver', _cpCleanName(v.driverName));
+  _cpSet('cp-driver-id', v.driverId || '');
+  _cpSet('cp-make', ((v.make||'')+' '+(v.model||'')).trim());
+  _cpSet('cp-color', '');
   // זיהוי חטיבה מתוך שם הנהג (ברירת מחדל: ישראל, עם מתג ידני כגיבוי)
   const div = _cpDetectDivision(v.driverName) || 'israel';
   const radio = document.querySelector(`input[name="cp-div"][value="${div}"]`);
@@ -2950,11 +2952,6 @@ function openCityPermit(plate){
   if(dn) dn.textContent = detected
     ? `זוהה אוטומטית מתוך שם העובד: ${detected==='mata'?'מטה':'ישראל'}`
     : '⚠ לא זוהה ישראל/מטה בשם העובד — בחר ידנית (ברירת מחדל: ישראל).';
-  const sig = window.OFFICER_SIGNATURE;
-  document.getElementById('cp-sig-note').innerHTML = sig
-    ? '✅ חתימת קצין הבטיחות השמורה תוטבע אוטומטית. חותמת — תוסיף ידנית על ההדפסה.'
-    : '⚠ אין חתימת קצין שמורה (לשונית טפסים ← חתימת קצין). ה-PDF ייווצר בלי חתימה.';
-  document.getElementById('city-permit-modal').classList.add('open');
   // משיכת צבע מהמאגר הממשלתי (אסינכרוני)
   const cl = document.getElementById('cp-color-load');
   if(cl) cl.textContent = '(טוען מהמאגר...)';
@@ -2963,6 +2960,43 @@ function openCityPermit(plate){
     if(el && !el.value && c) el.value = c;
     if(cl) cl.textContent = c ? '(מהמאגר הממשלתי)' : '(לא נמצא — מלא ידנית)';
   });
+}
+function cpPickVehicle(){
+  const raw = (document.getElementById('cp-vehicle')||{}).value || '';
+  const platePart = raw.split('—')[0].trim();
+  const v = _vehByPlate(platePart) || _vehByPlate(raw) || _vehByDriver(raw.split('—').pop().trim()) || _vehByDriver(raw);
+  if(v) _cpFillFromVehicle(v);
+}
+function _cpOpenModal(){
+  const dl = document.getElementById('cp-cities');
+  if(dl && !dl.children.length) dl.innerHTML = CITY_PERMIT_AUTHORITIES.map(c=>`<option value="${c}">`).join('');
+  const sig = window.OFFICER_SIGNATURE;
+  document.getElementById('cp-sig-note').innerHTML = sig
+    ? '✅ חתימת קצין הבטיחות השמורה תוטבע אוטומטית. חותמת — תוסיף ידנית על ההדפסה.'
+    : '⚠ אין חתימת קצין שמורה (לשונית טפסים ← חתימת קצין). ה-PDF ייווצר בלי חתימה.';
+  document.getElementById('city-permit-modal').classList.add('open');
+}
+// נפתח מלשונית הטפסים — בורר רכב ריק
+function openCityPermitPicker(){
+  cpPopulateVehicles();
+  ['cp-vehicle','cp-recipient','cp-plate','cp-driver','cp-driver-id','cp-make','cp-color'].forEach(id=>_cpSet(id,''));
+  _cpSet('cp-date', _cpTodayStr());
+  const r = document.querySelector('input[name="cp-div"][value="israel"]'); if(r) r.checked = true;
+  cpSetCompany();
+  const dn = document.getElementById('cp-div-note'); if(dn) dn.textContent = 'בחר רכב מהרשימה למעלה — הפרטים ימולאו אוטומטית.';
+  const cl = document.getElementById('cp-color-load'); if(cl) cl.textContent='';
+  _cpOpenModal();
+  const vi = document.getElementById('cp-vehicle'); if(vi) setTimeout(()=>vi.focus(), 50);
+}
+// נפתח מרכב ספציפי (למקרה שנקרא עם רישוי)
+function openCityPermit(plate){
+  const v = _vehByPlate(plate);
+  if(!v){ toast('הרכב לא נמצא', true); return; }
+  cpPopulateVehicles();
+  _cpSet('cp-recipient','');
+  _cpSet('cp-date', _cpTodayStr());
+  _cpFillFromVehicle(v);
+  _cpOpenModal();
 }
 function buildCityPermitHtml(d){
   const val = (v,w) => `<span style="display:inline-block;border-bottom:1px solid #000;min-width:${w||120}px;text-align:center;padding:0 6px;font-weight:700">${_tfEsc(v)||'&nbsp;'}</span>`;
@@ -7264,8 +7298,12 @@ function renderAgentMsgs(showTyping = false) {
 <div class="modal-overlay" id="city-permit-modal">
   <div class="modal" style="max-width:600px">
     <h3>🏛️ אישור החזקה ברכב חברה — לעירייה</h3>
-    <p style="font-size:0.8rem;color:var(--muted);margin-bottom:10px">הפרטים מולאו אוטומטית מהרכב ומהמאגר הממשלתי (צבע) — בחר עירייה וייצא PDF חתום.</p>
+    <p style="font-size:0.8rem;color:var(--muted);margin-bottom:10px">בחר רכב — הפרטים ימולאו אוטומטית מהרכב ומהמאגר הממשלתי (צבע). בחר עירייה וייצא PDF חתום.</p>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <div class="modal-row" style="grid-column:1/-1"><label>🚗 בחר רכב (רישוי או שם נהג)</label>
+        <input id="cp-vehicle" type="text" list="cp-vehicles" placeholder="הקלד רישוי או שם נהג..." oninput="cpPickVehicle()" autocomplete="off">
+        <datalist id="cp-vehicles"></datalist>
+      </div>
       <div class="modal-row" style="grid-column:1/-1"><label>לכבוד (עירייה / רשות)</label>
         <input id="cp-recipient" type="text" list="cp-cities" placeholder="הקלד או בחר — משטרת ישראל / עיריית...">
         <datalist id="cp-cities"></datalist>
