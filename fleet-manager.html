@@ -43,7 +43,17 @@ if ('serviceWorker' in navigator) {
           }
         });
       });
+      // Proactively poll for a newer service worker — on every app resume and every
+      // few minutes — so a stale home-screen app heals itself without user action.
+      const poll = () => { try { reg.update(); } catch (e) {} };
+      document.addEventListener('visibilitychange', () => { if (!document.hidden) poll(); });
+      setInterval(poll, 2 * 60 * 1000);
     });
+  // When the controlling SW changes (new version activated), reload once for fresh assets.
+  let _swReloaded = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (_swReloaded) return; _swReloaded = true; window.location.reload();
+  });
 }
 // Auto-refresh when a new version is published (fixes stale home-screen shortcuts).
 // Compares the page ETag every few minutes and on app resume; reloads only when
@@ -58,9 +68,10 @@ if ('serviceWorker' in navigator) {
     // the inspection form the moment they focused the plate box on mobile)
     const ae = document.activeElement;
     if (ae && ['INPUT', 'TEXTAREA', 'SELECT'].includes(ae.tagName)) return false;
-    // never reload while the forms tab is open — inspection/km flows live there
-    const forms = document.getElementById('tab-forms');
-    if (forms && forms.classList.contains('active')) return false;
+    // NOTE: previously we also blocked reload whenever the forms tab was open — but that
+    // created a catch-22 where a user waiting on the forms tab never received the update.
+    // The modal / inspection-form / active-input guards above already protect real flows,
+    // so being on the forms menu itself is safe to reload.
     return true;
   }
   async function checkVersion() {

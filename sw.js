@@ -1,8 +1,9 @@
 // Service Worker — network-first for fleet-manager.html
-const CACHE = 'fleet-v2';
+const CACHE = 'fleet-v3';
 
 self.addEventListener('install', () => self.skipWaiting());
 self.addEventListener('activate', e => e.waitUntil(self.clients.claim()));
+self.addEventListener('message', e => { if (e.data && e.data.type === 'SKIP_WAITING') self.skipWaiting(); });
 
 self.addEventListener('fetch', e => {
   const url = e.request.url;
