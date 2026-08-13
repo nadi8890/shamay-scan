@@ -1154,6 +1154,17 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
 <div class="modal-overlay" id="viol-edit-modal">
   <div class="modal">
     <h3 id="ve-title">עריכת דוח</h3>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <div class="modal-row"><label>מס׳ רישוי</label><input id="ve-plate" type="text"></div>
+      <div class="modal-row"><label>שם הנהג</label><input id="ve-driver" type="text"></div>
+      <div class="modal-row"><label>מס׳ דוח</label><input id="ve-reportNum" type="text"></div>
+      <div class="modal-row"><label>תאריך עבירה</label><input id="ve-date" type="date"></div>
+      <div class="modal-row" style="grid-column:1/-1"><label>תיאור עבירה</label><input id="ve-offense" type="text"></div>
+      <div class="modal-row"><label>נקודות</label><input id="ve-points" type="number" placeholder="0"></div>
+      <div class="modal-row"><label>קנס (₪)</label><input id="ve-fine" type="number" placeholder="0"></div>
+      <div class="modal-row" style="grid-column:1/-1"><label>הערות</label><textarea id="ve-notes" rows="2" placeholder="הערות חופשיות על הדוח / הטיפול בו..."></textarea></div>
+    </div>
+    <div style="border-top:1px solid var(--border);margin:10px 0 8px;padding-top:8px;font-weight:800;font-size:0.82rem;color:#1e3a8a">סטטוס טיפול</div>
     <div style="display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:center">
       <label style="display:flex;align-items:center;gap:6px;font-weight:600"><input type="checkbox" id="ve-hosav" style="width:17px;height:17px"> הוסב</label>
       <input id="ve-hosav-date" type="date">
@@ -2657,6 +2668,12 @@ function autoFillHolder(plateId, dateId, driverId){
   const holder = holderOnDate(plate, date);
   if (holder) d.value = holder;
 }
+// המרת תאריך שמור (DD/MM/YYYY וכו') לפורמט של שדה <input type=date> (ISO)
+function _toISOInput(s){
+  const d = _anyDate(s);
+  if(!d || isNaN(d)) return '';
+  return `${d.getFullYear()}-${('0'+(d.getMonth()+1)).slice(-2)}-${('0'+d.getDate()).slice(-2)}`;
+}
 function renderIncidents() {
   const q = (document.getElementById('inc-search').value||'').toLowerCase();
   const fm = (val,f) => !f || String(val||'').toLowerCase().includes(f.toLowerCase());
@@ -2801,7 +2818,7 @@ function renderViolations() {
       <td style="color:var(--muted)">${v.id}</td>
       <td style="direction:ltr;font-weight:700;font-size:0.72rem">${esc(v.reportNum)||'—'}</td>
       <td style="white-space:nowrap">${esc(v.date)}</td>
-      <td style="font-size:0.78rem">${esc(v.offense)}</td>
+      <td style="font-size:0.78rem">${esc(v.offense)}${v.notes ? `<br><span style="color:#6b7280;font-size:0.66rem" title="${esc(v.notes)}">📝 ${esc(v.notes.length>40 ? v.notes.slice(0,40)+'…' : v.notes)}</span>` : ''}</td>
       <td style="font-size:0.75rem">${esc(v.driver)}</td>
       <td style="font-weight:700;color:var(--accent);direction:ltr">${esc(v.plate)}</td>
       <td>${v.points ? `<span class="badge badge-orange">${esc(v.points)}</span>` : '—'}</td>
@@ -2845,6 +2862,7 @@ function openTransferForm(id) {
   set('tf-company', veh.company || COMPANY_NAME || '');
   set('tf-driver', v.driver || veh.driverName || '');
   set('tf-driver-id', veh.driverId || '');
+  set('tf-license', ''); // license number — per-driver, left blank for the officer to fill
   set('tf-driver-addr', ''); // address is per-driver — left blank for the officer to fill
   set('tf-cert', oi.certNum);
   set('tf-officer-id', oi.officerId);
@@ -2874,8 +2892,8 @@ function buildTransferHtml(d) {
     <p>לפי הרשום בספרי החברה, הועמד הרכב הנ״ל הרשום במשרד הרישוי ע״ש החברה, לצורך עבודתו ולשירותיו האישי של עובד/ת החברה.</p>
     <p>לאחר בדיקה ובירור הסתבר כי במועד ביצוע העבירה הרכב היה בחזקת עובד/ת החברה אשר פרטיו/ה האישיים הם:</p>
     <table style="width:100%;border-collapse:collapse;margin:12px 0;text-align:center;font-size:13px">
-      <tr><td style="border:1px solid #000;padding:7px;font-weight:700">שם + שם משפחה</td><td style="border:1px solid #000;padding:7px;font-weight:700">מספר תעודת זהות</td><td style="border:1px solid #000;padding:7px;font-weight:700">כתובת</td></tr>
-      <tr><td style="border:1px solid #000;padding:9px;font-weight:700">${_tfEsc(d.driver)||'&nbsp;'}</td><td style="border:1px solid #000;padding:9px;font-weight:700;direction:ltr">${_tfEsc(d.driverId)||'&nbsp;'}</td><td style="border:1px solid #000;padding:9px">${_tfEsc(d.driverAddr)||'&nbsp;'}</td></tr>
+      <tr><td style="border:1px solid #000;padding:7px;font-weight:700">שם + שם משפחה</td><td style="border:1px solid #000;padding:7px;font-weight:700">מספר תעודת זהות</td><td style="border:1px solid #000;padding:7px;font-weight:700">מספר רישיון נהיגה</td><td style="border:1px solid #000;padding:7px;font-weight:700">כתובת</td></tr>
+      <tr><td style="border:1px solid #000;padding:9px;font-weight:700">${_tfEsc(d.driver)||'&nbsp;'}</td><td style="border:1px solid #000;padding:9px;font-weight:700;direction:ltr">${_tfEsc(d.driverId)||'&nbsp;'}</td><td style="border:1px solid #000;padding:9px;font-weight:700;direction:ltr">${_tfEsc(d.license)||'&nbsp;'}</td><td style="border:1px solid #000;padding:9px">${_tfEsc(d.driverAddr)||'&nbsp;'}</td></tr>
     </table>
     <p>מצ״ב הצהרת הנהג/נהגת הרכב + צילום רישיון רכב ורישיון נהיגה / מסמך תומך (כגון: צילום יומן רכב / מסמך המעיד כי הרכב היה ברשות הנהג).</p>
     <p>כמו כן, הריני להצהיר בזאת כי מר/גב׳ הרי״מ החזיק/ה ברכב במועד ובשעה בה בוצעה העבירה נשוא הודעת התשלום שבנדון.</p>
@@ -2900,6 +2918,7 @@ async function transferPdf() {
     date: g('tf-date'),
     notice: g('tf-notice'), noticeDate: g('tf-notice-date'), plate: g('tf-plate'),
     company: g('tf-company'), driver: g('tf-driver'), driverId: g('tf-driver-id'),
+    license: g('tf-license'),
     driverAddr: g('tf-driver-addr'), cert: g('tf-cert'), officerId: g('tf-officer-id'),
     phone: g('tf-phone'), fax: g('tf-fax'), addr: g('tf-addr')
   };
@@ -3097,6 +3116,14 @@ function openViolEdit(id) {
   if (!v) return;
   editingViolId = id;
   document.getElementById('ve-title').textContent = `דוח #${v.id} — ${v.driver||''} (${v.plate||''})`;
+  document.getElementById('ve-plate').value = v.plate || '';
+  document.getElementById('ve-driver').value = v.driver || '';
+  document.getElementById('ve-reportNum').value = v.reportNum || '';
+  document.getElementById('ve-date').value = _toISOInput(v.date);
+  document.getElementById('ve-offense').value = v.offense || '';
+  document.getElementById('ve-points').value = v.points || '';
+  document.getElementById('ve-fine').value = v.fine || '';
+  document.getElementById('ve-notes').value = v.notes || '';
   document.getElementById('ve-hosav').checked = !!v.stHosav;
   document.getElementById('ve-hosav-date').value = v.stHosavDate || '';
   document.getElementById('ve-paid').checked = !!v.stPaid;
@@ -3108,6 +3135,15 @@ function openViolEdit(id) {
 function saveViolEdit() {
   const v = VIOLATIONS.find(x => x.id === editingViolId);
   if (!v) return;
+  v.plate = document.getElementById('ve-plate').value.trim();
+  v.driver = document.getElementById('ve-driver').value.trim();
+  v.reportNum = document.getElementById('ve-reportNum').value.trim();
+  const _iso = document.getElementById('ve-date').value;
+  v.date = _iso ? _iso.split('-').reverse().join('/') : '';
+  v.offense = document.getElementById('ve-offense').value.trim();
+  v.points = document.getElementById('ve-points').value.trim();
+  v.fine = document.getElementById('ve-fine').value.trim();
+  v.notes = document.getElementById('ve-notes').value.trim();
   v.stHosav = document.getElementById('ve-hosav').checked;
   v.stHosavDate = document.getElementById('ve-hosav-date').value;
   v.stPaid = document.getElementById('ve-paid').checked;
@@ -7322,6 +7358,7 @@ function renderAgentMsgs(showTyping = false) {
       <div style="grid-column:1/-1;border-top:1px solid var(--border);margin:4px 0 2px;padding-top:6px;font-weight:800;font-size:0.82rem;color:#1e3a8a">פרטי הנהג/ת</div>
       <div class="modal-row"><label>שם מלא</label><input id="tf-driver" type="text"></div>
       <div class="modal-row"><label>תעודת זהות</label><input id="tf-driver-id" type="text" style="direction:ltr"></div>
+      <div class="modal-row"><label>מספר רישיון נהיגה</label><input id="tf-license" type="text" style="direction:ltr" placeholder="השלם"></div>
       <div class="modal-row" style="grid-column:1/-1"><label>כתובת</label><input id="tf-driver-addr" type="text" placeholder="רחוב, עיר"></div>
       <div style="grid-column:1/-1;border-top:1px solid var(--border);margin:4px 0 2px;padding-top:6px;font-weight:800;font-size:0.82rem;color:#1e3a8a">פרטי קצין הבטיחות <span style="font-weight:400;color:#94a3b8;font-size:0.72rem">(נשמר לפעם הבאה)</span></div>
       <div class="modal-row"><label>מס׳ הסמכה</label><input id="tf-cert" type="text" placeholder="השלם"></div>
