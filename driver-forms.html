@@ -786,10 +786,18 @@ async function submitForm() {
         btn.textContent = 'מכין מסמך...';
         const files = [];
         try {
-          const pdfBlob = await docToPdfBlob({ ...rec, photos: [...(F.photos ? licPhotos : []), ...docPhotos] });
+          // מסמך ההצהרה בלבד (בלי התמונות) — המסמכים שהעלה העובד מצורפים כקבצים נפרדים
+          const pdfBlob = await docToPdfBlob({ ...rec, photos: [] });
           const pdfB64 = await new Promise(res => { const fr = new FileReader(); fr.onload = () => res(String(fr.result).split(',')[1]); fr.readAsDataURL(pdfBlob); });
           files.push({ base64: pdfB64, mimeType: 'application/pdf', filename: `${F.title} - ${rec.name} ${rec.plate}.pdf` });
         } catch(e) {}
+        // כל מסמך שהעובד העלה מצורף כקובץ נפרד (ולא מוטמע בתוך ה-PDF)
+        const _attachImgs = (arr, label) => (arr || []).forEach((durl, i) => {
+          const b64 = String(durl).includes(',') ? String(durl).split(',')[1] : String(durl);
+          if (b64) files.push({ base64: b64, mimeType: 'image/jpeg', filename: `${label} - ${rec.name} ${rec.plate}${arr.length > 1 ? ' ' + (i + 1) : ''}.jpg` });
+        });
+        if (F.photos) _attachImgs(licPhotos, 'רישיון נהיגה');
+        _attachImgs(docPhotos, 'מסמכי רכב');
         if (!files.length) files.push({ base64: rec.signature.split(',')[1], mimeType: 'image/png', filename: `חתימה ${rec.name}.png` });
         await fetch(MAIL.gasUrl, { method:'POST', mode:'no-cors', headers:{'Content-Type':'text/plain'},
           body: JSON.stringify({ subject: `${F.title} — ${rec.name} (${rec.plate})`, body: buildSummaryText(rec), files }) });

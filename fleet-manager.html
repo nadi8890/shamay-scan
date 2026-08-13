@@ -6828,7 +6828,7 @@ function openSwapMail(oldPlate, newPlate, driver, dateStr) {
   const body = isSwap
     ? `שלום,\n\nלידיעתכם, בוצעה החלפת רכב לעובד/ת:\n\n• עובד/ת: ${drv || '—'}\n• רכב שהוחזר: ${oldPlate}\n• רכב שהתקבל: ${newPlate}\n• תאריך: ${dateStr}\n\nנא לעדכן בהתאם ברישומי הנהלת החשבונות.\n\nתודה,\n${COMPANY_NAME || 'מחלקת הרכב'}`
     : `שלום,\n\nלידיעתכם, הוחזר רכב:\n\n• עובד/ת: ${drv || '—'}\n• רכב שהוחזר: ${oldPlate}\n• תאריך: ${dateStr}\n\nנא לעדכן בהתאם ברישומי הנהלת החשבונות.\n\nתודה,\n${COMPANY_NAME || 'מחלקת הרכב'}`;
-  document.getElementById('swm-to').value = (MAIL_SETTINGS && MAIL_SETTINGS.accountingEmail) || '';
+  document.getElementById('swm-to').value = ''; // שדה הנמענים מתאפס בכל פתיחה — בוחרים קבוצה/נמען מחדש
   document.getElementById('swm-body').value = body;
   _renderSwapGroups();
   document.getElementById('swap-mail-modal').classList.add('open');
@@ -6873,8 +6873,7 @@ function swapMailFromReturn(idx) {
 function sendSwapMail() {
   const to = String(document.getElementById('swm-to').value || '').split(/[,;]/).map(s => s.trim()).filter(Boolean).join(',');
   const body = document.getElementById('swm-body').value;
-  // remember the accounting email for next time
-  if (to && MAIL_SETTINGS) { MAIL_SETTINGS.accountingEmail = to; try { localStorage.setItem('fleet_mailSettings', JSON.stringify(MAIL_SETTINGS)); } catch(e){} saveToFirestore('mailSettings', MAIL_SETTINGS); }
+  // (בעבר שמרנו את הנמען האחרון כברירת מחדל — הוסר לבקשת נדב: השדה מתאפס בכל פתיחה)
   const subject = _swapMailSubject;
   const from = (MAIL_SETTINGS && MAIL_SETTINGS.fromEmail || '').trim();
   const provider = (MAIL_SETTINGS && MAIL_SETTINGS.mailProvider) || 'outlook';
