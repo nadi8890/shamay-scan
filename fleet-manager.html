@@ -1134,10 +1134,10 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
   <div class="modal">
     <h3 id="violation-modal-title">+ הוסף דוח</h3>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-      <div class="modal-row"><label>מס׳ רישוי</label><input id="vm-plate" type="text" placeholder="12345678" onblur="autoFillFromPlate('vm-plate','vm-driver')"></div>
-      <div class="modal-row"><label>שם הנהג</label><input id="vm-driver" type="text" onblur="autoFillFromDriver('vm-plate','vm-driver')"></div>
+      <div class="modal-row"><label>מס׳ רישוי</label><input id="vm-plate" type="text" placeholder="12345678" onblur="autoFillHolder('vm-plate','vm-date','vm-driver')"></div>
+      <div class="modal-row"><label>שם הנהג <span style="font-weight:400;color:#94a3b8;font-size:0.68rem">מזוהה לפי רישוי+תאריך</span></label><input id="vm-driver" type="text" oninput="this.dataset.manual='1'" onblur="autoFillFromDriver('vm-plate','vm-driver')"></div>
       <div class="modal-row"><label>מס׳ דוח</label><input id="vm-reportNum" type="text"></div>
-      <div class="modal-row"><label>תאריך עבירה</label><input id="vm-date" type="date"></div>
+      <div class="modal-row"><label>תאריך עבירה</label><input id="vm-date" type="date" onchange="autoFillHolder('vm-plate','vm-date','vm-driver')"></div>
       <div class="modal-row" style="grid-column:1/-1"><label>תיאור עבירה</label><input id="vm-offense" type="text"></div>
       <div class="modal-row"><label>נקודות</label><input id="vm-points" type="number" placeholder="0"></div>
       <div class="modal-row"><label>קנס (₪)</label><input id="vm-fine" type="number" placeholder="0"></div>
@@ -2617,6 +2617,46 @@ function autoFillFromDriver(plateId, driverId) {
   const p = document.getElementById(plateId);
   if (v && p && !p.value.trim()) p.value = v.plate;
 }
+// ── זיהוי מי החזיק ברכב בתאריך הדוח ──
+// אם תאריך הדוח בתוך תקופת האחזקה הנוכחית (מ-vehicleFrom) → הנהג הנוכחי;
+// אחרת מחפשים בהיסטוריית ההחזקה (RETURNS: employee עם תקופת fromDate–toDate).
+function _anyDate(s){
+  if(!s) return null;
+  s = String(s).trim();
+  const iso = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);   // שדה תאריך HTML (ISO)
+  if (iso) return new Date(+iso[1], +iso[2]-1, +iso[3]);
+  return parseDate(s);                                     // DD/MM/YYYY וכו'
+}
+function _nameBeforeDash(s){ return String(s||'').split('-')[0].trim(); }
+function holderOnDate(plate, dateStr){
+  const pd = String(plate||'').replace(/\D/g,''); if(!pd) return '';
+  const v = _vehByPlate(pd);
+  const D = _anyDate(dateStr);
+  if (!D) return v ? _nameBeforeDash(v.driverName) : '';   // בלי תאריך — הנהג הנוכחי
+  if (v){                                                  // הנהג הנוכחי מחזיק מ-vehicleFrom והלאה
+    const from = _anyDate(v.vehicleFrom);
+    if (!from || D >= from) return _nameBeforeDash(v.driverName);
+  }
+  // התאריך קודם לאחזקה הנוכחית — חיפוש תקופת אחזקה תואמת בהיסטוריה
+  const rec = (RETURNS||[]).find(r => {
+    if (String(r.plate||'').replace(/\D/g,'') !== pd) return false;
+    const f = _anyDate(r.fromDate), t = _anyDate(r.toDate);
+    if (!f && !t) return false;
+    if (t && D > t) return false;   // הוחזר לפני תאריך הדוח
+    if (f && D < f) return false;   // התקבל אחרי תאריך הדוח
+    return true;
+  });
+  if (rec && rec.employee) return _nameBeforeDash(rec.employee);
+  return v ? _nameBeforeDash(v.driverName) : '';           // גיבוי — הנהג הנוכחי
+}
+function autoFillHolder(plateId, dateId, driverId){
+  const d = document.getElementById(driverId); if(!d) return;
+  if (d.dataset && d.dataset.manual === '1') return;       // לא לדרוס שם שהוקלד ידנית
+  const plate = (document.getElementById(plateId)||{}).value;
+  const date  = (document.getElementById(dateId)||{}).value;
+  const holder = holderOnDate(plate, date);
+  if (holder) d.value = holder;
+}
 function renderIncidents() {
   const q = (document.getElementById('inc-search').value||'').toLowerCase();
   const fm = (val,f) => !f || String(val||'').toLowerCase().includes(f.toLowerCase());
@@ -3083,12 +3123,9 @@ function openViolationModal() {
   ['vm-plate','vm-driver','vm-reportNum','vm-date','vm-offense','vm-points','vm-fine','vm-notes'].forEach(id => {
     const el = document.getElementById(id); if (el) el.value = '';
   });
+  const drv0 = document.getElementById('vm-driver'); if (drv0) drv0.dataset.manual = '';   // טופס חדש — לאפשר זיהוי אוטומטי
   const plateEl = document.getElementById('vm-plate');
-  plateEl.onchange = () => {
-    const v = VEHICLES.find(x => x.plate === plateEl.value.trim());
-    const drv = document.getElementById('vm-driver');
-    if (v && !drv.value) drv.value = v.driverName || '';
-  };
+  plateEl.onchange = () => autoFillHolder('vm-plate','vm-date','vm-driver');
   document.getElementById('violation-modal').classList.add('open');
 }
 function saveViolationForm() {
