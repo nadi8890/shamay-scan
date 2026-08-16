@@ -5255,8 +5255,9 @@ function showMascotBubble(){
   const m = document.getElementById('mascot'), bub = document.getElementById('mascot-bubble');
   if (!m || !bub) return;
   const loggedIn = Array.isArray(window.VEHICLES) && VEHICLES.length;
-  if (!loggedIn || localStorage.getItem('fleet_mascot_off') === '1' || !_mascotMsgs.length) { m.style.display = 'none'; return; }
-  m.style.display = 'flex';
+  if (!loggedIn || localStorage.getItem('fleet_mascot_off') === '1') { m.style.display = 'none'; return; }
+  m.style.display = 'flex';                                   // הדמות מופיעה מיד כשמחוברים
+  if (!_mascotMsgs.length) { refreshMascotMsgs(); return; }   // עוד אין הודעות — רענן וצא (הדמות כבר על המסך)
   if (_mascotIdx >= _mascotMsgs.length) _mascotIdx = 0;
   const useCop = (_mascotIdx % 2 === 0);           // מתחלף בין שוטר לרמזור
   const cop = document.getElementById('mascot-cop'), light = document.getElementById('mascot-light');
@@ -5268,11 +5269,14 @@ function showMascotBubble(){
 }
 function startMascot(){
   if (_mascotStarted) return; _mascotStarted = true;
-  refreshMascotMsgs().then(() => setTimeout(showMascotBubble, 2500));
-  setInterval(showMascotBubble, 11000);
+  showMascotBubble();                                    // דמות מיד אם כבר מחובר
+  refreshMascotMsgs().then(() => showMascotBubble());     // בועה ראשונה מיד כשההודעות מוכנות
+  setInterval(showMascotBubble, 10000);
   setInterval(refreshMascotMsgs, 5 * 60 * 1000);
 }
-setTimeout(startMascot, 6000);
+setTimeout(startMascot, 3000);
+// ניסיונות נוספים למקרה שהנתונים נטענו מאוחר / התחברות מאוחרת
+[2000, 5000, 9000, 15000].forEach(t => setTimeout(showMascotBubble, t));
 document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshMascotMsgs(); });
 
 // ── EXPORT TO EXCEL (CSV with BOM) ──
