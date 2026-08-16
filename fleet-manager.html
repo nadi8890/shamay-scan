@@ -7012,6 +7012,19 @@ function swapMailFromReturn(idx) {
   const newV = VEHICLES.find(v => driverKey(v.driverName) === driverKey(r.employee) && String(v.plate).trim() !== String(r.plate).trim());
   openSwapMail(r.plate, newV ? newV.plate : '', r.employee, r.toDate || '');
 }
+// מייל לשכר על רכב חליפי — מציג את הרכב החליפי מול הרכב הקבוע של העובד (שווי שימוש)
+function openReplMail(idx) {
+  const r = REPLACEMENTS[idx]; if (!r) { toast('הרכב החליפי לא נמצא', true); return; }
+  const emp = (r.employee || '').split('-')[0].trim();
+  const perm = VEHICLES.find(v => driverKey(v.driverName) === driverKey(r.employee));
+  const permStr = perm ? `${((perm.make||'')+' '+(perm.model||'')).trim()} (${perm.plate})`.trim() : 'לא נמצא במערכת';
+  _swapMailSubject = `רכב חליפי — ${emp || ''}: חליפי ${r.plate}${perm ? ' במקום ' + perm.plate : ''}`;
+  const body = `שלום,\n\nלידיעתכם, לעובד/ת ניתן רכב חליפי:\n\n• עובד/ת: ${emp || '—'}\n• רכב קבוע: ${permStr}\n• רכב חליפי: ${r.plate}${r.typeCompany ? ' ('+r.typeCompany+')' : ''}\n• מתאריך: ${r.fromDate || '—'}\n• ${r.toDate ? 'עד תאריך: ' + r.toDate : 'תאריך החזרה: טרם נקבע'}\n\nנא לעדכן בהתאם (שווי שימוש / שכר).\n\nתודה,\n${COMPANY_NAME || 'מחלקת הרכב'}`;
+  document.getElementById('swm-to').value = '';
+  document.getElementById('swm-body').value = body;
+  _renderSwapGroups();
+  document.getElementById('swap-mail-modal').classList.add('open');
+}
 function sendSwapMail() {
   const to = String(document.getElementById('swm-to').value || '').split(/[,;]/).map(s => s.trim()).filter(Boolean).join(',');
   const body = document.getElementById('swm-body').value;
@@ -7255,6 +7268,7 @@ function renderReturns() {
           <td>${esc(r.toDate||'—')}</td>
           <td>${esc(r.notes||'')}</td>
           <td style="white-space:nowrap">
+            <button class="btn-export" style="padding:3px 8px;font-size:0.65rem;margin-left:3px;background:#f5f3ff;color:#6d28d9" title="שלח מייל לשכר: רכב חליפי מול הרכב הקבוע (שווי שימוש)" onclick="openReplMail(${oi})">📧 שכר</button>
             <button class="btn-export" style="padding:3px 8px;font-size:0.65rem;margin-left:3px" onclick="openEditReplacement(${oi})">✏️</button>
             <button class="btn-export" style="padding:3px 8px;font-size:0.65rem;color:#dc2626" onclick="removeReplacementRow(${oi})">הסר</button>
           </td>
