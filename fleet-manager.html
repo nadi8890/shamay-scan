@@ -7259,13 +7259,13 @@ function renderReturns() {
     if (!filteredRepl.length) {
       rb.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:20px">${q ? 'לא נמצאו תוצאות' : 'אין רכבים חליפיים פעילים'}</td></tr>`;
     } else {
-      rb.innerHTML = filteredRepl.map((r) => { const oi = REPLACEMENTS.indexOf(r); return `
-        <tr>
+      rb.innerHTML = filteredRepl.map((r) => { const oi = REPLACEMENTS.indexOf(r); const openR = !String(r.toDate||'').trim(); return `
+        <tr${openR ? ' style="background:#fff7ed"' : ''}>
           <td>${esc(r.employee||'—')}</td>
           <td style="font-weight:700;color:var(--accent);direction:ltr">${esc(r.plate||'—')}</td>
           <td>${esc(r.typeCompany||'—')}</td>
           <td>${esc(r.fromDate||'—')}</td>
-          <td>${esc(r.toDate||'—')}</td>
+          <td>${openR ? '<span class="badge" style="background:#fef3c7;color:#92400e;border:1px solid #fcd34d;font-size:0.62rem">⚠ חסר החזרה</span>' : esc(r.toDate)}</td>
           <td>${esc(r.notes||'')}</td>
           <td style="white-space:nowrap">
             <button class="btn-export" style="padding:3px 8px;font-size:0.65rem;margin-left:3px;background:#f5f3ff;color:#6d28d9" title="שלח מייל לשכר: רכב חליפי מול הרכב הקבוע (שווי שימוש)" onclick="openReplMail(${oi})">📧 שכר</button>
