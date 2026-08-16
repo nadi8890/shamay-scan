@@ -338,6 +338,7 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
     <span id="header-clock" style="color:#fff;font-size:0.8rem;font-weight:600;white-space:nowrap;opacity:.9"></span>
     <span id="tenant-status" style="display:none"></span>
     <span id="save-indicator">💾 לא נשמר</span>
+    <button class="btn" id="reminders-bell" style="padding:7px 12px;font-size:0.82rem;background:rgba(255,255,255,.16);color:#fff;font-weight:700;border-radius:8px" title="תזכורות — התראות תוקף / נהלים / ק&quot;מ" onclick="showRemindersPopup(true)">🔔</button>
     <button class="btn" style="padding:7px 14px;font-size:0.82rem;background:#fff;color:#1e40af;font-weight:700;border-radius:8px" onclick="openAddVehicle()">+ רכב חדש</button>
     <button class="btn" style="padding:7px 12px;font-size:0.82rem;background:rgba(255,255,255,.16);color:#fff;font-weight:700;border-radius:8px" title="ייבוא צי מקובץ אקסל / CSV" onclick="openImportWizard()">📥 ייבוא מאקסל</button>
     <button class="btn" style="padding:7px 12px;font-size:0.82rem;background:rgba(255,255,255,.16);color:#fff;font-weight:700;border-radius:8px" title="שחזור רכב שנמחק מהגיבוי היומי" onclick="openRestoreDeleted()">♻️ שחזור</button>
@@ -5028,6 +5029,78 @@ function sendDocMail() {
   toast('נפתחה הודעת מייל ✓');
 }
 
+// ═══ תזכורות (בוקר / צהריים / ערב) — התראות תוקף, נהלים לא חתומים, ק"מ שלא דווח ═══
+function _remGo(tab){
+  document.getElementById('reminders-modal').classList.remove('open');
+  const b = document.querySelector(`.nav-btn[onclick*="'${tab}'"]`);
+  if (b) showTab(tab, b);
+}
+function _remSlot(){ const h = new Date().getHours(); if (h < 12) return 'morning'; if (h < 17) return 'noon'; return 'evening'; }
+function _remDayKey(){ const t = new Date(); return `${t.getFullYear()}-${('0'+(t.getMonth()+1)).slice(-2)}-${('0'+t.getDate()).slice(-2)}`; }
+function _remShownToday(){ try { const all = JSON.parse(localStorage.getItem('fleet_reminders_shown')||'{}'); return all[_remDayKey()] || []; } catch(e){ return []; } }
+function _remMarkShown(slot){ const arr = _remShownToday(); if (!arr.includes(slot)) arr.push(slot); try { localStorage.setItem('fleet_reminders_shown', JSON.stringify({ [_remDayKey()]: arr })); } catch(e){} }
+let _remKmCache = null;
+async function _remKmMissing(activeVeh){
+  const mk = (typeof kmMonthKey === 'function') ? kmMonthKey() : '';
+  if (_remKmCache && _remKmCache.mk === mk && (Date.now() - _remKmCache.at) < 30*60000) return _remKmCache.missing;
+  try {
+    const snap = await fcol().where('type','==','kmreport').get();
+    const reported = new Set(snap.docs.map(d => d.data()).filter(r => r.monthKey === mk).map(r => String(r.plate||'').replace(/\D/g,'')));
+    const missing = activeVeh.filter(v => !reported.has(String(v.plate||'').replace(/\D/g,'')));
+    _remKmCache = { mk, missing, at: Date.now() };
+    return missing;
+  } catch(e){ return window._kmMissing || []; }
+}
+async function buildReminders(){
+  const alerts = (typeof buildDynamicAlerts === 'function') ? buildDynamicAlerts() : [];
+  const alertPlates = new Set(alerts.map(a => a.plate));
+  const activeVeh = (window.VEHICLES||[]).filter(v => { const n = (v.driverName||'').split('-')[0].trim(); return n && !n.includes('נגרר') && !n.includes('ללא נהג'); });
+  const procMissing = activeVeh.filter(v => !String(v.procedures||'').trim());
+  const kmMissing = await _remKmMissing(activeVeh);
+  return { alerts, alertPlates, procMissing, kmMissing, total: alerts.length + procMissing.length + kmMissing.length };
+}
+async function showRemindersPopup(force, data){
+  if (!data) data = await buildReminders();
+  const row = (icon,title,count,color,tab,desc) => `<div onclick="_remGo('${tab}')" style="cursor:pointer;display:flex;align-items:center;gap:12px;background:#fff;border:1.5px solid #e2e8f0;border-right:4px solid ${color};border-radius:12px;padding:12px 14px;margin-bottom:10px">
+      <span style="font-size:1.8rem">${icon}</span>
+      <div style="flex:1"><div style="font-weight:800;font-size:0.95rem">${title}</div><div style="font-size:0.72rem;color:#64748b">${desc}</div></div>
+      <span style="font-size:1.5rem;font-weight:900;color:${color}">${count}</span>
+    </div>`;
+  const html =
+    row('⏰','התראות תוקף פעילות', data.alerts.length, '#dc2626', 'alerts', `${data.alertPlates.size} רכבים — רישוי/ביטוח/רישיון/ביקורת/טיפול`) +
+    row('📝','נהלים שלא נחתמו', data.procMissing.length, '#d97706', 'fleet', 'רכבים עם נהג שטרם חתם על נהלים ואחריות') +
+    row('🛣️','ק"מ שלא דווח החודש', data.kmMissing.length, '#0891b2', 'forms', 'נהגים שטרם עדכנו ק"מ בסבב החודשי');
+  document.getElementById('reminders-body').innerHTML = (data.total ? '' : '<div style="text-align:center;color:#059669;font-weight:800;padding:6px 0 12px">🎉 הכל תקין — אין פריטים פתוחים</div>') + html;
+  const cb = document.getElementById('rem-notif'); if (cb) cb.checked = (localStorage.getItem('fleet_rem_notif')==='1');
+  document.getElementById('reminders-modal').classList.add('open');
+  try {
+    if (data.total && window.Notification && Notification.permission === 'granted' && localStorage.getItem('fleet_rem_notif')==='1') {
+      new Notification('ר.מזור — תזכורת', { body: `⏰ ${data.alerts.length} התראות · 📝 ${data.procMissing.length} נהלים · 🛣️ ${data.kmMissing.length} ק"מ`, icon: 'icon-192.png' });
+    }
+  } catch(e){}
+}
+function toggleRemNotif(on){
+  if (on && window.Notification) {
+    Notification.requestPermission().then(p => {
+      if (p === 'granted') { localStorage.setItem('fleet_rem_notif','1'); toast('התראות דפדפן הופעלו ✓'); }
+      else { const cb = document.getElementById('rem-notif'); if (cb) cb.checked = false; localStorage.setItem('fleet_rem_notif','0'); toast('הדפדפן לא נתן אישור להתראות', true); }
+    });
+  } else { localStorage.setItem('fleet_rem_notif', on ? '1' : '0'); }
+}
+async function maybeShowReminders(){
+  if (localStorage.getItem('fleet_reminders_off') === '1') return;
+  if (!Array.isArray(window.VEHICLES) || !VEHICLES.length) return;   // עדיין לא מחובר / לא נטען
+  const slot = _remSlot();
+  if (_remShownToday().includes(slot)) return;                       // כבר הוצג בפרק הזמן הזה היום
+  const data = await buildReminders();
+  if (!data.total) return;                                           // אין מה להזכיר — ננסה שוב מאוחר יותר
+  _remMarkShown(slot);
+  showRemindersPopup(false, data);
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden) setTimeout(maybeShowReminders, 1500); });
+setInterval(maybeShowReminders, 5 * 60 * 1000);
+setTimeout(maybeShowReminders, 5000);
+
 // ── EXPORT TO EXCEL (CSV with BOM) ──
 function exportSection(section) {
   let headers = [], rows = [];
@@ -7409,6 +7482,19 @@ function renderAgentMsgs(showTyping = false) {
     <div class="btn-row">
       <button class="btn btn-gray" onclick="document.getElementById('city-permit-modal').classList.remove('open')">ביטול</button>
       <button class="btn btn-green" onclick="cityPermitPdf()">📄 צור PDF</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ תזכורות ═══ -->
+<div class="modal-overlay" id="reminders-modal">
+  <div class="modal" style="max-width:460px">
+    <h3>🔔 תזכורות</h3>
+    <p style="font-size:0.78rem;color:var(--muted);margin-bottom:12px">מה דורש את תשומת לבך — לחץ על שורה למעבר:</p>
+    <div id="reminders-body"></div>
+    <label style="display:flex;align-items:center;gap:7px;font-size:0.76rem;color:#64748b;margin-top:6px;cursor:pointer"><input type="checkbox" id="rem-notif" onchange="toggleRemNotif(this.checked)"> קבל גם התראת דפדפן (מערכת) כשהאפליקציה פתוחה</label>
+    <div class="btn-row">
+      <button class="btn btn-secondary" onclick="document.getElementById('reminders-modal').classList.remove('open')">סגור</button>
     </div>
   </div>
 </div>
