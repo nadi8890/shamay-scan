@@ -346,6 +346,53 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
   </div>
 </header>
 
+<!-- ═══ הנציג: שוטר / רמזור עם בועת קומיקס מתחלפת ═══ -->
+<style>
+#mascot{display:none;position:fixed;left:14px;bottom:86px;z-index:600;flex-direction:column;align-items:flex-start;gap:7px;cursor:pointer}
+.mascot-bubble{max-width:240px;background:#fff;color:#0f172a;border:2.5px solid #1e3a8a;border-radius:15px;padding:9px 13px;font-size:0.82rem;font-weight:800;box-shadow:0 8px 22px rgba(0,0,0,.2);opacity:0;transform:translateY(10px) scale(.85);transform-origin:bottom left;transition:opacity .3s cubic-bezier(.17,.67,.3,1.4),transform .3s cubic-bezier(.17,.67,.3,1.4);position:relative;line-height:1.45}
+.mascot-bubble.show{opacity:1;transform:translateY(0) scale(1)}
+.mascot-bubble::after{content:'';position:absolute;left:22px;bottom:-11px;width:0;height:0;border:10px solid transparent;border-top-color:#1e3a8a;border-bottom:0}
+.mascot-bubble::before{content:'';position:absolute;left:24px;bottom:-7px;width:0;height:0;border:7px solid transparent;border-top-color:#fff;border-bottom:0;z-index:1}
+.mascot-body{animation:mascotBob 2.8s ease-in-out infinite;filter:drop-shadow(0 5px 8px rgba(0,0,0,.22))}
+#mascot:hover .mascot-body{animation-duration:.7s}
+@keyframes mascotBob{0%,100%{transform:translateY(0) rotate(-2deg)}50%{transform:translateY(-6px) rotate(2deg)}}
+</style>
+<div id="mascot" onclick="showRemindersPopup(true)" title="לחץ לכל התזכורות">
+  <div id="mascot-bubble" class="mascot-bubble"></div>
+  <div class="mascot-body">
+    <div id="mascot-cop">
+      <svg width="60" height="76" viewBox="0 0 60 76" xmlns="http://www.w3.org/2000/svg">
+        <path d="M6 76 Q6 52 30 52 Q54 52 54 76 Z" fill="#1e3a8a"/>
+        <path d="M26 53 L30 61 L34 53 Z" fill="#0f172a"/>
+        <circle cx="15" cy="64" r="3" fill="#fbbf24"/>
+        <rect x="25" y="45" width="10" height="9" rx="4" fill="#e8b48c"/>
+        <circle cx="30" cy="34" r="15" fill="#f2c9a0"/>
+        <circle cx="15.5" cy="35" r="2.6" fill="#f2c9a0"/><circle cx="44.5" cy="35" r="2.6" fill="#f2c9a0"/>
+        <path d="M13 27 Q30 20 47 27 L47 30.5 Q30 25 13 30.5 Z" fill="#0f172a"/>
+        <path d="M15 27 Q15 11 30 11 Q45 11 45 27 Q30 21 15 27 Z" fill="#1e3a8a"/>
+        <circle cx="30" cy="18.5" r="3.4" fill="#fbbf24" stroke="#b45309" stroke-width="1"/>
+        <rect x="17.5" y="31.5" width="10.5" height="7.5" rx="3.5" fill="#111"/>
+        <rect x="32" y="31.5" width="10.5" height="7.5" rx="3.5" fill="#111"/>
+        <rect x="28" y="34" width="4" height="2.2" fill="#111"/>
+        <rect x="19.5" y="33" width="3" height="1.6" rx="0.8" fill="#64748b"/>
+        <path d="M24 43.5 Q30 47.5 36 43.5" stroke="#8a4b2a" stroke-width="1.7" fill="none" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <div id="mascot-light" style="display:none">
+      <svg width="54" height="76" viewBox="0 0 54 76" xmlns="http://www.w3.org/2000/svg">
+        <rect x="24" y="62" width="6" height="14" rx="3" fill="#64748b"/>
+        <rect x="9" y="3" width="36" height="62" rx="13" fill="#111827" stroke="#374151" stroke-width="2"/>
+        <circle cx="27" cy="18" r="7" fill="#ef4444"><animate attributeName="opacity" values="1;.3;1" dur="2.7s" repeatCount="indefinite"/></circle>
+        <circle cx="27" cy="34" r="7.5" fill="#fbbf24"/>
+        <circle cx="27" cy="50" r="7" fill="#22c55e"><animate attributeName="opacity" values=".35;1;.35" dur="2.7s" repeatCount="indefinite"/></circle>
+        <circle cx="23.6" cy="32.4" r="2.4" fill="#fff"/><circle cx="30.4" cy="32.4" r="2.4" fill="#fff"/>
+        <circle cx="24.2" cy="33" r="1.1" fill="#111"/><circle cx="31" cy="33" r="1.1" fill="#111"/>
+        <path d="M22.5 37.5 Q27 40.5 31.5 37.5" stroke="#7c2d12" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+      </svg>
+    </div>
+  </div>
+</div>
+
 <!-- ══════════════ TAB: FLEET ══════════════ -->
 <div class="tab-content active" id="tab-fleet">
   <div class="search-row">
@@ -5124,7 +5171,8 @@ async function buildReminders(){
   try { pendingReqs = (await readDriverDocs('requirement')).filter(r => (r.status||'pending') === 'pending'); }
   catch(e) { pendingReqs = (typeof PENDING_REQS !== 'undefined' ? PENDING_REQS : []).filter(r => (r.status||'pending') === 'pending'); }
   const openRepl = (typeof REPLACEMENTS !== 'undefined' ? REPLACEMENTS : []).filter(r => !_replHasReturn(r));
-  return { alerts, alertPlates, procMissing, kmMissing, pendingReqs, openRepl, total: alerts.length + procMissing.length + kmMissing.length + pendingReqs.length + openRepl.length };
+  const openTasks = (typeof TASKS !== 'undefined' ? TASKS : []).filter(t => !t.done);
+  return { alerts, alertPlates, procMissing, kmMissing, pendingReqs, openRepl, openTasks, total: alerts.length + procMissing.length + kmMissing.length + pendingReqs.length + openRepl.length + openTasks.length };
 }
 async function showRemindersPopup(force, data){
   if (!data) data = await buildReminders();
@@ -5135,6 +5183,7 @@ async function showRemindersPopup(force, data){
     </div>`;
   const html =
     ((data.pendingReqs && data.pendingReqs.length) ? row('📥','מסמכים לאישור', data.pendingReqs.length, '#16a34a', 'alerts', 'מסמכים שהעובדים העלו וממתינים לבדיקה ואישור שלך') : '') +
+    ((data.openTasks && data.openTasks.length) ? row('✅','משימות פתוחות', data.openTasks.length, '#2563eb', 'tasks', 'משימות שפתחת וטרם סומנו כבוצעו') : '') +
     row('⏰','התראות תוקף פעילות', data.alerts.length, '#dc2626', 'alerts', `${data.alertPlates.size} רכבים — רישוי/ביטוח/רישיון/ביקורת/טיפול`) +
     row('📝','נהלים שלא נחתמו', data.procMissing.length, '#d97706', 'fleet', 'רכבים עם נהג שטרם חתם על נהלים ואחריות') +
     row('🛣️','ק"מ שלא דווח החודש', data.kmMissing.length, '#0891b2', 'forms', 'נהגים שטרם עדכנו ק"מ בסבב החודשי') +
@@ -5169,6 +5218,46 @@ async function maybeShowReminders(){
 document.addEventListener('visibilitychange', () => { if (!document.hidden) setTimeout(maybeShowReminders, 1500); });
 setInterval(maybeShowReminders, 5 * 60 * 1000);
 setTimeout(maybeShowReminders, 5000);
+
+// ═══ הנציג (שוטר/רמזור) — בועת קומיקס מתחלפת עם התראה אחרת בכל פעם ═══
+let _mascotMsgs = [], _mascotIdx = 0, _mascotStarted = false;
+async function _buildMascotMsgs(){
+  let d; try { d = await buildReminders(); } catch(e){ d = {}; }
+  const openTasks = (typeof TASKS !== 'undefined' ? TASKS : []).filter(t => !t.done);
+  const M = [];
+  if (d.pendingReqs && d.pendingReqs.length) M.push(`📥 ${d.pendingReqs.length} מסמכים מחכים לאישור שלך!`);
+  if (openTasks.length) { M.push(`✅ ${openTasks.length} משימות פתוחות מחכות לך`); const t0 = openTasks[0]; if (t0 && t0.text) M.push(`📌 ${String(t0.text).slice(0, 46)}`); }
+  if (d.alerts && d.alerts.length) M.push(`⏰ ${d.alerts.length} התראות תוקף דורשות טיפול`);
+  if (d.procMissing && d.procMissing.length) M.push(`📝 ${d.procMissing.length} רכבים בלי נהלים חתומים`);
+  if (d.kmMissing && d.kmMissing.length) M.push(`🛣️ ${d.kmMissing.length} נהגים עוד לא דיווחו ק"מ`);
+  if (d.openRepl && d.openRepl.length) M.push(`🔄 ${d.openRepl.length} חליפיים בלי תאריך החזרה`);
+  if (!M.length) M.push('👋 הכל תחת שליטה — אין התראות פתוחות! 🎉');
+  return M;
+}
+async function refreshMascotMsgs(){ try { _mascotMsgs = await _buildMascotMsgs(); } catch(e){ _mascotMsgs = []; } }
+function showMascotBubble(){
+  const m = document.getElementById('mascot'), bub = document.getElementById('mascot-bubble');
+  if (!m || !bub) return;
+  const loggedIn = Array.isArray(window.VEHICLES) && VEHICLES.length;
+  if (!loggedIn || localStorage.getItem('fleet_mascot_off') === '1' || !_mascotMsgs.length) { m.style.display = 'none'; return; }
+  m.style.display = 'flex';
+  if (_mascotIdx >= _mascotMsgs.length) _mascotIdx = 0;
+  const useCop = (_mascotIdx % 2 === 0);           // מתחלף בין שוטר לרמזור
+  const cop = document.getElementById('mascot-cop'), light = document.getElementById('mascot-light');
+  if (cop && light) { cop.style.display = useCop ? '' : 'none'; light.style.display = useCop ? 'none' : ''; }
+  bub.textContent = _mascotMsgs[_mascotIdx];
+  _mascotIdx++;
+  bub.classList.add('show');
+  clearTimeout(bub._t); bub._t = setTimeout(() => bub.classList.remove('show'), 6500);
+}
+function startMascot(){
+  if (_mascotStarted) return; _mascotStarted = true;
+  refreshMascotMsgs().then(() => setTimeout(showMascotBubble, 2500));
+  setInterval(showMascotBubble, 11000);
+  setInterval(refreshMascotMsgs, 5 * 60 * 1000);
+}
+setTimeout(startMascot, 6000);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshMascotMsgs(); });
 
 // ── EXPORT TO EXCEL (CSV with BOM) ──
 function exportSection(section) {
