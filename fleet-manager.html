@@ -5123,7 +5123,8 @@ async function buildReminders(){
   let pendingReqs = [];
   try { pendingReqs = (await readDriverDocs('requirement')).filter(r => (r.status||'pending') === 'pending'); }
   catch(e) { pendingReqs = (typeof PENDING_REQS !== 'undefined' ? PENDING_REQS : []).filter(r => (r.status||'pending') === 'pending'); }
-  return { alerts, alertPlates, procMissing, kmMissing, pendingReqs, total: alerts.length + procMissing.length + kmMissing.length + pendingReqs.length };
+  const openRepl = (typeof REPLACEMENTS !== 'undefined' ? REPLACEMENTS : []).filter(r => !String(r.toDate||'').trim());
+  return { alerts, alertPlates, procMissing, kmMissing, pendingReqs, openRepl, total: alerts.length + procMissing.length + kmMissing.length + pendingReqs.length + openRepl.length };
 }
 async function showRemindersPopup(force, data){
   if (!data) data = await buildReminders();
@@ -5136,7 +5137,8 @@ async function showRemindersPopup(force, data){
     ((data.pendingReqs && data.pendingReqs.length) ? row('📥','מסמכים לאישור', data.pendingReqs.length, '#16a34a', 'alerts', 'מסמכים שהעובדים העלו וממתינים לבדיקה ואישור שלך') : '') +
     row('⏰','התראות תוקף פעילות', data.alerts.length, '#dc2626', 'alerts', `${data.alertPlates.size} רכבים — רישוי/ביטוח/רישיון/ביקורת/טיפול`) +
     row('📝','נהלים שלא נחתמו', data.procMissing.length, '#d97706', 'fleet', 'רכבים עם נהג שטרם חתם על נהלים ואחריות') +
-    row('🛣️','ק"מ שלא דווח החודש', data.kmMissing.length, '#0891b2', 'forms', 'נהגים שטרם עדכנו ק"מ בסבב החודשי');
+    row('🛣️','ק"מ שלא דווח החודש', data.kmMissing.length, '#0891b2', 'forms', 'נהגים שטרם עדכנו ק"מ בסבב החודשי') +
+    ((data.openRepl && data.openRepl.length) ? row('🔄','רכבים חליפיים ללא תאריך החזרה', data.openRepl.length, '#7c3aed', 'returns', 'רכבים חליפיים פתוחים שטרם נסגר להם תאריך החזרה') : '');
   document.getElementById('reminders-body').innerHTML = (data.total ? '' : '<div style="text-align:center;color:#059669;font-weight:800;padding:6px 0 12px">🎉 הכל תקין — אין פריטים פתוחים</div>') + html;
   const cb = document.getElementById('rem-notif'); if (cb) cb.checked = (localStorage.getItem('fleet_rem_notif')==='1');
   document.getElementById('reminders-modal').classList.add('open');
