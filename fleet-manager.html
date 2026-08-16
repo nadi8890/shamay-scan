@@ -5224,13 +5224,29 @@ let _mascotMsgs = [], _mascotIdx = 0, _mascotStarted = false;
 async function _buildMascotMsgs(){
   let d; try { d = await buildReminders(); } catch(e){ d = {}; }
   const openTasks = (typeof TASKS !== 'undefined' ? TASKS : []).filter(t => !t.done);
+  const nm = s => String(s||'').split('-')[0].trim();
   const M = [];
-  if (d.pendingReqs && d.pendingReqs.length) M.push(`📥 ${d.pendingReqs.length} מסמכים מחכים לאישור שלך!`);
-  if (openTasks.length) { M.push(`✅ ${openTasks.length} משימות פתוחות מחכות לך`); const t0 = openTasks[0]; if (t0 && t0.text) M.push(`📌 ${String(t0.text).slice(0, 46)}`); }
-  if (d.alerts && d.alerts.length) M.push(`⏰ ${d.alerts.length} התראות תוקף דורשות טיפול`);
-  if (d.procMissing && d.procMissing.length) M.push(`📝 ${d.procMissing.length} רכבים בלי נהלים חתומים`);
-  if (d.kmMissing && d.kmMissing.length) M.push(`🛣️ ${d.kmMissing.length} נהגים עוד לא דיווחו ק"מ`);
-  if (d.openRepl && d.openRepl.length) M.push(`🔄 ${d.openRepl.length} חליפיים בלי תאריך החזרה`);
+  // מסמכים לאישור — פר מסמך
+  (d.pendingReqs||[]).forEach(r => M.push(`📥 ${nm(r.driver)||'עובד'} העלה ${r.reqLabel||'מסמך'} לרכב ${r.plate} — ממתין לאישורך`));
+  // משימות פתוחות — פר משימה
+  openTasks.forEach(t => { if (t && t.text) M.push(`📌 משימה פתוחה: ${String(t.text).slice(0, 62)}`); });
+  // התראות תוקף — פר רכב, עם כמה ימים נשארו
+  (d.alerts||[]).forEach(a => {
+    const who = a.driver ? ` (${nm(a.driver)})` : '';
+    let when = '';
+    if (a.missing) when = '— חסר מסמך';
+    else if (a.daysLeft === 0) when = '— היום!';
+    else if (typeof a.daysLeft === 'number') when = a.daysLeft < 0 ? `— באיחור ${Math.abs(a.daysLeft)} ימים` : `— בעוד ${a.daysLeft} ימים`;
+    M.push(`⏰ ${a.type||'תוקף'} · רכב ${a.plate}${who} ${when}`.trim());
+  });
+  // נהלים לא חתומים — פר רכב
+  (d.procMissing||[]).forEach(v => M.push(`📝 ${nm(v.driverName)||'נהג'} (רכב ${v.plate}) עוד לא חתם על נהלים ואחריות`));
+  // ק"מ שלא דווח — פר נהג
+  (d.kmMissing||[]).forEach(v => M.push(`🛣️ ${nm(v.driverName)||'נהג'} (רכב ${v.plate}) עוד לא דיווח ק"מ החודש`));
+  // רכבים חליפיים פתוחים — פר רכב
+  (d.openRepl||[]).forEach(r => M.push(`🔄 ${nm(r.employee)||'עובד'} — רכב חליפי ${r.plate} בלי תאריך החזרה`));
+  // ערבוב כדי שכל פעם יופיע פריט אחר ומגוון (לא לפי סדר קטגוריות)
+  for (let i = M.length - 1; i > 0; i--){ const j = Math.floor(Math.random() * (i + 1)); const tmp = M[i]; M[i] = M[j]; M[j] = tmp; }
   if (!M.length) M.push('👋 הכל תחת שליטה — אין התראות פתוחות! 🎉');
   return M;
 }
