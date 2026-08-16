@@ -5123,7 +5123,7 @@ async function buildReminders(){
   let pendingReqs = [];
   try { pendingReqs = (await readDriverDocs('requirement')).filter(r => (r.status||'pending') === 'pending'); }
   catch(e) { pendingReqs = (typeof PENDING_REQS !== 'undefined' ? PENDING_REQS : []).filter(r => (r.status||'pending') === 'pending'); }
-  const openRepl = (typeof REPLACEMENTS !== 'undefined' ? REPLACEMENTS : []).filter(r => !String(r.toDate||'').trim());
+  const openRepl = (typeof REPLACEMENTS !== 'undefined' ? REPLACEMENTS : []).filter(r => !_replHasReturn(r));
   return { alerts, alertPlates, procMissing, kmMissing, pendingReqs, openRepl, total: alerts.length + procMissing.length + kmMissing.length + pendingReqs.length + openRepl.length };
 }
 async function showRemindersPopup(force, data){
@@ -7238,6 +7238,12 @@ function buildRetColFilterRow() {
   const inp = col => `<th><input class="col-filter-inp" type="text" placeholder="${ph[col]||'חפש...'}" value="${esc(retColFilters[col]||'')}" oninput="retColFilters['${col}']=this.value;renderReturns()"></th>`;
   row.innerHTML = inp('employee')+inp('plate')+inp('make')+inp('fromDate')+inp('toDate')+inp('reason')+inp('notes')+'<th></th>';
 }
+// רכב חליפי נחשב תקין (יש לו תאריך החזרה) אם מופיעים בו לפחות 2 תאריכים —
+// בשני השדות יחד או אפילו באותה משבצת (רשומות ישנות עם טווח ב"מתאריך").
+function _replHasReturn(r){
+  const dates = String((r && r.fromDate || '') + ' ' + (r && r.toDate || '')).match(/\d{1,2}[.\/-]\d{1,2}[.\/-]\d{2,4}/g);
+  return (dates ? dates.length : 0) >= 2;
+}
 function renderReturns() {
   const q = (document.getElementById('returns-search')?.value || '').trim().toLowerCase();
   const fm = (val,f) => !f || String(val||'').toLowerCase().includes(f.toLowerCase());
@@ -7259,13 +7265,13 @@ function renderReturns() {
     if (!filteredRepl.length) {
       rb.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:20px">${q ? 'לא נמצאו תוצאות' : 'אין רכבים חליפיים פעילים'}</td></tr>`;
     } else {
-      rb.innerHTML = filteredRepl.map((r) => { const oi = REPLACEMENTS.indexOf(r); const openR = !String(r.toDate||'').trim(); return `
+      rb.innerHTML = filteredRepl.map((r) => { const oi = REPLACEMENTS.indexOf(r); const openR = !_replHasReturn(r); return `
         <tr${openR ? ' style="background:#fff7ed"' : ''}>
           <td>${esc(r.employee||'—')}</td>
           <td style="font-weight:700;color:var(--accent);direction:ltr">${esc(r.plate||'—')}</td>
           <td>${esc(r.typeCompany||'—')}</td>
           <td>${esc(r.fromDate||'—')}</td>
-          <td>${openR ? '<span class="badge" style="background:#fef3c7;color:#92400e;border:1px solid #fcd34d;font-size:0.62rem">⚠ חסר החזרה</span>' : esc(r.toDate)}</td>
+          <td>${openR ? '<span class="badge" style="background:#fef3c7;color:#92400e;border:1px solid #fcd34d;font-size:0.62rem">⚠ חסר החזרה</span>' : (esc(r.toDate) || '<span class="badge badge-green" style="font-size:0.62rem">✓ תקין</span>')}</td>
           <td>${esc(r.notes||'')}</td>
           <td style="white-space:nowrap">
             <button class="btn-export" style="padding:3px 8px;font-size:0.65rem;margin-left:3px;background:#f5f3ff;color:#6d28d9" title="שלח מייל לשכר: רכב חליפי מול הרכב הקבוע (שווי שימוש)" onclick="openReplMail(${oi})">📧 שכר</button>
