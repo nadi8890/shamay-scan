@@ -3044,7 +3044,7 @@ function cpSetCompany(){
 }
 function cpPopulateVehicles(){
   const dl = document.getElementById('cp-vehicles');
-  if(dl) dl.innerHTML = (window.VEHICLES||[]).map(v => `<option value="${_tfEsc(v.plate)} — ${_tfEsc(_cpCleanName(v.driverName))}">`).join('');
+  if(dl) dl.innerHTML = (VEHICLES||[]).map(v => `<option value="${_tfEsc(v.plate)} — ${_tfEsc(_cpCleanName(v.driverName))}">`).join('');
 }
 function _cpTodayStr(){ const t=new Date(); return `${('0'+t.getDate()).slice(-2)}/${('0'+(t.getMonth()+1)).slice(-2)}/${t.getFullYear()}`; }
 function _cpSet(id,val){ const el=document.getElementById(id); if(el) el.value = val==null?'':val; }
@@ -5164,7 +5164,7 @@ async function _remKmMissing(activeVeh){
 async function buildReminders(){
   const alerts = (typeof buildDynamicAlerts === 'function') ? buildDynamicAlerts() : [];
   const alertPlates = new Set(alerts.map(a => a.plate));
-  const activeVeh = (window.VEHICLES||[]).filter(v => { const n = (v.driverName||'').split('-')[0].trim(); return n && !n.includes('נגרר') && !n.includes('ללא נהג'); });
+  const activeVeh = (VEHICLES||[]).filter(v => { const n = (v.driverName||'').split('-')[0].trim(); return n && !n.includes('נגרר') && !n.includes('ללא נהג'); });
   const procMissing = activeVeh.filter(v => !String(v.procedures||'').trim());
   const kmMissing = await _remKmMissing(activeVeh);
   let pendingReqs = [];
@@ -5207,7 +5207,7 @@ function toggleRemNotif(on){
 }
 async function maybeShowReminders(){
   if (localStorage.getItem('fleet_reminders_off') === '1') return;
-  if (!Array.isArray(window.VEHICLES) || !VEHICLES.length) return;   // עדיין לא מחובר / לא נטען
+  if (!Array.isArray(VEHICLES) || !VEHICLES.length) return;   // עדיין לא מחובר / לא נטען
   const slot = _remSlot();
   if (_remShownToday().includes(slot)) return;                       // כבר הוצג בפרק הזמן הזה היום
   const data = await buildReminders();
@@ -5254,7 +5254,7 @@ async function refreshMascotMsgs(){ try { _mascotMsgs = await _buildMascotMsgs()
 function showMascotBubble(){
   const m = document.getElementById('mascot'), bub = document.getElementById('mascot-bubble');
   if (!m || !bub) return;
-  const loggedIn = Array.isArray(window.VEHICLES) && VEHICLES.length;
+  const loggedIn = Array.isArray(VEHICLES) && VEHICLES.length;
   if (!loggedIn || localStorage.getItem('fleet_mascot_off') === '1') { m.style.display = 'none'; return; }
   m.style.display = 'flex';                                   // הדמות מופיעה מיד כשמחוברים
   if (!_mascotMsgs.length) { refreshMascotMsgs(); return; }   // עוד אין הודעות — רענן וצא (הדמות כבר על המסך)
