@@ -5380,8 +5380,8 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) refr
 function exportSection(section) {
   let headers = [], rows = [];
   if (section === 'fleet') {
-    headers = ['מס׳ רישוי','יצרן','דגם','שנה','נהג','ת.ז נהג','חברה','קוד רכב','תוקף רישוי','תוקף ביטוח','רישיון נהג','ק"מ נוכחי','ק"מ טיפול הבא','תאריך טיפול אחרון','ביקורת בטיחות','ילדים','רכב מתאריך','רישום תנועה','נהלים'];
-    rows = VEHICLES.map(v => [v.plate,v.make,v.model,v.year,v.driverName,v.driverId||'',v.company,v.code||'',v.registrationExpiry,v.insuranceExpiry,v.licenseExpiry,v.currentKm,v.nextServiceKm,v.serviceDate||'',v.inspection,v.children||'',v.vehicleFrom||'',v.trafficRecord||'',v.procedures||'']);
+    headers = ['מס׳ רישוי','יצרן','דגם','שנה','נהג','חברה','קוד רכב','תוקף רישוי','תוקף ביטוח','רישיון נהג','ק"מ נוכחי','ק"מ טיפול הבא','תאריך טיפול אחרון','ביקורת בטיחות','ילדים','רכב מתאריך','רישום תנועה','נהלים'];
+    rows = VEHICLES.map(v => [v.plate,v.make,v.model,v.year,v.driverName,v.company,v.code||'',v.registrationExpiry,v.insuranceExpiry,v.licenseExpiry,v.currentKm,v.nextServiceKm,v.serviceDate||'',v.inspection,v.children||'',v.vehicleFrom||'',v.trafficRecord||'',v.procedures||'']);
   } else if (section === 'incidents') {
     headers = ['#','מס׳ רישוי','נהג','תאריך','ביטוח/בעלות','מס׳ ארוע','סכום נזק','השתתפות עצמית','הערות'];
     rows = INCIDENTS.map(i => [i.id,i.plate,i.driver,i.date,i.insurance,i.reportNum,i.damage,i.deductible,i.notes]);
