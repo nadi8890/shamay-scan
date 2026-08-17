@@ -5848,6 +5848,7 @@ function _empView(cat, di, fi){
   else { const b = (doc.images||[])[fi]; if(b) _viewB64(b, 'image/jpeg'); }
 }
 function _empViewDecl(di){ window._DECLS = (window._EMPDOCS && window._EMPDOCS.decls) || []; if(typeof viewDeclaration === 'function') viewDeclaration(di); }
+function _empViewInsp(i){ window._INSPECTIONS = (window._EMPDOCS && window._EMPDOCS.insps) || []; if(typeof viewInspection === 'function') viewInspection(i); }
 async function openEmployeeDocs(plate){
   const v = _vehByPlate(plate); if(!v){ toast('הרכב לא נמצא', true); return; }
   const pk = String(plate).replace(/\D/g,'');
@@ -5862,11 +5863,11 @@ async function openEmployeeDocs(plate){
   const byPlate  = arr => (arr||[]).filter(r => String(r.plate||'').replace(/\D/g,'') === pk).sort((a,b)=>(b.created||0)-(a.created||0));
   const byDriver = arr => (arr||[]).filter(r => dkey && _dk(r.driver||r.name) === dkey).sort((a,b)=>(b.created||0)-(a.created||0));
   try {
-    const [decls, vdocs, ldocs, reqs] = await Promise.all([
-      readDriverDocs('declaration'), readDriverDocs('vehicledocs'), readDriverDocs('licensedocs'), readDriverDocs('requirement')
+    const [decls, vdocs, ldocs, reqs, insps] = await Promise.all([
+      readDriverDocs('declaration'), readDriverDocs('vehicledocs'), readDriverDocs('licensedocs'), readDriverDocs('requirement'), readDriverDocs('inspection')
     ]);
     const reqSel = (reqs||[]).filter(r => String(r.plate||'').replace(/\D/g,'')===pk || (dkey && _dk(r.driver||r.name)===dkey)).sort((a,b)=>(b.created||0)-(a.created||0));
-    const D = window._EMPDOCS = { decls:byDriver(decls), vdocs:byPlate(vdocs), ldocs:byDriver(ldocs), reqs:reqSel };
+    const D = window._EMPDOCS = { decls:byDriver(decls), vdocs:byPlate(vdocs), ldocs:byDriver(ldocs), reqs:reqSel, insps:byPlate(insps) };
     const sec = (icon,title,count,html) => `<div style="margin-bottom:14px"><div style="font-weight:800;color:#1e3a8a;font-size:0.88rem;margin-bottom:6px">${icon} ${title} <span class="badge badge-gray">${count}</span></div>${count ? html : '<div style="color:#94a3b8;font-size:0.76rem">— אין —</div>'}</div>`;
     const dates = `<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:9px 11px;font-size:0.8rem;line-height:1.95;margin-bottom:12px">
       <div>📋 נהלים: <b>${esc(v.procedures||'—')}</b></div>
@@ -5877,12 +5878,14 @@ async function openEmployeeDocs(plate){
       <span style="font-weight:700">${r.formType && typeof DECL_FORM_META!=='undefined' && DECL_FORM_META[r.formType] ? DECL_FORM_META[r.formType].label : '📋 טפסים'}</span>
       <span style="color:var(--muted)">${esc(r.dateStr||'')}</span><span class="badge badge-green">✓ נחתם</span></div>`).join('');
     const imgRow = (arr, cat) => arr.map((r,di)=>`<div style="margin-bottom:5px;font-size:0.74rem"><span style="color:#64748b">${esc(r.dateStr||'')}${r.licNum?' · רישיון '+esc(r.licNum):''}</span> ${(r.images||[]).map((b,fi)=>`<button class="btn btn-gray" style="padding:3px 9px;font-size:0.68rem;margin:2px" onclick="_empView('${cat}',${di},${fi})">🖼️ ${fi+1}</button>`).join('')}</div>`).join('');
+    const inspHtml = D.insps.map((r,i)=>{ const bad=Object.values(r.items||{}).filter(x=>x==='לא תקין').length; return `<div class="insp-hist-row" onclick="_empViewInsp(${i})" style="cursor:pointer"><span style="color:var(--muted);font-size:0.74rem">${esc(r.dateStr||'')}${r.driver?' · '+esc((r.driver||'').split('-')[0].trim()):''}</span>${bad?`<span class="badge badge-red">${bad} לא תקין</span>`:'<span class="badge badge-green">✓ תקין</span>'}</div>`; }).join('');
     const reqHtml = D.reqs.map((r,di)=>`<div style="margin-bottom:5px;font-size:0.74rem"><b>${esc(r.reqLabel||'קריאה')}</b> <span style="color:#64748b">${esc(r.dateStr||'')}</span> <span class="badge ${r.status==='approved'?'badge-green':r.status==='rejected'?'badge-red':'badge-orange'}" style="font-size:0.56rem">${esc(r.status||'ממתין')}</span> ${(r.files||[]).map((f,fi)=>`<button class="btn btn-gray" style="padding:3px 9px;font-size:0.68rem;margin:2px" onclick="_empView('reqs',${di},${fi})">${f.kind==='pdf'?'📄':'🖼️'} ${fi+1}</button>`).join('')}</div>`).join('');
     body.innerHTML = dates
       + `<div style="font-size:0.72rem;color:#94a3b8;margin-bottom:8px">מסמכי הנהג עוברים עם העובד · מסמכי הרכב נשארים עם הרכב</div>`
       + sec('📋','נהלים ואחריות · <span style="color:#7c3aed">עם הנהג</span>', D.decls.length, declHtml)
       + sec('🪪','רישיון נהיגה · <span style="color:#7c3aed">עם הנהג</span>', D.ldocs.length, imgRow(D.ldocs,'ldocs'))
       + sec('🚗','רישיון רכב + ביטוח · <span style="color:#0891b2">עם הרכב</span>', D.vdocs.length, imgRow(D.vdocs,'vdocs'))
+      + sec('🛡️','ביקורות בטיחות · <span style="color:#0891b2">עם הרכב</span>', D.insps.length, inspHtml)
       + sec('📎','קריאות / מסמכים שהתבקשו', D.reqs.length, reqHtml);
   } catch(e){ body.innerHTML = '<div style="color:#dc2626;padding:12px">שגיאה בטעינת המסמכים</div>'; console.log('empdocs', e); }
 }
