@@ -406,6 +406,36 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
         <path d="M25.5 40 Q32 44.5 38.5 40" stroke="#8a4b2a" stroke-width="1.7" fill="none" stroke-linecap="round"/>
       </svg>
     </div>
+    <div id="mascot-mechanic" style="display:none">
+      <svg width="62" height="76" viewBox="0 0 62 76" xmlns="http://www.w3.org/2000/svg">
+        <path d="M12 76 Q12 50 31 50 Q50 50 50 76 Z" fill="#2563eb"/>
+        <rect x="22" y="50" width="3.5" height="15" fill="#1e40af"/><rect x="36.5" y="50" width="3.5" height="15" fill="#1e40af"/>
+        <path d="M27 59 l4 4 -1.6 1.6 -4-4 z" fill="#e2e8f0"/><circle cx="33.4" cy="65.4" r="2.6" fill="none" stroke="#e2e8f0" stroke-width="1.7"/>
+        <rect x="26" y="43" width="10" height="9" rx="4" fill="#e8b48c"/>
+        <circle cx="31" cy="32" r="15" fill="#f2c9a0"/>
+        <circle cx="16" cy="33" r="2.5" fill="#f2c9a0"/><circle cx="46" cy="33" r="2.5" fill="#f2c9a0"/>
+        <path d="M16 26 Q16 12 31 12 Q46 12 46 26 Q31 20 16 26 Z" fill="#ef4444"/>
+        <path d="M16 26 Q31 21 46 26 L46 29 Q31 24 16 29 Z" fill="#b91c1c"/>
+        <circle cx="25.5" cy="31" r="1.6" fill="#111"/><circle cx="36.5" cy="31" r="1.6" fill="#111"/>
+        <path d="M25 38 Q31 41 37 38 Q31 39.5 25 38 Z" fill="#5b3a1a"/>
+        <path d="M27 41 Q31 43.2 35 41" stroke="#8a4b2a" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <div id="mascot-driver" style="display:none">
+      <svg width="60" height="76" viewBox="0 0 60 76" xmlns="http://www.w3.org/2000/svg">
+        <path d="M12 76 Q12 52 30 52 Q48 52 48 76 Z" fill="#0f766e"/>
+        <circle cx="30" cy="65" r="7.5" fill="none" stroke="#111" stroke-width="2.6"/>
+        <circle cx="30" cy="65" r="2" fill="#111"/>
+        <circle cx="22.5" cy="65" r="2.6" fill="#f2c9a0"/><circle cx="37.5" cy="65" r="2.6" fill="#f2c9a0"/>
+        <rect x="25" y="44" width="10" height="9" rx="4" fill="#e8b48c"/>
+        <circle cx="30" cy="33" r="14" fill="#f2c9a0"/>
+        <circle cx="16.5" cy="34" r="2.4" fill="#f2c9a0"/><circle cx="43.5" cy="34" r="2.4" fill="#f2c9a0"/>
+        <path d="M16 28 Q16 15 30 15 Q44 15 44 27 L44 28 Q30 23 16 28 Z" fill="#334155"/>
+        <path d="M13 28.5 Q30 24 30 28.5 Q22 30.5 13 30.5 Z" fill="#1e293b"/>
+        <circle cx="25" cy="32" r="1.6" fill="#111"/><circle cx="35" cy="32" r="1.6" fill="#111"/>
+        <path d="M25.5 38 Q30 41 34.5 38" stroke="#8a4b2a" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+      </svg>
+    </div>
   </div>
 </div>
 
@@ -5276,11 +5306,9 @@ function showMascotBubble(){
   m.style.display = 'flex';                                   // הדמות מופיעה רק בלשונית ההתראות
   if (!_mascotMsgs.length) { refreshMascotMsgs(); return; }   // עוד אין הודעות — רענן וצא (הדמות כבר על המסך)
   if (_mascotIdx >= _mascotMsgs.length) _mascotIdx = 0;
-  const pick = _mascotIdx % 3;                     // מתחלף: שוטר / רמזור / גיבור-על
-  const cop = document.getElementById('mascot-cop'), light = document.getElementById('mascot-light'), hero = document.getElementById('mascot-hero');
-  if (cop) cop.style.display = pick === 0 ? '' : 'none';
-  if (light) light.style.display = pick === 1 ? '' : 'none';
-  if (hero) hero.style.display = pick === 2 ? '' : 'none';
+  const _chars = ['mascot-cop','mascot-light','mascot-hero','mascot-mechanic','mascot-driver']; // מתחלפים
+  const pick = _mascotIdx % _chars.length;
+  _chars.forEach((id, i) => { const el = document.getElementById(id); if (el) el.style.display = (i === pick) ? '' : 'none'; });
   bub.textContent = _mascotMsgs[_mascotIdx];
   _mascotIdx++;
   bub.classList.add('show');
