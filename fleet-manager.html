@@ -5857,16 +5857,22 @@ function _demMatchDrivers(contacts){
 async function commitDriverEmails(){
   const sel = _demMatches.filter(m => m.checked && m.email);
   if(!sel.length){ toast('לא נבחרו מיילים לשמירה', true); return; }
-  let n = 0;
-  sel.forEach(m => { const v = VEHICLES.find(x => x.plate === m.plate); if(v){ v.driverEmail = m.email; n++; } });
+  const emap = {}; sel.forEach(m => { emap[String(m.plate).replace(/\D/g,'')] = m.email; });
   try {
+    // קורא את הענן הטרי ומוסיף רק את המיילים — לא דורס נתונים עם מערך מקומי אפשרי-מצומצם
+    const snap = await fcol().doc('main').get();
+    let cloud = (snap.data() || {}).vehicles;
+    if (!Array.isArray(cloud) || !cloud.length) cloud = VEHICLES.slice();
+    let n = 0;
+    cloud.forEach(v => { const pk = String(v.plate||'').replace(/\D/g,''); if (emap[pk]) { v.driverEmail = emap[pk]; n++; } });
+    await fcol().doc('main').set({ vehicles: stripUndef(cloud) }, { merge:true });
+    mirrorToTenant('main', { vehicles: cloud });
+    VEHICLES.length = 0; cloud.forEach(v => VEHICLES.push(v));   // מסנכרן זיכרון למצב הענן המלא
     localStorage.setItem('fleet_vehicles', JSON.stringify(VEHICLES));
-    await fcol().doc('main').set({ vehicles: stripUndef(VEHICLES) }, { merge:true });
-    mirrorToTenant('main', { vehicles: VEHICLES });
-  } catch(e){ console.log('save emails', e); toast('שגיאה בשמירה', true); return; }
-  if (typeof renderFleet === 'function') renderFleet();
-  document.getElementById('drvemail-modal').classList.remove('open');
-  toast(`✓ נשמרו מיילים ל-${n} נהגים`);
+    if (typeof renderFleet === 'function') renderFleet();
+    document.getElementById('drvemail-modal').classList.remove('open');
+    toast(`✓ נשמרו מיילים ל-${n} נהגים`);
+  } catch(e){ console.log('save emails', e); toast('שגיאה בשמירה', true); }
 }
 // ═══ פורטל מסמכים לעובד — בניית תיק אישי ננעל למייל ═══
 function _emailKey(email){ return String(email||'').trim().toLowerCase().replace(/[^a-z0-9]/g,'_'); }
