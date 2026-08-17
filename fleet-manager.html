@@ -1083,6 +1083,7 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
       <div class="modal-row"><label>שנתון</label><input id="m-year" type="text" placeholder="2024"></div>
       <div class="modal-row"><label>שם נהג</label><input id="m-driver" type="text" placeholder="ישראל ישראלי" onchange="autoFillDriverFields()"></div>
       <div class="modal-row"><label>נייד נהג</label><input id="m-phone" type="tel" placeholder="050-0000000" style="direction:ltr"></div>
+      <div class="modal-row"><label>מייל נהג<span style="font-weight:400;color:#94a3b8;font-size:0.7rem"> — לצפייה במסמכים שלו</span></label><input id="m-email" type="email" placeholder="name@example.com" style="direction:ltr"></div>
       <div class="modal-row"><label>תוקף רישוי (טסט)</label><input id="m-regExpiry" type="text" placeholder="יי.חח.שש" inputmode="numeric" oninput="dateAutoMask(this)"></div>
       <div class="modal-row"><label>תוקף ביטוח חובה</label><input id="m-insExpiry" type="text" placeholder="יי.חח.שש" inputmode="numeric" oninput="dateAutoMask(this)"></div>
       <div class="modal-row"><label>תוקף רישיון נהג</label><input id="m-licExpiry" type="text" placeholder="יי.חח.שש" inputmode="numeric" oninput="dateAutoMask(this)"></div>
@@ -5455,7 +5456,7 @@ let editingPlate = null;
 function openAddVehicle() {
   editingPlate = null;
   document.getElementById('modal-title').textContent = 'הוסף רכב חדש';
-  ['m-plate','m-make','m-model','m-year','m-driver','m-phone','m-regExpiry','m-insExpiry','m-licExpiry','m-inspection','m-from','m-km','m-nextKm','m-serviceDate','m-traffic','m-procedures','m-notes'].forEach(id => {
+  ['m-plate','m-make','m-model','m-year','m-driver','m-phone','m-email','m-regExpiry','m-insExpiry','m-licExpiry','m-inspection','m-from','m-km','m-nextKm','m-serviceDate','m-traffic','m-procedures','m-notes'].forEach(id => {
     document.getElementById(id).value = '';
   });
   const govSt = document.getElementById('m-gov-status');
@@ -5474,6 +5475,7 @@ function editVehicle(plate) {
   document.getElementById('m-year').value = v.year||'';
   document.getElementById('m-driver').value = v.driverName||'';
   document.getElementById('m-phone').value = v.driverPhone||'';
+  document.getElementById('m-email').value = v.driverEmail||'';
   document.getElementById('m-regExpiry').value = v.registrationExpiry||'';
   document.getElementById('m-insExpiry').value = v.insuranceExpiry||'';
   document.getElementById('m-licExpiry').value = v.licenseExpiry||'';
@@ -5573,6 +5575,7 @@ function saveVehicle() {
     company: document.getElementById('m-company').value,
     driverName: document.getElementById('m-driver').value.trim(),
     driverPhone: document.getElementById('m-phone').value.trim(),
+    driverEmail: document.getElementById('m-email').value.trim(),
     registrationExpiry: document.getElementById('m-regExpiry').value.trim(),
     insuranceExpiry: document.getElementById('m-insExpiry').value.trim(),
     licenseExpiry: document.getElementById('m-licExpiry').value.trim(),
@@ -5731,6 +5734,7 @@ const IMPORT_FIELDS = [
   { key:'driverName',         label:'שם נהג/עובד',      syn:['שם נהג','שם עובד','שם הנהג','נהג','עובד','שם מלא','שם','driver','name'] },
   { key:'driverId',           label:'תעודת זהות',        syn:['תעודת זהות','ת.ז','ת"ז','תז','מספר זהות','ת.ז.','id number','id'] },
   { key:'driverPhone',        label:'טלפון נהג',         syn:['טלפון','נייד','פלאפון','מספר טלפון','נייד נהג','phone','mobile','cell'] },
+  { key:'driverEmail',        label:'מייל נהג',          syn:['מייל','אימייל','דוא"ל','דואל','כתובת מייל','מייל נהג','email','e-mail','mail'] },
   { key:'make',               label:'יצרן',              syn:['יצרן','תוצר','תוצרת','מותג','make','manufacturer','brand'] },
   { key:'model',              label:'דגם',               syn:['דגם','model'] },
   { key:'year',               label:'שנתון',             syn:['שנתון','שנה','שנת ייצור','year'] },
