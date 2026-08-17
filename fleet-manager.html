@@ -5858,7 +5858,7 @@ async function _shrinkB64(b64, maxPx, q){
   });
 }
 async function buildDriverBundle(v, cache){
-  const email=(v.driverEmail||'').trim(); if(!email) return false;
+  const email=(v.driverEmail||'').trim().toLowerCase(); if(!email) return false;   // תואם למייל המאומת (Firebase ממיר לאותיות קטנות)
   const pk=String(v.plate||'').replace(/\D/g,'');
   const dkey=driverKey(v.driverName);
   const latestByDriver = arr => (arr||[]).filter(r=>driverKey(r.driver||r.name)===dkey).sort((a,b)=>(b.created||0)-(a.created||0))[0];
