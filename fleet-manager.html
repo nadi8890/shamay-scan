@@ -5966,7 +5966,7 @@ async function diagnoseBackups(){
   const line = (title,n,arr,btn)=>`<div style="font-size:0.72rem;padding:5px 0;border-bottom:1px solid #f1f5f9;display:flex;flex-wrap:wrap;gap:7px;align-items:center"><b style="min-width:90px">${title}</b><span style="color:#64748b">(${n} רכבים)</span> ${_BK_FIELDS.map((k,i)=>fld({vehicleFrom:'קבלה',inspection:'ביקורת',registrationExpiry:'רישוי',insuranceExpiry:'ביטוח',licenseExpiry:'רישיון',procedures:'נהלים',currentKm:'ק"מ',nextServiceKm:'טיפול'}[k]||k,i,arr)).join('')} ${btn||''}</div>`;
   if(!rows.length){ body.innerHTML='<div style="padding:12px;color:#dc2626">לא נמצאו גיבויים</div>'; return; }
   body.innerHTML = line('📍 עכשיו', VEHICLES.length, cur, '') + '<div style="height:6px"></div>'
-    + rows.map(r=>line('📅 '+r.date, r.n, r.counts, `<button class="btn btn-green" style="padding:2px 9px;font-size:0.66rem" onclick="restoreFromBackup('${r.id}')">שחזר מכאן</button>`)).join('');
+    + rows.map(r=>line('📅 '+r.date, r.n, r.counts, `<button class="btn btn-gray" style="padding:2px 8px;font-size:0.64rem" onclick="restoreFromBackup('${r.id}')">מלא ריקים</button> <button class="btn" style="padding:2px 9px;font-size:0.64rem;background:#b45309;color:#fff" onclick="restoreFullFromBackup('${r.id}')">♻️ שחזר הכל</button>`)).join('');
 }
 async function restoreFromBackup(id){
   try {
@@ -5986,6 +5986,25 @@ async function restoreFromBackup(id){
     toast(`✓ שוחזרו ${fieldsFilled} שדות ב-${vehTouched} רכבים`);
     diagnoseBackups();
   } catch(e){ toast('שגיאה', true); console.log('restoreFromBackup', e); }
+}
+// שחזור מלא — מחזיר את כל הצי למצב מהגיבוי (שומר את המיילים שהוספת)
+async function restoreFullFromBackup(id){
+  try {
+    const s=await fcol().doc(id).get(); if(!s.exists){ toast('גיבוי לא נמצא',true); return; }
+    const vs=(s.data()||{}).vehicles||[];
+    if(!vs.length){ toast('הגיבוי ריק',true); return; }
+    const em={}; VEHICLES.forEach(v=>{ const pk=String(v.plate||'').replace(/\D/g,''); if(pk && (v.driverEmail||'').trim()) em[pk]=v.driverEmail; });
+    const restored=vs.map(bv=>{ const pk=String(bv.plate||'').replace(/\D/g,''); const nv={...bv}; if(em[pk] && !(nv.driverEmail||'').trim()) nv.driverEmail=em[pk]; return nv; });
+    if(!confirm(`⚠ שחזור מלא מהגיבוי ${id.replace('backup_','')}\n\nכל הצי (${restored.length} רכבים) יוחזר בדיוק למצב שהיה אז.\nהמיילים שהוספת יישמרו · שינויים אחרים מהיום יוחלפו.\n\nלהמשיך?`)) return;
+    VEHICLES.length=0; restored.forEach(v=>VEHICLES.push(v));
+    localStorage.setItem('fleet_vehicles', JSON.stringify(VEHICLES));
+    await fcol().doc('main').set({ vehicles: stripUndef(VEHICLES) }, { merge:true });
+    mirrorToTenant('main', { vehicles: VEHICLES });
+    if(typeof writePubRoster==='function') { try{ writePubRoster(); }catch(e){} }
+    renderFleet(); if(typeof renderAlerts==='function') renderAlerts(); if(typeof renderDashboard==='function') renderDashboard();
+    document.getElementById('bkdiag-modal').classList.remove('open');
+    toast(`✓ הצי שוחזר במלואו (${restored.length} רכבים) מ-${id.replace('backup_','')}`);
+  } catch(e){ toast('שגיאה בשחזור', true); console.log('restoreFull', e); }
 }
 function shareMyDocsLink(){
   const link = `https://nadi8890.github.io/shamay-scan/my-docs.html?t=${encodeURIComponent(TENANT||'nofar')}`;
