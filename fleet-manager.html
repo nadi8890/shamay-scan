@@ -838,6 +838,16 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
       <div style="font-size:0.75rem;color:#ede9fe">העלה קובץ אנשי קשר — נתאים מייל לכל נהג לפי שם, ונראה למי חסר</div></div>
     </div>
     <input id="drvemail-file" type="file" accept=".xlsx,.xls,.csv" style="display:none" onchange="onDriverEmailFile(this)">
+    <div class="form-card" onclick="syncDriverPortals()" style="background:linear-gradient(135deg,#1e3a8a,#2563eb);border-color:#1e3a8a;margin-top:10px">
+      <span style="font-size:2.2rem">🔐</span>
+      <div><div style="font-weight:800;color:#fff;font-size:1rem">סנכרן פורטל מסמכים לעובדים</div>
+      <div style="font-size:0.75rem;color:#dbeafe">בונה לכל עובד תיק אישי (רישיון נהיגה+נהלים איתו · רישיון רכב+ביטוח של הרכב). כל עובד רואה רק את שלו</div></div>
+    </div>
+    <div class="form-card" onclick="shareMyDocsLink()" style="background:linear-gradient(135deg,#0891b2,#0e7490);border-color:#0891b2;margin-top:10px">
+      <span style="font-size:2.2rem">🔗</span>
+      <div><div style="font-weight:800;color:#fff;font-size:1rem">קישור פורטל המסמכים לעובדים</div>
+      <div style="font-size:0.75rem;color:#cffafe">העתק את הקישור לשליחה בקבוצה — כל עובד נכנס עם המייל שלו</div></div>
+    </div>
     <div class="insp-section" style="max-width:420px;margin-top:18px">
       <div class="insp-section-hdr">⚙️ לאן נשלחות הביקורות במייל</div>
       <div style="padding:10px">
@@ -5830,6 +5840,60 @@ async function commitDriverEmails(){
   if (typeof renderFleet === 'function') renderFleet();
   document.getElementById('drvemail-modal').classList.remove('open');
   toast(`✓ נשמרו מיילים ל-${n} נהגים`);
+}
+// ═══ פורטל מסמכים לעובד — בניית תיק אישי ננעל למייל ═══
+function _emailKey(email){ return String(email||'').trim().toLowerCase().replace(/[^a-z0-9]/g,'_'); }
+async function _shrinkB64(b64, maxPx, q){
+  return new Promise(res => {
+    const img = new Image();
+    img.onload = () => {
+      let w=img.width, h=img.height; const m=maxPx||1000;
+      if(w>m||h>m){ const r=Math.min(m/w,m/h); w=Math.round(w*r); h=Math.round(h*r); }
+      const cv=document.createElement('canvas'); cv.width=w; cv.height=h;
+      cv.getContext('2d').drawImage(img,0,0,w,h);
+      try { res(cv.toDataURL('image/jpeg', q||0.5).split(',')[1]); } catch(e){ res(b64); }
+    };
+    img.onerror=()=>res(b64);
+    img.src='data:image/jpeg;base64,'+b64;
+  });
+}
+async function buildDriverBundle(v, cache){
+  const email=(v.driverEmail||'').trim(); if(!email) return false;
+  const pk=String(v.plate||'').replace(/\D/g,'');
+  const dkey=driverKey(v.driverName);
+  const latestByDriver = arr => (arr||[]).filter(r=>driverKey(r.driver||r.name)===dkey).sort((a,b)=>(b.created||0)-(a.created||0))[0];
+  const latestByPlate  = arr => (arr||[]).filter(r=>String(r.plate||'').replace(/\D/g,'')===pk).sort((a,b)=>(b.created||0)-(a.created||0))[0];
+  const lic=latestByDriver(cache.ldocs), veh=latestByPlate(cache.vdocs);
+  const photos=[];
+  const addImgs = async (imgs,label,cat) => { for(const b of (imgs||[]).slice(0,2)){ if(b) photos.push({ cat, label, b64: await _shrinkB64(b, 1000, 0.5) }); } };
+  if(lic) await addImgs(lic.images, 'רישיון נהיגה', 'driver');       // מסמך נהג — עובר עם העובד
+  if(veh) await addImgs(veh.images, 'רישיון רכב / ביטוח', 'vehicle'); // מסמך רכב — של הרכב הנוכחי
+  const bundle={ type:'driverbundle', email, emailKey:_emailKey(email),
+    driver:(v.driverName||'').split('-')[0].trim(), plate:v.plate, make:v.make||'', model:v.model||'',
+    procedures:v.procedures||'', registrationExpiry:v.registrationExpiry||'', insuranceExpiry:v.insuranceExpiry||'', licenseExpiry:v.licenseExpiry||'', inspection:v.inspection||'',
+    photos, updated:Date.now() };
+  await fcol().doc('mydocs_'+_emailKey(email)).set(bundle);
+  return true;
+}
+async function syncDriverPortals(){
+  const list=(VEHICLES||[]).filter(v=>(v.driverEmail||'').trim() && driverKey(v.driverName));
+  if(!list.length){ toast('אין נהגים עם מייל — מלא/שייך מיילים קודם', true); return; }
+  if(!confirm(`לבנות/לעדכן פורטל מסמכים ל-${list.length} עובדים (בעלי מייל)?\nכל עובד יוכל להיכנס עם המייל שלו ולראות רק את המסמכים שלו.`)) return;
+  toast('בונה פורטלים... ('+list.length+')');
+  try {
+    const [ldocs, vdocs] = await Promise.all([ readDriverDocs('licensedocs'), readDriverDocs('vehicledocs') ]);
+    const cache = { ldocs, vdocs };
+    let n=0;
+    for(const v of list){ try{ if(await buildDriverBundle(v, cache)) n++; }catch(e){ console.log('bundle', v.plate, e); } }
+    toast('✓ סונכרנו '+n+' פורטלי עובדים');
+  } catch(e){ toast('שגיאה בסנכרון', true); console.log(e); }
+}
+function shareMyDocsLink(){
+  const link = `https://nadi8890.github.io/shamay-scan/my-docs.html?t=${encodeURIComponent(TENANT||'nofar')}`;
+  const msg = `📁 המסמכים שלך — ר.מזור\nלצפייה במסמכים שלך (רישיון נהיגה, רישיון רכב, ביטוח, נהלים):\n${link}\n\nהיכנס/י עם המייל שלך — יישלח אליך קישור כניסה מאובטח, בלי סיסמה.`;
+  const done = () => toast('הקישור הועתק — שלח בקבוצת העובדים ✓');
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(msg).then(done).catch(() => _fallbackCopy(msg, done));
+  else _fallbackCopy(msg, done);
 }
 // ═══ מסך מנהל: כל המסמכים של עובד ═══
 function _viewB64(b64, mime){
