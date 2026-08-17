@@ -856,6 +856,11 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
       <div><div style="font-weight:800;color:#fff;font-size:1rem">♻️ שחזר נתונים שנעלמו מהגיבוי</div>
       <div style="font-size:0.75rem;color:#fed7aa">ממלא כל שדה שנעלם (תאריך קבלה, ביקורות, תוקפים, נהלים...) מהגיבוי — רק שדות ריקים, בלי לגעת בקיים או במיילים</div></div>
     </div>
+    <div class="form-card" onclick="diagnoseBackups()" style="background:linear-gradient(135deg,#334155,#475569);border-color:#334155;margin-top:10px">
+      <span style="font-size:2.2rem">🔎</span>
+      <div><div style="font-weight:800;color:#fff;font-size:1rem">בדיקת גיבויים / שחזור מדויק</div>
+      <div style="font-size:0.75rem;color:#cbd5e1">רואים כמה מלא כל גיבוי ובוחרים מאיזה בדיוק לשחזר</div></div>
+    </div>
     <div class="insp-section" style="max-width:420px;margin-top:18px">
       <div class="insp-section-hdr">⚙️ לאן נשלחות הביקורות במייל</div>
       <div style="padding:10px">
@@ -5943,6 +5948,45 @@ async function restoreVehicleFrom(){
     toast(`✓ שוחזרו ${fieldsFilled} שדות ב-${vehTouched} רכבים`);
   } catch(e){ toast('שגיאה בשמירה', true); console.log('restore', e); }
 }
+// אבחון גיבויים — מראה כמה מלא כל גיבוי, ומאפשר לשחזר מגיבוי ספציפי
+const _BK_FIELDS = ['vehicleFrom','inspection','registrationExpiry','insuranceExpiry','licenseExpiry','procedures','currentKm','nextServiceKm'];
+async function diagnoseBackups(){
+  const body = document.getElementById('bkdiag-body');
+  document.getElementById('bkdiag-modal').classList.add('open');
+  body.innerHTML = '<div style="color:var(--muted);padding:12px">סורק גיבויים...</div>';
+  const p2 = n => ('0'+n).slice(-2);
+  const now = new Date(); const ids = [];
+  for(let i=0;i<60;i++){ const d=new Date(now); d.setDate(now.getDate()-i); ids.push(`backup_${d.getFullYear()}-${p2(d.getMonth()+1)}-${p2(d.getDate())}`); }
+  const rows=[];
+  for(const id of ids){
+    try { const s=await fcol().doc(id).get(); if(s.exists){ const vs=(s.data()||{}).vehicles||[]; const counts=_BK_FIELDS.map(k=>vs.filter(x=>String(x[k]||'').trim()).length); rows.push({date:id.replace('backup_',''), id, n:vs.length, counts, tot:counts.reduce((a,b)=>a+b,0)}); } } catch(e){}
+  }
+  const cur = _BK_FIELDS.map(k=>(VEHICLES||[]).filter(x=>String(x[k]||'').trim()).length);
+  const fld = (label,i,arr)=>`<span style="white-space:nowrap">${label}:<b>${arr[i]}</b></span>`;
+  const line = (title,n,arr,btn)=>`<div style="font-size:0.72rem;padding:5px 0;border-bottom:1px solid #f1f5f9;display:flex;flex-wrap:wrap;gap:7px;align-items:center"><b style="min-width:90px">${title}</b><span style="color:#64748b">(${n} רכבים)</span> ${_BK_FIELDS.map((k,i)=>fld({vehicleFrom:'קבלה',inspection:'ביקורת',registrationExpiry:'רישוי',insuranceExpiry:'ביטוח',licenseExpiry:'רישיון',procedures:'נהלים',currentKm:'ק"מ',nextServiceKm:'טיפול'}[k]||k,i,arr)).join('')} ${btn||''}</div>`;
+  if(!rows.length){ body.innerHTML='<div style="padding:12px;color:#dc2626">לא נמצאו גיבויים</div>'; return; }
+  body.innerHTML = line('📍 עכשיו', VEHICLES.length, cur, '') + '<div style="height:6px"></div>'
+    + rows.map(r=>line('📅 '+r.date, r.n, r.counts, `<button class="btn btn-green" style="padding:2px 9px;font-size:0.66rem" onclick="restoreFromBackup('${r.id}')">שחזר מכאן</button>`)).join('');
+}
+async function restoreFromBackup(id){
+  try {
+    const s = await fcol().doc(id).get();
+    if(!s.exists){ toast('גיבוי לא נמצא', true); return; }
+    const vs=(s.data()||{}).vehicles||[];
+    const map={}; vs.forEach(x=>{ const pk=String(x.plate||'').replace(/\D/g,''); if(pk) map[pk]=x; });
+    const isEmpty=c=>(c===undefined||c===null||String(c).trim()==='');
+    let vehTouched=0, fieldsFilled=0;
+    VEHICLES.forEach(v=>{ const pk=String(v.plate||'').replace(/\D/g,''); const bv=map[pk]; if(!bv) return; let t=false; for(const k in bv){ if(k==='plate'||k==='driverEmail') continue; if(isEmpty(v[k])&&!isEmpty(bv[k])){ v[k]=bv[k]; fieldsFilled++; t=true; } } if(t) vehTouched++; });
+    if(!fieldsFilled){ toast('אין שדות ריקים למלא מהגיבוי הזה', true); return; }
+    if(!confirm(`למלא ${fieldsFilled} שדות ב-${vehTouched} רכבים מהגיבוי ${id.replace('backup_','')}?\nרק שדות ריקים — לא נוגע בקיים או במיילים.`)) return;
+    localStorage.setItem('fleet_vehicles', JSON.stringify(VEHICLES));
+    await fcol().doc('main').set({ vehicles: stripUndef(VEHICLES) }, { merge:true });
+    mirrorToTenant('main', { vehicles: VEHICLES });
+    renderFleet(); if(typeof renderAlerts==='function') renderAlerts(); if(typeof renderDashboard==='function') renderDashboard();
+    toast(`✓ שוחזרו ${fieldsFilled} שדות ב-${vehTouched} רכבים`);
+    diagnoseBackups();
+  } catch(e){ toast('שגיאה', true); console.log('restoreFromBackup', e); }
+}
 function shareMyDocsLink(){
   const link = `https://nadi8890.github.io/shamay-scan/my-docs.html?t=${encodeURIComponent(TENANT||'nofar')}`;
   const msg = `📁 המסמכים שלך — ר.מזור\nלצפייה במסמכים שלך (רישיון נהיגה, רישיון רכב, ביטוח, נהלים):\n${link}\n\nהיכנס/י עם המייל שלך — יישלח אליך קישור כניסה מאובטח, בלי סיסמה.`;
@@ -8002,6 +8046,16 @@ function renderAgentMsgs(showTyping = false) {
     <div class="btn-row">
       <button class="btn btn-secondary" onclick="document.getElementById('reminders-modal').classList.remove('open')">סגור</button>
     </div>
+  </div>
+</div>
+
+<!-- ═══ בדיקת גיבויים ושחזור ═══ -->
+<div class="modal-overlay" id="bkdiag-modal">
+  <div class="modal" style="max-width:660px">
+    <h3>🔎 בדיקת גיבויים ושחזור מדויק</h3>
+    <p style="font-size:0.78rem;color:var(--muted);margin-bottom:8px">כמה שדות מלאים בכל גיבוי (מספרים = כמה רכבים עם הערך). מצא את הגיבוי המלא ביותר ולחץ "שחזר מכאן" — ממלא רק שדות ריקים, לא נוגע בקיים.</p>
+    <div id="bkdiag-body" style="max-height:60vh;overflow-y:auto"></div>
+    <div class="btn-row"><button class="btn btn-gray" onclick="document.getElementById('bkdiag-modal').classList.remove('open')">סגור</button></div>
   </div>
 </div>
 
