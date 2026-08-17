@@ -2702,6 +2702,7 @@ function renderFleet() {
       <td style="white-space:nowrap">
         <button class="btn btn-gray" style="padding:3px 8px;font-size:0.7rem" onclick="event.stopPropagation();editVehicle('${esc(v.plate)}')">✏️</button>
         <button class="btn btn-gray" style="padding:3px 8px;font-size:0.7rem" title="שלח טפסי קבלת רכב לנהג" onclick="event.stopPropagation();openDeclShare('${esc(v.plate)}')">📨</button>
+        <button class="btn btn-gray" style="padding:3px 8px;font-size:0.7rem" title="כל המסמכים של העובד" onclick="event.stopPropagation();openEmployeeDocs('${esc(v.plate)}')">📁</button>
         <button class="btn btn-gray" style="padding:3px 8px;font-size:0.7rem" title="אישור החזקה ברכב לעירייה — מילוי אוטומטי + עריכה → PDF" onclick="event.stopPropagation();openCityPermit('${esc(v.plate)}')">🏛️</button>
         <button class="btn btn-gray" style="padding:3px 8px;font-size:0.7rem" title="מחק רכב מהצי" onclick="event.stopPropagation();deleteVehicleRow('${esc(v.plate)}')">🗑️</button>
       </td>
@@ -5830,6 +5831,55 @@ async function commitDriverEmails(){
   document.getElementById('drvemail-modal').classList.remove('open');
   toast(`✓ נשמרו מיילים ל-${n} נהגים`);
 }
+// ═══ מסך מנהל: כל המסמכים של עובד ═══
+function _viewB64(b64, mime){
+  if(!b64){ toast('הקובץ לא זמין', true); return; }
+  try {
+    const bin = atob(b64); const bytes = new Uint8Array(bin.length);
+    for(let i=0;i<bin.length;i++) bytes[i] = bin.charCodeAt(i);
+    const url = URL.createObjectURL(new Blob([bytes], { type: mime||'image/jpeg' }));
+    window.open(url, '_blank'); setTimeout(()=>URL.revokeObjectURL(url), 60000);
+  } catch(e){ toast('שגיאה בפתיחת הקובץ', true); }
+}
+function _empView(cat, di, fi){
+  const D = window._EMPDOCS; if(!D || !D[cat] || !D[cat][di]) return;
+  const doc = D[cat][di];
+  if (cat === 'reqs') { const f = (doc.files||[])[fi]; if(f) _viewB64(f.base64, f.mime); }
+  else { const b = (doc.images||[])[fi]; if(b) _viewB64(b, 'image/jpeg'); }
+}
+function _empViewDecl(di){ window._DECLS = (window._EMPDOCS && window._EMPDOCS.decls) || []; if(typeof viewDeclaration === 'function') viewDeclaration(di); }
+async function openEmployeeDocs(plate){
+  const v = _vehByPlate(plate); if(!v){ toast('הרכב לא נמצא', true); return; }
+  const pk = String(plate).replace(/\D/g,'');
+  const drv = (v.driverName||'').split('-')[0].trim();
+  document.getElementById('empdocs-title').textContent = `📁 מסמכי ${drv} · ${v.plate}`;
+  const body = document.getElementById('empdocs-body');
+  body.innerHTML = '<div style="color:var(--muted);padding:14px">טוען מסמכים...</div>';
+  document.getElementById('empdocs-modal').classList.add('open');
+  const byPlate = arr => (arr||[]).filter(r => String(r.plate||'').replace(/\D/g,'') === pk).sort((a,b)=>(b.created||0)-(a.created||0));
+  try {
+    const [decls, vdocs, ldocs, reqs] = await Promise.all([
+      readDriverDocs('declaration'), readDriverDocs('vehicledocs'), readDriverDocs('licensedocs'), readDriverDocs('requirement')
+    ]);
+    const D = window._EMPDOCS = { decls:byPlate(decls), vdocs:byPlate(vdocs), ldocs:byPlate(ldocs), reqs:byPlate(reqs) };
+    const sec = (icon,title,count,html) => `<div style="margin-bottom:14px"><div style="font-weight:800;color:#1e3a8a;font-size:0.88rem;margin-bottom:6px">${icon} ${title} <span class="badge badge-gray">${count}</span></div>${count ? html : '<div style="color:#94a3b8;font-size:0.76rem">— אין —</div>'}</div>`;
+    const dates = `<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:9px 11px;font-size:0.8rem;line-height:1.95;margin-bottom:12px">
+      <div>📋 נהלים: <b>${esc(v.procedures||'—')}</b></div>
+      <div>🚗 תוקף רישוי (טסט): <b>${esc(v.registrationExpiry||'—')}</b></div>
+      <div>🛡️ תוקף ביטוח: <b>${esc(v.insuranceExpiry||'—')}</b></div>
+      <div>🪪 תוקף רישיון נהיגה: <b>${esc(v.licenseExpiry||'—')}</b></div></div>`;
+    const declHtml = D.decls.map((r,i)=>`<div class="insp-hist-row" onclick="_empViewDecl(${i})" style="cursor:pointer">
+      <span style="font-weight:700">${r.formType && typeof DECL_FORM_META!=='undefined' && DECL_FORM_META[r.formType] ? DECL_FORM_META[r.formType].label : '📋 טפסים'}</span>
+      <span style="color:var(--muted)">${esc(r.dateStr||'')}</span><span class="badge badge-green">✓ נחתם</span></div>`).join('');
+    const imgRow = (arr, cat) => arr.map((r,di)=>`<div style="margin-bottom:5px;font-size:0.74rem"><span style="color:#64748b">${esc(r.dateStr||'')}${r.licNum?' · רישיון '+esc(r.licNum):''}</span> ${(r.images||[]).map((b,fi)=>`<button class="btn btn-gray" style="padding:3px 9px;font-size:0.68rem;margin:2px" onclick="_empView('${cat}',${di},${fi})">🖼️ ${fi+1}</button>`).join('')}</div>`).join('');
+    const reqHtml = D.reqs.map((r,di)=>`<div style="margin-bottom:5px;font-size:0.74rem"><b>${esc(r.reqLabel||'קריאה')}</b> <span style="color:#64748b">${esc(r.dateStr||'')}</span> <span class="badge ${r.status==='approved'?'badge-green':r.status==='rejected'?'badge-red':'badge-orange'}" style="font-size:0.56rem">${esc(r.status||'ממתין')}</span> ${(r.files||[]).map((f,fi)=>`<button class="btn btn-gray" style="padding:3px 9px;font-size:0.68rem;margin:2px" onclick="_empView('reqs',${di},${fi})">${f.kind==='pdf'?'📄':'🖼️'} ${fi+1}</button>`).join('')}</div>`).join('');
+    body.innerHTML = dates
+      + sec('📋','נהלים ואחריות (הצהרות)', D.decls.length, declHtml)
+      + sec('🚗','רישיון רכב + ביטוח (צילומים)', D.vdocs.length, imgRow(D.vdocs,'vdocs'))
+      + sec('🪪','רישיון נהיגה (צילומים)', D.ldocs.length, imgRow(D.ldocs,'ldocs'))
+      + sec('📎','קריאות / מסמכים שהתבקשו', D.reqs.length, reqHtml);
+  } catch(e){ body.innerHTML = '<div style="color:#dc2626;padding:12px">שגיאה בטעינת המסמכים</div>'; console.log('empdocs', e); }
+}
 function openImportWizard() {
   if (typeof XLSX === 'undefined') { toast('ספריית הקריאה עדיין נטענת — נסה שוב בעוד רגע', true); return; }
   IMP = { headers: [], rows: [], map: {} };
@@ -7823,6 +7873,17 @@ function renderAgentMsgs(showTyping = false) {
     <label style="display:flex;align-items:center;gap:7px;font-size:0.76rem;color:#64748b;margin-top:6px;cursor:pointer"><input type="checkbox" id="rem-notif" onchange="toggleRemNotif(this.checked)"> קבל גם התראת דפדפן (מערכת) כשהאפליקציה פתוחה</label>
     <div class="btn-row">
       <button class="btn btn-secondary" onclick="document.getElementById('reminders-modal').classList.remove('open')">סגור</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ מסמכי עובד (מנהל) ═══ -->
+<div class="modal-overlay" id="empdocs-modal">
+  <div class="modal" style="max-width:600px">
+    <h3 id="empdocs-title">📁 מסמכי עובד</h3>
+    <div id="empdocs-body" style="max-height:60vh;overflow-y:auto"></div>
+    <div class="btn-row">
+      <button class="btn btn-gray" onclick="document.getElementById('empdocs-modal').classList.remove('open')">סגור</button>
     </div>
   </div>
 </div>
