@@ -726,7 +726,6 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
       <span class="count-badge" id="alerts-tab-count">0</span>
     </div>
     <div style="display:flex;gap:6px;flex-wrap:wrap">
-      <button class="btn-export" id="missing-toggle-btn" onclick="toggleMissingAlerts()">🙈 הסתר "חסר מסמך"</button>
       <button class="btn-export" onclick="exportSection('alerts')">📥 ייצוא Excel</button>
     </div>
   </div>
@@ -4513,7 +4512,7 @@ function buildDynamicAlerts() {
     // MISSING DOCUMENTS — a blank document field (not an expiry) is its own alert type,
     // so the officer can chase it. Skipped for employees with no vehicle; license is
     // skipped for trailers (no driver).
-    if (!v.noVehicle && localStorage.getItem('fleet_show_missing') === '1') {
+    if (!v.noVehicle) {
       const _d = (v.driverName || '').trim();
       const _trailer = !_d || _d.includes('נגרר') || _d.includes('ללא נהג');
       const missDoc = (type, val) => {
