@@ -725,7 +725,10 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
       <span class="section-title">🔔 התראות תקפות</span>
       <span class="count-badge" id="alerts-tab-count">0</span>
     </div>
-    <button class="btn-export" onclick="exportSection('alerts')">📥 ייצוא Excel</button>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      <button class="btn-export" id="missing-toggle-btn" onclick="toggleMissingAlerts()">🙈 הסתר "חסר מסמך"</button>
+      <button class="btn-export" onclick="exportSection('alerts')">📥 ייצוא Excel</button>
+    </div>
   </div>
   <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
     <span style="display:flex;align-items:center;gap:4px;font-size:0.72rem;color:#991b1b"><span style="width:10px;height:10px;background:#fef2f2;border:2px solid #ef4444;border-radius:2px;display:inline-block"></span>באיחור</span>
@@ -4470,6 +4473,19 @@ function saveInvoiceForm() {
 }
 
 // ── ALERTS ──
+function toggleMissingAlerts(){
+  const hidden = localStorage.getItem('fleet_hide_missing') === '1';
+  localStorage.setItem('fleet_hide_missing', hidden ? '0' : '1');
+  if (typeof renderAlerts === 'function') renderAlerts();
+  toast(hidden ? 'התראות "חסר מסמך" יוצגו שוב' : 'התראות "חסר מסמך" הוסתרו — יופיעו רק תוקפים אמיתיים');
+}
+function _syncMissingBtn(){
+  const btn = document.getElementById('missing-toggle-btn'); if(!btn) return;
+  const hidden = localStorage.getItem('fleet_hide_missing') === '1';
+  btn.textContent = hidden ? '👁️ הצג "חסר מסמך"' : '🙈 הסתר "חסר מסמך"';
+  btn.style.background = hidden ? '#dcfce7' : '';
+  btn.style.color = hidden ? '#15803d' : '';
+}
 function buildDynamicAlerts() {
   const today = new Date();
   const alerts = [];
@@ -4487,7 +4503,7 @@ function buildDynamicAlerts() {
     // MISSING DOCUMENTS — a blank document field (not an expiry) is its own alert type,
     // so the officer can chase it. Skipped for employees with no vehicle; license is
     // skipped for trailers (no driver).
-    if (!v.noVehicle) {
+    if (!v.noVehicle && localStorage.getItem('fleet_hide_missing') !== '1') {
       const _d = (v.driverName || '').trim();
       const _trailer = !_d || _d.includes('נגרר') || _d.includes('ללא נהג');
       const missDoc = (type, val) => {
@@ -4542,6 +4558,7 @@ function buildDynamicAlerts() {
   return alerts;
 }
 function renderAlerts() {
+  _syncMissingBtn();
   const active = buildDynamicAlerts();
   document.getElementById('alerts-tab-count').textContent = active.length;
 
