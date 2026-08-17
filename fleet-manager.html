@@ -853,8 +853,8 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
     </div>
     <div class="form-card" onclick="restoreVehicleFrom()" style="background:linear-gradient(135deg,#b45309,#d97706);border-color:#b45309;margin-top:10px">
       <span style="font-size:2.2rem">♻️</span>
-      <div><div style="font-weight:800;color:#fff;font-size:1rem">שחזר "תאריך קבלת רכב" מהגיבוי</div>
-      <div style="font-size:0.75rem;color:#fed7aa">מחזיר את תאריכי הקבלה שנעלמו — רק לרכבים שריק, בלי לגעת בשאר</div></div>
+      <div><div style="font-weight:800;color:#fff;font-size:1rem">♻️ שחזר נתונים שנעלמו מהגיבוי</div>
+      <div style="font-size:0.75rem;color:#fed7aa">ממלא כל שדה שנעלם (תאריך קבלה, ביקורות, תוקפים, נהלים...) מהגיבוי — רק שדות ריקים, בלי לגעת בקיים או במיילים</div></div>
     </div>
     <div class="insp-section" style="max-width:420px;margin-top:18px">
       <div class="insp-section-hdr">⚙️ לאן נשלחות הביקורות במייל</div>
@@ -5910,29 +5910,38 @@ async function syncDriverPortals(){
     toast('✓ סונכרנו '+n+' פורטלי עובדים');
   } catch(e){ toast('שגיאה בסנכרון', true); console.log(e); }
 }
-// שחזור ממוקד של "תאריך קבלת רכב" (vehicleFrom) מהגיבוי היומי — לא נוגע בשאר השדות
+// שחזור נתונים שנעלמו מהגיבוי היומי — ממלא כל שדה ריק מהגיבוי המלא ביותר, בלי לגעת בקיים
 async function restoreVehicleFrom(){
   toast('מחפש בגיבויים...');
   const p2 = n => ('0'+n).slice(-2);
   const now = new Date(); const ids = [];
-  for(let i=0;i<25;i++){ const d=new Date(now); d.setDate(now.getDate()-i); ids.push(`backup_${d.getFullYear()}-${p2(d.getMonth()+1)}-${p2(d.getDate())}`); }
+  for(let i=0;i<30;i++){ const d=new Date(now); d.setDate(now.getDate()-i); ids.push(`backup_${d.getFullYear()}-${p2(d.getMonth()+1)}-${p2(d.getDate())}`); }
+  // בוחרים את הגיבוי עם הכי הרבה שדות מלאים (= לפני האובדן)
+  const KEYFIELDS = ['vehicleFrom','inspection','registrationExpiry','insuranceExpiry','licenseExpiry','trafficRecord','procedures','serviceDate','nextServiceKm'];
+  const score = vs => (vs||[]).reduce((s,x)=> s + KEYFIELDS.filter(k=>String(x[k]||'').trim()).length, 0);
   let best=null;
   for(const id of ids){
-    try { const s=await fcol().doc(id).get(); if(s.exists){ const vs=(s.data()||{}).vehicles||[]; const wf=vs.filter(x=>String(x.vehicleFrom||'').trim()).length; if(!best || wf>best.wf) best={id, vehicles:vs, wf}; } } catch(e){}
+    try { const s=await fcol().doc(id).get(); if(s.exists){ const vs=(s.data()||{}).vehicles||[]; const sc=score(vs); if(!best || sc>best.sc) best={id, vehicles:vs, sc}; } } catch(e){}
   }
-  if(!best || !best.wf){ toast('לא נמצא גיבוי עם תאריכי קבלה', true); return; }
-  const map={}; best.vehicles.forEach(x=>{ const pk=String(x.plate||'').replace(/\D/g,''); if(pk && String(x.vehicleFrom||'').trim()) map[pk]=x.vehicleFrom; });
-  let restored=0;
-  VEHICLES.forEach(v=>{ const pk=String(v.plate||'').replace(/\D/g,''); if(!String(v.vehicleFrom||'').trim() && map[pk]){ v.vehicleFrom=map[pk]; restored++; } });
-  if(!restored){ toast('אין מה לשחזר — לכל הרכבים כבר יש תאריך קבלה', true); return; }
-  if(!confirm(`נמצא גיבוי מתאריך ${best.id.replace('backup_','')} (עם ${best.wf} תאריכי קבלה).\n\nלשחזר "תאריך קבלת רכב" ל-${restored} רכבים שריק אצלם?\nכל שאר הפרטים (כולל המיילים שהוספת) לא ישתנו.`)) return;
+  if(!best || !best.sc){ toast('לא נמצא גיבוי מתאים', true); return; }
+  const map={}; best.vehicles.forEach(x=>{ const pk=String(x.plate||'').replace(/\D/g,''); if(pk) map[pk]=x; });
+  const isEmpty = c => (c===undefined||c===null||String(c).trim()==='');
+  let vehTouched=0, fieldsFilled=0;
+  VEHICLES.forEach(v=>{
+    const pk=String(v.plate||'').replace(/\D/g,''); const bv=map[pk]; if(!bv) return;
+    let touched=false;
+    for(const k in bv){ if(k==='plate'||k==='driverEmail') continue; if(isEmpty(v[k]) && !isEmpty(bv[k])){ v[k]=bv[k]; fieldsFilled++; touched=true; } }
+    if(touched) vehTouched++;
+  });
+  if(!fieldsFilled){ toast('אין מה לשחזר — כל הנתונים כבר קיימים', true); return; }
+  if(!confirm(`נמצא גיבוי מתאריך ${best.id.replace('backup_','')}.\n\nלמלא ${fieldsFilled} שדות שנעלמו ב-${vehTouched} רכבים (תאריך קבלה, ביקורות, תוקפים, נהלים וכו')?\n\nרק שדות שריקים אצלך יתמלאו — שום דבר קיים (כולל המיילים) לא ישתנה.`)) return;
   try {
     localStorage.setItem('fleet_vehicles', JSON.stringify(VEHICLES));
     await fcol().doc('main').set({ vehicles: stripUndef(VEHICLES) }, { merge:true });
     mirrorToTenant('main', { vehicles: VEHICLES });
-    renderFleet(); if(typeof renderAlerts==='function') renderAlerts();
-    toast(`✓ שוחזר תאריך קבלת רכב ל-${restored} רכבים`);
-  } catch(e){ toast('שגיאה בשמירה', true); console.log('restore vehicleFrom', e); }
+    renderFleet(); if(typeof renderAlerts==='function') renderAlerts(); if(typeof renderDashboard==='function') renderDashboard();
+    toast(`✓ שוחזרו ${fieldsFilled} שדות ב-${vehTouched} רכבים`);
+  } catch(e){ toast('שגיאה בשמירה', true); console.log('restore', e); }
 }
 function shareMyDocsLink(){
   const link = `https://nadi8890.github.io/shamay-scan/my-docs.html?t=${encodeURIComponent(TENANT||'nofar')}`;
