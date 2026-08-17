@@ -5402,17 +5402,35 @@ function exportSection(section) {
     headers = ['עובד','רישוי רכב','יצרן','דגם','מתאריך','עד תאריך','סיבת החזרה','הערות'];
     rows = RETURNS.map(r => [r.employee,r.plate,r.make,r.model,r.fromDate,r.toDate,r.reason,r.notes]);
   }
+  // במקום להוריד מיד — פותחים חלון בחירת עמודות
+  window._exportCtx = { section, headers, rows };
+  const list = document.getElementById('export-cols');
+  list.innerHTML = headers.map((h,i)=>`<label style="display:flex;align-items:center;gap:8px;padding:6px 4px;border-bottom:1px solid #f1f5f9;font-size:0.85rem;cursor:pointer"><input type="checkbox" class="exp-col" data-i="${i}" checked> ${esc(h)}</label>`).join('');
+  document.getElementById('export-count').textContent = rows.length;
+  document.getElementById('export-modal').classList.add('open');
+}
+function toggleAllExportCols(){
+  const boxes = [...document.querySelectorAll('#export-cols .exp-col')];
+  const allChecked = boxes.length && boxes.every(b=>b.checked);
+  boxes.forEach(b=> b.checked = !allChecked);
+}
+function doExportSelected(){
+  const ctx = window._exportCtx; if(!ctx) return;
+  const sel = [...document.querySelectorAll('#export-cols .exp-col')].filter(b=>b.checked).map(b=>+b.dataset.i);
+  if(!sel.length){ toast('בחר לפחות עמודה אחת', true); return; }
+  const headers = sel.map(i=>ctx.headers[i]);
+  const rows = ctx.rows.map(r=>sel.map(i=>r[i]));
   const bom = '﻿';
   const csv = bom + [headers, ...rows]
-    .map(row => row.map(c => `"${String(c||'').replace(/"/g,'""')}"`).join(','))
+    .map(row => row.map(c => `"${String(c==null?'':c).replace(/"/g,'""')}"`).join(','))
     .join('\n');
   const blob = new Blob([csv], {type:'text/csv;charset=utf-8'});
   const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `נופר-${section}-${new Date().toLocaleDateString('he-IL').replace(/\//g,'-')}.csv`;
+  const a = document.createElement('a'); a.href = url;
+  a.download = `נופר-${ctx.section}-${new Date().toLocaleDateString('he-IL').replace(/\//g,'-')}.csv`;
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
   setTimeout(() => URL.revokeObjectURL(url), 3000);
+  document.getElementById('export-modal').classList.remove('open');
   toast('קובץ Excel הורד בהצלחה ✓');
 }
 
@@ -8081,6 +8099,20 @@ function renderAgentMsgs(showTyping = false) {
     <p style="font-size:0.78rem;color:var(--muted);margin-bottom:8px">כמה שדות מלאים בכל גיבוי (מספרים = כמה רכבים עם הערך). מצא את הגיבוי המלא ביותר ולחץ "שחזר מכאן" — ממלא רק שדות ריקים, לא נוגע בקיים.</p>
     <div id="bkdiag-body" style="max-height:60vh;overflow-y:auto"></div>
     <div class="btn-row"><button class="btn btn-gray" onclick="document.getElementById('bkdiag-modal').classList.remove('open')">סגור</button></div>
+  </div>
+</div>
+
+<!-- ═══ ייצוא לאקסל — בחירת עמודות ═══ -->
+<div class="modal-overlay" id="export-modal" style="z-index:680">
+  <div class="modal" style="max-width:420px">
+    <h3>📥 ייצוא לאקסל — בחירת עמודות</h3>
+    <p style="font-size:0.78rem;color:var(--muted);margin-bottom:8px">סמן אילו עמודות לייצא (<span id="export-count">0</span> שורות). הכל מסומן = טבלה מלאה.</p>
+    <div style="margin-bottom:8px"><button class="btn btn-secondary" style="padding:5px 12px;font-size:0.8rem" onclick="toggleAllExportCols()">✓ בחר / בטל הכל</button></div>
+    <div id="export-cols" style="max-height:46vh;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:4px 10px"></div>
+    <div class="btn-row">
+      <button class="btn btn-gray" onclick="document.getElementById('export-modal').classList.remove('open')">ביטול</button>
+      <button class="btn btn-green" onclick="doExportSelected()">📥 ייצא</button>
+    </div>
   </div>
 </div>
 
