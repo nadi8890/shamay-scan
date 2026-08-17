@@ -4484,17 +4484,17 @@ function saveInvoiceForm() {
 
 // ── ALERTS ──
 function toggleMissingAlerts(){
-  const hidden = localStorage.getItem('fleet_hide_missing') === '1';
-  localStorage.setItem('fleet_hide_missing', hidden ? '0' : '1');
+  const showing = localStorage.getItem('fleet_show_missing') === '1';
+  localStorage.setItem('fleet_show_missing', showing ? '0' : '1');
   if (typeof renderAlerts === 'function') renderAlerts();
-  toast(hidden ? 'התראות "חסר מסמך" יוצגו שוב' : 'התראות "חסר מסמך" הוסתרו — יופיעו רק תוקפים אמיתיים');
+  toast(showing ? 'התראות "חסר מסמך" הוסתרו' : 'התראות "חסר מסמך" יוצגו');
 }
 function _syncMissingBtn(){
   const btn = document.getElementById('missing-toggle-btn'); if(!btn) return;
-  const hidden = localStorage.getItem('fleet_hide_missing') === '1';
-  btn.textContent = hidden ? '👁️ הצג "חסר מסמך"' : '🙈 הסתר "חסר מסמך"';
-  btn.style.background = hidden ? '#dcfce7' : '';
-  btn.style.color = hidden ? '#15803d' : '';
+  const showing = localStorage.getItem('fleet_show_missing') === '1';
+  btn.textContent = showing ? '🙈 הסתר "חסר מסמך"' : '👁️ הצג "חסר מסמך"';
+  btn.style.background = showing ? '' : '#dcfce7';
+  btn.style.color = showing ? '' : '#15803d';
 }
 function buildDynamicAlerts() {
   const today = new Date();
@@ -4513,7 +4513,7 @@ function buildDynamicAlerts() {
     // MISSING DOCUMENTS — a blank document field (not an expiry) is its own alert type,
     // so the officer can chase it. Skipped for employees with no vehicle; license is
     // skipped for trailers (no driver).
-    if (!v.noVehicle && localStorage.getItem('fleet_hide_missing') !== '1') {
+    if (!v.noVehicle && localStorage.getItem('fleet_show_missing') === '1') {
       const _d = (v.driverName || '').trim();
       const _trailer = !_d || _d.includes('נגרר') || _d.includes('ללא נהג');
       const missDoc = (type, val) => {
