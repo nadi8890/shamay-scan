@@ -4809,6 +4809,17 @@ async function loadPendingRequests() {
   }).join('');
   _scanPendingReqs();
 }
+function viewBellReqFile(ri, fi) {
+  const r = (window._bellReqs || [])[ri]; if (!r) return;
+  const f = (r.files || [])[fi]; if (!f || !f.base64) { toast('הקובץ לא זמין', true); return; }
+  try {
+    const bin = atob(f.base64); const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    const blob = new Blob([bytes], { type: f.mime || 'application/octet-stream' });
+    const url = URL.createObjectURL(blob); window.open(url, '_blank');
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  } catch(e) { toast('שגיאה בפתיחת הקובץ', true); }
+}
 function viewReqFile(id, idx) {
   const r = PENDING_REQS.find(x => x._docId === id); if (!r) return;
   const f = (r.files || [])[idx]; if (!f || !f.base64) { toast('הקובץ לא זמין', true); return; }
@@ -5272,8 +5283,27 @@ async function showRemindersPopup(force, data){
       <div style="flex:1"><div style="font-weight:800;font-size:0.95rem">${title}</div><div style="font-size:0.72rem;color:#64748b">${desc}</div></div>
       <span style="font-size:1.5rem;font-weight:900;color:${color}">${count}</span>
     </div>`;
+  // מסמכים לאישור — בלוק מורחב עם צפייה במסמך ישירות מהפעמון
+  window._bellReqs = data.pendingReqs || [];
+  const reqBlock = (data.pendingReqs && data.pendingReqs.length) ? `
+    <div style="background:#fff;border:1.5px solid #e2e8f0;border-right:4px solid #16a34a;border-radius:12px;padding:12px 14px;margin-bottom:10px">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
+        <span style="font-size:1.8rem">📥</span>
+        <div style="flex:1"><div style="font-weight:800;font-size:0.95rem">מסמכים לאישור</div><div style="font-size:0.72rem;color:#64748b">לחץ על מסמך לצפייה · "עבור לאישור" לסימון וי</div></div>
+        <span style="font-size:1.5rem;font-weight:900;color:#16a34a">${data.pendingReqs.length}</span>
+      </div>
+      ${data.pendingReqs.map((r,ri)=>{
+        const files = r.files || [];
+        const fbtns = files.length ? files.map((f,fi)=>`<button onclick="viewBellReqFile(${ri},${fi})" style="cursor:pointer;background:#f0fdf4;border:1px solid #86efac;color:#15803d;border-radius:7px;padding:3px 9px;font-size:0.7rem;margin:2px 3px 2px 0">${f.kind==='pdf'?'📄':'🖼️'} ${esc((f.name||('קובץ '+(fi+1))).slice(0,16))}</button>`).join('') : '<span style="font-size:0.68rem;color:#94a3b8">אין קבצים</span>';
+        return `<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:9px;padding:7px 9px;margin-bottom:6px">
+          <div style="font-size:0.78rem"><b style="direction:ltr">${esc(r.plate||'')}</b>${r.driver?' · '+esc(String(r.driver).split('-')[0].trim()):''} <span class="badge" style="background:#fff7ed;color:#9a3412;border:1px solid #fdba74;font-size:0.66rem;padding:1px 7px">${esc(r.reqLabel||'דרישה')}</span></div>
+          <div style="margin-top:5px">${fbtns}</div>
+        </div>`;
+      }).join('')}
+      <button class="btn btn-green" style="padding:5px 14px;font-size:0.74rem;margin-top:4px" onclick="_remGo('alerts')">✅ עבור לאישור וסגירה</button>
+    </div>` : '';
   const html =
-    ((data.pendingReqs && data.pendingReqs.length) ? row('📥','מסמכים לאישור', data.pendingReqs.length, '#16a34a', 'alerts', 'מסמכים שהעובדים העלו וממתינים לבדיקה ואישור שלך') : '') +
+    reqBlock +
     ((data.openTasks && data.openTasks.length) ? row('✅','משימות פתוחות', data.openTasks.length, '#2563eb', 'tasks', 'משימות שפתחת וטרם סומנו כבוצעו') : '') +
     row('⏰','התראות תוקף פעילות', data.alerts.length, '#dc2626', 'alerts', `${data.alertPlates.size} רכבים — רישוי/ביטוח/רישיון/ביקורת/טיפול`) +
     row('📝','נהלים שלא נחתמו', data.procMissing.length, '#d97706', 'fleet', 'רכבים עם נהג שטרם חתם על נהלים ואחריות') +
