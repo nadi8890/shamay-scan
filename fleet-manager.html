@@ -260,11 +260,6 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
   .stat-num{font-size:1.3rem}
   th,td{font-size:0.7rem;padding:6px 5px}
   .card{padding:12px}
-  /* Fit all 10 tabs on one row without scrolling: shrink each tab evenly and use a
-     compact label + icon so nothing spills past the screen edge (which clipped דשבורד). */
-  .bottom-nav{overflow-x:hidden}
-  .nav-btn{flex:1 1 0;min-width:0;font-size:0.52rem;padding:6px 0;gap:1px;letter-spacing:-.2px}
-  .nav-btn .icon{font-size:1.1rem;padding:1px 2px}
 }
 /* keep the header a single compact row on phones — it was wrapping to 4 lines,
    pushing the whole screen down and pushing the agent button off view */
@@ -483,6 +478,8 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
       <tbody id="fleet-body"></tbody>
     </table>
   </div>
+  <!-- תצוגת נייד: כרטיס לכל רכב במקום טבלה של 13 עמודות -->
+  <div class="fleet-cards" id="fleet-cards"></div>
 </div>
 
 <!-- ══════════════ TAB: INCIDENTS ══════════════ -->
@@ -746,19 +743,153 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
   </div>
 </div>
 
+<style id="mobile-ux">
+/* ══════════════════════════════════════════════════════════════════════
+   התאמת נייד — 18.8.2026
+   כל מה שכאן חי בתוך @media(max-width:768px) בלבד. תצוגת הדסקטופ
+   לא משתנה: מעל 768px רק שני הכללים הראשונים חלים, ושניהם מסתירים
+   רכיבים שקיימים אך ורק בשביל הנייד.
+   ══════════════════════════════════════════════════════════════════════ */
+.nav-more{display:none}          /* כפתור "עוד" — נייד בלבד */
+.more-sheet{display:none}        /* הגיליון — נייד בלבד */
+.fleet-cards{display:none}       /* כרטיסי רכב — נייד בלבד (בדסקטופ נשארת הטבלה) */
+
+@media(max-width:768px){
+
+  /* ── סרגל תחתון: 4 לשוניות ראשיות + "עוד" ──
+     היו 10 כפתורים ברוחב 37px וטקסט 8.3px. עכשיו 5 כפתורים ~75px
+     בגובה 56px — מעל מינימום יעד המגע (44px) ובטקסט קריא. */
+  .nav-secondary{display:none!important}
+  .nav-more{display:flex}
+  .bottom-nav{overflow:visible;padding-bottom:env(safe-area-inset-bottom,0px)}
+  .nav-btn{flex:1 1 0;min-width:0;min-height:56px;font-size:0.7rem;
+           padding:6px 2px 5px;gap:1px;letter-spacing:0;line-height:1.25}
+  .nav-btn .icon{font-size:1.15rem;padding:1px 9px;line-height:1.25}
+  /* מקום לסרגל + פס הבית של אייפון */
+  body{padding-bottom:calc(78px + env(safe-area-inset-bottom,0px))}
+
+  /* ── גיליון "עוד" ── */
+  .more-sheet{display:block;position:fixed;inset:0;z-index:900}
+  .more-sheet[hidden]{display:none}
+  .more-backdrop{position:absolute;inset:0;background:rgba(15,23,42,.45);
+                 opacity:0;transition:opacity .2s}
+  .more-sheet.open .more-backdrop{opacity:1}
+  .more-panel{position:absolute;left:0;right:0;bottom:0;background:#fff;
+              border-radius:20px 20px 0 0;padding:10px 16px
+              calc(18px + env(safe-area-inset-bottom,0px));
+              box-shadow:0 -8px 30px rgba(0,0,0,.25);
+              transform:translateY(100%);transition:transform .22s ease-out;
+              max-height:80vh;overflow-y:auto}
+  .more-sheet.open .more-panel{transform:translateY(0)}
+  .more-grip{width:40px;height:4px;border-radius:999px;background:#cbd5e1;margin:0 auto 12px}
+  .more-title{font-size:1rem;font-weight:800;color:var(--text);margin:0 0 12px}
+  .more-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+  .more-tile{display:flex;flex-direction:column;align-items:center;justify-content:center;
+             gap:6px;min-height:84px;padding:12px 6px;border-radius:14px;
+             border:1.5px solid var(--border);background:#f8fafc;cursor:pointer;
+             font-family:'Heebo',sans-serif;font-size:0.78rem;font-weight:700;
+             color:var(--text)}
+  .more-tile:active{background:#eff6ff;border-color:var(--blue)}
+  .more-tile[aria-current="page"]{background:#eff6ff;border-color:var(--blue);color:var(--blue)}
+  .more-tile-icon{font-size:1.6rem;line-height:1}
+  .more-close{width:100%;min-height:48px;margin-top:14px;border-radius:12px;border:none;
+              background:#f1f5f9;color:var(--text);font-family:'Heebo',sans-serif;
+              font-size:0.9rem;font-weight:700;cursor:pointer}
+
+  /* ── יעדי מגע: כלום מתחת ל-44px ──
+     כפתורי הכותרת היו בגובה 31px, ה-✕ היה 25×29. */
+  header .btn{min-height:44px!important;padding:10px 13px!important;font-size:0.8rem!important}
+  .btn-export{min-height:44px;padding:8px 14px;font-size:0.8rem}
+  .search-input,.filter-select{min-height:46px;font-size:0.88rem}
+  .th-sort{min-height:38px;display:flex;align-items:center;gap:4px}
+
+  /* ── טקסט קריא: המינימום עולה מ-8.3px ל-12px ── */
+  .sort-arrow{font-size:0.78rem}
+  th,td{font-size:0.78rem}
+  .stat-label{font-size:0.72rem}
+  .alert-item{font-size:0.85rem}
+
+  /* ── כרטיסי רכב במקום טבלה של 849px ברוחב מסך 375px ── */
+  #tab-fleet .tbl-wrap{display:none}
+  .fleet-cards{display:grid;gap:10px}
+  .fcard{width:100%;text-align:right;font-family:'Heebo',sans-serif;cursor:pointer;
+         background:#fff;border:1.5px solid #e2e8f0;border-right:5px solid #cbd5e1;
+         border-radius:12px;padding:12px 14px;box-shadow:0 1px 5px rgba(0,0,0,.06)}
+  .fcard.is-expired{border-right-color:#ef4444;background:#fff8f8}
+  .fcard.is-soon{border-right-color:#f97316;background:#fffaf5}
+  .fcard-top{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+  .fcard-plate{font-weight:900;font-size:1.05rem;color:var(--accent);direction:ltr;letter-spacing:.5px}
+  .fcard-sub{font-size:0.82rem;color:var(--muted);margin:3px 0 9px}
+  .fcard-chips{display:flex;flex-wrap:wrap;gap:5px}
+  .fchip{display:inline-flex;align-items:center;gap:3px;border-radius:7px;padding:4px 8px;
+         font-size:0.72rem;font-weight:700;background:#f1f5f9;color:#334155;border:1px solid #e2e8f0}
+  .fchip.red{background:#fef2f2;color:#991b1b;border-color:#fecaca}
+  .fchip.orange{background:#fff7ed;color:#9a3412;border-color:#fed7aa}
+  .fchip.green{background:#f0fdf4;color:#166534;border-color:#bbf7d0}
+  .fcard-acts{display:flex;gap:6px;margin-top:11px;flex-wrap:wrap}
+  .fcard-acts .btn{min-width:46px;min-height:46px;font-size:1rem;padding:0;
+                   display:inline-flex;align-items:center;justify-content:center}
+  .fcard-empty{padding:26px 14px;text-align:center;color:var(--muted);font-size:0.88rem}
+
+  /* -- תגי חברה היו 10.4px, צ'יפים 11.5px -- */
+  .co-nofar,.co-liscar,.co-shlomo,.co-hertz,.co-other{font-size:0.75rem;padding:3px 8px}
+  .fchip{font-size:0.75rem}
+
+  /* -- פאנל הסוכן: כל הכפתורים היו 25-40px -- */
+  #agent-panel .agent-close{min-width:44px;min-height:44px;font-size:1.05rem;
+                            display:inline-flex;align-items:center;justify-content:center}
+  #agent-panel .agent-send{min-width:48px;min-height:48px}
+  #agent-panel .agent-cam{min-width:44px;min-height:44px}
+  #agent-key-wrap button,.agent-key-save{min-width:44px;min-height:44px;padding:0 14px}
+
+  /* -- 16px על שדות קלט מונע את הזום האוטומטי של ספארי באייפון -- */
+  .search-input,.filter-select,.agent-input,#agent-key-input,
+  .modal input:not([type=checkbox]):not([type=radio]),
+  .modal select,.modal textarea{font-size:16px}
+  .modal input:not([type=checkbox]):not([type=radio]),
+  .modal select{min-height:46px}
+
+  /* -- מודאל שממלא את המסך בנייד במקום חלון צף קטן -- */
+  .modal{max-height:90vh;overflow-y:auto;
+         padding-bottom:calc(16px + env(safe-area-inset-bottom,0px))}
+}
+
+/* ── נגישות: סימון מיקוד ברור למקלדת ולקורא מסך (חל גם בדסקטופ —
+   רק כשמנווטים במקלדת, לא משנה דבר בשימוש בעכבר) ── */
+button:focus-visible,a:focus-visible,input:focus-visible,
+select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
+  outline:3px solid #2563eb;outline-offset:2px;border-radius:6px}
+
+@media(prefers-reduced-motion:reduce){
+  .more-backdrop,.more-panel{transition:none}
+}
+</style>
+
 <!-- Bottom Nav -->
-<nav class="bottom-nav">
-  <button class="nav-btn active" onclick="showTab('fleet',this)"><span class="icon">🚗</span>ציי רכב</button>
-  <button class="nav-btn" style="position:relative" onclick="showTab('alerts',this)"><span class="icon">🔔</span>התראות<span id="alerts-nav-badge" style="display:none;position:absolute;top:1px;left:5px;min-width:17px;height:17px;background:#dc2626;color:#fff;border-radius:999px;font-size:0.62rem;font-weight:800;line-height:17px;text-align:center;padding:0 4px;box-shadow:0 1px 4px rgba(0,0,0,.25)">0</span></button>
-  <button class="nav-btn" onclick="showTab('incidents',this)"><span class="icon">💥</span>אירועים</button>
-  <button class="nav-btn" onclick="showTab('violations',this)"><span class="icon">📄</span>דוחות</button>
-  <button class="nav-btn" onclick="showTab('invoices',this)"><span class="icon">🔧</span>מוסכים</button>
-  <button class="nav-btn" onclick="showTab('tasks',this)"><span class="icon">✅</span>משימות</button>
-  <button class="nav-btn" onclick="showTab('returns',this)"><span class="icon">🔄</span>החזרות</button>
-  <button class="nav-btn" onclick="showTab('damage',this)"><span class="icon">📋</span>אומדן</button>
-  <button class="nav-btn" onclick="showTab('forms',this)"><span class="icon">📝</span>טפסים</button>
-  <button class="nav-btn" onclick="showTab('dashboard',this)"><span class="icon">📊</span>דשבורד</button>
+<nav class="bottom-nav" role="tablist" aria-label="ניווט ראשי">
+  <button class="nav-btn active" data-tab="fleet" type="button" role="tab" aria-selected="true" aria-controls="tab-fleet" onclick="showTab('fleet',this)"><span class="icon" aria-hidden="true">🚗</span>ציי רכב</button>
+  <button class="nav-btn" data-tab="alerts" type="button" role="tab" aria-selected="false" aria-controls="tab-alerts" style="position:relative" onclick="showTab('alerts',this)"><span class="icon" aria-hidden="true">🔔</span>התראות<span id="alerts-nav-badge" style="display:none;position:absolute;top:1px;left:5px;min-width:17px;height:17px;background:#dc2626;color:#fff;border-radius:999px;font-size:0.62rem;font-weight:800;line-height:17px;text-align:center;padding:0 4px;box-shadow:0 1px 4px rgba(0,0,0,.25)">0</span></button>
+  <button class="nav-btn" data-tab="incidents" type="button" role="tab" aria-selected="false" aria-controls="tab-incidents" onclick="showTab('incidents',this)"><span class="icon" aria-hidden="true">💥</span>אירועים</button>
+  <button class="nav-btn" data-tab="tasks" type="button" role="tab" aria-selected="false" aria-controls="tab-tasks" onclick="showTab('tasks',this)"><span class="icon" aria-hidden="true">✅</span>משימות</button>
+  <button class="nav-btn nav-secondary" data-tab="violations" type="button" role="tab" aria-selected="false" aria-controls="tab-violations" onclick="showTab('violations',this)"><span class="icon" aria-hidden="true">📄</span>דוחות</button>
+  <button class="nav-btn nav-secondary" data-tab="invoices" type="button" role="tab" aria-selected="false" aria-controls="tab-invoices" onclick="showTab('invoices',this)"><span class="icon" aria-hidden="true">🔧</span>מוסכים</button>
+  <button class="nav-btn nav-secondary" data-tab="returns" type="button" role="tab" aria-selected="false" aria-controls="tab-returns" onclick="showTab('returns',this)"><span class="icon" aria-hidden="true">🔄</span>החזרות</button>
+  <button class="nav-btn nav-secondary" data-tab="damage" type="button" role="tab" aria-selected="false" aria-controls="tab-damage" onclick="showTab('damage',this)"><span class="icon" aria-hidden="true">📋</span>אומדן</button>
+  <button class="nav-btn nav-secondary" data-tab="forms" type="button" role="tab" aria-selected="false" aria-controls="tab-forms" onclick="showTab('forms',this)"><span class="icon" aria-hidden="true">📝</span>טפסים</button>
+  <button class="nav-btn nav-secondary" data-tab="dashboard" type="button" role="tab" aria-selected="false" aria-controls="tab-dashboard" onclick="showTab('dashboard',this)"><span class="icon" aria-hidden="true">📊</span>דשבורד</button>
+  <button class="nav-btn nav-more" id="nav-more-btn" type="button" aria-haspopup="dialog" aria-expanded="false" aria-label="עוד לשוניות" onclick="openMoreSheet()"><span class="icon" aria-hidden="true">☰</span>עוד</button>
 </nav>
+
+<!-- גיליון "עוד" — נייד בלבד. נבנה מכפתורי .nav-secondary כדי שיישאר מסונכרן אוטומטית -->
+<div id="more-sheet" class="more-sheet" role="dialog" aria-modal="true" aria-labelledby="more-sheet-title" hidden>
+  <div class="more-backdrop" onclick="closeMoreSheet()"></div>
+  <div class="more-panel">
+    <div class="more-grip" aria-hidden="true"></div>
+    <h2 id="more-sheet-title" class="more-title">עוד</h2>
+    <div class="more-grid" id="more-grid"></div>
+    <button type="button" class="more-close" onclick="closeMoreSheet()">סגור</button>
+  </div>
+</div>
 
 <!-- AI Agent FAB -->
 <button class="agent-fab" onclick="toggleAgent()" id="agent-fab" title="סוכן AI">
@@ -2089,9 +2220,14 @@ function toast(msg, err=false) {
 // ── TAB SWITCHING ──
 function showTab(name, btn) {
   document.querySelectorAll('.tab-content').forEach(el=>el.classList.remove('active'));
-  document.querySelectorAll('.nav-btn').forEach(el=>el.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(el=>{el.classList.remove('active');el.setAttribute('aria-selected','false');});
   document.getElementById('tab-'+name).classList.add('active');
-  btn.classList.add('active');
+  // אפשר להיקרא גם מגיליון "עוד", שם אין כפתור ניווט — מאתרים אותו לפי data-tab
+  const _nb = (btn && btn.classList && btn.classList.contains('nav-btn'))
+            ? btn : document.querySelector('.nav-btn[data-tab="'+name+'"]');
+  if (_nb) { _nb.classList.add('active'); _nb.setAttribute('aria-selected','true'); }
+  syncMoreBtn(name);
+  window.scrollTo(0,0);
   if (name==='fleet') {
     const fs = document.getElementById('fleet-search'); if (fs) fs.value = '';
     const fc = document.getElementById('fleet-company'); if (fc) fc.value = '';
@@ -2680,6 +2816,7 @@ function renderFleet() {
   document.getElementById('fleet-count').textContent = `מציג ${filtered.length} מתוך ${VEHICLES.length} רכבים`;
 
   const tbody = document.getElementById('fleet-body');
+  renderFleetCards(filtered);          // תצוגת הנייד — מוסתרת ב-CSS בדסקטופ
   if (!filtered.length) { tbody.innerHTML = '<tr><td colspan="13" style="text-align:center;padding:24px;color:var(--muted);font-size:0.85rem">אין רכבים להצגה</td></tr>'; return; }
   tbody.innerHTML = filtered.map(v => {
     const regDays = daysUntil(v.registrationExpiry);
@@ -8255,6 +8392,148 @@ function initPwaBanner() {
   if (/iphone|ipad|ipod/i.test(ua) && /^((?!crios|fxios|edgios|chrome).)*safari/i.test(ua)) {
     setTimeout(() => showPwaBanner('ios'), 1500);
   }
+}
+</script>
+<!-- ===============================================================
+     התאמת נייד - לוגיקה (18.8.2026)
+     כלום כאן לא רץ בדסקטופ: הגיליון והכרטיסים מוסתרים ב-CSS מעל 768px.
+     =============================================================== -->
+<script>
+/* --- גיליון "עוד" ---------------------------------------------- */
+let _moreLastFocus = null;
+
+/* מדליק את "עוד" כשהלשונית הפעילה היא אחת מאלה שבתוכו */
+function syncMoreBtn(name) {
+  const more = document.getElementById('nav-more-btn');
+  if (!more) return;
+  const inSheet = !!document.querySelector('.nav-btn.nav-secondary[data-tab="' + name + '"]');
+  more.classList.toggle('active', inSheet);
+  more.setAttribute('aria-selected', inSheet ? 'true' : 'false');
+}
+
+/* הגיליון נבנה מכפתורי .nav-secondary - מוסיפים לשונית לניווט והיא מופיעה כאן לבד */
+function buildMoreGrid() {
+  const grid = document.getElementById('more-grid');
+  if (!grid) return;
+  const active = document.querySelector('.tab-content.active');
+  const activeTab = active ? active.id.replace(/^tab-/, '') : '';
+  grid.innerHTML = [...document.querySelectorAll('.nav-btn.nav-secondary')].map(b => {
+    const tab = b.dataset.tab;
+    const iconEl = b.querySelector('.icon');
+    const icon = iconEl ? iconEl.textContent : '';
+    const label = b.textContent.replace(icon, '').trim();
+    const cur = tab === activeTab ? ' aria-current="page"' : '';
+    return '<button type="button" class="more-tile" data-tab="' + tab + '"' + cur +
+           ' onclick="goMoreTab(\'' + tab + '\')">' +
+           '<span class="more-tile-icon" aria-hidden="true">' + icon + '</span>' +
+           '<span class="more-tile-label">' + label + '</span></button>';
+  }).join('');
+}
+
+function openMoreSheet() {
+  const sheet = document.getElementById('more-sheet');
+  if (!sheet) return;
+  buildMoreGrid();
+  _moreLastFocus = document.activeElement;
+  sheet.hidden = false;
+  void sheet.offsetHeight;   // reflow מאולץ - אמין יותר מ-rAF, שקפוא בלשונית רקע
+  sheet.classList.add('open');
+  document.body.style.overflow = 'hidden';
+  const btn = document.getElementById('nav-more-btn');
+  if (btn) btn.setAttribute('aria-expanded', 'true');
+  const first = sheet.querySelector('.more-tile');
+  if (first) first.focus();
+}
+
+function closeMoreSheet() {
+  const sheet = document.getElementById('more-sheet');
+  if (!sheet || sheet.hidden) return;
+  sheet.classList.remove('open');
+  document.body.style.overflow = '';
+  const btn = document.getElementById('nav-more-btn');
+  if (btn) btn.setAttribute('aria-expanded', 'false');
+  setTimeout(() => { sheet.hidden = true; }, 220);
+  if (_moreLastFocus && _moreLastFocus.focus) _moreLastFocus.focus();
+}
+
+function goMoreTab(name) {
+  closeMoreSheet();
+  showTab(name, document.querySelector('.nav-btn[data-tab="' + name + '"]'));
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeMoreSheet();
+});
+
+/* --- כרטיסי רכב לנייד -------------------------------------------
+   מקבלים את אותה רשימה מסוננת וממוינת שהטבלה מקבלת, כדי שחיפוש,
+   מסננים ומיון יעבדו בדיוק אותו דבר בשתי התצוגות. */
+function _fchip(label, days) {
+  if (days === null || days === undefined || isNaN(days))
+    return '<span class="fchip">' + label + ': ---</span>';
+  const cls = days < 0 ? 'red' : days <= 14 ? 'orange' : 'green';
+  const txt = days < 0 ? 'פג לפני ' + Math.abs(days) + ' ימים' : 'עוד ' + days + ' ימים';
+  return '<span class="fchip ' + cls + '">' + label + ': ' + txt + '</span>';
+}
+
+function renderFleetCards(list) {
+  const wrap = document.getElementById('fleet-cards');
+  if (!wrap) return;
+  if (!list.length) {
+    wrap.innerHTML = '<div class="fcard-empty">אין רכבים להצגה</div>';
+    return;
+  }
+  wrap.innerHTML = list.map(v => {
+    const regD  = daysUntil(v.registrationExpiry);
+    const insD  = daysUntil(v.insuranceExpiry);
+    const licD  = daysUntil(v.licenseExpiry);
+    const inspD = daysUntilNextInsp(v);
+    const all   = [regD, insD, licD, inspD];
+    const cls   = all.some(d => d !== null && d < 0) ? ' is-expired'
+                : all.some(d => d !== null && d >= 0 && d <= 14) ? ' is-soon' : '';
+
+    const drv       = (v.driverName || '').trim();
+    const isTrailer = drv.indexOf('נגרר') >= 0 || drv.indexOf('ללא נהג') >= 0;
+    const noVeh     = !!v.noVehicle;
+    const plateTxt  = noVeh ? 'ללא רכב' : (esc(v.plate) || '---');
+    const driverNm  = esc(drv.split('-')[0]) || '---';
+    const kmLeft    = parseKm(v.nextServiceKm) - parseKm(v.currentKm);
+
+    const chips = [
+      _fchip('רישוי', regD),
+      _fchip('ביטוח', insD),
+      isTrailer ? '' : _fchip('רישיון נהיגה', licD),
+      _fchip('בדיקה', inspD),
+      (isTrailer || !v.nextServiceKm) ? ''
+        : '<span class="fchip ' + (kmLeft < 0 ? 'red' : kmLeft <= 1000 ? 'orange' : 'green') + '">טיפול: ' +
+          (kmLeft < 0 ? 'עבר ב-' + Math.abs(kmLeft).toLocaleString('he-IL')
+                      : 'עוד ' + kmLeft.toLocaleString('he-IL')) + ' ק"מ</span>'
+    ].filter(Boolean).join('');
+
+    const act = (icon, fn, title) =>
+      '<button class="btn btn-gray" type="button" title="' + title + '" aria-label="' + title +
+      '" onclick="event.stopPropagation();' + fn + '(\'' + esc(v.plate) + '\')">' + icon + '</button>';
+
+    return '<div class="fcard' + cls + '" role="button" tabindex="0"' +
+           ' aria-label="' + plateTxt + ', נהג ' + driverNm + ', לחץ לעריכה"' +
+           ' onclick="editVehicle(\'' + esc(v.plate) + '\')"' +
+           ' onkeydown="if(event.key===\'Enter\'||event.key===\' \'){event.preventDefault();editVehicle(\'' + esc(v.plate) + '\')}">' +
+      '<div class="fcard-top">' +
+        '<span class="fcard-plate">' + plateTxt + '</span>' +
+        companyBadge(v.company) +
+      '</div>' +
+      '<div class="fcard-sub">' + (esc(v.make) + ' ' + esc(v.model)).trim() +
+        (v.year ? ' | ' + esc(v.year) : '') + ' | ' + driverNm + '</div>' +
+      '<div class="fcard-chips">' + chips + '</div>' +
+      '<div class="fcard-acts">' +
+        act('&#9999;&#65039;', 'editVehicle', 'ערוך רכב') +
+        act('&#128233;', 'openDeclShare', 'שלח טפסי קבלת רכב לנהג') +
+        act('&#128193;', 'openEmployeeDocs', 'כל המסמכים של העובד') +
+        act('&#127963;&#65039;', 'openCityPermit', 'אישור החזקה ברכב לעירייה') +
+        act('&#128465;&#65039;', 'deleteVehicleRow', 'מחק רכב מהצי') +
+      '</div>' +
+    '</div>';
+  }).join('');
 }
 </script>
 </body>
