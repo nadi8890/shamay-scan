@@ -1868,6 +1868,7 @@ function rebuildDriversDirectory() {
     if (v.licenseExpiry) DRIVERS[n].licenseExpiry = v.licenseExpiry;
     if (v.trafficRecord) DRIVERS[n].trafficRecord = v.trafficRecord;
     if (v.driverPhone) DRIVERS[n].driverPhone = v.driverPhone;
+    if (v.driverEmail) DRIVERS[n].driverEmail = v.driverEmail;
     const aff = driverAffiliation(v.driverName);
     if (aff) DRIVERS[n].affiliation = aff;
   });
@@ -1880,15 +1881,28 @@ function syncDriverToVehicles(n) {
       if (d.licenseExpiry) v.licenseExpiry = d.licenseExpiry;
       if (d.trafficRecord) v.trafficRecord = d.trafficRecord;
       if (d.driverPhone) v.driverPhone = d.driverPhone;
+      if (d.driverEmail) v.driverEmail = d.driverEmail;
       // keep the affiliation on the name if it was dropped somewhere along the way
       if (d.affiliation && !driverAffiliation(v.driverName)) v.driverName = withAffiliation(v.driverName, d.affiliation);
     }
   });
 }
 // auto-fill the license/traffic/phone fields in the vehicle modal when a known driver is entered
+// המייל הוא מזהה של אדם, לא של רכב: buildDriverBundle בונה לפיו את תיק
+// המסמכים האישי. כשמחליפים נהג ברכב, השארת המייל הקודם היתה נותנת לנהג
+// היוצא גישה לתיק של מי שקיבל את הרכב אחריו.
+let _modalDriverKey = '', _modalDriverEmail = '';
 function autoFillDriverFields() {
   const drvInp = document.getElementById('m-driver');
   const n = driverKey(drvInp.value);
+  const em = document.getElementById('m-email');
+  if (em && n !== _modalDriverKey) {
+    const cur = (em.value || '').trim().toLowerCase();
+    const prev = (_modalDriverEmail || '').trim().toLowerCase();
+    // מחליפים רק אם בשדה עדיין יושב המייל של הנהג הקודם - מייל שהוקלד
+    // ידנית בעריכה הזאת נשמר
+    if (!cur || cur === prev) em.value = (DRIVERS[n] || {}).driverEmail || '';
+  }
   const d = DRIVERS[n];
   if (!d) return;
   // restore the driver's affiliation (ישראל / מטה) if the name was typed without it
@@ -1899,6 +1913,8 @@ function autoFillDriverFields() {
   if (d.licenseExpiry && !lic.value) lic.value = d.licenseExpiry;
   if (d.trafficRecord && !trf.value) trf.value = d.trafficRecord;
   if (d.driverPhone && ph && !ph.value) ph.value = d.driverPhone;
+  const em2 = document.getElementById('m-email');
+  if (d.driverEmail && em2 && !em2.value) em2.value = d.driverEmail;
 }
 function checkServiceOverages() {
   const overdue = VEHICLES.filter(v => {
@@ -5809,6 +5825,7 @@ function saveTaskForm() {
 let editingPlate = null;
 function openAddVehicle() {
   editingPlate = null;
+  _modalDriverKey = ''; _modalDriverEmail = '';
   document.getElementById('modal-title').textContent = 'הוסף רכב חדש';
   ['m-plate','m-make','m-model','m-year','m-driver','m-phone','m-email','m-regExpiry','m-insExpiry','m-licExpiry','m-inspection','m-from','m-km','m-nextKm','m-serviceDate','m-traffic','m-procedures','m-notes'].forEach(id => {
     document.getElementById(id).value = '';
@@ -5830,6 +5847,7 @@ function editVehicle(plate) {
   document.getElementById('m-driver').value = v.driverName||'';
   document.getElementById('m-phone').value = v.driverPhone||'';
   document.getElementById('m-email').value = v.driverEmail||'';
+  _modalDriverKey = driverKey(v.driverName); _modalDriverEmail = v.driverEmail || '';
   document.getElementById('m-regExpiry').value = v.registrationExpiry||'';
   document.getElementById('m-insExpiry').value = v.insuranceExpiry||'';
   document.getElementById('m-licExpiry').value = v.licenseExpiry||'';
@@ -5919,6 +5937,10 @@ function saveVehicle() {
   if (_noVeh && !_driver) { toast('הכנס מספר רכב או שם עובד/ת', true); return; }
   if (_noVeh) plate = editingPlate || ('emp_' + Date.now()); // stable internal key, shown as "ללא רכב"
   const _prevKmSV = editingPlate ? parseKm((VEHICLES.find(x => x.plate === editingPlate) || {}).currentKm) : 0; // ק"מ לפני העריכה
+  // מי החזיק את הרכב לפני העריכה - נדרש כדי לזהות החלפת נהג ולא לגרור
+  // את המייל של הקודם אל החדש (autoFillDriverFields מטפל בזה בטופס,
+  // וזו רשת הביטחון למקרה ש-onchange לא נורה)
+  const _prevV = editingPlate ? { ...(VEHICLES.find(x => x.plate === editingPlate) || {}) } : null;
   const _t = new Date();
   const _today = ('0'+_t.getDate()).slice(-2)+'/'+('0'+(_t.getMonth()+1)).slice(-2)+'/'+_t.getFullYear();
   const v = {
@@ -5949,6 +5971,18 @@ function saveVehicle() {
   } else {
     VEHICLES.unshift(v);
   }
+  // החלפת נהג ברכב: המייל של הקודם לא עובר לחדש
+  if (_prevV) {
+    const _prevDk = driverKey(_prevV.driverName);
+    const _newDk  = driverKey(v.driverName);
+    if (_prevDk && _newDk && _prevDk !== _newDk) {
+      const cur  = (v.driverEmail || '').trim().toLowerCase();
+      const prev = (_prevV.driverEmail || '').trim().toLowerCase();
+      if (cur && cur === prev) v.driverEmail = (DRIVERS[_newDk] || {}).driverEmail || '';
+      // המייל של הנהג היוצא נשמר עליו, כדי שיחזור איתו לרכב הבא
+      if (prev) { DRIVERS[_prevDk] = DRIVERS[_prevDk] || {}; DRIVERS[_prevDk].driverEmail = _prevV.driverEmail; }
+    }
+  }
   // driver directory: license expiry + traffic record follow the driver
   const _dk = driverKey(v.driverName);
   if (_dk) {
@@ -5960,13 +5994,15 @@ function saveVehicle() {
     else if (DRIVERS[_dk].trafficRecord) v.trafficRecord = DRIVERS[_dk].trafficRecord;
     if (v.driverPhone) DRIVERS[_dk].driverPhone = v.driverPhone;
     else if (DRIVERS[_dk].driverPhone) v.driverPhone = DRIVERS[_dk].driverPhone;
+    if (v.driverEmail) DRIVERS[_dk].driverEmail = v.driverEmail;
+    else if (DRIVERS[_dk].driverEmail) v.driverEmail = DRIVERS[_dk].driverEmail;
     // affiliation (ישראל / מטה) belongs to the driver — keep it on the name even
     // when the name was typed without it
     const _aff = driverAffiliation(v.driverName);
     if (_aff) DRIVERS[_dk].affiliation = _aff;
     else if (DRIVERS[_dk].affiliation) v.driverName = withAffiliation(v.driverName, DRIVERS[_dk].affiliation);
     // reflect onto the saved record too
-    if (editingPlate) { const i2 = VEHICLES.findIndex(x=>x.plate===v.plate); if (i2>=0) { VEHICLES[i2].licenseExpiry = v.licenseExpiry; VEHICLES[i2].trafficRecord = v.trafficRecord; VEHICLES[i2].driverPhone = v.driverPhone; VEHICLES[i2].driverName = v.driverName; } }
+    if (editingPlate) { const i2 = VEHICLES.findIndex(x=>x.plate===v.plate); if (i2>=0) { VEHICLES[i2].licenseExpiry = v.licenseExpiry; VEHICLES[i2].trafficRecord = v.trafficRecord; VEHICLES[i2].driverPhone = v.driverPhone; VEHICLES[i2].driverEmail = v.driverEmail; VEHICLES[i2].driverName = v.driverName; } }
     syncDriverToVehicles(_dk);
     saveToFirestore('drivers', DRIVERS);
   }
@@ -7733,6 +7769,7 @@ async function replaceVehicleAction(param) {
     nv.driverName = old.driverName || '';
     nv.driverId = old.driverId || '';
     nv.driverPhone = old.driverPhone || '';
+    nv.driverEmail = old.driverEmail || '';   // בלי זה פורטל המסמכים של הנהג נשבר ברכב החדש
     nv.children = old.children || '';
     nv.licenseExpiry = old.licenseExpiry || nv.licenseExpiry || '';
     nv.trafficRecord = old.trafficRecord || '';
@@ -7751,6 +7788,7 @@ async function replaceVehicleAction(param) {
     if (old.licenseExpiry) DRIVERS[_dk].licenseExpiry = old.licenseExpiry;
     if (old.trafficRecord) DRIVERS[_dk].trafficRecord = old.trafficRecord;
     if (old.driverPhone) DRIVERS[_dk].driverPhone = old.driverPhone;
+    if (old.driverEmail) DRIVERS[_dk].driverEmail = old.driverEmail;
   }
   try {
     localStorage.setItem('fleet_vehicles', JSON.stringify(VEHICLES));
@@ -7948,7 +7986,10 @@ async function autoFillFromGov(rawPlate) {
     const found = `${rec.tozeret_nm||''} ${rec.degem_nm||''}`.trim();
     if (statusEl) statusEl.textContent = filled ? `✅ נמצא: ${found} (מולאו ${filled} שדות)` : `✅ נמצא: ${found} (השדות כבר מלאים)`;
   } catch(e) {
-    if (statusEl) statusEl.textContent = '❌ שגיאה בחיפוש';
+    // data.gov.il מחזיר את הנתונים לשרת אבל לא שולח Access-Control-Allow-Origin,
+    // ולכן הדפדפן חוסם את הקריאה מהאתר. זה נראה כמו "לא נמצא" אבל זו חסימה.
+    if (statusEl) statusEl.textContent = '⚠ משרד הרישוי לא נגיש מהדפדפן — מלא ידנית';
+    console.log('gov lookup blocked (CORS):', e && e.message);
   }
 }
 
