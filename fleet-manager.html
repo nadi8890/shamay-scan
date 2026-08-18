@@ -761,12 +761,23 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
      בגובה 56px — מעל מינימום יעד המגע (44px) ובטקסט קריא. */
   .nav-secondary{display:none!important}
   .nav-more{display:flex}
-  .bottom-nav{overflow:visible;padding-bottom:env(safe-area-inset-bottom,0px)}
   .nav-btn{flex:1 1 0;min-width:0;min-height:56px;font-size:0.7rem;
            padding:6px 2px 5px;gap:1px;letter-spacing:0;line-height:1.25}
   .nav-btn .icon{font-size:1.15rem;padding:1px 9px;line-height:1.25}
-  /* מקום לסרגל + פס הבית של אייפון */
-  body{padding-bottom:calc(78px + env(safe-area-inset-bottom,0px))}
+
+  /* -- מבנה app-shell --
+     קודם: body גולל שלם והסרגל היה position:fixed. בפינץ'-זום הסרגל
+     נשאר צמוד ל-layout viewport בזמן שהתוכן זז, ולכן "לא ישב בקו"
+     עם מה שמעליו. עכשיו כותרת + אזור גלילה + סרגל הם שלושה חלקים
+     של אותה פריסה, כמו באפליקציה - כלום לא יכול לצאת מיישור. */
+  html{height:100%}
+  body{height:100vh;height:100dvh;display:flex;flex-direction:column;
+       overflow:hidden;padding-bottom:0;overscroll-behavior:none}
+  header{position:static;flex:0 0 auto}
+  #app-scroll{flex:1 1 auto;min-height:0;overflow-y:auto;overflow-x:hidden;
+              -webkit-overflow-scrolling:touch;overscroll-behavior:contain}
+  .bottom-nav{position:static;flex:0 0 auto;overflow:visible;
+              padding-bottom:env(safe-area-inset-bottom,0px)}
 
   /* ── גיליון "עוד" ── */
   .more-sheet{display:block;position:fixed;inset:0;z-index:900}
@@ -849,9 +860,17 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
   .modal input:not([type=checkbox]):not([type=radio]),
   .modal select{min-height:46px}
 
-  /* -- מודאל שממלא את המסך בנייד במקום חלון צף קטן -- */
-  .modal{max-height:90vh;overflow-y:auto;
+  /* -- מודאלים: 100vh בטלפון גדול מהאזור הנראה בפועל (שורת הכתובת
+     של הדפדפן נחשבת בפנים), ולכן תחתית המודאל נחתכה. dvh מודד את
+     האזור הנראה באמת. -- */
+  .modal{max-height:88dvh;overflow-y:auto;
          padding-bottom:calc(16px + env(safe-area-inset-bottom,0px))}
+  .modal-overlay{align-items:flex-start;overflow-y:auto;
+                 padding:12px 12px calc(12px + env(safe-area-inset-bottom,0px))}
+  /* הסגנון על #iv-body הוא inline, ולכן צריך !important. בלי זה הדוח
+     גולל בחלון פנימי בתוך מודאל שגם הוא גולל - ובטלפון זה נקרא כחתוך. */
+  #iv-body{max-height:none!important;overflow-y:visible!important;font-size:0.86rem!important}
+  .tbl-wrap{max-height:calc(100dvh - 260px)}
 }
 
 /* ── נגישות: סימון מיקוד ברור למקלדת ולקורא מסך (חל גם בדסקטופ —
@@ -2227,6 +2246,8 @@ function showTab(name, btn) {
             ? btn : document.querySelector('.nav-btn[data-tab="'+name+'"]');
   if (_nb) { _nb.classList.add('active'); _nb.setAttribute('aria-selected','true'); }
   syncMoreBtn(name);
+  const _sc = document.getElementById('app-scroll');
+  if (_sc && _sc.scrollTop) _sc.scrollTop = 0;
   window.scrollTo(0,0);
   if (name==='fleet') {
     const fs = document.getElementById('fleet-search'); if (fs) fs.value = '';
@@ -8464,6 +8485,26 @@ function goMoreTab(name) {
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') closeMoreSheet();
 });
+
+/* --- מבנה app-shell -------------------------------------------
+   עוטף את כל ה-.tab-content במיכל גלילה אחד וממקם אותו בין הכותרת
+   לסרגל. רץ תמיד, אבל מקבל משמעות רק ב-CSS של הנייד: בדסקטופ זה
+   נשאר div רגיל בלי סגנון. נדרש כי #tab-forms יושב בקוד אחרי ה-nav,
+   ובפריסת flex הסדר בקוד הוא שקובע. */
+(function buildAppShell() {
+  const run = () => {
+    if (document.getElementById('app-scroll')) return;
+    const nav = document.querySelector('.bottom-nav');
+    const tabs = [...document.querySelectorAll('body > .tab-content')];
+    if (!nav || !tabs.length) return;
+    const shell = document.createElement('div');
+    shell.id = 'app-scroll';
+    document.body.insertBefore(shell, nav);
+    tabs.forEach(t => shell.appendChild(t));
+  };
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', run);
+  else run();
+})();
 
 /* --- כרטיסי רכב לנייד -------------------------------------------
    מקבלים את אותה רשימה מסוננת וממוינת שהטבלה מקבלת, כדי שחיפוש,
