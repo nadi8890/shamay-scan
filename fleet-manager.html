@@ -6602,7 +6602,17 @@ function wipeSeedData() {
   if (typeof AGENT_RULES !== 'undefined') AGENT_RULES = '';
   if (typeof KMROUND !== 'undefined') KMROUND = {};
   if (typeof SERVICE_NOTIFIED !== 'undefined') SERVICE_NOTIFIED = {};
-  ['fleet_vehicles','fleet_incidents','fleet_violations','fleet_replacements','fleet_returns','fleet_tasks','fleet_mailSettings','fleet_invoices'].forEach(k => localStorage.removeItem(k));
+  // אלה נשארו מחוץ לניקוי וזלגו בין לקוחות על אותו מכשיר. החמור מכולם
+  // הוא חתימת קצין הבטיחות: דוח של לקוח אחד יכול היה לצאת חתום בחתימה
+  // של לקוח אחר. COSTS מכיל נתוני תדלוק, CONTACTS את ספר הטלפונים.
+  if (typeof COSTS !== 'undefined') COSTS = {};
+  window.CONTACTS = { list: [], emails: [], byPlate: {} };
+  window.OFFICER_INFO = null;
+  window.OFFICER_SIGNATURE = '';
+  ['fleet_vehicles','fleet_incidents','fleet_violations','fleet_replacements','fleet_returns',
+   'fleet_tasks','fleet_mailSettings','fleet_invoices',
+   'fleet_contacts','fleet_officerInfo','fleet_reminders_shown','fleet_vehicles_version',
+   'fleet_show_missing','fleet_rem_notif'].forEach(k => localStorage.removeItem(k));
 }
 function guardTenantCache() {
   // For ANY tenant other than the primary (nofar), clear the seed literals on EVERY load —
