@@ -334,9 +334,9 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
     <span id="tenant-status" style="display:none"></span>
     <span id="save-indicator">💾 לא נשמר</span>
     <button class="btn" id="reminders-bell" style="position:relative;padding:7px 12px;font-size:0.82rem;background:rgba(255,255,255,.16);color:#fff;font-weight:700;border-radius:8px" title="תזכורות — מסמכים לאישור / התראות תוקף / נהלים / ק&quot;מ" onclick="showRemindersPopup(true)">🔔<span id="rem-bell-badge" style="display:none;position:absolute;top:-5px;left:-5px;min-width:18px;height:18px;background:#16a34a;color:#fff;border-radius:999px;font-size:0.62rem;font-weight:800;line-height:18px;text-align:center;padding:0 4px;box-shadow:0 1px 4px rgba(0,0,0,.3)">0</span></button>
-    <button class="btn" style="padding:7px 14px;font-size:0.82rem;background:#fff;color:#1e40af;font-weight:700;border-radius:8px" onclick="openAddVehicle()">+ רכב חדש</button>
-    <button class="btn" style="padding:7px 12px;font-size:0.82rem;background:rgba(255,255,255,.16);color:#fff;font-weight:700;border-radius:8px" title="ייבוא צי מקובץ אקסל / CSV" onclick="openImportWizard()">📥 ייבוא מאקסל</button>
-    <button class="btn" style="padding:7px 12px;font-size:0.82rem;background:rgba(255,255,255,.16);color:#fff;font-weight:700;border-radius:8px" title="שחזור רכב שנמחק מהגיבוי היומי" onclick="openRestoreDeleted()">♻️ שחזור</button>
+    <button class="btn hdr-secondary" data-sheet-icon="➕" data-sheet-label="רכב חדש" style="padding:7px 14px;font-size:0.82rem;background:#fff;color:#1e40af;font-weight:700;border-radius:8px" onclick="openAddVehicle()">+ רכב חדש</button>
+    <button class="btn hdr-secondary" data-sheet-icon="📥" data-sheet-label="ייבוא מאקסל" style="padding:7px 12px;font-size:0.82rem;background:rgba(255,255,255,.16);color:#fff;font-weight:700;border-radius:8px" title="ייבוא צי מקובץ אקסל / CSV" onclick="openImportWizard()">📥 ייבוא מאקסל</button>
+    <button class="btn hdr-secondary" data-sheet-action="openRestoreDeleted" data-sheet-icon="♻️" data-sheet-label="שחזור" style="padding:7px 12px;font-size:0.82rem;background:rgba(255,255,255,.16);color:#fff;font-weight:700;border-radius:8px" title="שחזור רכב שנמחק מהגיבוי היומי" onclick="openRestoreDeleted()">♻️ שחזור</button>
     <button class="btn" style="padding:7px 12px;font-size:0.82rem;background:rgba(255,255,255,.18);color:#fff;font-weight:700;border-radius:8px" onclick="doLogout()" title="התנתקות">🚪</button>
   </div>
 </header>
@@ -803,13 +803,26 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
   .more-tile:active{background:#eff6ff;border-color:var(--blue)}
   .more-tile[aria-current="page"]{background:#eff6ff;border-color:var(--blue);color:var(--blue)}
   .more-tile-icon{font-size:1.6rem;line-height:1}
+  .more-sub{font-size:0.78rem;font-weight:800;color:var(--muted);margin:16px 0 9px}
   .more-close{width:100%;min-height:48px;margin-top:14px;border-radius:12px;border:none;
               background:#f1f5f9;color:var(--text);font-family:'Heebo',sans-serif;
               font-size:0.9rem;font-weight:700;cursor:pointer}
 
   /* ── יעדי מגע: כלום מתחת ל-44px ──
      כפתורי הכותרת היו בגובה 31px, ה-✕ היה 25×29. */
-  header .btn{min-height:44px!important;padding:10px 13px!important;font-size:0.8rem!important}
+  /* 5 כפתורים בכותרת = 374px, ועוד לוגו 90px, בזמן שכלל ישן אוסר
+     עטיפה. הכותרת הרחיבה את כל הדף מעבר לרוחב המסך וכל התוכן גלש
+     ימינה - כולל הסרגל התחתון, שאחרי המעבר ל-app-shell כבר לא fixed
+     ולכן גלש איתו. הפעולות המשניות עוברות לגיליון "עוד". */
+  .hdr-secondary{display:none!important}
+  header{min-width:0;overflow:hidden}
+  header > div{min-width:0}
+  header .logo{flex:0 1 auto;min-width:0;overflow:hidden}
+  header .btn{min-height:44px!important;padding:9px 12px!important;font-size:0.8rem!important;
+              flex:0 0 auto}
+
+  /* רשת ביטחון: שום דבר לא ירחיב שוב את הדף לרוחב */
+  html,body{max-width:100%;overflow-x:hidden}
   .btn-export{min-height:44px;padding:8px 14px;font-size:0.8rem}
   .search-input,.filter-select{min-height:46px;font-size:0.88rem}
   .th-sort{min-height:38px;display:flex;align-items:center;gap:4px}
@@ -906,6 +919,7 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
     <div class="more-grip" aria-hidden="true"></div>
     <h2 id="more-sheet-title" class="more-title">עוד</h2>
     <div class="more-grid" id="more-grid"></div>
+    <div id="more-actions"></div>
     <button type="button" class="more-close" onclick="closeMoreSheet()">סגור</button>
   </div>
 </div>
@@ -8449,6 +8463,28 @@ function buildMoreGrid() {
            '<span class="more-tile-icon" aria-hidden="true">' + icon + '</span>' +
            '<span class="more-tile-label">' + label + '</span></button>';
   }).join('');
+  buildMoreActions();
+}
+
+/* פעולות שהוצאו מהכותרת כי הן הרחיבו את הדף מעבר לרוחב המסך.
+   נבנות מ-.hdr-secondary, כך שכפתור חדש בכותרת יגיע לכאן לבד. */
+function buildMoreActions() {
+  const host = document.getElementById('more-actions');
+  if (!host) return;
+  const btns = [...document.querySelectorAll('header .hdr-secondary')];
+  if (!btns.length) { host.innerHTML = ''; return; }
+  host.innerHTML = '<div class="more-sub">פעולות</div><div class="more-grid">' +
+    btns.map((b, i) =>
+      '<button type="button" class="more-tile" onclick="runMoreAction(' + i + ')">' +
+      '<span class="more-tile-icon" aria-hidden="true">' + (b.dataset.sheetIcon || '\u2022') + '</span>' +
+      '<span class="more-tile-label">' + (b.dataset.sheetLabel || b.textContent.trim()) + '</span></button>'
+    ).join('') + '</div>';
+}
+
+function runMoreAction(i) {
+  const b = [...document.querySelectorAll('header .hdr-secondary')][i];
+  closeMoreSheet();
+  if (b) setTimeout(() => b.click(), 30);
 }
 
 function openMoreSheet() {
