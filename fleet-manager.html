@@ -2001,16 +2001,26 @@ async function saveToFirestore(key, value) {
 async function writePubRoster() {
   if (!auth.currentUser) return;
   try {
+    // ⚠ המסמך הזה נקרא ע"י דפי הנהגים בהתחברות אנונימית, כלומר הוא נגיש
+    // לכל מי שמחזיק את מזהה הלקוח - והמזהה מופיע בכל קישור שנשלח לנהג.
+    // לכן הוא מכיל את המינימום ההכרחי לזיהוי רכב ונהג, ותו לא.
+    // הוסרו במכוון:
+    //   officerSignature - תמונת חתימה ניתנת לחילוץ ולהדבקה על דוח מזויף.
+    //                      קצין הבטיחות חותם ידנית במעמד המסירה.
+    //   driverPhone      - רשימת טלפונים של כל העובדים.
+    //   licenseExpiry    - תוקף רישיון נהיגה הוא נתון אישי; הדפים לא צריכים אותו.
     const vehicles = (Array.isArray(VEHICLES) ? VEHICLES : []).map(v => ({
       plate: v.plate, make: v.make || '', model: v.model || '', year: v.year || '',
-      driverName: v.driverName || '', driverPhone: v.driverPhone || '', company: v.company || '',
+      driverName: v.driverName || '', company: v.company || '',
       currentKm: v.currentKm || '', nextServiceKm: v.nextServiceKm || '',
       registrationExpiry: v.registrationExpiry || '', insuranceExpiry: v.insuranceExpiry || '',
-      licenseExpiry: v.licenseExpiry || '', inspection: v.inspection || ''
+      inspection: v.inspection || ''
     }));
     const ms = (typeof MAIL_SETTINGS !== 'undefined' && MAIL_SETTINGS) ? MAIL_SETTINGS : {};
     const mailSettings = { gasUrl: ms.gasUrl || '', mailProvider: ms.mailProvider || '', fromEmail: ms.fromEmail || '' };
-    await fcol().doc('pubroster').set({ vehicles: stripUndef(vehicles), mailSettings, officerSignature: (window.OFFICER_SIGNATURE || ''), updatedAt: Date.now() });
+    // set ללא merge - כתיבה זו דורסת את המסמך כולו ולכן מוחקת בפועל את
+    // officerSignature ואת הטלפונים שנכתבו בגרסאות קודמות
+    await fcol().doc('pubroster').set({ vehicles: stripUndef(vehicles), mailSettings, updatedAt: Date.now() });
   } catch(e) { console.log('pubroster write failed', e.code || e.message); }
 }
 async function saveVehiclesSafely(editedPlate, dk, origPlate) {

@@ -323,7 +323,10 @@ const FORMS = {
     try { const s = await fcol().doc('pubroster').get(); if (s.exists && Array.isArray((s.data()||{}).vehicles)) d = s.data(); } catch(e) {}
     if (!Array.isArray(d.vehicles)) { try { const s = await fcol().doc('main').get(); d = s.data() || {}; } catch(e) {} }
     MAIL = d.mailSettings || {};
-    OFFICER_SIG = d.officerSignature || ''; // saved safety-officer signature
+    // חתימת קצין הבטיחות הוסרה מ-pubroster: היא היתה נגישה לכל מי שמחזיק
+    // את מזהה הלקוח, וניתנת לחילוץ ולהדבקה על דוח מזויף. הפד נשאר ריק
+    // וקצין הבטיחות חותם ידנית במעמד המסירה.
+    OFFICER_SIG = '';
     VEH = (d.vehicles || []).find(v => (v.plate||'').replace(/\D/g,'') === PLATE.replace(/\D/g,''));
     const box = document.getElementById('veh-box');
     if (VEH) {
@@ -375,7 +378,7 @@ function openForm(key) {
 // signed by hand instead whenever that's preferred.
 function applySavedOfficerSig() {
   const c = document.getElementById('sig2');
-  if (!c || !OFFICER_SIG) return;
+  if (!c || !OFFICER_SIG) return;   // אין חתימה שמורה - נחתם ידנית
   const img = new Image();
   img.onload = () => {
     const ctx = c.getContext('2d');
