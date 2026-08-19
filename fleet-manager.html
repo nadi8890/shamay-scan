@@ -1289,10 +1289,9 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
     <h3 id="modal-title">הוסף רכב</h3>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
       <div class="modal-row"><label>מס׳ רישוי <span style="font-weight:400;color:#94a3b8;font-size:0.7rem">(השאר ריק לעובד/ת ללא רכב)</span></label><div style="display:flex;gap:5px;align-items:center"><input id="m-plate" type="text" placeholder="12345678" style="flex:1" onblur="autoFillFromGov(this.value)"><span id="m-gov-status" style="font-size:0.7rem;color:#64748b;white-space:nowrap"></span></div></div>
-      <div class="modal-row"><label>חברה <span style="font-weight:400;color:#94a3b8;font-size:0.7rem">(ליסינג / בעלות)</span></label>
-        <select id="m-company">
-          <option>נופר אנרגי</option><option>ליסקאר</option><option>שלמה סיקסט</option><option>הרץ</option><option>אחר</option>
-        </select>
+      <div class="modal-row"><label>חברה <span style="font-weight:400;color:#94a3b8;font-size:0.7rem">(ליסינג / בעלות — אפשר להקליד חדשה)</span></label>
+        <input id="m-company" type="text" list="company-list" autocomplete="off" placeholder="בחר או הקלד שם חברה">
+        <datalist id="company-list"></datalist>
       </div>
       <div class="modal-row" id="m-entity-row"><label>ישות בקבוצה <span style="font-weight:400;color:#94a3b8;font-size:0.7rem">(למי העובד שייך)</span></label>
         <select id="m-entity"></select>
@@ -1636,6 +1635,7 @@ async function loadFromFirestore() {
       if (typeof d.agentRules === 'string') { AGENT_RULES = d.agentRules; }
       if (typeof d.officerSignature === 'string') { window.OFFICER_SIGNATURE = d.officerSignature; }
       if (Array.isArray(d.entities)) ENTITIES = d.entities;
+      if (Array.isArray(d.leaseCompanies)) LEASE_COMPANIES = d.leaseCompanies;
       if (d.orgInfo && typeof d.orgInfo === 'object') { ORG_INFO = { name: d.orgInfo.name || '', hp: d.orgInfo.hp || '' }; }
       if (d.officerInfo && typeof d.officerInfo === 'object') { window.OFFICER_INFO = d.officerInfo; try { localStorage.setItem('fleet_officerInfo', JSON.stringify(d.officerInfo)); } catch(e){} }
       if (d.contacts && typeof d.contacts === 'object') { window.CONTACTS = _ensureContacts({ list: d.contacts.list || [], emails: d.contacts.emails || [], byPlate: d.contacts.byPlate || {} }); try { localStorage.setItem('fleet_contacts', JSON.stringify(window.CONTACTS)); } catch(e){} const _cb = document.getElementById('contacts-list'); if (_cb) renderContacts(); }
@@ -1643,6 +1643,19 @@ async function loadFromFirestore() {
       if (typeof updateKmBanner === 'function') updateKmBanner();
       if (typeof maybeSendKmReminder === 'function') maybeSendKmReminder();
       if (!ENTITIES.length) ENTITIES = defaultEntities();
+    else {
+      // רשימה שנשמרה לפני שהושלמו פרטי ישות (למשל ח.פ שטרם היה ידוע) —
+      // משלימים ממנה רק שדות ריקים, בלי לדרוס מה שהוקלד ידנית
+      let _fixed = false;
+      defaultEntities().forEach(def => {
+        const cur = ENTITIES.find(e => e.id === def.id);
+        if (!cur) { ENTITIES.push({ ...def }); _fixed = true; return; }
+        ['legal','hp','color','name'].forEach(k => {
+          if (!cur[k] && def[k]) { cur[k] = def[k]; _fixed = true; }
+        });
+      });
+      if (_fixed) { try { fcol().doc('main').set({ entities: ENTITIES }, { merge: true }); } catch(e) {} }
+    }
     if (migrateVehicleEntities()) {
       try { fcol().doc('main').set({ vehicles: stripUndef(VEHICLES), entities: ENTITIES }, { merge: true }); } catch(e) {}
     } else if (Array.isArray(d.entities) === false && ENTITIES.length) {
@@ -3387,6 +3400,36 @@ async function transferPdf() {
   } finally { document.body.removeChild(holder); }
 }
 
+// ═══ חברות ליסינג ═══
+// רשימת ההצעות לשדה "חברה". נשמרת ב-main.leaseCompanies, ומתעדכנת
+// מאליה בכל פעם שמוקלד שם חדש — אין צורך לגעת בקוד כדי להוסיף חברה.
+let LEASE_COMPANIES = [];
+const LEASE_SEED = ['ליסקאר', 'שלמה סיקסט', 'הרץ', 'תיר', 'פסיפיק'];
+
+function buildCompanyDatalist() {
+  const dl = document.getElementById('company-list');
+  if (!dl) return;
+  // איחוד: הרשימה השמורה, זרעי ברירת המחדל, וכל מה שכבר בשימוש בצי
+  const used = (VEHICLES || []).map(v => String(v.company || '').trim()).filter(Boolean);
+  const all = [...new Set([...LEASE_COMPANIES, ...LEASE_SEED, ...used])]
+    .filter(Boolean).sort((a, b) => a.localeCompare(b, 'he'));
+  const sig = all.join('|');
+  if (dl._sig === sig) return;
+  dl._sig = sig;
+  dl.innerHTML = all.map(n => `<option value="${esc(n)}"></option>`).join('');
+}
+
+// שם חדש שהוקלד נרשם לרשימה כדי שיוצע בפעם הבאה
+function registerLeaseCompany(name) {
+  const n = String(name || '').trim();
+  if (!n) return;
+  const known = new Set([...LEASE_COMPANIES, ...LEASE_SEED]);
+  if (known.has(n)) return;
+  LEASE_COMPANIES.push(n);
+  try { fcol().doc('main').set({ leaseCompanies: LEASE_COMPANIES }, { merge: true }); } catch(e) {}
+  buildCompanyDatalist();
+}
+
 // ═══ ישויות הקבוצה ═══
 // לאיזו חברה בתוך הקבוצה שייך הרכב/העובד. מובחן במכוון מ-v.company,
 // שהוא חברת הליסינג (ממי הרכב מושכר) ומשמש לפילוח אחר לגמרי.
@@ -3396,7 +3439,7 @@ let ENTITIES = [];
 const NOFAR_ENTITIES = [
   { id:'israel', name:'נופר אנרגיה בישראל',   legal:'נופר אנרגיה בישראל בע"מ', hp:'517252987', color:'#2563eb' },
   { id:'mata',   name:'ע.י נופר אנרגי (מטה)', legal:'ע.י נופר אנרג\'י בע"מ',   hp:'514599943', color:'#059669' },
-  { id:'ev',     name:'נופר EV',              legal:'נופר EV בע"מ',            hp:'',          color:'#7c3aed' }
+  { id:'ev',     name:'נופר EV',              legal:'נופר EV בע"מ',            hp:'540329810', color:'#7c3aed' }
 ];
 function defaultEntities() { return TENANT === 'nofar' ? NOFAR_ENTITIES.map(e => ({ ...e })) : []; }
 function entityById(id) { return ENTITIES.find(e => e.id === id) || null; }
@@ -5961,6 +6004,8 @@ let editingPlate = null;
 function openAddVehicle() {
   editingPlate = null;
   _modalDriverKey = ''; _modalDriverEmail = '';
+  buildCompanyDatalist();
+  document.getElementById('m-company').value = '';
   buildEntitySelect(document.getElementById('m-entity'), '');
   const _er0 = document.getElementById('m-entity-row');
   if (_er0) _er0.style.display = ENTITIES.length ? '' : 'none';
@@ -5997,9 +6042,8 @@ function editVehicle(plate) {
   document.getElementById('m-traffic').value = v.trafficRecord||'';
   document.getElementById('m-procedures').value = v.procedures||'';
   document.getElementById('m-notes').value = v.notes||'';
-  const co = v.company||'';
-  const sel = document.getElementById('m-company');
-  for (let o of sel.options) { if (co.includes(o.value.replace('נופר אנרגי','נופר').split(' ')[0])) { o.selected=true; break; } }
+  buildCompanyDatalist();
+  document.getElementById('m-company').value = v.company || '';
   buildEntitySelect(document.getElementById('m-entity'), vehicleEntity(v));
   const _er = document.getElementById('m-entity-row');
   if (_er) _er.style.display = ENTITIES.length ? '' : 'none';   // מוסתר ללקוח בלי ישויות
@@ -6113,6 +6157,7 @@ function saveVehicle() {
   } else {
     VEHICLES.unshift(v);
   }
+  registerLeaseCompany(v.company);
   // החלפת נהג ברכב: המייל של הקודם לא עובר לחדש
   if (_prevV) {
     const _prevDk = driverKey(_prevV.driverName);
@@ -6874,6 +6919,7 @@ function wipeSeedData() {
   if (typeof COSTS !== 'undefined') COSTS = {};
   if (typeof ORG_INFO !== 'undefined') ORG_INFO = { name: '', hp: '' };
   if (typeof ENTITIES !== 'undefined') ENTITIES = [];
+  if (typeof LEASE_COMPANIES !== 'undefined') LEASE_COMPANIES = [];
   window.CONTACTS = { list: [], emails: [], byPlate: {} };
   window.OFFICER_INFO = null;
   window.OFFICER_SIGNATURE = '';
