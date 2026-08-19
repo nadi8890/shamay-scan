@@ -441,6 +441,9 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
     <select class="filter-select" id="fleet-company" onchange="renderFleet()">
       <option value="">כל החברות</option>
     </select>
+    <select class="filter-select" id="fleet-entity" onchange="renderFleet()" style="display:none">
+      <option value="">כל הישויות</option>
+    </select>
     <select class="filter-select" id="fleet-status" onchange="renderFleet()">
       <option value="">כל הסטטוסים</option>
       <option value="expired">פג תוקף 🔴</option>
@@ -862,6 +865,8 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
   .fcard.is-soon{border-right-color:#f97316;background:#fffaf5}
   .fcard-top{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
   .fcard-plate{font-weight:900;font-size:1.05rem;color:var(--accent);direction:ltr;letter-spacing:.5px}
+  .fcard-entity{display:inline-block;font-size:0.68rem;font-weight:700;margin-top:5px;
+                padding:2px 8px;border-radius:5px;background:#eef2ff;color:#3730a3;border:1px solid #c7d2fe}
   .fcard-sub{font-size:0.82rem;color:var(--muted);margin:3px 0 9px}
   .fcard-chips{display:flex;flex-wrap:wrap;gap:5px}
   .fchip{display:inline-flex;align-items:center;gap:3px;border-radius:7px;padding:4px 8px;
@@ -1284,10 +1289,13 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
     <h3 id="modal-title">הוסף רכב</h3>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
       <div class="modal-row"><label>מס׳ רישוי <span style="font-weight:400;color:#94a3b8;font-size:0.7rem">(השאר ריק לעובד/ת ללא רכב)</span></label><div style="display:flex;gap:5px;align-items:center"><input id="m-plate" type="text" placeholder="12345678" style="flex:1" onblur="autoFillFromGov(this.value)"><span id="m-gov-status" style="font-size:0.7rem;color:#64748b;white-space:nowrap"></span></div></div>
-      <div class="modal-row"><label>חברה</label>
+      <div class="modal-row"><label>חברה <span style="font-weight:400;color:#94a3b8;font-size:0.7rem">(ליסינג / בעלות)</span></label>
         <select id="m-company">
           <option>נופר אנרגי</option><option>ליסקאר</option><option>שלמה סיקסט</option><option>הרץ</option><option>אחר</option>
         </select>
+      </div>
+      <div class="modal-row" id="m-entity-row"><label>ישות בקבוצה <span style="font-weight:400;color:#94a3b8;font-size:0.7rem">(למי העובד שייך)</span></label>
+        <select id="m-entity"></select>
       </div>
       <div class="modal-row"><label>יצרן</label><input id="m-make" type="text" placeholder="מיצובישי"></div>
       <div class="modal-row"><label>דגם</label><input id="m-model" type="text" placeholder="אאוטלנדר"></div>
@@ -1627,13 +1635,20 @@ async function loadFromFirestore() {
       if (d.drivers) { DRIVERS = d.drivers; }
       if (typeof d.agentRules === 'string') { AGENT_RULES = d.agentRules; }
       if (typeof d.officerSignature === 'string') { window.OFFICER_SIGNATURE = d.officerSignature; }
+      if (Array.isArray(d.entities)) ENTITIES = d.entities;
       if (d.orgInfo && typeof d.orgInfo === 'object') { ORG_INFO = { name: d.orgInfo.name || '', hp: d.orgInfo.hp || '' }; }
       if (d.officerInfo && typeof d.officerInfo === 'object') { window.OFFICER_INFO = d.officerInfo; try { localStorage.setItem('fleet_officerInfo', JSON.stringify(d.officerInfo)); } catch(e){} }
       if (d.contacts && typeof d.contacts === 'object') { window.CONTACTS = _ensureContacts({ list: d.contacts.list || [], emails: d.contacts.emails || [], byPlate: d.contacts.byPlate || {} }); try { localStorage.setItem('fleet_contacts', JSON.stringify(window.CONTACTS)); } catch(e){} const _cb = document.getElementById('contacts-list'); if (_cb) renderContacts(); }
       rebuildDriversDirectory();
       if (typeof updateKmBanner === 'function') updateKmBanner();
       if (typeof maybeSendKmReminder === 'function') maybeSendKmReminder();
-      _firestoreLoaded = true;
+      if (!ENTITIES.length) ENTITIES = defaultEntities();
+    if (migrateVehicleEntities()) {
+      try { fcol().doc('main').set({ vehicles: stripUndef(VEHICLES), entities: ENTITIES }, { merge: true }); } catch(e) {}
+    } else if (Array.isArray(d.entities) === false && ENTITIES.length) {
+      try { fcol().doc('main').set({ entities: ENTITIES }, { merge: true }); } catch(e) {}
+    }
+    _firestoreLoaded = true;
       if (typeof checkServiceOverages === 'function') checkServiceOverages();
       // one-time: move legacy arrays out of main, then backfill inspections, then back up
       migrateArchivesToSubdocs().then(runStartupSync); // one coordinated, race-free write
@@ -1869,6 +1884,7 @@ function rebuildDriversDirectory() {
     if (v.trafficRecord) DRIVERS[n].trafficRecord = v.trafficRecord;
     if (v.driverPhone) DRIVERS[n].driverPhone = v.driverPhone;
     if (v.driverEmail) DRIVERS[n].driverEmail = v.driverEmail;
+    if (v.entity) DRIVERS[n].entity = v.entity;
     const aff = driverAffiliation(v.driverName);
     if (aff) DRIVERS[n].affiliation = aff;
   });
@@ -1882,6 +1898,7 @@ function syncDriverToVehicles(n) {
       if (d.trafficRecord) v.trafficRecord = d.trafficRecord;
       if (d.driverPhone) v.driverPhone = d.driverPhone;
       if (d.driverEmail) v.driverEmail = d.driverEmail;
+      if (d.entity && !v.entity) v.entity = d.entity;
       // keep the affiliation on the name if it was dropped somewhere along the way
       if (d.affiliation && !driverAffiliation(v.driverName)) v.driverName = withAffiliation(v.driverName, d.affiliation);
     }
@@ -2676,10 +2693,12 @@ function renderManagerDashboard() {
     }
   }
 
-  // ── חלוקה לפי חטיבה: נופר ישראל (ישראל) / ע.י (מטה) ──
-  const _div = v => { const a = driverAffiliation(v.driverName); if (a.includes('מטה')) return 'ע.י'; if (a.includes('ישראל')) return 'נופר ישראל'; return 'ללא שיוך'; };
-  const divOrder = ['נופר ישראל', 'ע.י', 'ללא שיוך'];
-  const divColors = { 'נופר ישראל': '#2563eb', 'ע.י': '#059669', 'ללא שיוך': '#64748b' };
+  // ── חלוקה לפי ישות בקבוצה — נבנית מרשימת הישויות, לא מרשימה קשיחה ──
+  const _div = v => { const id = vehicleEntity(v); return id ? entityName(id) : 'ללא שיוך'; };
+  const divOrder = ENTITIES.map(e => e.name).concat(['ללא שיוך']);
+  const divColors = {};
+  ENTITIES.forEach(e => { divColors[e.name] = e.color || '#64748b'; });
+  divColors['ללא שיוך'] = '#64748b';
   const divStats = {}; divOrder.forEach(k => divStats[k] = { count: 0, service: 0, overdue: 0, alerts: 0 });
   active.forEach(v => { const k = _div(v); if (!divStats[k]) divStats[k] = { count: 0, service: 0, overdue: 0, alerts: 0 }; divStats[k].count++; const c = parseKm(v.currentKm), n = parseKm(v.nextServiceKm); if (c > 0 && n > 0 && c >= n) divStats[k].service++; });
   const plateDiv = {}; active.forEach(v => { plateDiv[String(v.plate||'').replace(/\D/g,'')] = _div(v); });
@@ -2862,6 +2881,22 @@ function updateOnboarding() {
 
 // רשימת החברות נבנית מהצי עצמו במקום מרשימה מקושחת של חברות הליסינג
 // של נופר. לקוח חדש רואה את החברות שלו ברגע שהוא מזין רכבים.
+// מסנן הישויות מוצג רק ללקוח שהוגדרו לו ישויות
+function buildEntityFilter() {
+  const sel = document.getElementById('fleet-entity');
+  if (!sel) return;
+  if (!ENTITIES.length) { sel.style.display = 'none'; return; }
+  sel.style.display = '';
+  const sig = ENTITIES.map(e => e.id + ':' + e.name).join('|');
+  if (sel._sig === sig) return;
+  sel._sig = sig;
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">כל הישויות</option>' +
+    ENTITIES.map(e => `<option value="${esc(e.id)}">${esc(e.name)}</option>`).join('') +
+    '<option value="__none">ללא שיוך</option>';
+  sel.value = cur;
+}
+
 function buildCompanyFilter() {
   const sel = document.getElementById('fleet-company');
   if (!sel) return;
@@ -2880,6 +2915,7 @@ function renderFleet() {
   const q = (document.getElementById('fleet-search').value||'').toLowerCase();
   const co = document.getElementById('fleet-company').value;
   const st = document.getElementById('fleet-status').value;
+  const ent = (document.getElementById('fleet-entity')||{}).value || '';
 
   let filtered = VEHICLES.filter(v => {
     if (q) {
@@ -2887,6 +2923,7 @@ function renderFleet() {
       if (!hay.includes(q)) return false;
     }
     if (co && String(v.company||'').trim() !== co) return false;
+    if (ent) { const _ve = vehicleEntity(v); if (ent === '__none' ? _ve : _ve !== ent) return false; }
     if (st) {
       const dates = [v.registrationExpiry,v.insuranceExpiry,v.licenseExpiry,nextInspectionStr(v)];
       const hasExpired = dates.some(d => { const x=daysUntil(d); return x!==null && x<0; });
@@ -2936,6 +2973,7 @@ function renderFleet() {
   }
 
   buildCompanyFilter();
+  buildEntityFilter();
   buildColFilterRow(VEHICLES);
   updateSortArrows();
   updateOnboarding();
@@ -3349,6 +3387,50 @@ async function transferPdf() {
   } finally { document.body.removeChild(holder); }
 }
 
+// ═══ ישויות הקבוצה ═══
+// לאיזו חברה בתוך הקבוצה שייך הרכב/העובד. מובחן במכוון מ-v.company,
+// שהוא חברת הליסינג (ממי הרכב מושכר) ומשמש לפילוח אחר לגמרי.
+// עד כה השיוך נגזר מסיומת בשם הנהג ("דנה כהן-ישראל") — שיטה שלא
+// מתרחבת ליותר משתי חברות ומחייבת הקלדה בכל שם.
+let ENTITIES = [];
+const NOFAR_ENTITIES = [
+  { id:'israel', name:'נופר אנרגיה בישראל',   legal:'נופר אנרגיה בישראל בע"מ', hp:'517252987', color:'#2563eb' },
+  { id:'mata',   name:'ע.י נופר אנרגי (מטה)', legal:'ע.י נופר אנרג\'י בע"מ',   hp:'514599943', color:'#059669' },
+  { id:'ev',     name:'נופר EV',              legal:'נופר EV בע"מ',            hp:'',          color:'#7c3aed' }
+];
+function defaultEntities() { return TENANT === 'nofar' ? NOFAR_ENTITIES.map(e => ({ ...e })) : []; }
+function entityById(id) { return ENTITIES.find(e => e.id === id) || null; }
+function entityName(id) { const e = entityById(id); return e ? e.name : ''; }
+
+// שיוך רכב לישות: השדה המפורש קודם, ובהיעדרו נפילה חזרה לסיומת ההיסטורית
+function vehicleEntity(v) {
+  if (v && v.entity && entityById(v.entity)) return v.entity;
+  const a = driverAffiliation(v && v.driverName);
+  if (a.includes('מטה')) return 'mata';
+  if (a.includes('ישראל')) return 'israel';
+  return '';
+}
+
+// השלמה חד־פעמית לרכבים שנוצרו לפני שהשדה היה קיים
+function migrateVehicleEntities() {
+  if (!ENTITIES.length) return 0;
+  let n = 0;
+  VEHICLES.forEach(v => {
+    if (v.entity) return;
+    const id = vehicleEntity(v);
+    if (id) { v.entity = id; n++; }
+  });
+  if (n) console.log('entity migration: filled', n, 'vehicles');
+  return n;
+}
+
+function buildEntitySelect(sel, current) {
+  if (!sel) return;
+  sel.innerHTML = '<option value="">— ללא שיוך —</option>' +
+    ENTITIES.map(e => `<option value="${esc(e.id)}"${e.id === current ? ' selected' : ''}>${esc(e.name)}</option>`).join('');
+  sel.value = current || '';
+}
+
 // ═══ אישור החזקה ברכב לעירייה ═══
 // חברת ההעסקה נקבעת לפי אם בשם העובד רשום "ישראל" או "מטה" → קובע את הח.פ.
 const CITY_PERMIT_COMPANIES = {
@@ -3385,8 +3467,23 @@ async function _cpGovColor(plate){
 // לקוח אחר הם נשמרים ב-main.orgInfo ונטענים משם, כדי שהמכתב לא ייצא
 // עם השם והח.פ. של נופר.
 let ORG_INFO = { name: '', hp: '' };
+// כפתורי הבחירה נבנים מרשימת הישויות, כך שהוספת חברה לקבוצה מופיעה
+// כאן מאליה בלי לגעת בקוד
+function buildCpDivOpts() {
+  const box = document.getElementById('cp-div-opts');
+  if (!box) return;
+  box.innerHTML = ENTITIES.map(e =>
+    `<label style="font-weight:600;font-size:0.85rem;display:flex;align-items:center;gap:5px;cursor:pointer">` +
+    `<input type="radio" name="cp-div" value="${esc(e.id)}" onchange="cpSetCompany()"> ${esc(e.legal || e.name)}` +
+    (e.hp ? ` <span style="color:#94a3b8;direction:ltr">(${esc(e.hp)})</span>` : ` <span style="color:#b45309">— חסר ח.פ</span>`) +
+    `</label>`).join('');
+}
+
 function cpSetCompany(){
   const set = (id,v) => { const el = document.getElementById(id); if(el) el.value = v; };
+  const picked = (document.querySelector('input[name="cp-div"]:checked')||{}).value || '';
+  const ent = entityById(picked);
+  if (ent) { set('cp-company', ent.legal || ent.name); set('cp-hp', ent.hp || ''); return; }
   const row = document.getElementById('cp-div-row');
   if (TENANT !== 'nofar') {
     if (row) row.style.display = 'none';
@@ -3401,6 +3498,21 @@ function cpSetCompany(){
 }
 // מה שהוקלד בשדות נשמר לארגון, כך שבפעם הבאה המכתב כבר מגיע מלא
 function cpRememberOrg(){
+  // ח.פ שהוקלד לישות נשמר עליה, כדי שלא יידרש שוב בפעם הבאה
+  const picked = (document.querySelector('input[name="cp-div"]:checked')||{}).value || '';
+  const ent = entityById(picked);
+  if (ent) {
+    const hp = ((document.getElementById('cp-hp')||{}).value || '').trim();
+    const nm = ((document.getElementById('cp-company')||{}).value || '').trim();
+    if (hp !== (ent.hp||'') || nm !== (ent.legal||'')) {
+      ent.hp = hp; if (nm) ent.legal = nm;
+      try { fcol().doc('main').set({ entities: ENTITIES }, { merge: true }); } catch(e) {}
+      buildCpDivOpts();
+      const r2 = document.querySelector(`input[name="cp-div"][value="${picked}"]`);
+      if (r2) r2.checked = true;
+    }
+    return;
+  }
   if (TENANT === 'nofar') return;
   const name = (document.getElementById('cp-company')||{}).value || '';
   const hp   = (document.getElementById('cp-hp')||{}).value || '';
@@ -3423,15 +3535,28 @@ function _cpFillFromVehicle(v){
   _cpSet('cp-make', ((v.make||'')+' '+(v.model||'')).trim());
   _cpSet('cp-color', '');
   // זיהוי חטיבה מתוך שם הנהג (ברירת מחדל: ישראל, עם מתג ידני כגיבוי)
-  const div = _cpDetectDivision(v.driverName) || 'israel';
-  const radio = document.querySelector(`input[name="cp-div"][value="${div}"]`);
-  if(radio) radio.checked = true;
-  cpSetCompany();
-  const detected = _cpDetectDivision(v.driverName);
+  buildCpDivOpts();
+  const _row = document.getElementById('cp-div-row');
+  if (_row) _row.style.display = ENTITIES.length ? '' : 'none';
+  // הישות של הרכב קובעת את שם החברה והח.פ במכתב
+  const entId = vehicleEntity(v);
+  const ent = entityById(entId);
   const dn = document.getElementById('cp-div-note');
-  if(dn) dn.textContent = detected
-    ? `זוהה אוטומטית מתוך שם העובד: ${detected==='mata'?'מטה':'ישראל'}`
-    : '⚠ לא זוהה ישראל/מטה בשם העובד — בחר ידנית (ברירת מחדל: ישראל).';
+  if (ent) {
+    _cpSet('cp-company', ent.legal || ent.name);
+    _cpSet('cp-hp', ent.hp || '');
+    const radio = document.querySelector(`input[name="cp-div"][value="${entId}"]`);
+    if (radio) radio.checked = true;
+    if (dn) dn.textContent = ent.hp
+      ? `לפי הישות המשויכת לרכב: ${ent.name}`
+      : `⚠ הישות ${ent.name} — חסר ח.פ. מלא ידנית והוא יישמר להמשך.`;
+  } else {
+    const div = _cpDetectDivision(v.driverName) || 'israel';
+    const radio = document.querySelector(`input[name="cp-div"][value="${div}"]`);
+    if(radio) radio.checked = true;
+    cpSetCompany();
+    if(dn) dn.textContent = '⚠ לרכב אין ישות משויכת — בחר ידנית בטופס עריכת הרכב.';
+  }
   // משיכת צבע מהמאגר הממשלתי (אסינכרוני)
   const cl = document.getElementById('cp-color-load');
   if(cl) cl.textContent = '(טוען מהמאגר...)';
@@ -5836,6 +5961,9 @@ let editingPlate = null;
 function openAddVehicle() {
   editingPlate = null;
   _modalDriverKey = ''; _modalDriverEmail = '';
+  buildEntitySelect(document.getElementById('m-entity'), '');
+  const _er0 = document.getElementById('m-entity-row');
+  if (_er0) _er0.style.display = ENTITIES.length ? '' : 'none';
   document.getElementById('modal-title').textContent = 'הוסף רכב חדש';
   ['m-plate','m-make','m-model','m-year','m-driver','m-phone','m-email','m-regExpiry','m-insExpiry','m-licExpiry','m-inspection','m-from','m-km','m-nextKm','m-serviceDate','m-traffic','m-procedures','m-notes'].forEach(id => {
     document.getElementById(id).value = '';
@@ -5872,6 +6000,9 @@ function editVehicle(plate) {
   const co = v.company||'';
   const sel = document.getElementById('m-company');
   for (let o of sel.options) { if (co.includes(o.value.replace('נופר אנרגי','נופר').split(' ')[0])) { o.selected=true; break; } }
+  buildEntitySelect(document.getElementById('m-entity'), vehicleEntity(v));
+  const _er = document.getElementById('m-entity-row');
+  if (_er) _er.style.display = ENTITIES.length ? '' : 'none';   // מוסתר ללקוח בלי ישויות
   renderVehicleDocsUI();   // show this vehicle's saved documents
   document.getElementById('vehicle-modal').classList.add('open');
 }
@@ -5959,6 +6090,7 @@ function saveVehicle() {
     model: document.getElementById('m-model').value.trim(),
     year: document.getElementById('m-year').value.trim(),
     company: document.getElementById('m-company').value,
+    entity: (document.getElementById('m-entity')||{}).value || '',
     driverName: document.getElementById('m-driver').value.trim(),
     driverPhone: document.getElementById('m-phone').value.trim(),
     driverEmail: document.getElementById('m-email').value.trim(),
@@ -6006,6 +6138,8 @@ function saveVehicle() {
     else if (DRIVERS[_dk].driverPhone) v.driverPhone = DRIVERS[_dk].driverPhone;
     if (v.driverEmail) DRIVERS[_dk].driverEmail = v.driverEmail;
     else if (DRIVERS[_dk].driverEmail) v.driverEmail = DRIVERS[_dk].driverEmail;
+    if (v.entity) DRIVERS[_dk].entity = v.entity;
+    else if (DRIVERS[_dk].entity) v.entity = DRIVERS[_dk].entity;
     // affiliation (ישראל / מטה) belongs to the driver — keep it on the name even
     // when the name was typed without it
     const _aff = driverAffiliation(v.driverName);
@@ -6739,6 +6873,7 @@ function wipeSeedData() {
   // של לקוח אחר. COSTS מכיל נתוני תדלוק, CONTACTS את ספר הטלפונים.
   if (typeof COSTS !== 'undefined') COSTS = {};
   if (typeof ORG_INFO !== 'undefined') ORG_INFO = { name: '', hp: '' };
+  if (typeof ENTITIES !== 'undefined') ENTITIES = [];
   window.CONTACTS = { list: [], emails: [], byPlate: {} };
   window.OFFICER_INFO = null;
   window.OFFICER_SIGNATURE = '';
@@ -7780,6 +7915,7 @@ async function replaceVehicleAction(param) {
     nv.driverId = old.driverId || '';
     nv.driverPhone = old.driverPhone || '';
     nv.driverEmail = old.driverEmail || '';   // בלי זה פורטל המסמכים של הנהג נשבר ברכב החדש
+    nv.entity = old.entity || vehicleEntity(old) || '';
     nv.children = old.children || '';
     nv.licenseExpiry = old.licenseExpiry || nv.licenseExpiry || '';
     nv.trafficRecord = old.trafficRecord || '';
@@ -8418,10 +8554,7 @@ function renderAgentMsgs(showTyping = false) {
       <!-- פיצול ישראל/מטה הוא מבנה של נופר בלבד. cpSetCompany מסתיר את
            הבלוק לכל לקוח אחר ומזין את פרטי הארגון שלו במקום. -->
       <div class="modal-row" id="cp-div-row" style="grid-column:1/-1">
-        <div style="display:flex;flex-wrap:wrap;gap:16px;margin-bottom:4px">
-          <label style="font-weight:600;font-size:0.85rem;display:flex;align-items:center;gap:5px;cursor:pointer"><input type="radio" name="cp-div" value="israel" onchange="cpSetCompany()"> נופר אנרגיה בישראל בע"מ <span style="color:#94a3b8;direction:ltr">(517252987)</span></label>
-          <label style="font-weight:600;font-size:0.85rem;display:flex;align-items:center;gap:5px;cursor:pointer"><input type="radio" name="cp-div" value="mata" onchange="cpSetCompany()"> ע.י נופר אנרג'י בע"מ <span style="color:#94a3b8;direction:ltr">(514599943)</span></label>
-        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:16px;margin-bottom:4px" id="cp-div-opts"></div>
         <div id="cp-div-note" style="font-size:0.72rem;color:#64748b"></div>
       </div>
       <div class="modal-row"><label>שם החברה (בטופס)</label><input id="cp-company" type="text" onchange="cpRememberOrg()"></div>
@@ -8725,6 +8858,7 @@ function renderFleetCards(list) {
     const plateTxt  = noVeh ? 'ללא רכב' : (esc(v.plate) || '---');
     const driverNm  = esc(drv.split('-')[0]) || '---';
     const kmLeft    = parseKm(v.nextServiceKm) - parseKm(v.currentKm);
+    const entName   = esc(entityName(vehicleEntity(v)));
 
     const chips = [
       _fchip('רישוי', regD),
@@ -8749,6 +8883,7 @@ function renderFleetCards(list) {
         '<span class="fcard-plate">' + plateTxt + '</span>' +
         companyBadge(v.company) +
       '</div>' +
+      (entName ? '<div class="fcard-entity">' + entName + '</div>' : '') +
       '<div class="fcard-sub">' + (esc(v.make) + ' ' + esc(v.model)).trim() +
         (v.year ? ' | ' + esc(v.year) : '') + ' | ' + driverNm + '</div>' +
       '<div class="fcard-chips">' + chips + '</div>' +
