@@ -1647,6 +1647,11 @@ async function loadFromFirestore() {
       // רשימה שנשמרה לפני שהושלמו פרטי ישות (למשל ח.פ שטרם היה ידוע) —
       // משלימים ממנה רק שדות ריקים, בלי לדרוס מה שהוקלד ידנית
       let _fixed = false;
+      // תיקון נקודתי: ח.פ שגוי של נופר EV שנשמר ב-19.8.2026 לפני שהתקבל
+      // המספר הנכון. מתוקן רק אם הערך הוא בדיוק השגוי הידוע, כדי לא
+      // לדרוס מספר שהוקלד ידנית מאז.
+      const _evFix = ENTITIES.find(e => e.id === 'ev' && e.hp === '540329810');
+      if (_evFix) { _evFix.hp = '540321494'; _fixed = true; }
       defaultEntities().forEach(def => {
         const cur = ENTITIES.find(e => e.id === def.id);
         if (!cur) { ENTITIES.push({ ...def }); _fixed = true; return; }
@@ -3439,7 +3444,7 @@ let ENTITIES = [];
 const NOFAR_ENTITIES = [
   { id:'israel', name:'נופר אנרגיה בישראל',   legal:'נופר אנרגיה בישראל בע"מ', hp:'517252987', color:'#2563eb' },
   { id:'mata',   name:'ע.י נופר אנרגי (מטה)', legal:'ע.י נופר אנרג\'י בע"מ',   hp:'514599943', color:'#059669' },
-  { id:'ev',     name:'נופר EV',              legal:'נופר EV בע"מ',            hp:'540329810', color:'#7c3aed' }
+  { id:'ev',     name:'נופר EV',              legal:'נופר EV בע"מ',            hp:'540321494', color:'#7c3aed' }
 ];
 function defaultEntities() { return TENANT === 'nofar' ? NOFAR_ENTITIES.map(e => ({ ...e })) : []; }
 function entityById(id) { return ENTITIES.find(e => e.id === id) || null; }
