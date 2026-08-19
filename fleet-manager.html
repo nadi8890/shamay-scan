@@ -6063,6 +6063,8 @@ let editingPlate = null;
 function openAddVehicle() {
   editingPlate = null;
   _modalDriverKey = ''; _modalDriverEmail = '';
+  _lastGovRec = null;
+  const _gs = document.getElementById('m-gov-status'); if (_gs) _gs.textContent = '';
   buildCompanyDatalist();
   document.getElementById('m-company').value = '';
   buildEntitySelect(document.getElementById('m-entity'), '');
@@ -6101,6 +6103,8 @@ function editVehicle(plate) {
   document.getElementById('m-traffic').value = v.trafficRecord||'';
   document.getElementById('m-procedures').value = v.procedures||'';
   document.getElementById('m-notes').value = v.notes||'';
+  _lastGovRec = null;
+  const _gs2 = document.getElementById('m-gov-status'); if (_gs2) _gs2.textContent = '';
   buildCompanyDatalist();
   document.getElementById('m-company').value = v.company || '';
   buildEntitySelect(document.getElementById('m-entity'), vehicleEntity(v));
@@ -8213,26 +8217,75 @@ async function syncVehicleFromGov(plate) {
   return { ...lookup, action:'סונכרן', synced:true };
 }
 
-async function autoFillFromGov(rawPlate) {
-  const plate = rawPlate.replace(/\D/g,'');
-  if (plate.length < 7) return;
-  // works in BOTH add and edit ("pencil") modes — fills only empty fields, never overwrites
-  // what you already typed. To re-pull a field, clear it and tab out of the plate box.
+// הרשומה האחרונה שנשלפה, כדי שאפשר יהיה להחיל אותה בלחיצה
+let _lastGovRec = null;
+
+function _govDateStr(s) {
+  if (!s) return '';
+  const d = new Date(s);
+  return isNaN(d) ? '' : ('0'+d.getDate()).slice(-2)+'/'+('0'+(d.getMonth()+1)).slice(-2)+'/'+d.getFullYear();
+}
+
+// השדות שהמאגר יודע למלא, עם התווית שלהם
+function _govFields(rec) {
+  return [
+    ['m-make',      'יצרן',        rec.tozeret_nm || ''],
+    ['m-model',     'דגם',         rec.degem_nm || rec.kinuy_mishari || ''],
+    ['m-year',      'שנתון',       rec.shnat_yitzur ? String(rec.shnat_yitzur) : ''],
+    ['m-regExpiry', 'תוקף רישוי',  _govDateStr(rec.tokef_dt)]
+  ].filter(f => f[2]);
+}
+
+// force=true דורס גם שדות שכבר מלאים
+function applyGovRecord(force) {
+  if (!_lastGovRec) return;
+  let n = 0;
+  _govFields(_lastGovRec).forEach(([id, , val]) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if ((force || !el.value) && el.value !== val) { el.value = val; n++; }
+  });
+  _govRenderStatus(n);
+  return n;
+}
+
+function _govRenderStatus(justFilled) {
   const statusEl = document.getElementById('m-gov-status');
+  if (!statusEl || !_lastGovRec) return;
+  const rec = _lastGovRec;
+  const title = [rec.tozeret_nm, rec.degem_nm || rec.kinuy_mishari].filter(Boolean).join(' ');
+  // מה במאגר שונה ממה שרשום בטופס כרגע
+  const diff = _govFields(rec).filter(([id, , val]) => {
+    const el = document.getElementById(id);
+    return el && el.value !== val;
+  });
+  let html = `✅ נמצא: ${esc(title)}`;
+  if (justFilled) html += ` · מולאו ${justFilled}`;
+  if (diff.length) {
+    const list = diff.map(([, lab, val]) => lab + ': ' + val).join(' · ');
+    html += ` <button type="button" onclick="applyGovRecord(true)" title="${esc(list)}"` +
+            ` style="margin-inline-start:6px;padding:2px 9px;border:1px solid #2563eb;background:#eff6ff;` +
+            `color:#1e40af;border-radius:6px;font-family:inherit;font-size:0.7rem;font-weight:700;cursor:pointer">` +
+            `עדכן ${diff.length} מהמאגר</button>`;
+  } else {
+    html += ' · הפרטים תואמים';
+  }
+  statusEl.innerHTML = html;
+}
+
+async function autoFillFromGov(rawPlate) {
+  const plate = String(rawPlate || '').replace(/\D/g,'');
+  const statusEl = document.getElementById('m-gov-status');
+  if (plate.length < 7) { _lastGovRec = null; if (statusEl) statusEl.textContent = ''; return; }
   if (statusEl) statusEl.textContent = '⏳ מחפש במשרד הרישוי...';
   try {
     const rec = await govVehicleRecord(plate);
-    if (!rec) { if (statusEl) statusEl.textContent = '❌ לא נמצא במשרד הרישוי'; return; }
-    const fmtDate = s => { if(!s) return ''; const d=new Date(s); return isNaN(d)?'':('0'+d.getDate()).slice(-2)+'/'+('0'+(d.getMonth()+1)).slice(-2)+'/'+d.getFullYear(); };
-    let filled = 0;
-    const fill = (id, val) => { const el=document.getElementById(id); if(el && !el.value && val) { el.value=val; filled++; } };
-    fill('m-make', rec.tozeret_nm||'');
-    fill('m-model', rec.degem_nm||rec.kinuy_mishari||'');
-    fill('m-year',  rec.shnat_yitzur ? String(rec.shnat_yitzur) : '');
-    fill('m-regExpiry', fmtDate(rec.tokef_dt));
-    const found = `${rec.tozeret_nm||''} ${rec.degem_nm||''}`.trim();
-    if (statusEl) statusEl.textContent = filled ? `✅ נמצא: ${found} (מולאו ${filled} שדות)` : `✅ נמצא: ${found} (השדות כבר מלאים)`;
+    if (!rec) { _lastGovRec = null; if (statusEl) statusEl.textContent = '❌ לא נמצא במשרד הרישוי'; return; }
+    _lastGovRec = rec;
+    // ממלא מאליו רק שדות ריקים; מה שכבר רשום נשאר, ומוצע לעדכון בכפתור
+    applyGovRecord(false);
   } catch(e) {
+    _lastGovRec = null;
     if (statusEl) statusEl.textContent = '⚠ המאגר לא הגיב — נסה שוב או מלא ידנית';
     console.log('gov lookup failed:', e && e.message);
   }
