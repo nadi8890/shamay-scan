@@ -344,7 +344,7 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
 <!-- ═══ סרגל מערכות: שלוש מערכות נפרדות תחת אותה אפליקציה ═══ -->
 <div class="sys-bar" id="sys-bar" role="tablist" aria-label="מערכות">
   <button class="sys-btn active" data-sys="fleet"  type="button" role="tab" aria-selected="true"  onclick="showSystem('fleet')"><span class="sys-ico" aria-hidden="true">🚗</span>ניהול צי רכב</button>
-  <button class="sys-btn"        data-sys="shamai" type="button" role="tab" aria-selected="false" onclick="showSystem('shamai')"><span class="sys-ico" aria-hidden="true">🔍</span>שמאי AI</button>
+  <button class="sys-btn"        data-sys="shamai" type="button" role="tab" aria-selected="false" onclick="showSystem('shamai')"><span class="sys-ico" aria-hidden="true">🔍</span>שמAI</button>
   <button class="sys-btn"        data-sys="garage" type="button" role="tab" aria-selected="false" onclick="showSystem('garage')"><span class="sys-ico" aria-hidden="true">🔧</span>ניהול מוסך</button>
 </div>
 
@@ -785,6 +785,19 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
   font-family:'Heebo',sans-serif;font-size:0.72rem;outline:none;background:transparent;color:var(--text)}
 .op-photo button{width:100%;border:none;border-top:1px solid var(--border);background:#fef2f2;
   color:#b91c1c;padding:4px;font-size:0.7rem;cursor:pointer;font-family:'Heebo',sans-serif}
+.op-rows{margin-top:9px;display:flex;flex-direction:column;gap:6px}
+.op-line{display:grid;gap:5px;align-items:center}
+.op-line.adj{grid-template-columns:1fr 72px 92px 34px}
+.op-line.dmg{grid-template-columns:78px 1fr 82px 92px 34px}
+@media(max-width:600px){
+  .op-line.adj{grid-template-columns:1fr 64px 78px 32px}
+  .op-line.dmg{grid-template-columns:1fr 1fr;gap:4px}
+  .op-line.dmg .op-x{grid-column:2}
+}
+.op-line input{border:1px solid var(--border);border-radius:7px;padding:6px 8px;
+  font-family:'Heebo',sans-serif;font-size:0.8rem;background:var(--card);color:var(--text);min-width:0}
+.op-x{border:none;background:#fef2f2;color:#b91c1c;border-radius:7px;cursor:pointer;
+  font-size:0.85rem;padding:6px 0;font-family:'Heebo',sans-serif}
 .op-row{display:flex;align-items:center;gap:9px;padding:9px 4px;border-bottom:1px solid var(--border);cursor:pointer}
 .op-row:last-child{border-bottom:none}
 </style>
@@ -976,13 +989,13 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
 }
 </style>
 
-<!-- ══════════════ TAB: OPINION (שמאי AI) ══════════════ -->
+<!-- ══════════════ TAB: OPINION (שמAI) ══════════════ -->
 <div class="tab-content" id="tab-opinion">
   <div class="section-hdr">
     <span class="section-title">📝 חוות דעת שמאי</span>
     <div style="display:flex;gap:6px;flex-wrap:wrap">
-      <button class="btn btn-gray" onclick="opNew()">+ חוות דעת חדשה</button>
-      <button class="btn btn-gray" onclick="opToggleList()">📂 שמורות (<span id="op-count">0</span>)</button>
+      <button class="btn btn-gray" onclick="opNew()">+ חדשה</button>
+      <button class="btn btn-gray" onclick="opToggleList()">📂 תיקים (<span id="op-count">0</span>)</button>
     </div>
   </div>
 
@@ -990,47 +1003,73 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
 
   <div id="op-form">
     <div class="card">
-      <div class="card-title">🚗 הרכב והאירוע</div>
+      <div class="card-title">📁 פרטי התיק</div>
+      <div class="op-grid">
+        <div class="modal-row"><label>מס׳ תיק</label><input id="op-case" type="text" placeholder="187-25-626"></div>
+        <div class="modal-row"><label>תאריך חוות הדעת</label><input id="op-date" type="date"></div>
+        <div class="modal-row"><label>סוג תיק</label><input id="op-casetype" type="text" placeholder="פרטי"></div>
+        <div class="modal-row"><label>סוג הנזק</label><input id="op-damagetype" type="text" placeholder="תאונה"></div>
+        <div class="modal-row"><label>תאריך אירוע</label><input id="op-eventdate" type="date"></div>
+        <div class="modal-row"><label>בדיקה ראשונה</label><input id="op-inspdate" type="date"></div>
+        <div class="modal-row" style="grid-column:1/-1"><label>מקום הבדיקה</label><input id="op-inspplace" type="text" placeholder="חצר המזמין - מושב ריחן"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">👤 לכבוד / בעל הרכב</div>
+      <div class="op-grid">
+        <div class="modal-row"><label>שם</label><input id="op-owner" type="text"></div>
+        <div class="modal-row"><label>טלפון</label><input id="op-phone" type="tel" style="direction:ltr"></div>
+        <div class="modal-row" style="grid-column:1/-1"><label>כתובת</label><input id="op-address" type="text"></div>
+        <div class="modal-row"><label>מזמין (אם שונה)</label><input id="op-client" type="text" placeholder="חברת ביטוח"></div>
+        <div class="modal-row"><label>מס׳ תביעה</label><input id="op-claim" type="text"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">🚗 פרטי הרכב</div>
       <div class="op-grid">
         <div class="modal-row"><label>מס׳ רישוי</label><div style="display:flex;gap:5px"><input id="op-plate" type="text" placeholder="12345678" style="flex:1" onblur="opGovLookup()"><span id="op-gov" style="font-size:0.7rem;color:var(--muted);white-space:nowrap;align-self:center"></span></div></div>
-        <div class="modal-row"><label>תאריך האירוע</label><input id="op-date" type="date"></div>
-        <div class="modal-row"><label>יצרן</label><input id="op-make" type="text"></div>
-        <div class="modal-row"><label>דגם</label><input id="op-model" type="text"></div>
-        <div class="modal-row"><label>שנתון</label><input id="op-year" type="text"></div>
-        <div class="modal-row"><label>צבע</label><input id="op-color" type="text"></div>
-        <div class="modal-row"><label>קילומטראז׳</label><input id="op-km" type="text" inputmode="numeric"></div>
-        <div class="modal-row"><label>בעלות</label><input id="op-owner" type="text" placeholder="פרטית / חברה / ליסינג"></div>
-        <div class="modal-row" style="grid-column:1/-1"><label>מקום ונסיבות האירוע</label><textarea id="op-circ" rows="2" placeholder="תיאור קצר של האירוע"></textarea></div>
+        <div class="modal-row"><label>דגם הרכב</label><input id="op-model" type="text" placeholder="פיאט 500/500C-2016"></div>
+        <div class="modal-row"><label>סוג רכב</label><input id="op-vtype" type="text" placeholder="פרטי"></div>
+        <div class="modal-row"><label>תאריך רישום</label><input id="op-regdate" type="text" placeholder="15/02/2016"></div>
+        <div class="modal-row"><label>קילומטרים</label><input id="op-km" type="text" inputmode="numeric"></div>
+        <div class="modal-row"><label>מספר שילדה</label><input id="op-vin" type="text" style="direction:ltr"></div>
+        <div class="modal-row"><label>קוד דגם</label><input id="op-modelcode" type="text" style="direction:ltr"></div>
+        <div class="modal-row"><label>ק. רישוי</label><input id="op-liccode" type="text" style="direction:ltr"></div>
+        <div class="modal-row" style="grid-column:1/-1"><label>הגדרות דגם <span style="font-weight:400;color:#94a3b8;font-size:0.68rem">עפ״י מחירון</span></label><textarea id="op-specs" rows="2" placeholder="הגה כוח, חלונות חשמל, נעילה מרכזית..."></textarea></div>
       </div>
     </div>
 
     <div class="card">
-      <div class="card-title">👤 מזמין חוות הדעת</div>
+      <div class="card-title">📊 תחשיב ערך הרכב <span style="font-weight:400;color:var(--muted);font-size:0.75rem">מחירון לוי יצחק</span></div>
       <div class="op-grid">
-        <div class="modal-row"><label>שם המזמין</label><input id="op-client" type="text" placeholder="חברת ביטוח / בעל הרכב"></div>
-        <div class="modal-row"><label>מס׳ תביעה</label><input id="op-claim" type="text"></div>
-        <div class="modal-row"><label>שם הנהג</label><input id="op-driver" type="text"></div>
-        <div class="modal-row"><label>טלפון</label><input id="op-phone" type="tel" style="direction:ltr"></div>
+        <div class="modal-row"><label>ערך רכב בסיסי (₪)</label><input id="op-basevalue" type="number" oninput="opCalc()"></div>
+        <div class="modal-row"><label>מקור המחירון</label><input id="op-pricelist" type="text" placeholder="לוי יצחק"></div>
+        <div class="modal-row" style="grid-column:1/-1"><label>בסיס לחישוב אחוז הנזק (₪) <span style="font-weight:400;color:#94a3b8;font-size:0.68rem">ריק = הערך המשוערך</span></label><input id="op-ratiobase" type="number" placeholder="ריק = ערך משוערך" oninput="opCalc()"></div>
       </div>
+      <div id="op-adj-rows" class="op-rows"></div>
+      <button class="btn btn-gray" style="margin-top:7px" onclick="opAddAdj()">+ שורת התאמה</button>
+      <div id="op-value-total" class="op-total"></div>
     </div>
 
     <div class="card">
-      <div class="card-title">💥 מוקדי הנזק וממצאים</div>
-      <div class="modal-row"><label>מוקדי נזק</label><input id="op-areas" type="text" placeholder="חזית ימין, פגוש קדמי, פנס..."></div>
-      <div class="modal-row" style="margin-top:8px"><label>תיאור הממצאים</label><textarea id="op-findings" rows="4" placeholder="מה נמצא בבדיקה"></textarea></div>
-    </div>
-
-    <div class="card">
-      <div class="card-title">💰 אומדן הנזק</div>
-      <div class="op-grid">
-        <div class="modal-row"><label>חלפים (₪)</label><input id="op-parts" type="number" oninput="opCalc()"></div>
-        <div class="modal-row"><label>עבודה (₪)</label><input id="op-labor" type="number" oninput="opCalc()"></div>
-        <div class="modal-row"><label>צבע (₪)</label><input id="op-paint" type="number" oninput="opCalc()"></div>
-        <div class="modal-row"><label>ירידת ערך (%)</label><input id="op-deprec" type="number" step="0.1" oninput="opCalc()"></div>
-        <div class="modal-row"><label>ערך הרכב (₪)</label><input id="op-value" type="number" oninput="opCalc()"></div>
-        <div class="modal-row"><label>שרידים (₪)</label><input id="op-salvage" type="number" oninput="opCalc()"></div>
+      <div class="card-title">💥 אומדן הנזק</div>
+      <div class="modal-row" style="margin-bottom:9px"><label>מוקד הנזק</label><input id="op-focus" type="text" placeholder="סביב הרכב"></div>
+      <div id="op-dmg-rows" class="op-rows"></div>
+      <button class="btn btn-gray" style="margin-top:7px" onclick="opAddDmg()">+ שורת נזק</button>
+      <div class="op-grid" style="margin-top:11px">
+        <div class="modal-row"><label>עבודות צביעה (₪)</label><input id="op-paint" type="number" oninput="opCalc()"></div>
+        <div class="modal-row"><label>עבודות פחחות (₪)</label><input id="op-panel" type="number" oninput="opCalc()"></div>
+        <div class="modal-row"><label>מע״מ (%)</label><input id="op-vat" type="number" step="0.01" value="18" oninput="opCalc()"></div>
       </div>
       <div id="op-total" class="op-total"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">📝 הערות חוות הדעת</div>
+      <textarea id="op-notes" rows="6" placeholder="בהתאם לבקשתכם לחוות הדעת בדקנו את הנזקים ברכב..."></textarea>
+      <div class="modal-row" style="margin-top:9px"><label>לוטה בזאת</label><input id="op-attached" type="text" value="תמונות נזק, צילום רישיון רכב, שכ״ט שמאי"></div>
     </div>
 
     <div class="card">
@@ -1041,14 +1080,20 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
     </div>
 
     <div class="card">
-      <div class="card-title">⚖️ מסקנות</div>
-      <div class="modal-row"><label>סיכום ומסקנות</label><textarea id="op-summary" rows="4" placeholder="מסקנות השמאי"></textarea></div>
+      <div class="card-title">⚖️ פרטי השמאי</div>
+      <div class="op-grid">
+        <div class="modal-row"><label>שם השמאי</label><input id="op-appraiser" type="text"></div>
+        <div class="modal-row"><label>מס׳ רישיון שמאי</label><input id="op-license" type="text" style="direction:ltr"></div>
+        <div class="modal-row" style="grid-column:1/-1"><label>מקום עבודה</label><input id="op-office" type="text"></div>
+        <div class="modal-row" style="grid-column:1/-1"><label>השכלה וניסיון <span style="font-weight:400;color:#94a3b8;font-size:0.68rem">שורה לכל פריט</span></label><textarea id="op-education" rows="4"></textarea></div>
+      </div>
+      <div style="font-size:0.75rem;color:var(--muted);margin-top:8px;line-height:1.6">ההצהרה המשפטית נוספת אוטומטית לחוות הדעת.</div>
     </div>
 
     <div class="btn-row" style="margin-bottom:24px;flex-wrap:wrap">
       <button class="btn btn-gray" onclick="opSave()">💾 שמור</button>
       <button class="btn btn-secondary" onclick="opPdf()">📄 צור PDF</button>
-      <button class="btn btn-primary" onclick="opMail()">📤 שלח לחברת הביטוח</button>
+      <button class="btn btn-primary" onclick="opMail()">📤 שלח</button>
     </div>
   </div>
 </div>
@@ -1788,6 +1833,7 @@ async function loadFromFirestore() {
       if (typeof d.officerSignature === 'string') { window.OFFICER_SIGNATURE = d.officerSignature; }
       if (Array.isArray(d.entities)) ENTITIES = d.entities;
       if (Array.isArray(d.leaseCompanies)) LEASE_COMPANIES = d.leaseCompanies;
+      if (d.appraiser && typeof d.appraiser === 'object') OP_PROFILE = d.appraiser;
       if (d.orgInfo && typeof d.orgInfo === 'object') { ORG_INFO = { name: d.orgInfo.name || '', hp: d.orgInfo.hp || '' }; }
       if (d.officerInfo && typeof d.officerInfo === 'object') { window.OFFICER_INFO = d.officerInfo; try { localStorage.setItem('fleet_officerInfo', JSON.stringify(d.officerInfo)); } catch(e){} }
       if (d.contacts && typeof d.contacts === 'object') { window.CONTACTS = _ensureContacts({ list: d.contacts.list || [], emails: d.contacts.emails || [], byPlate: d.contacts.byPlate || {} }); try { localStorage.setItem('fleet_contacts', JSON.stringify(window.CONTACTS)); } catch(e){} const _cb = document.getElementById('contacts-list'); if (_cb) renderContacts(); }
@@ -7356,6 +7402,7 @@ function wipeSeedData() {
   if (typeof ORG_INFO !== 'undefined') ORG_INFO = { name: '', hp: '' };
   if (typeof ENTITIES !== 'undefined') ENTITIES = [];
   if (typeof LEASE_COMPANIES !== 'undefined') LEASE_COMPANIES = [];
+  if (typeof OP_PROFILE !== 'undefined') OP_PROFILE = {};
   window.CONTACTS = { list: [], emails: [], byPlate: {} };
   window.OFFICER_INFO = null;
   window.OFFICER_SIGNATURE = '';
@@ -9240,99 +9287,188 @@ function initPwaBanner() {
      =============================================================== -->
 <script>
 /* --- חוות דעת שמאי ---------------------------------------------
-   טופס, תמונות מצורפות, חישוב אומדן ופלט PDF. הרשומות נשמרות
-   ב-tenants/{id}/data עם type='opinion', כמו שאר המסמכים. */
-let OP_PHOTOS = [];      // {b64, caption}
+   בנוי לפי המבנה של חוות דעת אמיתית: סיכום, פרטי השמאי והצהרה,
+   תחשיב ערך הרכב לפי מחירון, אומדן נזק לפי מוקדים, ותמונות
+   ממוספרות לפי מספר התיק. */
+let OP_PHOTOS = [];        // {b64, caption}
+let OP_ADJ = [];           // התאמות ערך: {desc, pct, amount}
+let OP_DMG = [];           // שורות נזק: {kind, desc, sku, cost}
 let OP_EDIT_ID = null;
 let OP_LIST = [];
 
-const OP_FIELDS = ['plate','date','make','model','year','color','km','owner','circ',
-                   'client','claim','driver','phone','areas','findings',
-                   'parts','labor','paint','deprec','value','salvage','summary'];
+const OP_FIELDS = ['case','date','casetype','damagetype','eventdate','inspdate','inspplace',
+                   'owner','phone','address','client','claim',
+                   'plate','model','vtype','regdate','km','vin','modelcode','liccode','specs',
+                   'basevalue','pricelist','ratiobase','focus','paint','panel','vat',
+                   'notes','attached','appraiser','license','office','education'];
 
 const opEl = k => document.getElementById('op-' + k);
 const opVal = k => { const e = opEl(k); return e ? e.value.trim() : ''; };
 const opNum = k => { const n = parseFloat(opVal(k)); return isNaN(n) ? 0 : n; };
+const opILS = n => '₪' + (Math.round(n * 100) / 100).toLocaleString('he-IL', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-function opCalc() {
-  const parts = opNum('parts'), labor = opNum('labor'), paint = opNum('paint');
-  const direct = parts + labor + paint;
-  const depPct = opNum('deprec'), value = opNum('value'), salvage = opNum('salvage');
-  const depAmt = Math.round(value * depPct) / 100;
-  const total = direct + depAmt;
-  const ils = n => '₪' + Math.round(n).toLocaleString('he-IL');
-  const box = opEl('total');
-  if (box) box.innerHTML =
-    '<span>נזק ישיר: <b>' + ils(direct) + '</b></span>' +
-    (depPct ? '<span>ירידת ערך ' + depPct + '%: <b>' + ils(depAmt) + '</b></span>' : '') +
-    (salvage ? '<span>שרידים: <b>' + ils(salvage) + '</b></span>' : '') +
-    '<span style="margin-inline-start:auto">סה״כ: <b>' + ils(total) + '</b></span>';
-  return { direct, depAmt, total, salvage };
+/* ── שורות דינמיות ── */
+function opAddAdj(d) { OP_ADJ.push(d || { desc: '', pct: '', amount: '' }); opRenderAdj(); }
+function opAddDmg(d) { OP_DMG.push(d || { kind: 'תק׳', desc: '', sku: '', cost: '' }); opRenderDmg(); }
+
+function opRenderAdj() {
+  const box = document.getElementById('op-adj-rows');
+  if (!box) return;
+  box.innerHTML = OP_ADJ.map((r, i) =>
+    '<div class="op-line adj">' +
+      '<input placeholder="תיאור ההתאמה" value="' + esc(r.desc) + '" oninput="OP_ADJ[' + i + '].desc=this.value">' +
+      '<input placeholder="%" type="number" step="0.01" value="' + esc(r.pct) + '" oninput="OP_ADJ[' + i + '].pct=this.value;opCalc()">' +
+      '<input placeholder="₪" type="number" step="0.01" value="' + esc(r.amount) + '" oninput="OP_ADJ[' + i + '].amount=this.value;opCalc()">' +
+      '<button class="op-x" type="button" onclick="OP_ADJ.splice(' + i + ',1);opRenderAdj();opCalc()">✕</button>' +
+    '</div>').join('');
+  opCalc();
 }
 
+function opRenderDmg() {
+  const box = document.getElementById('op-dmg-rows');
+  if (!box) return;
+  box.innerHTML = OP_DMG.map((r, i) =>
+    '<div class="op-line dmg">' +
+      '<input placeholder="סוג" value="' + esc(r.kind) + '" oninput="OP_DMG[' + i + '].kind=this.value">' +
+      '<input placeholder="תאור" value="' + esc(r.desc) + '" oninput="OP_DMG[' + i + '].desc=this.value">' +
+      '<input placeholder="מק״ט" value="' + esc(r.sku) + '" oninput="OP_DMG[' + i + '].sku=this.value">' +
+      '<input placeholder="עלות ₪" type="number" step="0.01" value="' + esc(r.cost) + '" oninput="OP_DMG[' + i + '].cost=this.value;opCalc()">' +
+      '<button class="op-x" type="button" onclick="OP_DMG.splice(' + i + ',1);opRenderDmg();opCalc()">✕</button>' +
+    '</div>').join('');
+  opCalc();
+}
+
+/* ── תחשיב ── */
+function opCalc() {
+  // ערך הרכב: בסיס + התאמות. אחוז מחושב מהבסיס אם לא הוזן סכום.
+  const base = opNum('basevalue');
+  let adjSum = 0;
+  OP_ADJ.forEach(r => {
+    const amt = parseFloat(r.amount);
+    if (!isNaN(amt)) { adjSum += amt; return; }
+    const pct = parseFloat(r.pct);
+    if (!isNaN(pct)) adjSum += base * pct / 100;
+  });
+  const value = base + adjSum;
+
+  // נזק: שורות + צביעה + פחחות
+  const partsSum = OP_DMG.reduce((a, r) => a + (parseFloat(r.cost) || 0), 0);
+  const paint = opNum('paint'), panel = opNum('panel');
+  const net = partsSum + paint + panel;
+  const vatPct = opNum('vat');
+  const vat = net * vatPct / 100;
+  const gross = net + vat;
+  // בחוות הדעת האמיתית האחוז מחושב מהנזק כולל מע"מ מול בסיס שאינו
+  // בהכרח הערך המשוערך. ברירת המחדל היא הערך המשוערך; שדה ייעודי
+  // מאפשר לקבוע בסיס אחר לפי הכלל המקצועי.
+  const ratioBase = opNum('ratiobase') || value;
+  const ratio = ratioBase > 0 ? (gross / ratioBase * 100) : 0;
+
+  const vb = document.getElementById('op-value-total');
+  if (vb) vb.innerHTML = base
+    ? '<span>ערך בסיסי: <b>' + opILS(base) + '</b></span>' +
+      (adjSum ? '<span>התאמות: <b>' + opILS(adjSum) + '</b></span>' : '') +
+      '<span style="margin-inline-start:auto">ערך משוערך: <b>' + opILS(value) + '</b></span>'
+    : '';
+
+  const tb = document.getElementById('op-total');
+  if (tb) tb.innerHTML =
+    '<span>חלקים ותיקונים: <b>' + opILS(partsSum) + '</b></span>' +
+    (paint ? '<span>צביעה: <b>' + opILS(paint) + '</b></span>' : '') +
+    (panel ? '<span>פחחות: <b>' + opILS(panel) + '</b></span>' : '') +
+    '<span>סה״כ הנזק: <b>' + opILS(net) + '</b></span>' +
+    '<span>מע״מ ' + (vatPct || 0) + '%: <b>' + opILS(vat) + '</b></span>' +
+    '<span style="margin-inline-start:auto">סה״כ כולל מע״מ: <b>' + opILS(gross) + '</b></span>' +
+    (ratioBase > 0 ? '<span style="flex-basis:100%;color:' + (ratio >= 50 ? '#b91c1c' : 'var(--muted)') + '">' +
+      'אומדן הנזק מהווה <b>' + ratio.toFixed(2) + '%</b> מערך הרכב' +
+      (ratio >= 50 ? ' — מעל סף 50%' : '') + '</span>' : '');
+
+  return { base, adjSum, value, partsSum, paint, panel, net, vatPct, vat, gross, ratio, ratioBase };
+}
+
+/* ── מחזור חיים ── */
 function opNew() {
-  OP_EDIT_ID = null; OP_PHOTOS = [];
+  OP_EDIT_ID = null; OP_PHOTOS = []; OP_ADJ = []; OP_DMG = [];
   OP_FIELDS.forEach(k => { const e = opEl(k); if (e) e.value = ''; });
-  const d = new Date();
-  const de = opEl('date');
-  if (de) de.value = d.getFullYear() + '-' + ('0'+(d.getMonth()+1)).slice(-2) + '-' + ('0'+d.getDate()).slice(-2);
+  const d = new Date(), iso = d.getFullYear() + '-' + ('0'+(d.getMonth()+1)).slice(-2) + '-' + ('0'+d.getDate()).slice(-2);
+  if (opEl('date')) opEl('date').value = iso;
+  if (opEl('inspdate')) opEl('inspdate').value = iso;
+  if (opEl('vat')) opEl('vat').value = '18';
+  if (opEl('casetype')) opEl('casetype').value = 'פרטי';
+  if (opEl('damagetype')) opEl('damagetype').value = 'תאונה';
+  if (opEl('pricelist')) opEl('pricelist').value = 'לוי יצחק';
+  if (opEl('attached')) opEl('attached').value = 'תמונות נזק, צילום רישיון רכב, שכ״ט שמאי';
+  // פרטי השמאי נשמרים ברמת הלקוח וחוזרים לכל תיק חדש
+  const o = (typeof loadOfficerInfo === 'function') ? loadOfficerInfo() : {};
+  if (opEl('appraiser')) opEl('appraiser').value = OP_PROFILE.appraiser || o.name || '';
+  if (opEl('license'))   opEl('license').value   = OP_PROFILE.license || o.certNum || '';
+  if (opEl('office'))    opEl('office').value    = OP_PROFILE.office || COMPANY_NAME || '';
+  if (opEl('education')) opEl('education').value = OP_PROFILE.education || '';
   const g = opEl('gov'); if (g) g.textContent = '';
-  opRenderPhotos(); opCalc();
+  opRenderAdj(); opRenderDmg(); opRenderPhotos(); opCalc();
   document.getElementById('op-list').style.display = 'none';
   document.getElementById('op-form').style.display = '';
 }
 
-// שליפת פרטי הרכב מהצי, ואם אינו שם — ממשרד הרישוי
+let OP_PROFILE = {};   // פרטי השמאי — נשמרים ב-main.appraiser
+
+function opSaveProfile() {
+  const prof = { appraiser: opVal('appraiser'), license: opVal('license'),
+                 office: opVal('office'), education: opVal('education') };
+  if (JSON.stringify(prof) === JSON.stringify(OP_PROFILE)) return;
+  OP_PROFILE = prof;
+  try { fcol().doc('main').set({ appraiser: prof }, { merge: true }); } catch(e) {}
+}
+
 async function opGovLookup() {
   const plate = opVal('plate').replace(/\D/g, '');
   const g = opEl('gov');
-  if (plate.length < 7) { if (g) g.textContent = ''; return; }
+  if (plate.length < 6) { if (g) g.textContent = ''; return; }
+  const fill = (k, val) => { const e = opEl(k); if (e && !e.value && val) e.value = String(val); };
   const v = (VEHICLES || []).find(x => String(x.plate||'').replace(/\D/g,'') === plate);
-  const fill = (k, val) => { const e = opEl(k); if (e && !e.value && val) e.value = val; };
   if (v) {
-    fill('make', v.make); fill('model', v.model); fill('year', v.year);
-    fill('km', v.currentKm); fill('driver', (v.driverName||'').split('-')[0].trim());
-    fill('phone', v.driverPhone); fill('owner', v.company);
-    if (g) g.textContent = '✓ מהצי';
+    fill('model', [v.make, v.model, v.year].filter(Boolean).join(' '));
+    fill('km', v.currentKm); fill('owner', (v.driverName||'').split('-')[0].trim());
+    fill('phone', v.driverPhone);
   }
-  if (g) g.textContent = (g.textContent || '') + ' ⏳';
+  if (g) g.textContent = '⏳';
   try {
-    const rec = await govVehicleRecord(plate);
-    if (!rec) { if (g) g.textContent = v ? '✓ מהצי' : '❌ לא נמצא'; return; }
-    fill('make', rec.tozeret_nm); fill('model', rec.degem_nm || rec.kinuy_mishari);
-    fill('year', rec.shnat_yitzur ? String(rec.shnat_yitzur) : '');
-    fill('color', rec.tzeva_rechev); fill('owner', rec.baalut);
-    if (g) g.textContent = '✓ ' + [rec.tozeret_nm, rec.kinuy_mishari].filter(Boolean).join(' ');
+    const r = await govVehicleRecord(plate);
+    if (!r) { if (g) g.textContent = v ? '✓ מהצי' : '❌ לא נמצא'; return; }
+    fill('model', [r.tozeret_nm, r.kinuy_mishari || r.degem_nm, r.shnat_yitzur].filter(Boolean).join(' '));
+    fill('vtype', r.sug_degem === 'P' ? 'פרטי' : (r.sug_degem || ''));
+    fill('modelcode', r.degem_cd); fill('liccode', r.tozeret_cd);
+    fill('vin', r.misgeret);
+    if (r.moed_aliya_lakvish) fill('regdate', String(r.moed_aliya_lakvish).split('-').reverse().join('/'));
+    if (g) g.textContent = '✓ ' + [r.tozeret_nm, r.kinuy_mishari].filter(Boolean).join(' ');
   } catch(e) { if (g) g.textContent = v ? '✓ מהצי' : '⚠ המאגר לא הגיב'; }
 }
 
+/* ── תמונות ── */
 async function opAddPhotos(input) {
   const files = Array.from(input.files || []); input.value = '';
   for (const f of files) {
     if (!f.type.startsWith('image/')) continue;
-    try {
-      const b64 = await _opShrink(f);
-      if (b64) OP_PHOTOS.push({ b64, caption: '' });
-    } catch(e) { console.log('opinion photo', f.name, e); }
+    try { const b64 = await _opShrink(f); if (b64) OP_PHOTOS.push({ b64, caption: '' }); }
+    catch(e) { console.log('opinion photo', f.name, e); }
   }
   opRenderPhotos();
 }
 
-// תמונות חוות דעת נשמרות עם הרשומה, ולכן מוקטנות כדי שהמסמך לא יחרוג
-// ממגבלת 1MB של Firestore.
+// התמונות נשמרות בתוך הרשומה, ולכן מוקטנות — מסמך Firestore מוגבל ל-1MB
 function _opShrink(file) {
   return new Promise(res => {
     const fr = new FileReader();
     fr.onload = () => {
       const img = new Image();
       img.onload = () => {
-        const max = 1100, r = Math.min(1, max / Math.max(img.width, img.height));
+        const max = 1000, r = Math.min(1, max / Math.max(img.width, img.height));
         const w = Math.round(img.width * r), h = Math.round(img.height * r);
         const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
         const cx = cv.getContext('2d');
         cx.fillStyle = '#fff'; cx.fillRect(0, 0, w, h);
         cx.drawImage(img, 0, 0, w, h);
-        try { res(cv.toDataURL('image/jpeg', 0.62).split(',')[1]); } catch(e) { res(''); }
+        try { res(cv.toDataURL('image/jpeg', 0.58).split(',')[1]); } catch(e) { res(''); }
       };
       img.onerror = () => res('');
       img.src = fr.result;
@@ -9340,6 +9476,13 @@ function _opShrink(file) {
     fr.onerror = () => res('');
     fr.readAsDataURL(file);
   });
+}
+
+// מספור התמונות לפי הסיפרה האחרונה של מספר התיק, כמו בחוות דעת מודפסת
+function opPhotoLabel(i) {
+  const c = opVal('case');
+  const tail = (c.split('-').pop() || '').trim();
+  return (tail ? tail + '-' : '') + (i + 1);
 }
 
 function opRenderPhotos() {
@@ -9353,47 +9496,47 @@ function opRenderPhotos() {
   box.innerHTML = OP_PHOTOS.map((p, i) =>
     '<div class="op-photo">' +
       '<img src="data:image/jpeg;base64,' + p.b64 + '" alt="">' +
-      '<input value="' + esc(p.caption) + '" placeholder="כיתוב" oninput="OP_PHOTOS[' + i + '].caption=this.value">' +
+      '<input value="' + esc(p.caption) + '" placeholder="' + esc(opPhotoLabel(i)) + '" oninput="OP_PHOTOS[' + i + '].caption=this.value">' +
       '<button type="button" onclick="OP_PHOTOS.splice(' + i + ',1);opRenderPhotos()">הסר</button>' +
     '</div>').join('');
 }
 
+/* ── שמירה וטעינה ── */
 function opCollect() {
   const rec = { type: 'opinion', id: OP_EDIT_ID || ('op_' + Date.now()), created: Date.now() };
   OP_FIELDS.forEach(k => rec[k] = opVal(k));
-  const c = opCalc();
-  rec.calc = { direct: c.direct, deprecAmount: c.depAmt, total: c.total, salvage: c.salvage };
+  rec.adj = OP_ADJ.slice();
+  rec.dmg = OP_DMG.slice();
   rec.photos = OP_PHOTOS.map(p => ({ b64: p.b64, caption: p.caption }));
-  rec.officer = (typeof loadOfficerInfo === 'function') ? loadOfficerInfo() : {};
+  rec.calc = opCalc();
   return rec;
 }
 
 async function opSave() {
-  if (!opVal('plate')) { toast('הזן מספר רישוי', true); return; }
+  if (!opVal('plate') && !opVal('case')) { toast('הזן מספר רישוי או מספר תיק', true); return; }
   const rec = opCollect();
-  const size = JSON.stringify(rec).length;
-  if (size > 900000) { toast('המסמך גדול מדי — הסר כמה תמונות', true); return; }
+  if (JSON.stringify(rec).length > 900000) { toast('המסמך גדול מדי — הסר כמה תמונות', true); return; }
   try {
     await fcol().doc(rec.id).set(rec);
     OP_EDIT_ID = rec.id;
+    opSaveProfile();
     toast('חוות הדעת נשמרה ✓');
     opLoadList();
   } catch(e) { console.log('opSave', e); toast('שגיאה בשמירה', true); }
 }
 
 async function opLoadList() {
-  try {
-    OP_LIST = (await readDriverDocs('opinion')).sort((a, b) => (b.created||0) - (a.created||0));
-  } catch(e) { OP_LIST = []; }
+  try { OP_LIST = (await readDriverDocs('opinion')).sort((a, b) => (b.created||0) - (a.created||0)); }
+  catch(e) { OP_LIST = []; }
   const c = document.getElementById('op-count'); if (c) c.textContent = OP_LIST.length;
   const box = document.getElementById('op-list');
   if (!box) return;
   box.innerHTML = OP_LIST.length
     ? OP_LIST.map((r, i) =>
         '<div class="op-row" onclick="opOpen(' + i + ')">' +
-          '<span style="font-weight:800;direction:ltr">' + esc(r.plate||'') + '</span>' +
-          '<span style="flex:1;font-size:0.82rem;color:var(--muted)">' + esc([r.make, r.model, r.client].filter(Boolean).join(' · ')) + '</span>' +
-          '<span style="font-size:0.76rem;color:var(--muted)">' + esc(r.date||'') + '</span>' +
+          '<span style="font-weight:800">' + esc(r.case || '—') + '</span>' +
+          '<span style="direction:ltr;font-size:0.82rem">' + esc(r.plate||'') + '</span>' +
+          '<span style="flex:1;font-size:0.82rem;color:var(--muted)">' + esc([r.model, r.owner].filter(Boolean).join(' · ')) + '</span>' +
           ((r.photos||[]).length ? '<span class="badge badge-gray">📷 ' + r.photos.length + '</span>' : '') +
         '</div>').join('')
     : '<div style="color:var(--muted);padding:12px;font-size:0.88rem">אין חוות דעת שמורות.</div>';
@@ -9411,85 +9554,212 @@ function opOpen(i) {
   const r = OP_LIST[i]; if (!r) return;
   OP_EDIT_ID = r.id || null;
   OP_FIELDS.forEach(k => { const e = opEl(k); if (e) e.value = r[k] || ''; });
+  OP_ADJ = (r.adj || []).slice();
+  OP_DMG = (r.dmg || []).slice();
   OP_PHOTOS = (r.photos || []).map(p => ({ b64: p.b64, caption: p.caption || '' }));
-  opRenderPhotos(); opCalc();
+  opRenderAdj(); opRenderDmg(); opRenderPhotos(); opCalc();
   document.getElementById('op-list').style.display = 'none';
   document.getElementById('op-form').style.display = '';
 }
 
-// ── פלט ──
+/* ── פלט חוות הדעת ── */
+const OP_DECLARATION =
+  'אני נותן חוות דעתי זו במקום עדות בבית המשפט, והריני מצהיר בזה כי ידוע לי היטב, ' +
+  'שלעניין הוראות החוק הפלילי בדבר עדות שקר בשבועה בבית המשפט, דין חוות דעתי זו, ' +
+  'כאשר היא חתומה על ידי, כדין עדות בבית המשפט.';
+
+function _opHead(rec, pageNo, pageTotal, title) {
+  const o = rec.office || '';
+  return '<div style="border-bottom:1.5px solid #1e3a8a;padding-bottom:6px;margin-bottom:12px;font-size:10.5px;color:#334155;display:flex;justify-content:space-between;gap:10px">' +
+      '<div><b style="font-size:12px;color:#0f172a">' + esc(o) + '</b><br>' +
+        (rec.appraiserPhone ? 'טל: ' + esc(rec.appraiserPhone) + ' · ' : '') + esc(rec.appraiserMail || '') + '</div>' +
+      '<div style="text-align:left">תאריך: <b>' + esc(rec.dateHe || '') + '</b><br>מס׳ תיק: <b>' + esc(rec.case || '') + '</b><br>עמוד ' + pageNo + ' מתוך ' + pageTotal + '</div>' +
+    '</div>' +
+    '<div style="text-align:center;font-weight:900;font-size:15px;margin-bottom:10px">' + esc(title) + '</div>';
+}
+
+function _opTable(rows) {
+  const body = rows.filter(r => r[1] !== '' && r[1] != null).map(r =>
+    '<tr><td style="border:1px solid #cbd5e1;padding:4px 8px;background:#f8fafc;font-weight:700;width:34%">' + esc(r[0]) + '</td>' +
+    '<td style="border:1px solid #cbd5e1;padding:4px 8px">' + esc(r[1]) + '</td></tr>').join('');
+  return body ? '<table style="width:100%;border-collapse:collapse;font-size:11.5px">' + body + '</table>' : '';
+}
+
+function _opSection(title, body) {
+  return body ? '<div style="margin-top:12px"><div style="font-weight:800;font-size:12.5px;background:#eff6ff;padding:4px 8px;border-right:3px solid #1e3a8a;margin-bottom:6px">' + esc(title) + '</div>' + body + '</div>' : '';
+}
+
 function opHtml() {
   const r = opCollect();
-  const ils = n => '₪' + Math.round(n).toLocaleString('he-IL');
-  const row = (k, v) => v ? '<tr><td style="border:1px solid #cbd5e1;padding:5px 9px;background:#f8fafc;font-weight:700;width:34%">' + esc(k) + '</td><td style="border:1px solid #cbd5e1;padding:5px 9px">' + esc(v) + '</td></tr>' : '';
-  const block = (title, body) => body ? '<div style="margin-top:14px"><div style="font-weight:800;font-size:14px;border-bottom:1.5px solid #1e3a8a;padding-bottom:3px;margin-bottom:6px">' + title + '</div><div style="font-size:12.5px;line-height:1.75;white-space:pre-wrap">' + esc(body) + '</div></div>' : '';
-  const o = r.officer || {};
-  return '<div dir="rtl" style="font-family:Arial,Heebo,sans-serif;color:#0f172a;width:760px;padding:26px;background:#fff">' +
-    '<div style="text-align:center;font-size:21px;font-weight:900">חוות דעת שמאי</div>' +
-    '<div style="text-align:center;font-size:12px;color:#475569;margin-bottom:14px">' + esc(COMPANY_NAME||'') + (r.date ? ' | ' + esc(r.date) : '') + '</div>' +
-    '<table style="width:100%;border-collapse:collapse;font-size:12.5px">' +
-      row('מס׳ רישוי', r.plate) + row('יצרן ודגם', [r.make, r.model].filter(Boolean).join(' ')) +
-      row('שנתון', r.year) + row('צבע', r.color) + row('קילומטראז׳', r.km) + row('בעלות', r.owner) +
-      row('מזמין חוות הדעת', r.client) + row('מס׳ תביעה', r.claim) +
-      row('נהג', r.driver) + row('טלפון', r.phone) +
+  const c = r.calc;
+  const heDate = iso => iso ? String(iso).split('-').reverse().join('/') : '';
+  r.dateHe = heDate(r.date);
+  const o = (typeof loadOfficerInfo === 'function') ? loadOfficerInfo() : {};
+  r.appraiserPhone = o.phone || ''; r.appraiserMail = o.mail || o.email || '';
+
+  const PAGE = 'width:760px;padding:22px 26px;background:#fff;font-family:Arial,Heebo,sans-serif;color:#0f172a;box-sizing:border-box';
+  const pages = [];
+
+  // 1 — סיכום
+  pages.push(
+    _opHead(r, 1, '{T}', 'סיכום חוות הדעת') +
+    (r.owner || r.address ? '<div style="font-size:11.5px;margin-bottom:10px">לכבוד<br><b>' + esc(r.owner) + '</b>' + (r.address ? '<br>' + esc(r.address) : '') + '</div>' : '') +
+    _opSection('פרטים כלליים', _opTable([
+      ['בעל הרכב', r.owner], ['מספר רישוי', r.plate], ['דגם הרכב', r.model],
+      ['סוג הנזק', r.damagetype], ['תאריך ארוע', heDate(r.eventdate)], ['בדיקה ראשונה', heDate(r.inspdate)]
+    ])) +
+    _opSection('סיכום כספי', '<table style="width:100%;border-collapse:collapse;font-size:11.5px">' +
+      '<tr><td style="border:1px solid #cbd5e1;padding:4px 8px;background:#f8fafc;font-weight:700;width:34%">סה״כ תיקון הנזק</td><td style="border:1px solid #cbd5e1;padding:4px 8px">' + opILS(c.net) + '</td></tr>' +
+      '<tr><td style="border:1px solid #cbd5e1;padding:4px 8px;background:#f8fafc;font-weight:700">תוספת מע״מ ' + (c.vatPct||0) + '%</td><td style="border:1px solid #cbd5e1;padding:4px 8px">' + opILS(c.vat) + '</td></tr>' +
+      '<tr><td style="border:1px solid #cbd5e1;padding:5px 8px;background:#eff6ff;font-weight:800">סה״כ כולל מע״מ</td><td style="border:1px solid #cbd5e1;padding:5px 8px;font-weight:800;font-size:13px">' + opILS(c.gross) + '</td></tr>' +
+    '</table>') +
+    (r.notes ? '<div style="margin-top:12px;font-size:11.5px;line-height:1.8;white-space:pre-wrap">' + esc(r.notes) + '</div>' : '') +
+    (r.attached ? '<div style="margin-top:10px;font-size:11px;color:#475569">לוטה בזאת: ' + esc(r.attached) + '</div>' : '')
+  );
+
+  // 2 — השמאי והצהרה
+  pages.push(
+    _opHead(r, 2, '{T}', 'סיכום חוות הדעת — המשך') +
+    _opSection('פרטי השמאי', _opTable([
+      ['שם השמאי', r.appraiser], ['מקום עבודתו', r.office]
+    ]) + (r.education ? '<div style="margin-top:7px;font-size:11.5px;line-height:1.9;white-space:pre-wrap"><b>השכלתו וניסיונו:</b><br>' + esc(r.education) + '</div>' : '')) +
+    _opSection('הצהרה משפטית', '<div style="font-size:11.5px;line-height:1.85">' + esc(OP_DECLARATION) + '</div>') +
+    '<table style="width:100%;font-size:11.5px;margin-top:26px"><tr>' +
+      '<td><b>' + esc(r.appraiser) + '</b>' + (r.license ? ' (' + esc(r.license) + ')' : '') + '<br>שמאי רכב</td>' +
+      '<td style="text-align:left">' + (window.OFFICER_SIGNATURE ? '<div style="font-size:10px;color:#475569">חתימה:</div><img src="' + window.OFFICER_SIGNATURE + '" style="width:160px;border-bottom:1px solid #0f172a">' : '') + '</td>' +
+    '</tr></table>'
+  );
+
+  // 3 — תחשיב ערך הרכב
+  if (c.base) {
+    const adjRows = (r.adj || []).map(a => {
+      const amt = parseFloat(a.amount);
+      const pct = parseFloat(a.pct);
+      const val = !isNaN(amt) ? amt : (!isNaN(pct) ? c.base * pct / 100 : 0);
+      return '<tr><td style="border:1px solid #cbd5e1;padding:4px 8px">' + esc(a.desc) + '</td>' +
+             '<td style="border:1px solid #cbd5e1;padding:4px 8px;text-align:center">' + (isNaN(pct) ? '' : pct + '%') + '</td>' +
+             '<td style="border:1px solid #cbd5e1;padding:4px 8px;text-align:left">' + opILS(val) + '</td></tr>';
+    }).join('');
+    pages.push(
+      _opHead(r, 3, '{T}', 'תחשיב ערך הרכב') +
+      _opSection('פרטים כלליים', _opTable([
+        ['בעל הרכב', r.owner], ['דגם הרכב', r.model], ['מספר רישוי', r.plate], ['מחירון', r.pricelist]
+      ])) +
+      (r.specs ? '<div style="margin-top:8px;font-size:11px;color:#475569;line-height:1.7">' + esc(r.specs) + '</div>' : '') +
+      _opSection('משפיעי תמחיר הרכב',
+        '<table style="width:100%;border-collapse:collapse;font-size:11.5px">' +
+        '<tr><th style="border:1px solid #cbd5e1;padding:4px 8px;background:#f1f5f9;text-align:right">תאור</th>' +
+        '<th style="border:1px solid #cbd5e1;padding:4px 8px;background:#f1f5f9;width:70px">אחוז</th>' +
+        '<th style="border:1px solid #cbd5e1;padding:4px 8px;background:#f1f5f9;width:110px">סכום</th></tr>' +
+        '<tr><td style="border:1px solid #cbd5e1;padding:4px 8px">ערך רכב בסיסי</td><td style="border:1px solid #cbd5e1"></td>' +
+        '<td style="border:1px solid #cbd5e1;padding:4px 8px;text-align:left">' + opILS(c.base) + '</td></tr>' + adjRows +
+        '<tr><td style="border:1px solid #cbd5e1;padding:5px 8px;background:#eff6ff;font-weight:800" colspan="2">ערך רכב משוערך</td>' +
+        '<td style="border:1px solid #cbd5e1;padding:5px 8px;text-align:left;font-weight:800">' + opILS(c.value) + '</td></tr>' +
+        '</table>')
+    );
+  }
+
+  // 4 — פרטי התיק
+  pages.push(
+    _opHead(r, pages.length + 1, '{T}', 'פרטי התיק') +
+    _opSection('פרטי הרכב', _opTable([
+      ['מספר רישוי', r.plate], ['דגם הרכב', r.model], ['סוג רכב', r.vtype],
+      ['תאריך רישום', r.regdate], ['קילומטרים', r.km], ['מספר שילדה', r.vin],
+      ['קוד דגם', r.modelcode], ['ק. רישוי', r.liccode],
+      ['ערך הרכב', c.value ? opILS(c.value) : '']
+    ])) +
+    _opSection('בעל הרכב', _opTable([['שם', r.owner], ['כתובת', r.address], ['טלפון', r.phone]])) +
+    _opSection('תביעה', _opTable([
+      ['מזמין', r.client], ['מס׳ תביעה', r.claim], ['סוג נזק', r.damagetype],
+      ['תאריך ארוע', heDate(r.eventdate)],
+      ['בסיס לחישוב', c.ratioBase ? opILS(c.ratioBase) : ''],
+      ['% נזק מערך הרכב', c.ratioBase ? c.ratio.toFixed(2) + '%' : '']
+    ])) +
+    _opSection('בדיקה', _opTable([
+      ['משרד שמאות', r.office], ['שמאי', r.appraiser], ['סוג תיק', r.casetype],
+      ['מקום הבדיקה', r.inspplace], ['תאריך', heDate(r.inspdate)]
+    ]))
+  );
+
+  // 5 — אומדן הנזק
+  const dmgRows = (r.dmg || []).filter(d => d.desc || d.cost).map(d =>
+    '<tr><td style="border:1px solid #cbd5e1;padding:4px 8px;width:64px">' + esc(d.kind) + '</td>' +
+    '<td style="border:1px solid #cbd5e1;padding:4px 8px">' + esc(d.desc) + '</td>' +
+    '<td style="border:1px solid #cbd5e1;padding:4px 8px;width:80px;direction:ltr">' + esc(d.sku) + '</td>' +
+    '<td style="border:1px solid #cbd5e1;padding:4px 8px;width:100px;text-align:left">' + (parseFloat(d.cost) ? opILS(parseFloat(d.cost)) : '') + '</td></tr>').join('');
+  const workRow = (lbl, v) => v ? '<tr><td style="border:1px solid #cbd5e1;padding:4px 8px">עב׳</td>' +
+    '<td style="border:1px solid #cbd5e1;padding:4px 8px" colspan="2">' + lbl + '</td>' +
+    '<td style="border:1px solid #cbd5e1;padding:4px 8px;text-align:left">' + opILS(v) + '</td></tr>' : '';
+  pages.push(
+    _opHead(r, pages.length + 1, '{T}', 'אומדן הנזק') +
+    (r.focus ? '<div style="font-weight:800;font-size:12px;margin-bottom:6px">מוקד: ' + esc(r.focus) + '</div>' : '') +
+    '<table style="width:100%;border-collapse:collapse;font-size:11.5px">' +
+      '<tr><th style="border:1px solid #cbd5e1;padding:4px 8px;background:#f1f5f9;text-align:right">סוג</th>' +
+      '<th style="border:1px solid #cbd5e1;padding:4px 8px;background:#f1f5f9;text-align:right">תאור</th>' +
+      '<th style="border:1px solid #cbd5e1;padding:4px 8px;background:#f1f5f9;text-align:right">מק״ט</th>' +
+      '<th style="border:1px solid #cbd5e1;padding:4px 8px;background:#f1f5f9">עלות</th></tr>' +
+      dmgRows + workRow('עבודות צביעה', c.paint) + workRow('עבודות פחחות', c.panel) +
+      '<tr><td style="border:1px solid #cbd5e1;padding:5px 8px;font-weight:800" colspan="3">סה״כ הנזק</td>' +
+      '<td style="border:1px solid #cbd5e1;padding:5px 8px;text-align:left;font-weight:800">' + opILS(c.net) + '</td></tr>' +
+      '<tr><td style="border:1px solid #cbd5e1;padding:4px 8px" colspan="3">תוספת מע״מ ' + (c.vatPct||0) + '%</td>' +
+      '<td style="border:1px solid #cbd5e1;padding:4px 8px;text-align:left">' + opILS(c.vat) + '</td></tr>' +
+      '<tr><td style="border:1px solid #cbd5e1;padding:5px 8px;background:#eff6ff;font-weight:800" colspan="3">סה״כ כולל מע״מ</td>' +
+      '<td style="border:1px solid #cbd5e1;padding:5px 8px;text-align:left;font-weight:800;font-size:13px">' + opILS(c.gross) + '</td></tr>' +
     '</table>' +
-    block('נסיבות האירוע', r.circ) +
-    block('מוקדי הנזק', r.areas) +
-    block('ממצאים', r.findings) +
-    '<div style="margin-top:14px"><div style="font-weight:800;font-size:14px;border-bottom:1.5px solid #1e3a8a;padding-bottom:3px;margin-bottom:6px">אומדן הנזק</div>' +
-    '<table style="width:100%;border-collapse:collapse;font-size:12.5px">' +
-      row('חלפים', r.parts ? ils(+r.parts) : '') + row('עבודה', r.labor ? ils(+r.labor) : '') +
-      row('צבע', r.paint ? ils(+r.paint) : '') +
-      row('נזק ישיר', ils(r.calc.direct)) +
-      (r.deprec ? row('ירידת ערך (' + esc(r.deprec) + '%)', ils(r.calc.deprecAmount)) : '') +
-      (r.salvage ? row('שרידים', ils(+r.salvage)) : '') +
-      '<tr><td style="border:1px solid #cbd5e1;padding:6px 9px;background:#eff6ff;font-weight:800">סה״כ</td><td style="border:1px solid #cbd5e1;padding:6px 9px;font-weight:800;font-size:14px">' + ils(r.calc.total) + '</td></tr>' +
-    '</table></div>' +
-    block('מסקנות', r.summary) +
-    ((r.photos||[]).length
-      ? '<div style="margin-top:16px"><div style="font-weight:800;font-size:14px;border-bottom:1.5px solid #1e3a8a;padding-bottom:3px;margin-bottom:8px">תמונות</div>' +
-        '<table style="width:100%;border-collapse:collapse"><tr>' +
-        r.photos.map((ph, i) =>
-          '<td style="width:50%;padding:4px;vertical-align:top">' +
-          '<img src="data:image/jpeg;base64,' + ph.b64 + '" style="width:100%;border:1px solid #cbd5e1;border-radius:4px">' +
-          (ph.caption ? '<div style="font-size:11px;color:#475569;padding-top:3px">' + esc(ph.caption) + '</div>' : '') +
-          '</td>' + ((i % 2 === 1) ? '</tr><tr>' : '')).join('') +
-        '</tr></table></div>'
-      : '') +
-    '<table style="width:100%;font-size:12px;margin-top:20px"><tr>' +
-      '<td>' + (o.name ? '<b>' + esc(o.name) + '</b><br>' : '') + (o.certNum ? 'מס׳ רישיון שמאי: ' + esc(o.certNum) + '<br>' : '') + (o.phone ? esc(o.phone) : '') + '</td>' +
-      '<td style="text-align:left">' + (window.OFFICER_SIGNATURE ? '<div style="font-size:11px;color:#475569">חתימה:</div><img src="' + window.OFFICER_SIGNATURE + '" style="width:170px;border-bottom:1px solid #0f172a">' : '') + '</td>' +
-    '</tr></table>' +
-  '</div>';
+    (c.ratioBase ? '<div style="margin-top:12px;font-size:11.5px;line-height:1.8">בהתאם לתקנות התעבורה, אומדן נזק זה מהווה <b>' + c.ratio.toFixed(2) + '%</b> מערך הרכב.</div>' : '')
+  );
+
+  // 6+ — תמונות, שש בעמוד
+  const ph = r.photos || [];
+  for (let i = 0; i < ph.length; i += 6) {
+    const chunk = ph.slice(i, i + 6);
+    let grid = '<table style="width:100%;border-collapse:collapse"><tr>';
+    chunk.forEach((x, j) => {
+      grid += '<td style="width:33.3%;padding:4px;vertical-align:top">' +
+        '<img src="data:image/jpeg;base64,' + x.b64 + '" style="width:100%;border:1px solid #cbd5e1;border-radius:3px">' +
+        '<div style="font-size:10px;color:#475569;text-align:center;padding-top:2px">' + esc(x.caption || opPhotoLabel(i + j)) + '</div></td>';
+      if (j % 3 === 2) grid += '</tr><tr>';
+    });
+    grid += '</tr></table>';
+    pages.push(_opHead(r, pages.length + 1, '{T}', i === 0 ? 'תמונות' : 'תמונות — המשך') + grid);
+  }
+
+  const total = pages.length;
+  return pages.map((html, i) =>
+    '<div dir="rtl" style="' + PAGE + (i < total - 1 ? ';page-break-after:always' : '') + '">' +
+    html.replace('{T}', total) + '</div>').join('');
 }
 
 async function opPdf() {
-  if (!opVal('plate')) { toast('הזן מספר רישוי', true); return; }
+  if (!opVal('plate') && !opVal('case')) { toast('הזן מספר רישוי או מספר תיק', true); return; }
   const holder = document.createElement('div');
-  holder.style.cssText = 'position:absolute;left:-9999px;top:0';
+  holder.style.cssText = 'position:absolute;left:-9999px;top:0;width:760px';
   holder.innerHTML = opHtml();
   document.body.appendChild(holder);
+  toast('מכין את חוות הדעת…');
   try {
     await html2pdf().set({
-      margin: 8, image: { type: 'jpeg', quality: 0.9 },
+      margin: 0, image: { type: 'jpeg', quality: 0.9 },
       html2canvas: { scale: 2, backgroundColor: '#ffffff' },
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
       pagebreak: { mode: ['css', 'legacy'] }
-    }).from(holder.firstElementChild).save('חוות דעת ' + opVal('plate') + '.pdf');
-    toast('ה-PDF נוצר ✓');
+    }).from(holder).save('חוות דעת ' + (opVal('case') || opVal('plate')) + '.pdf');
+    toast('חוות הדעת נוצרה ✓');
   } catch(e) { console.log('opPdf', e); toast('שגיאה ביצירת PDF', true); }
   finally { document.body.removeChild(holder); }
 }
 
 function opMail() {
-  if (!opVal('plate')) { toast('הזן מספר רישוי', true); return; }
-  const subj = 'חוות דעת שמאי — רכב ' + opVal('plate') + (opVal('claim') ? ' | תביעה ' + opVal('claim') : '');
-  const body = 'שלום,\n\nמצורפת חוות דעת שמאי עבור רכב ' + opVal('plate') +
-    (opVal('make') ? ' (' + opVal('make') + ' ' + opVal('model') + ')' : '') + '.\n' +
+  const c = opCalc();
+  const subj = 'חוות דעת שמאי' + (opVal('case') ? ' — תיק ' + opVal('case') : '') + (opVal('plate') ? ' | רכב ' + opVal('plate') : '');
+  const body = 'שלום,\n\nמצורפת חוות דעת שמאי' +
+    (opVal('plate') ? ' עבור רכב ' + opVal('plate') : '') +
+    (opVal('model') ? ' (' + opVal('model') + ')' : '') + '.\n' +
     (opVal('claim') ? 'מספר תביעה: ' + opVal('claim') + '\n' : '') +
-    'סה״כ אומדן: ₪' + Math.round(opCalc().total).toLocaleString('he-IL') + '\n\n' +
-    (typeof coSig === 'function' ? coSig() : '');
-  toast('צור PDF ולאחר מכן צרף אותו למייל');
+    'סה״כ הנזק כולל מע״מ: ' + opILS(c.gross) + '\n' +
+    (c.value ? 'אומדן הנזק מהווה ' + c.ratio.toFixed(2) + '% מערך הרכב.\n' : '') +
+    '\n' + (opVal('appraiser') || '');
+  toast('צור PDF וצרף אותו למייל');
   window.location.href = 'mailto:?subject=' + encodeURIComponent(subj) + '&body=' + encodeURIComponent(body);
 }
 
