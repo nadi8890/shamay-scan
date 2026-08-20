@@ -341,6 +341,13 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
   </div>
 </header>
 
+<!-- ═══ סרגל מערכות: שלוש מערכות נפרדות תחת אותה אפליקציה ═══ -->
+<div class="sys-bar" id="sys-bar" role="tablist" aria-label="מערכות">
+  <button class="sys-btn active" data-sys="fleet"  type="button" role="tab" aria-selected="true"  onclick="showSystem('fleet')"><span class="sys-ico" aria-hidden="true">🚗</span>ניהול צי רכב</button>
+  <button class="sys-btn"        data-sys="shamai" type="button" role="tab" aria-selected="false" onclick="showSystem('shamai')"><span class="sys-ico" aria-hidden="true">🔍</span>שמאי AI</button>
+  <button class="sys-btn"        data-sys="garage" type="button" role="tab" aria-selected="false" onclick="showSystem('garage')"><span class="sys-ico" aria-hidden="true">🔧</span>ניהול מוסך</button>
+</div>
+
 <!-- ═══ הנציג: שוטר / רמזור עם בועת קומיקס מתחלפת ═══ -->
 <style>
 #mascot{display:none;position:fixed;left:14px;bottom:86px;z-index:600;flex-direction:column;align-items:flex-start;gap:7px;cursor:pointer;pointer-events:none}
@@ -765,6 +772,35 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
   </div>
 </div>
 
+<style id="systems-ux">
+/* סרגל המערכות — רצועה מתחת לכותרת. כל מערכת היא עולם עצמאי עם
+   לשוניות משלה בסרגל התחתון. */
+.sys-bar{
+  display:flex; background:#152e63; border-bottom:1px solid rgba(255,255,255,.12);
+  position:sticky; top:0; z-index:99; overflow-x:auto; scrollbar-width:none;
+}
+.sys-bar::-webkit-scrollbar{display:none}
+.sys-btn{
+  flex:1 1 0; min-width:104px; display:flex; align-items:center; justify-content:center; gap:7px;
+  padding:12px 14px; border:none; background:none; cursor:pointer;
+  font-family:'Heebo',sans-serif; font-size:0.86rem; font-weight:700;
+  color:rgba(255,255,255,.62); border-bottom:3px solid transparent;
+  white-space:nowrap; transition:color .15s, border-color .15s, background .15s;
+}
+.sys-btn:hover{color:rgba(255,255,255,.85);background:rgba(255,255,255,.05)}
+.sys-btn.active{color:#fff;border-bottom-color:#6ee7b7;background:rgba(255,255,255,.08)}
+.sys-ico{font-size:1.05rem;line-height:1}
+@media(max-width:768px){
+  .sys-btn{font-size:0.78rem;padding:10px 8px;gap:5px;min-width:0}
+  .sys-ico{font-size:1rem}
+}
+/* מסך ריק למערכת שטרם נבנתה */
+.sys-empty{max-width:520px;margin:34px auto;text-align:center;padding:32px 22px}
+.sys-empty .ico{font-size:2.8rem;line-height:1;margin-bottom:12px}
+.sys-empty h2{font-size:1.15rem;font-weight:900;margin-bottom:7px;color:var(--text)}
+.sys-empty p{font-size:0.9rem;color:var(--muted);line-height:1.7}
+</style>
+
 <style id="mobile-ux">
 /* ══════════════════════════════════════════════════════════════════════
    התאמת נייד — 18.8.2026
@@ -772,6 +808,8 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
    לא משתנה: מעל 768px רק שני הכללים הראשונים חלים, ושניהם מסתירים
    רכיבים שקיימים אך ורק בשביל הנייד.
    ══════════════════════════════════════════════════════════════════════ */
+/* כפתור ניווט ששייך למערכת אחרת פשוט אינו קיים בסרגל */
+.nav-btn[data-offsys="1"]{display:none!important}
 .nav-more{display:none}          /* כפתור "עוד" — נייד בלבד */
 .more-sheet{display:none}        /* הגיליון — נייד בלבד */
 .fleet-cards{display:none}       /* כרטיסי רכב — נייד בלבד (בדסקטופ נשארת הטבלה) */
@@ -921,18 +959,34 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
 }
 </style>
 
+<!-- ══════════════ TAB: OPINION (שמאי AI) ══════════════ -->
+<div class="tab-content" id="tab-opinion">
+  <div id="opinion-root"></div>
+</div>
+
+<!-- ══════════════ TAB: GARAGE ══════════════ -->
+<div class="tab-content" id="tab-garage">
+  <div class="card sys-empty">
+    <div class="ico">🔧</div>
+    <h2>ניהול מוסך</h2>
+    <p>המערכת עדיין לא נבנתה. כשתחליט מה היא צריכה לעשות — נתחיל.</p>
+  </div>
+</div>
+
 <!-- Bottom Nav -->
 <nav class="bottom-nav" role="tablist" aria-label="ניווט ראשי">
-  <button class="nav-btn active" data-tab="fleet" type="button" role="tab" aria-selected="true" aria-controls="tab-fleet" onclick="showTab('fleet',this)"><span class="icon" aria-hidden="true">🚗</span>ציי רכב</button>
-  <button class="nav-btn" data-tab="alerts" type="button" role="tab" aria-selected="false" aria-controls="tab-alerts" style="position:relative" onclick="showTab('alerts',this)"><span class="icon" aria-hidden="true">🔔</span>התראות<span id="alerts-nav-badge" style="display:none;position:absolute;top:1px;left:5px;min-width:17px;height:17px;background:#dc2626;color:#fff;border-radius:999px;font-size:0.62rem;font-weight:800;line-height:17px;text-align:center;padding:0 4px;box-shadow:0 1px 4px rgba(0,0,0,.25)">0</span></button>
-  <button class="nav-btn" data-tab="incidents" type="button" role="tab" aria-selected="false" aria-controls="tab-incidents" onclick="showTab('incidents',this)"><span class="icon" aria-hidden="true">💥</span>אירועים</button>
-  <button class="nav-btn" data-tab="tasks" type="button" role="tab" aria-selected="false" aria-controls="tab-tasks" onclick="showTab('tasks',this)"><span class="icon" aria-hidden="true">✅</span>משימות</button>
-  <button class="nav-btn nav-secondary" data-tab="violations" type="button" role="tab" aria-selected="false" aria-controls="tab-violations" onclick="showTab('violations',this)"><span class="icon" aria-hidden="true">📄</span>דוחות</button>
-  <button class="nav-btn nav-secondary" data-tab="invoices" type="button" role="tab" aria-selected="false" aria-controls="tab-invoices" onclick="showTab('invoices',this)"><span class="icon" aria-hidden="true">🔧</span>מוסכים</button>
-  <button class="nav-btn nav-secondary" data-tab="returns" type="button" role="tab" aria-selected="false" aria-controls="tab-returns" onclick="showTab('returns',this)"><span class="icon" aria-hidden="true">🔄</span>החזרות</button>
-  <button class="nav-btn nav-secondary" data-tab="damage" type="button" role="tab" aria-selected="false" aria-controls="tab-damage" onclick="showTab('damage',this)"><span class="icon" aria-hidden="true">📋</span>אומדן</button>
-  <button class="nav-btn nav-secondary" data-tab="forms" type="button" role="tab" aria-selected="false" aria-controls="tab-forms" onclick="showTab('forms',this)"><span class="icon" aria-hidden="true">📝</span>טפסים</button>
-  <button class="nav-btn nav-secondary" data-tab="dashboard" type="button" role="tab" aria-selected="false" aria-controls="tab-dashboard" onclick="showTab('dashboard',this)"><span class="icon" aria-hidden="true">📊</span>דשבורד</button>
+  <button class="nav-btn active" data-tab="fleet" data-sys="fleet" type="button" role="tab" aria-selected="true" aria-controls="tab-fleet" onclick="showTab('fleet',this)"><span class="icon" aria-hidden="true">🚗</span>ציי רכב</button>
+  <button class="nav-btn" data-tab="alerts" data-sys="fleet" type="button" role="tab" aria-selected="false" aria-controls="tab-alerts" style="position:relative" onclick="showTab('alerts',this)"><span class="icon" aria-hidden="true">🔔</span>התראות<span id="alerts-nav-badge" style="display:none;position:absolute;top:1px;left:5px;min-width:17px;height:17px;background:#dc2626;color:#fff;border-radius:999px;font-size:0.62rem;font-weight:800;line-height:17px;text-align:center;padding:0 4px;box-shadow:0 1px 4px rgba(0,0,0,.25)">0</span></button>
+  <button class="nav-btn" data-tab="incidents" data-sys="fleet" type="button" role="tab" aria-selected="false" aria-controls="tab-incidents" onclick="showTab('incidents',this)"><span class="icon" aria-hidden="true">💥</span>אירועים</button>
+  <button class="nav-btn" data-tab="tasks" data-sys="fleet" type="button" role="tab" aria-selected="false" aria-controls="tab-tasks" onclick="showTab('tasks',this)"><span class="icon" aria-hidden="true">✅</span>משימות</button>
+  <button class="nav-btn nav-secondary" data-tab="violations" data-sys="fleet" type="button" role="tab" aria-selected="false" aria-controls="tab-violations" onclick="showTab('violations',this)"><span class="icon" aria-hidden="true">📄</span>דוחות</button>
+  <button class="nav-btn nav-secondary" data-tab="invoices" data-sys="fleet" type="button" role="tab" aria-selected="false" aria-controls="tab-invoices" onclick="showTab('invoices',this)"><span class="icon" aria-hidden="true">🔧</span>מוסכים</button>
+  <button class="nav-btn nav-secondary" data-tab="returns" data-sys="fleet" type="button" role="tab" aria-selected="false" aria-controls="tab-returns" onclick="showTab('returns',this)"><span class="icon" aria-hidden="true">🔄</span>החזרות</button>
+  <button class="nav-btn" data-tab="damage" data-sys="shamai" type="button" role="tab" aria-selected="false" aria-controls="tab-damage" onclick="showTab('damage',this)"><span class="icon" aria-hidden="true">📋</span>אומדן</button>
+  <button class="nav-btn nav-secondary" data-tab="forms" data-sys="fleet" type="button" role="tab" aria-selected="false" aria-controls="tab-forms" onclick="showTab('forms',this)"><span class="icon" aria-hidden="true">📝</span>טפסים</button>
+  <button class="nav-btn nav-secondary" data-tab="dashboard" data-sys="fleet" type="button" role="tab" aria-selected="false" aria-controls="tab-dashboard" onclick="showTab('dashboard',this)"><span class="icon" aria-hidden="true">📊</span>דשבורד</button>
+  <button class="nav-btn" data-tab="opinion" data-sys="shamai" type="button" role="tab" aria-selected="false" aria-controls="tab-opinion" onclick="showTab('opinion',this)"><span class="icon" aria-hidden="true">📝</span>חוות דעת</button>
+  <button class="nav-btn" data-tab="garage" data-sys="garage" type="button" role="tab" aria-selected="false" aria-controls="tab-garage" onclick="showTab('garage',this)"><span class="icon" aria-hidden="true">🔧</span>מוסך</button>
   <button class="nav-btn nav-more" id="nav-more-btn" type="button" aria-haspopup="dialog" aria-expanded="false" aria-label="עוד לשוניות" onclick="openMoreSheet()"><span class="icon" aria-hidden="true">☰</span>עוד</button>
 </nav>
 
@@ -2353,6 +2407,9 @@ function showTab(name, btn) {
   const _nb = (btn && btn.classList && btn.classList.contains('nav-btn'))
             ? btn : document.querySelector('.nav-btn[data-tab="'+name+'"]');
   if (_nb) { _nb.classList.add('active'); _nb.setAttribute('aria-selected','true'); }
+  // מעבר ללשונית של מערכת אחרת מחליף גם את המערכת הפעילה
+  const _sys = sysOf(name);
+  if (_sys !== CURRENT_SYS) showSystem(_sys, true);
   syncMoreBtn(name);
   const _sc = document.getElementById('app-scroll');
   if (_sc && _sc.scrollTop) _sc.scrollTop = 0;
@@ -7235,6 +7292,7 @@ function bootApp() {
   if (_appBooted) return;
   _appBooted = true;
   guardTenantCache();
+  try { showSystem(localStorage.getItem('fleet_sys') || 'fleet'); } catch(e) { showSystem('fleet'); }
   const cb = document.getElementById('company-badge'); if (cb) cb.textContent = COMPANY_NAME || '';
   document.getElementById('login-gate').style.display = 'none';
   startHeaderClock();
@@ -9091,6 +9149,43 @@ function initPwaBanner() {
      כלום כאן לא רץ בדסקטופ: הגיליון והכרטיסים מוסתרים ב-CSS מעל 768px.
      =============================================================== -->
 <script>
+/* --- מערכות ----------------------------------------------------
+   שלוש מערכות תחת אותה אפליקציה. כל כפתור ניווט מסומן ב-data-sys,
+   והסרגל התחתון מציג רק את הלשוניות של המערכת הפעילה. הלשוניות עצמן
+   נשארות במקומן ב-DOM — רק הנראות מנוהלת. */
+let CURRENT_SYS = 'fleet';
+const SYS_FIRST_TAB = { fleet: 'fleet', shamai: 'damage', garage: 'garage' };
+
+function sysOf(tabName) {
+  const b = document.querySelector('.nav-btn[data-tab="' + tabName + '"]');
+  return (b && b.dataset.sys) || 'fleet';
+}
+
+function showSystem(name, keepTab) {
+  if (!SYS_FIRST_TAB[name]) return;
+  CURRENT_SYS = name;
+  document.querySelectorAll('.sys-btn').forEach(b => {
+    const on = b.dataset.sys === name;
+    b.classList.toggle('active', on);
+    b.setAttribute('aria-selected', on ? 'true' : 'false');
+  });
+  // הסרגל התחתון מציג רק את לשוניות המערכת הפעילה
+  document.querySelectorAll('.nav-btn[data-tab]').forEach(b => {
+    b.dataset.offsys = (b.dataset.sys === name) ? '' : '1';
+  });
+  // "עוד" נחוץ רק כשיש לשוניות משניות במערכת הזאת
+  const more = document.getElementById('nav-more-btn');
+  if (more) {
+    const hasSecondary = !!document.querySelector('.nav-btn.nav-secondary[data-sys="' + name + '"]');
+    more.dataset.offsys = hasSecondary ? '' : '1';
+  }
+  if (!keepTab) {
+    const t = SYS_FIRST_TAB[name];
+    showTab(t, document.querySelector('.nav-btn[data-tab="' + t + '"]'));
+  }
+  try { localStorage.setItem('fleet_sys', name); } catch(e) {}
+}
+
 /* --- גיליון "עוד" ---------------------------------------------- */
 let _moreLastFocus = null;
 
@@ -9098,7 +9193,7 @@ let _moreLastFocus = null;
 function syncMoreBtn(name) {
   const more = document.getElementById('nav-more-btn');
   if (!more) return;
-  const inSheet = !!document.querySelector('.nav-btn.nav-secondary[data-tab="' + name + '"]');
+  const inSheet = !!document.querySelector('.nav-btn.nav-secondary[data-tab="' + name + '"][data-sys="' + CURRENT_SYS + '"]');
   more.classList.toggle('active', inSheet);
   more.setAttribute('aria-selected', inSheet ? 'true' : 'false');
 }
@@ -9109,7 +9204,7 @@ function buildMoreGrid() {
   if (!grid) return;
   const active = document.querySelector('.tab-content.active');
   const activeTab = active ? active.id.replace(/^tab-/, '') : '';
-  grid.innerHTML = [...document.querySelectorAll('.nav-btn.nav-secondary')].map(b => {
+  grid.innerHTML = [...document.querySelectorAll('.nav-btn.nav-secondary')].filter(b => b.dataset.sys === CURRENT_SYS).map(b => {
     const tab = b.dataset.tab;
     const iconEl = b.querySelector('.icon');
     const icon = iconEl ? iconEl.textContent : '';
