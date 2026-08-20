@@ -99,7 +99,7 @@ if ('serviceWorker' in navigator) {
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--bg);color:var(--text);font-family:'Heebo',sans-serif;min-height:100vh;padding-bottom:72px}
 /* Header */
-header{background:#1e40af;padding:11px 16px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(30,64,175,.3)}
+header{background:#1e40af;padding:9px 16px;display:flex;align-items:center;justify-content:flex-end;gap:8px;position:sticky;top:0;z-index:100;box-shadow:0 2px 8px rgba(30,64,175,.3)}
 .logo{font-size:1.1rem;font-weight:900;color:#fff;letter-spacing:.3px}
 /* Bottom nav */
 .bottom-nav{position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid var(--border);display:flex;z-index:100;box-shadow:0 -2px 10px rgba(0,0,0,.07);overflow-x:auto}
@@ -321,32 +321,33 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
   </div>
 </div>
 
-<header>
-  <div class="logo" style="display:flex;align-items:center;gap:9px">
-    <svg viewBox="0 0 48 48" width="27" height="27" style="flex-shrink:0"><rect x="15" y="3" width="18" height="42" rx="8" fill="#0f172a" stroke="rgba(255,255,255,.28)" stroke-width="1.4"/><circle cx="24" cy="13" r="4.6" fill="#ef4444"/><circle cx="24" cy="24" r="4.6" fill="#fbbf24"/><circle cx="24" cy="35" r="4.6" fill="#22c55e"/></svg>
-    <span style="display:flex;flex-direction:column;line-height:1.12">
-      <span class="brand-name" style="font-size:1.2rem;font-weight:900;letter-spacing:.3px"><span style="color:#6ee7b7">ר.מ</span><span style="color:#fff">זור</span></span>
-    </span>
+<!-- ═══ סרגל מערכות: שלוש מערכות נפרדות תחת אותה אפליקציה ═══ -->
+<div class="sys-top">
+  <div class="sys-logo">
+    <svg viewBox="0 0 48 48" width="26" height="26" style="flex-shrink:0"><rect x="15" y="3" width="18" height="42" rx="8" fill="#0f172a" stroke="rgba(255,255,255,.28)" stroke-width="1.4"/><circle cx="24" cy="13" r="4.6" fill="#ef4444"/><circle cx="24" cy="24" r="4.6" fill="#fbbf24"/><circle cx="24" cy="35" r="4.6" fill="#22c55e"/></svg>
+    <span class="brand-name"><span style="color:#6ee7b7">ר.מ</span><span style="color:#fff">זור</span></span>
   </div>
+  <div class="sys-bar" id="sys-bar" role="tablist" aria-label="מערכות">
+  <button class="sys-btn active" data-sys="fleet"  type="button" role="tab" aria-selected="true"  onclick="showSystem('fleet')"><span class="sys-ico" aria-hidden="true">🚗</span>ניהול צי רכב</button>
+  <button class="sys-btn"        data-sys="shamai" type="button" role="tab" aria-selected="false" onclick="showSystem('shamai')"><span class="sys-ico" aria-hidden="true">🔍</span>שמAI</button>
+  <button class="sys-btn"        data-sys="garage" type="button" role="tab" aria-selected="false" onclick="showSystem('garage')"><span class="sys-ico" aria-hidden="true">🔧</span>ניהול מוסך</button>
+</div>
+</div>
+
+<header>
   <div style="display:flex;align-items:center;gap:10px">
     <span id="company-badge" style="color:#fff;font-size:0.78rem;font-weight:800;white-space:nowrap;background:rgba(255,255,255,.16);padding:3px 10px;border-radius:999px"></span>
     <span id="header-clock" style="color:#fff;font-size:0.8rem;font-weight:600;white-space:nowrap;opacity:.9"></span>
     <span id="tenant-status" style="display:none"></span>
     <span id="save-indicator">💾 לא נשמר</span>
     <button class="btn" id="reminders-bell" style="position:relative;padding:7px 12px;font-size:0.82rem;background:rgba(255,255,255,.16);color:#fff;font-weight:700;border-radius:8px" title="תזכורות — מסמכים לאישור / התראות תוקף / נהלים / ק&quot;מ" onclick="showRemindersPopup(true)">🔔<span id="rem-bell-badge" style="display:none;position:absolute;top:-5px;left:-5px;min-width:18px;height:18px;background:#16a34a;color:#fff;border-radius:999px;font-size:0.62rem;font-weight:800;line-height:18px;text-align:center;padding:0 4px;box-shadow:0 1px 4px rgba(0,0,0,.3)">0</span></button>
-    <button class="btn hdr-secondary" data-sheet-icon="➕" data-sheet-label="רכב חדש" style="padding:7px 14px;font-size:0.82rem;background:#fff;color:#1e40af;font-weight:700;border-radius:8px" onclick="openAddVehicle()">+ רכב חדש</button>
-    <button class="btn hdr-secondary" data-sheet-icon="📥" data-sheet-label="ייבוא מאקסל" style="padding:7px 12px;font-size:0.82rem;background:rgba(255,255,255,.16);color:#fff;font-weight:700;border-radius:8px" title="ייבוא צי מקובץ אקסל / CSV" onclick="openImportWizard()">📥 ייבוא מאקסל</button>
+        <button class="btn hdr-secondary" data-sheet-icon="📥" data-sheet-label="ייבוא מאקסל" style="padding:7px 12px;font-size:0.82rem;background:rgba(255,255,255,.16);color:#fff;font-weight:700;border-radius:8px" title="ייבוא צי מקובץ אקסל / CSV" onclick="openImportWizard()">📥 ייבוא מאקסל</button>
     <button class="btn hdr-secondary" data-sheet-action="openRestoreDeleted" data-sheet-icon="♻️" data-sheet-label="שחזור" style="padding:7px 12px;font-size:0.82rem;background:rgba(255,255,255,.16);color:#fff;font-weight:700;border-radius:8px" title="שחזור רכב שנמחק מהגיבוי היומי" onclick="openRestoreDeleted()">♻️ שחזור</button>
     <button class="btn" style="padding:7px 12px;font-size:0.82rem;background:rgba(255,255,255,.18);color:#fff;font-weight:700;border-radius:8px" onclick="doLogout()" title="התנתקות">🚪</button>
   </div>
 </header>
 
-<!-- ═══ סרגל מערכות: שלוש מערכות נפרדות תחת אותה אפליקציה ═══ -->
-<div class="sys-bar" id="sys-bar" role="tablist" aria-label="מערכות">
-  <button class="sys-btn active" data-sys="fleet"  type="button" role="tab" aria-selected="true"  onclick="showSystem('fleet')"><span class="sys-ico" aria-hidden="true">🚗</span>ניהול צי רכב</button>
-  <button class="sys-btn"        data-sys="shamai" type="button" role="tab" aria-selected="false" onclick="showSystem('shamai')"><span class="sys-ico" aria-hidden="true">🔍</span>שמAI</button>
-  <button class="sys-btn"        data-sys="garage" type="button" role="tab" aria-selected="false" onclick="showSystem('garage')"><span class="sys-ico" aria-hidden="true">🔧</span>ניהול מוסך</button>
-</div>
+
 
 <!-- ═══ הנציג: שוטר / רמזור עם בועת קומיקס מתחלפת ═══ -->
 <style>
@@ -459,7 +460,10 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
   </div>
   <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
     <div id="fleet-count" style="font-size:0.75rem;color:var(--muted)"></div>
-    <button class="btn-export" onclick="exportSection('fleet')">📥 ייצוא Excel</button>
+    <div style="display:flex;gap:6px;align-items:center">
+      <button class="btn btn-primary" style="padding:6px 14px;font-size:0.78rem" onclick="openAddVehicle()">+ רכב חדש</button>
+      <button class="btn-export" onclick="exportSection('fleet')">📥 ייצוא Excel</button>
+    </div>
   </div>
   <div class="tbl-wrap">
     <table>
@@ -805,9 +809,19 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
 <style id="systems-ux">
 /* סרגל המערכות — רצועה מתחת לכותרת. כל מערכת היא עולם עצמאי עם
    לשוניות משלה בסרגל התחתון. */
+.sys-top{
+  display:flex; align-items:stretch; background:#0f2350;
+  border-bottom:1px solid rgba(255,255,255,.14);
+  position:sticky; top:0; z-index:101;
+}
+.sys-logo{
+  display:flex; align-items:center; gap:8px; padding:0 16px 0 14px; flex-shrink:0;
+  border-inline-end:1px solid rgba(255,255,255,.14);
+}
+.sys-logo .brand-name{font-size:1.15rem;font-weight:900;letter-spacing:.3px;white-space:nowrap}
 .sys-bar{
-  display:flex; background:#152e63; border-bottom:1px solid rgba(255,255,255,.12);
-  position:sticky; top:0; z-index:99; overflow-x:auto; scrollbar-width:none;
+  display:flex; flex:1; min-width:0; background:transparent;
+  overflow-x:auto; scrollbar-width:none;
 }
 .sys-bar::-webkit-scrollbar{display:none}
 .sys-btn{
@@ -821,8 +835,14 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
 .sys-btn.active{color:#fff;border-bottom-color:#6ee7b7;background:rgba(255,255,255,.08)}
 .sys-ico{font-size:1.05rem;line-height:1}
 @media(max-width:768px){
-  .sys-btn{font-size:0.78rem;padding:10px 8px;gap:5px;min-width:0}
-  .sys-ico{font-size:1rem}
+  .sys-btn{font-size:0.72rem;padding:9px 6px;gap:4px;min-width:0}
+  .sys-ico{font-size:0.95rem}
+  .sys-logo{padding:0 10px 0 8px;gap:6px}
+  .sys-logo .brand-name{font-size:0.95rem}
+  .sys-logo svg{width:22px;height:22px}
+}
+@media(max-width:430px){
+  .sys-logo .brand-name{display:none}   /* במסך צר הרמזור לבדו מספיק */
 }
 /* מסך ריק למערכת שטרם נבנתה */
 .sys-empty{max-width:520px;margin:34px auto;text-align:center;padding:32px 22px}
@@ -1080,7 +1100,8 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
 
     <div class="card">
       <div class="card-title">📝 הערות חוות הדעת</div>
-      <textarea id="op-notes" rows="6" placeholder="בהתאם לבקשתכם לחוות הדעת בדקנו את הנזקים ברכב..."></textarea>
+      <div id="op-note-rows" class="op-rows"></div>
+      <button class="btn btn-gray" style="margin-top:7px" onclick="opAddNote()">+ פסקה</button>
       <div class="modal-row" style="margin-top:9px"><label>לוטה בזאת</label><input id="op-attached" type="text" value="תמונות נזק, צילום רישיון רכב, שכ״ט שמאי"></div>
     </div>
 
@@ -1097,9 +1118,16 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
         <div class="modal-row"><label>שם השמאי</label><input id="op-appraiser" type="text"></div>
         <div class="modal-row"><label>מס׳ רישיון שמאי</label><input id="op-license" type="text" style="direction:ltr"></div>
         <div class="modal-row" style="grid-column:1/-1"><label>מקום עבודה</label><input id="op-office" type="text"></div>
-        <div class="modal-row" style="grid-column:1/-1"><label>השכלה וניסיון <span style="font-weight:400;color:#94a3b8;font-size:0.68rem">שורה לכל פריט</span></label><textarea id="op-education" rows="4"></textarea></div>
       </div>
-      <div style="font-size:0.75rem;color:var(--muted);margin-top:8px;line-height:1.6">ההצהרה המשפטית נוספת אוטומטית לחוות הדעת.</div>
+      <div style="margin-top:11px">
+        <label style="font-size:0.8rem;font-weight:600;color:var(--muted)">השכלה וניסיון</label>
+        <div id="op-edu-rows" class="op-rows"></div>
+        <button class="btn btn-gray" style="margin-top:7px" onclick="opAddEdu()">+ שורה</button>
+      </div>
+      <div style="margin-top:14px">
+        <label style="font-size:0.8rem;font-weight:600;color:var(--muted)">הצהרה משפטית <span style="font-weight:400;color:#94a3b8;font-size:0.68rem">ניתן לערוך; נשמר לפעם הבאה</span></label>
+        <textarea id="op-declaration" rows="4" style="margin-top:5px"></textarea>
+      </div>
     </div>
 
     <div class="btn-row" style="margin-bottom:24px;flex-wrap:wrap">
@@ -7415,6 +7443,8 @@ function wipeSeedData() {
   if (typeof ENTITIES !== 'undefined') ENTITIES = [];
   if (typeof LEASE_COMPANIES !== 'undefined') LEASE_COMPANIES = [];
   if (typeof OP_PROFILE !== 'undefined') OP_PROFILE = {};
+  if (typeof OP_EDU !== 'undefined') OP_EDU = [];
+  if (typeof OP_NOTES !== 'undefined') OP_NOTES = [];
   window.CONTACTS = { list: [], emails: [], byPlate: {} };
   window.OFFICER_INFO = null;
   window.OFFICER_SIGNATURE = '';
@@ -9305,6 +9335,8 @@ function initPwaBanner() {
 let OP_PHOTOS = [];        // {b64, caption}
 let OP_ADJ = [];           // התאמות ערך: {desc, pct, amount}
 let OP_DMG = [];           // שורות נזק: {kind, desc, sku, cost}
+let OP_EDU = [];           // השכלה וניסיון — שורה לפריט
+let OP_NOTES = [];         // הערות חוות הדעת — פסקה לשורה
 let OP_EDIT_ID = null;
 let OP_LIST = [];
 
@@ -9312,7 +9344,7 @@ const OP_FIELDS = ['case','date','casetype','damagetype','eventdate','inspdate',
                    'owner','phone','address','client','claim',
                    'plate','model','vtype','regdate','km','vin','modelcode','liccode','specs',
                    'basevalue','pricelist','ratiobase','focus','paint','panel','vat',
-                   'notes','attached','appraiser','license','office','education'];
+                   'attached','appraiser','license','office','declaration'];
 
 const opEl = k => document.getElementById('op-' + k);
 const opVal = k => { const e = opEl(k); return e ? e.value.trim() : ''; };
@@ -9322,6 +9354,31 @@ const opILS = n => '₪' + (Math.round(n * 100) / 100).toLocaleString('he-IL', {
 /* ── שורות דינמיות ── */
 function opAddAdj(d) { OP_ADJ.push(d || { desc: '', pct: '', amount: '' }); opRenderAdj(); }
 function opAddDmg(d) { OP_DMG.push(d || { kind: 'תק׳', desc: '', sku: '', cost: '' }); opRenderDmg(); }
+
+function opAddEdu(v) { OP_EDU.push(v || ''); opRenderEdu(); }
+function opAddNote(v) { OP_NOTES.push(v || ''); opRenderNotes(); }
+
+function opRenderEdu() {
+  const box = document.getElementById('op-edu-rows');
+  if (!box) return;
+  box.innerHTML = OP_EDU.map((t, i) =>
+    '<div class="op-line" style="grid-template-columns:1fr 34px">' +
+      '<input placeholder="למשל: שמאות רכב, מכללת עתיד" value="' + esc(t) + '" oninput="OP_EDU[' + i + ']=this.value">' +
+      '<button class="op-x" type="button" onclick="OP_EDU.splice(' + i + ',1);opRenderEdu()">✕</button>' +
+    '</div>').join('');
+}
+
+function opRenderNotes() {
+  const box = document.getElementById('op-note-rows');
+  if (!box) return;
+  box.innerHTML = OP_NOTES.map((t, i) =>
+    '<div class="op-line" style="grid-template-columns:1fr 34px;align-items:start">' +
+      '<textarea rows="2" style="border:1px solid var(--border);border-radius:7px;padding:6px 8px;' +
+        'font-family:Heebo,sans-serif;font-size:0.8rem;background:var(--card);color:var(--text);resize:vertical" ' +
+        'oninput="OP_NOTES[' + i + ']=this.value">' + esc(t) + '</textarea>' +
+      '<button class="op-x" type="button" onclick="OP_NOTES.splice(' + i + ',1);opRenderNotes()">✕</button>' +
+    '</div>').join('');
+}
 
 function opRenderAdj() {
   const box = document.getElementById('op-adj-rows');
@@ -9415,9 +9472,11 @@ function opNew() {
   if (opEl('appraiser')) opEl('appraiser').value = OP_PROFILE.appraiser || o.name || '';
   if (opEl('license'))   opEl('license').value   = OP_PROFILE.license || o.certNum || '';
   if (opEl('office'))    opEl('office').value    = OP_PROFILE.office || COMPANY_NAME || '';
-  if (opEl('education')) opEl('education').value = OP_PROFILE.education || '';
+  if (opEl('declaration')) opEl('declaration').value = OP_PROFILE.declaration || OP_DECLARATION;
+  OP_EDU   = (OP_PROFILE.education && OP_PROFILE.education.length) ? OP_PROFILE.education.slice() : OP_EDU_DEFAULT.slice();
+  OP_NOTES = OP_NOTE_DEFAULT.slice();
   const g = opEl('gov'); if (g) g.textContent = '';
-  opRenderAdj(); opRenderDmg(); opRenderPhotos(); opCalc();
+  opRenderEdu(); opRenderNotes(); opRenderAdj(); opRenderDmg(); opRenderPhotos(); opCalc();
   document.getElementById('op-list').style.display = 'none';
   document.getElementById('op-form').style.display = '';
 }
@@ -9426,7 +9485,8 @@ let OP_PROFILE = {};   // פרטי השמאי — נשמרים ב-main.appraiser
 
 function opSaveProfile() {
   const prof = { appraiser: opVal('appraiser'), license: opVal('license'),
-                 office: opVal('office'), education: opVal('education') };
+                 office: opVal('office'), education: OP_EDU.filter(Boolean),
+                 declaration: opVal('declaration') };
   if (JSON.stringify(prof) === JSON.stringify(OP_PROFILE)) return;
   OP_PROFILE = prof;
   try { fcol().doc('main').set({ appraiser: prof }, { merge: true }); } catch(e) {}
@@ -9519,6 +9579,8 @@ function opCollect() {
   OP_FIELDS.forEach(k => rec[k] = opVal(k));
   rec.adj = OP_ADJ.slice();
   rec.dmg = OP_DMG.slice();
+  rec.edu = OP_EDU.filter(Boolean);
+  rec.noteLines = OP_NOTES.filter(Boolean);
   rec.photos = OP_PHOTOS.map(p => ({ b64: p.b64, caption: p.caption }));
   rec.calc = opCalc();
   return rec;
@@ -9568,8 +9630,12 @@ function opOpen(i) {
   OP_FIELDS.forEach(k => { const e = opEl(k); if (e) e.value = r[k] || ''; });
   OP_ADJ = (r.adj || []).slice();
   OP_DMG = (r.dmg || []).slice();
+  OP_EDU = (r.edu || []).slice();
+  // רשומות ישנות שמרו את ההערות כטקסט אחד
+  OP_NOTES = (r.noteLines && r.noteLines.length) ? r.noteLines.slice()
+           : (r.notes ? String(r.notes).split('\n').filter(Boolean) : []);
   OP_PHOTOS = (r.photos || []).map(p => ({ b64: p.b64, caption: p.caption || '' }));
-  opRenderAdj(); opRenderDmg(); opRenderPhotos(); opCalc();
+  opRenderEdu(); opRenderNotes(); opRenderAdj(); opRenderDmg(); opRenderPhotos(); opCalc();
   document.getElementById('op-list').style.display = 'none';
   document.getElementById('op-form').style.display = '';
 }
@@ -9612,7 +9678,7 @@ function opImportHandoff() {
   setIfEmpty('owner', h.client);
   setIfEmpty('client', h.insurance);
   setIfEmpty('inspplace', h.location);
-  setIfEmpty('notes', h.notes);
+  if (h.notes && !OP_NOTES.includes(h.notes)) { OP_NOTES.push(h.notes); opRenderNotes(); }
   if (h.date) setIfEmpty('inspdate', h.date);
   if (h.incidentDate) setIfEmpty('eventdate', h.incidentDate);
   // שורות הנזק והעבודות מוחלפות, כי זה גוף האומדן
@@ -9637,6 +9703,16 @@ document.addEventListener('visibilitychange', () => {
 });
 
 /* ── פלט חוות הדעת ── */
+const OP_EDU_DEFAULT = [
+  'הנדסאי מכונות עם הסמכה לרכב, מכללת עתיד.',
+  'שמאות רכב, מכללת עתיד.',
+  'קצין בטיחות בתעבורה, מכללת המסלול הנכון.',
+  'חוקר תאונות דרכים, מכללת משלב.'
+];
+const OP_NOTE_DEFAULT = [
+  'בהתאם לבקשתכם לחוות הדעת בדקנו את הנזקים ברכב כפי שהוצגו בפנינו, להלן ממצאי הבדיקה.',
+  'חוות הדעת נערכה ע״פ ממצאי בדיקתנו, טרם חשיפת הנזק בפועל, יתכנו נזקים סמויים נוספים.'
+];
 const OP_DECLARATION =
   'אני נותן חוות דעתי זו במקום עדות בבית המשפט, והריני מצהיר בזה כי ידוע לי היטב, ' +
   'שלעניין הוראות החוק הפלילי בדבר עדות שקר בשבועה בבית המשפט, דין חוות דעתי זו, ' +
@@ -9687,7 +9763,8 @@ function opHtml() {
       '<tr><td style="border:1px solid #cbd5e1;padding:4px 8px;background:#f8fafc;font-weight:700">תוספת מע״מ ' + (c.vatPct||0) + '%</td><td style="border:1px solid #cbd5e1;padding:4px 8px">' + opILS(c.vat) + '</td></tr>' +
       '<tr><td style="border:1px solid #cbd5e1;padding:5px 8px;background:#eff6ff;font-weight:800">סה״כ כולל מע״מ</td><td style="border:1px solid #cbd5e1;padding:5px 8px;font-weight:800;font-size:13px">' + opILS(c.gross) + '</td></tr>' +
     '</table>') +
-    (r.notes ? '<div style="margin-top:12px;font-size:11.5px;line-height:1.8;white-space:pre-wrap">' + esc(r.notes) + '</div>' : '') +
+    ((r.noteLines||[]).length ? '<div style="margin-top:12px;font-size:11.5px;line-height:1.85">' +
+       r.noteLines.map(t => '<div style="margin-bottom:5px">' + esc(t) + '</div>').join('') + '</div>' : '') +
     (r.attached ? '<div style="margin-top:10px;font-size:11px;color:#475569">לוטה בזאת: ' + esc(r.attached) + '</div>' : '')
   );
 
@@ -9696,8 +9773,9 @@ function opHtml() {
     _opHead(r, 2, '{T}', 'סיכום חוות הדעת — המשך') +
     _opSection('פרטי השמאי', _opTable([
       ['שם השמאי', r.appraiser], ['מקום עבודתו', r.office]
-    ]) + (r.education ? '<div style="margin-top:7px;font-size:11.5px;line-height:1.9;white-space:pre-wrap"><b>השכלתו וניסיונו:</b><br>' + esc(r.education) + '</div>' : '')) +
-    _opSection('הצהרה משפטית', '<div style="font-size:11.5px;line-height:1.85">' + esc(OP_DECLARATION) + '</div>') +
+    ]) + ((r.edu||[]).length ? '<div style="margin-top:7px;font-size:11.5px;line-height:1.9"><b>השכלתו וניסיונו:</b><br>' +
+       r.edu.map(t => '• ' + esc(t)).join('<br>') + '</div>' : '')) +
+    _opSection('הצהרה משפטית', '<div style="font-size:11.5px;line-height:1.85">' + esc(r.declaration || OP_DECLARATION) + '</div>') +
     '<table style="width:100%;font-size:11.5px;margin-top:26px"><tr>' +
       '<td><b>' + esc(r.appraiser) + '</b>' + (r.license ? ' (' + esc(r.license) + ')' : '') + '<br>שמאי רכב</td>' +
       '<td style="text-align:left">' + (window.OFFICER_SIGNATURE ? '<div style="font-size:10px;color:#475569">חתימה:</div><img src="' + window.OFFICER_SIGNATURE + '" style="width:160px;border-bottom:1px solid #0f172a">' : '') + '</td>' +
@@ -9806,18 +9884,24 @@ function opHtml() {
 
 async function opPdf() {
   if (!opVal('plate') && !opVal('case')) { toast('הזן מספר רישוי או מספר תיק', true); return; }
+  // html2canvas מצלם ריק כשמעבירים לו אלמנט שהוא עצמו position:absolute
+  // מחוץ למסך. לכן המעטפת מוסתרת, והמסמך עצמו הוא ילד רגיל בזרימה —
+  // בדיוק הדפוס שעובד בשאר הדוחות במערכת.
   const holder = document.createElement('div');
-  holder.style.cssText = 'position:absolute;left:-9999px;top:0;width:760px';
-  holder.innerHTML = opHtml();
+  holder.style.cssText = 'position:absolute;left:-9999px;top:0;width:760px;background:#fff';
+  const doc = document.createElement('div');
+  doc.style.cssText = 'width:760px;background:#fff';
+  doc.innerHTML = opHtml();
+  holder.appendChild(doc);
   document.body.appendChild(holder);
   toast('מכין את חוות הדעת…');
   try {
     await html2pdf().set({
       margin: 0, image: { type: 'jpeg', quality: 0.9 },
-      html2canvas: { scale: 2, backgroundColor: '#ffffff' },
+      html2canvas: { scale: 2, backgroundColor: '#ffffff', windowWidth: 800 },
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
       pagebreak: { mode: ['css', 'legacy'] }
-    }).from(holder).save('חוות דעת ' + (opVal('case') || opVal('plate')) + '.pdf');
+    }).from(doc).save('חוות דעת ' + (opVal('case') || opVal('plate')) + '.pdf');
     toast('חוות הדעת נוצרה ✓');
   } catch(e) { console.log('opPdf', e); toast('שגיאה ביצירת PDF', true); }
   finally { document.body.removeChild(holder); }
