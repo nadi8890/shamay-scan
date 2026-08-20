@@ -3679,7 +3679,7 @@ function _tfEsc(s){ return String(s==null?'':s).replace(/[&<>]/g, c => ({'&':'&a
 function buildTransferHtml(d) {
   const val = (v,w) => `<span style="display:inline-block;border-bottom:1px solid #000;min-width:${w||120}px;text-align:center;padding:0 6px;font-weight:700">${_tfEsc(v)||'&nbsp;'}</span>`;
   const sigImg = window.OFFICER_SIGNATURE ? `<img src="${window.OFFICER_SIGNATURE}" style="max-width:150px;max-height:70px">` : '';
-  return `<div style="width:720px;background:#fff;color:#000;font-family:'Heebo','Segoe UI','Arial Hebrew',Arial,sans-serif;letter-spacing:normal;word-spacing:normal;direction:rtl;padding:34px 40px;font-size:14px;line-height:1.9">
+  return `<div style="width:720px;background:#fff;color:#000;font-family:Arial,'Segoe UI','Arial Hebrew','Heebo',sans-serif;letter-spacing:normal;word-spacing:normal;direction:rtl;padding:34px 40px;font-size:14px;line-height:1.9">
     <div style="text-align:left;margin-bottom:18px">תאריך: ${val(d.date,110)}</div>
     <div style="font-weight:800">לכבוד</div>
     <div style="font-weight:800;margin-bottom:2px">${d.recipient === 'רשות מקומית' ? ('רשות מקומית' + (d.authority ? ' — ' + _tfEsc(d.authority) : '')) : 'משטרת ישראל'}</div>
@@ -3735,6 +3735,7 @@ async function transferPdf() {
   document.body.appendChild(holder);
   try {
     const fname = `הסבת דוח ${d.notice || d.plate || ''}.pdf`;
+    await (document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve());
     await html2pdf().set({
       margin: 8, filename: fname,
       image: { type: 'jpeg', quality: 0.95 },
@@ -3932,11 +3933,19 @@ function govNormalize(r) {
   };
 }
 
+// המאגר הממשלתי נופל מדי פעם: שאילתת filters מחזירה Internal Server
+// Error בעוד ששאילתה בסיסית עובדת. במצב כזה אסור לומר "לא נמצא",
+// כי הרכב כן קיים — פשוט אי אפשר להגיע אליו כרגע.
+let GOV_LAST_ERROR = '';
+
 async function govVehicleRecord(rawPlate) {
   const plate = String(rawPlate || '').replace(/\D/g, '');
+  GOV_LAST_ERROR = '';
   if (!plate) return null;
   const num = parseInt(plate, 10);
+  let serverErr = 0, netErr = 0;
   const pick = data => {
+    if (data && data.success === false) { serverErr++; return null; }
     const recs = (data && data.result && data.result.records) || [];
     return recs.find(r => String(r.mispar_rechev || '').replace(/\D/g, '') === plate) || recs[0] || null;
   };
@@ -3947,16 +3956,18 @@ async function govVehicleRecord(rawPlate) {
       try {
         const rec = pick(await govJsonp(rid, filter));
         if (rec) return rec;
-      } catch(e) { console.log('gov lookup failed on', rid, e && e.message); }
+      } catch(e) { netErr++; console.log('gov lookup failed on', rid, e && e.message); }
     }
   }
 
+  // גיבוי: חיפוש חופשי, וגם סריקה לפי שדה טקסטואלי במאגר הראשי
   try {
-    return pick(await govJsonp(GOV_RESOURCES[0], 'q=' + encodeURIComponent(plate)));
-  } catch(e) {
-    console.log('gov text lookup failed:', e && e.message);
-    return null;
-  }
+    const rec = pick(await govJsonp(GOV_RESOURCES[0], 'q=' + encodeURIComponent(plate)));
+    if (rec) return rec;
+  } catch(e) { netErr++; console.log('gov text lookup failed:', e && e.message); }
+
+  if (serverErr || netErr) GOV_LAST_ERROR = serverErr ? 'המאגר הממשלתי מחזיר שגיאה' : 'אין מענה מהמאגר';
+  return null;
 }
 
 async function _cpGovColor(plate){
@@ -4108,7 +4119,7 @@ function openCityPermit(plate){
 function buildCityPermitHtml(d){
   const val = (v,w) => `<span style="display:inline-block;border-bottom:1px solid #000;min-width:${w||120}px;text-align:center;padding:0 6px;font-weight:700">${_tfEsc(v)||'&nbsp;'}</span>`;
   const sigImg = window.OFFICER_SIGNATURE ? `<img src="${window.OFFICER_SIGNATURE}" style="max-width:150px;max-height:70px">` : '';
-  return `<div style="width:720px;background:#fff;color:#000;font-family:'Heebo','Segoe UI','Arial Hebrew',Arial,sans-serif;letter-spacing:normal;word-spacing:normal;direction:rtl;padding:44px 48px;font-size:15px;line-height:2.1">
+  return `<div style="width:720px;background:#fff;color:#000;font-family:Arial,'Segoe UI','Arial Hebrew','Heebo',sans-serif;letter-spacing:normal;word-spacing:normal;direction:rtl;padding:44px 48px;font-size:15px;line-height:2.1">
     <div style="text-align:left;margin-bottom:28px">תאריך: ${val(d.date,110)}</div>
     <div style="font-weight:800">לכבוד</div>
     <div style="font-weight:800;margin-bottom:2px">${_tfEsc(d.recipient)||'&nbsp;'}</div>
@@ -4139,6 +4150,7 @@ async function cityPermitPdf(){
   document.body.appendChild(holder);
   try {
     const fname = `אישור לעירייה ${d.plate||''}.pdf`;
+    await (document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve());
     await html2pdf().set({
       margin: 8, filename: fname,
       image: { type: 'jpeg', quality: 0.95 },
@@ -5164,7 +5176,7 @@ function buildInspectionPdfHtml(r) {
       return `<tr><td style="padding:5px 10px;border:1px solid #cbd5e1">${esc(it)}</td>${cell('תקין')}${cell('לא תקין')}${cell('טופל')}</tr>`;
     }).join('')}`).join('');
   return `
-  <div dir="rtl" style="font-family:Arial,Heebo,sans-serif;color:#0f172a;width:760px;padding:24px;background:#fff">
+  <div dir="rtl" style="font-family:Arial,'Segoe UI','Arial Hebrew','Heebo',sans-serif;color:#0f172a;width:760px;padding:24px;background:#fff">
     <div style="text-align:center;font-size:20px;font-weight:900;margin-bottom:4px">ביקורת קצין בטיחות ${esc(r.inspType||'')} — מלאה</div>
     <div style="text-align:center;font-size:12px;color:#475569;margin-bottom:14px">${esc(COMPANY_NAME||'')} — מחלקת רכב | ${esc(r.dateStr||'')}</div>
     <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:12px">
@@ -5209,7 +5221,8 @@ async function inspPdfBlob(r) {
   holder.innerHTML = buildInspectionPdfHtml(r);
   document.body.appendChild(holder);
   try {
-    return await html2pdf().set({
+    return await (document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve());
+    await html2pdf().set({
       margin: 8,
       image: { type: 'jpeg', quality: 0.92 },
       html2canvas: { scale: 2 },
@@ -8784,7 +8797,13 @@ async function autoFillFromGov(rawPlate) {
   if (statusEl) statusEl.textContent = '⏳ מחפש במשרד הרישוי...';
   try {
     const rec = await govVehicleRecord(plate);
-    if (!rec) { _lastGovRec = null; if (statusEl) statusEl.textContent = '❌ לא נמצא במשרד הרישוי'; return; }
+    if (!rec) {
+      _lastGovRec = null;
+      if (statusEl) statusEl.textContent = GOV_LAST_ERROR
+        ? '⚠ ' + GOV_LAST_ERROR + ' — מלא ידנית ונסה שוב מאוחר יותר'
+        : '❌ לא נמצא במשרד הרישוי';
+      return;
+    }
     _lastGovRec = rec;
     // ממלא מאליו רק שדות ריקים; מה שכבר רשום נשאר, ומוצע לעדכון בכפתור
     applyGovRecord(false);
@@ -9547,7 +9566,7 @@ async function opGovLookup() {
   if (g) g.textContent = '⏳';
   try {
     const r = await govVehicleRecord(plate);
-    if (!r) { if (g) g.textContent = v ? '✓ מהצי' : '❌ לא נמצא'; return; }
+    if (!r) { if (g) g.textContent = v ? '✓ מהצי' : (GOV_LAST_ERROR ? '⚠ ' + GOV_LAST_ERROR : '❌ לא נמצא'); return; }
     const n = govNormalize(r) || {};
     fill('model', [n.make, n.model, n.year].filter(Boolean).join(' '));
     fill('vtype', n.type);
@@ -9794,7 +9813,12 @@ function opHtml() {
   const o = (typeof loadOfficerInfo === 'function') ? loadOfficerInfo() : {};
   r.appraiserPhone = o.phone || ''; r.appraiserMail = o.mail || o.email || '';
 
-  const PAGE = 'display:block;width:100%;padding:4px 0 10px;background:#fff;font-family:Arial,Heebo,sans-serif;color:#0f172a;box-sizing:border-box;direction:rtl';
+  // html2canvas מאבד רווחים בין מילים אלא אם letter-spacing ו-
+  // word-spacing מוגדרים במפורש. זו בדיוק המחסנית שבה משתמשים
+  // מכתב ההסבה ואישור העירייה, ששניהם יוצאים תקין.
+  const PAGE = "display:block;width:100%;padding:4px 0 12px;background:#fff;" +
+    "font-family:Arial,'Segoe UI','Arial Hebrew','Heebo',sans-serif;" +
+    "letter-spacing:normal;word-spacing:normal;color:#0f172a;box-sizing:border-box;direction:rtl";
   const pages = [];
 
   // 1 — סיכום
@@ -9926,9 +9950,11 @@ function opHtml() {
   // שבירה לפני כל קטע (חוץ מהראשון) במקום גובה עמוד קשיח. כפיית
   // page-break-after על div בגובה משתנה, יחד עם החיתוך של html2pdf
   // לפי A4, יצרה עמודים ריקים ותוכן חתוך.
+  // המחלקה op-brk מסומנת רק מהקטע השני. סימון הראשון גם הוא גרם
+  // ל-html2pdf לפתוח עמוד ריק לפני שהתחיל התוכן.
   return pages.map((html, i) =>
-    '<section class="op-pg" style="' + PAGE + (i ? ';page-break-before:always' : '') + '">' +
-    html + '</section>').join('');
+    '<section class="' + (i ? 'op-pg op-brk' : 'op-pg') + '" style="' + PAGE +
+    (i ? ';page-break-before:always' : '') + '">' + html + '</section>').join('');
 }
 
 async function opPdf() {
@@ -9940,18 +9966,20 @@ async function opPdf() {
   holder.style.cssText = 'position:absolute;left:-9999px;top:0;width:760px;background:#fff';
   const doc = document.createElement('div');
   doc.setAttribute('dir', 'rtl');
-  doc.style.cssText = 'width:720px;background:#fff;font-family:Arial,Heebo,sans-serif';
+  doc.style.cssText = "width:720px;background:#fff;letter-spacing:normal;word-spacing:normal;" +
+    "font-family:Arial,'Segoe UI','Arial Hebrew','Heebo',sans-serif";
   doc.innerHTML = opHtml();
   holder.appendChild(doc);
   document.body.appendChild(holder);
   toast('מכין את חוות הדעת…');
   try {
+    await (document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve());
     await html2pdf().set({
       margin: [12, 10, 12, 10],
       image: { type: 'jpeg', quality: 0.92 },
-      html2canvas: { scale: 2, backgroundColor: '#ffffff', windowWidth: 760, scrollY: 0 },
+      html2canvas: { scale: 2, backgroundColor: '#ffffff', width: 720, windowWidth: 720, scrollX: 0, scrollY: 0 },
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-      pagebreak: { mode: ['css', 'legacy'], before: '.op-pg', avoid: ['tr', 'img', 'table'] }
+      pagebreak: { mode: ['css', 'legacy'], before: '.op-brk', avoid: ['tr', 'img'] }
     }).from(doc).save('חוות דעת ' + (opVal('case') || opVal('plate')) + '.pdf');
     toast('חוות הדעת נוצרה ✓');
   } catch(e) { console.log('opPdf', e); toast('שגיאה ביצירת PDF', true); }
