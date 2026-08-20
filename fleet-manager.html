@@ -6493,6 +6493,25 @@ async function _shrinkB64(b64, maxPx, q){
     img.src='data:image/jpeg;base64,'+b64;
   });
 }
+// חתימה נשמרת כ-PNG שקוף. כיווץ ל-JPEG בלי רקע לבן היה הופך אותה
+// לריבוע שחור, ולכן ממלאים לבן לפני הציור.
+async function _shrinkSignature(dataUrl) {
+  return new Promise(res => {
+    const img = new Image();
+    img.onload = () => {
+      const maxW = 520, r = Math.min(1, maxW / img.width);
+      const w = Math.max(1, Math.round(img.width * r)), h = Math.max(1, Math.round(img.height * r));
+      const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+      const ctx = cv.getContext('2d');
+      ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, w, h);
+      ctx.drawImage(img, 0, 0, w, h);
+      try { res(cv.toDataURL('image/jpeg', 0.72).split(',')[1]); } catch(e) { res(''); }
+    };
+    img.onerror = () => res('');
+    img.src = dataUrl;
+  });
+}
+
 async function buildDriverBundle(v, cache){
   const email=(v.driverEmail||'').trim().toLowerCase(); if(!email) return false;   // תואם למייל המאומת (Firebase ממיר לאותיות קטנות)
   const pk=String(v.plate||'').replace(/\D/g,'');
@@ -6504,10 +6523,28 @@ async function buildDriverBundle(v, cache){
   const addImgs = async (imgs,label,cat) => { for(const b of (imgs||[]).slice(0,2)){ if(b) photos.push({ cat, label, b64: await _shrinkB64(b, 1000, 0.5) }); } };
   if(lic) await addImgs(lic.images, 'רישיון נהיגה', 'driver');       // מסמך נהג — עובר עם העובד
   if(veh) await addImgs(veh.images, 'רישיון רכב / ביטוח', 'vehicle'); // מסמך רכב — של הרכב הנוכחי
+  // הטפסים שהעובד חתם עליהם. עד כה התיק הכיל רק צילומים שהוא צירף,
+  // ולכן נהלי הרכב וטפסי הקבלה לא הופיעו בפורטל שלו כלל.
+  const signed = (cache.decls || [])
+    .filter(r => driverKey(r.driver || r.name) === dkey)
+    .sort((a, b) => (b.created || 0) - (a.created || 0))
+    .slice(0, 12);
+  const forms = [];
+  for (const r of signed) {
+    const meta = (typeof DECL_FORM_META !== 'undefined' && DECL_FORM_META[r.formType]) || null;
+    forms.push({
+      formType: r.formType || '',
+      label: meta ? meta.label : '📋 טופס חתום',
+      dateStr: r.dateStr || '',
+      plate: r.plate || '',
+      model: r.model || '',
+      sig: r.signature ? await _shrinkSignature(r.signature) : ''
+    });
+  }
   const bundle={ type:'driverbundle', email, emailKey:_emailKey(email),
     driver:(v.driverName||'').split('-')[0].trim(), plate:v.plate, make:v.make||'', model:v.model||'',
     procedures:v.procedures||'', registrationExpiry:v.registrationExpiry||'', insuranceExpiry:v.insuranceExpiry||'', licenseExpiry:v.licenseExpiry||'', inspection:v.inspection||'',
-    photos, updated:Date.now() };
+    photos, forms, updated:Date.now() };
   await fcol().doc('mydocs_'+_emailKey(email)).set(bundle);
   return true;
 }
@@ -6517,8 +6554,10 @@ async function syncDriverPortals(){
   if(!confirm(`לבנות/לעדכן פורטל מסמכים ל-${list.length} עובדים (בעלי מייל)?\nכל עובד יוכל להיכנס עם המייל שלו ולראות רק את המסמכים שלו.`)) return;
   toast('בונה פורטלים... ('+list.length+')');
   try {
-    const [ldocs, vdocs] = await Promise.all([ readDriverDocs('licensedocs'), readDriverDocs('vehicledocs') ]);
-    const cache = { ldocs, vdocs };
+    const [ldocs, vdocs, decls] = await Promise.all([
+      readDriverDocs('licensedocs'), readDriverDocs('vehicledocs'), readDriverDocs('declaration')
+    ]);
+    const cache = { ldocs, vdocs, decls };
     let n=0;
     for(const v of list){ try{ if(await buildDriverBundle(v, cache)) n++; }catch(e){ console.log('bundle', v.plate, e); } }
     toast('✓ סונכרנו '+n+' פורטלי עובדים');
