@@ -772,6 +772,23 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
   </div>
 </div>
 
+<style id="opinion-ux">
+.op-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+@media(max-width:600px){.op-grid{grid-template-columns:1fr}}
+.op-total{margin-top:12px;padding-top:11px;border-top:1.5px solid var(--border);
+  display:flex;flex-wrap:wrap;gap:8px 18px;font-size:0.88rem}
+.op-total b{font-family:'Heebo',sans-serif;font-size:1.05rem;color:var(--blue)}
+.op-photos{display:grid;grid-template-columns:repeat(auto-fill,minmax(128px,1fr));gap:9px;margin-top:11px}
+.op-photo{border:1px solid var(--border);border-radius:9px;overflow:hidden;background:var(--card)}
+.op-photo img{width:100%;height:96px;object-fit:cover;display:block}
+.op-photo input{width:100%;border:none;border-top:1px solid var(--border);padding:5px 7px;
+  font-family:'Heebo',sans-serif;font-size:0.72rem;outline:none;background:transparent;color:var(--text)}
+.op-photo button{width:100%;border:none;border-top:1px solid var(--border);background:#fef2f2;
+  color:#b91c1c;padding:4px;font-size:0.7rem;cursor:pointer;font-family:'Heebo',sans-serif}
+.op-row{display:flex;align-items:center;gap:9px;padding:9px 4px;border-bottom:1px solid var(--border);cursor:pointer}
+.op-row:last-child{border-bottom:none}
+</style>
+
 <style id="systems-ux">
 /* סרגל המערכות — רצועה מתחת לכותרת. כל מערכת היא עולם עצמאי עם
    לשוניות משלה בסרגל התחתון. */
@@ -961,7 +978,79 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
 
 <!-- ══════════════ TAB: OPINION (שמאי AI) ══════════════ -->
 <div class="tab-content" id="tab-opinion">
-  <div id="opinion-root"></div>
+  <div class="section-hdr">
+    <span class="section-title">📝 חוות דעת שמאי</span>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      <button class="btn btn-gray" onclick="opNew()">+ חוות דעת חדשה</button>
+      <button class="btn btn-gray" onclick="opToggleList()">📂 שמורות (<span id="op-count">0</span>)</button>
+    </div>
+  </div>
+
+  <div id="op-list" class="card" style="display:none"></div>
+
+  <div id="op-form">
+    <div class="card">
+      <div class="card-title">🚗 הרכב והאירוע</div>
+      <div class="op-grid">
+        <div class="modal-row"><label>מס׳ רישוי</label><div style="display:flex;gap:5px"><input id="op-plate" type="text" placeholder="12345678" style="flex:1" onblur="opGovLookup()"><span id="op-gov" style="font-size:0.7rem;color:var(--muted);white-space:nowrap;align-self:center"></span></div></div>
+        <div class="modal-row"><label>תאריך האירוע</label><input id="op-date" type="date"></div>
+        <div class="modal-row"><label>יצרן</label><input id="op-make" type="text"></div>
+        <div class="modal-row"><label>דגם</label><input id="op-model" type="text"></div>
+        <div class="modal-row"><label>שנתון</label><input id="op-year" type="text"></div>
+        <div class="modal-row"><label>צבע</label><input id="op-color" type="text"></div>
+        <div class="modal-row"><label>קילומטראז׳</label><input id="op-km" type="text" inputmode="numeric"></div>
+        <div class="modal-row"><label>בעלות</label><input id="op-owner" type="text" placeholder="פרטית / חברה / ליסינג"></div>
+        <div class="modal-row" style="grid-column:1/-1"><label>מקום ונסיבות האירוע</label><textarea id="op-circ" rows="2" placeholder="תיאור קצר של האירוע"></textarea></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">👤 מזמין חוות הדעת</div>
+      <div class="op-grid">
+        <div class="modal-row"><label>שם המזמין</label><input id="op-client" type="text" placeholder="חברת ביטוח / בעל הרכב"></div>
+        <div class="modal-row"><label>מס׳ תביעה</label><input id="op-claim" type="text"></div>
+        <div class="modal-row"><label>שם הנהג</label><input id="op-driver" type="text"></div>
+        <div class="modal-row"><label>טלפון</label><input id="op-phone" type="tel" style="direction:ltr"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">💥 מוקדי הנזק וממצאים</div>
+      <div class="modal-row"><label>מוקדי נזק</label><input id="op-areas" type="text" placeholder="חזית ימין, פגוש קדמי, פנס..."></div>
+      <div class="modal-row" style="margin-top:8px"><label>תיאור הממצאים</label><textarea id="op-findings" rows="4" placeholder="מה נמצא בבדיקה"></textarea></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">💰 אומדן הנזק</div>
+      <div class="op-grid">
+        <div class="modal-row"><label>חלפים (₪)</label><input id="op-parts" type="number" oninput="opCalc()"></div>
+        <div class="modal-row"><label>עבודה (₪)</label><input id="op-labor" type="number" oninput="opCalc()"></div>
+        <div class="modal-row"><label>צבע (₪)</label><input id="op-paint" type="number" oninput="opCalc()"></div>
+        <div class="modal-row"><label>ירידת ערך (%)</label><input id="op-deprec" type="number" step="0.1" oninput="opCalc()"></div>
+        <div class="modal-row"><label>ערך הרכב (₪)</label><input id="op-value" type="number" oninput="opCalc()"></div>
+        <div class="modal-row"><label>שרידים (₪)</label><input id="op-salvage" type="number" oninput="opCalc()"></div>
+      </div>
+      <div id="op-total" class="op-total"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">📷 תמונות <span id="op-photo-count" style="font-weight:400;color:var(--muted);font-size:0.78rem"></span></div>
+      <input id="op-photo-file" type="file" accept="image/*" multiple style="display:none" onchange="opAddPhotos(this)">
+      <button class="btn btn-primary" style="min-height:44px" onclick="document.getElementById('op-photo-file').click()">+ הוסף תמונות</button>
+      <div id="op-photos" class="op-photos"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">⚖️ מסקנות</div>
+      <div class="modal-row"><label>סיכום ומסקנות</label><textarea id="op-summary" rows="4" placeholder="מסקנות השמאי"></textarea></div>
+    </div>
+
+    <div class="btn-row" style="margin-bottom:24px;flex-wrap:wrap">
+      <button class="btn btn-gray" onclick="opSave()">💾 שמור</button>
+      <button class="btn btn-secondary" onclick="opPdf()">📄 צור PDF</button>
+      <button class="btn btn-primary" onclick="opMail()">📤 שלח לחברת הביטוח</button>
+    </div>
+  </div>
 </div>
 
 <!-- ══════════════ TAB: GARAGE ══════════════ -->
@@ -2425,6 +2514,7 @@ function showTab(name, btn) {
   if (name==='violations') { renderViolations(); buildViolColFilterRow(); }
   if (name==='invoices') { renderInvoices(); buildInvColFilterRow(); }
   if (name==='tasks') renderTasks();
+  if (name==='opinion') { if (!OP_PHOTOS.length && !document.getElementById('op-plate').value) opNew(); opLoadList(); }
   if (name==='returns') renderReturns();
   if (name==='forms') renderFormsTab();
   if (name==='dashboard') renderManagerDashboard();
@@ -9149,6 +9239,260 @@ function initPwaBanner() {
      כלום כאן לא רץ בדסקטופ: הגיליון והכרטיסים מוסתרים ב-CSS מעל 768px.
      =============================================================== -->
 <script>
+/* --- חוות דעת שמאי ---------------------------------------------
+   טופס, תמונות מצורפות, חישוב אומדן ופלט PDF. הרשומות נשמרות
+   ב-tenants/{id}/data עם type='opinion', כמו שאר המסמכים. */
+let OP_PHOTOS = [];      // {b64, caption}
+let OP_EDIT_ID = null;
+let OP_LIST = [];
+
+const OP_FIELDS = ['plate','date','make','model','year','color','km','owner','circ',
+                   'client','claim','driver','phone','areas','findings',
+                   'parts','labor','paint','deprec','value','salvage','summary'];
+
+const opEl = k => document.getElementById('op-' + k);
+const opVal = k => { const e = opEl(k); return e ? e.value.trim() : ''; };
+const opNum = k => { const n = parseFloat(opVal(k)); return isNaN(n) ? 0 : n; };
+
+function opCalc() {
+  const parts = opNum('parts'), labor = opNum('labor'), paint = opNum('paint');
+  const direct = parts + labor + paint;
+  const depPct = opNum('deprec'), value = opNum('value'), salvage = opNum('salvage');
+  const depAmt = Math.round(value * depPct) / 100;
+  const total = direct + depAmt;
+  const ils = n => '₪' + Math.round(n).toLocaleString('he-IL');
+  const box = opEl('total');
+  if (box) box.innerHTML =
+    '<span>נזק ישיר: <b>' + ils(direct) + '</b></span>' +
+    (depPct ? '<span>ירידת ערך ' + depPct + '%: <b>' + ils(depAmt) + '</b></span>' : '') +
+    (salvage ? '<span>שרידים: <b>' + ils(salvage) + '</b></span>' : '') +
+    '<span style="margin-inline-start:auto">סה״כ: <b>' + ils(total) + '</b></span>';
+  return { direct, depAmt, total, salvage };
+}
+
+function opNew() {
+  OP_EDIT_ID = null; OP_PHOTOS = [];
+  OP_FIELDS.forEach(k => { const e = opEl(k); if (e) e.value = ''; });
+  const d = new Date();
+  const de = opEl('date');
+  if (de) de.value = d.getFullYear() + '-' + ('0'+(d.getMonth()+1)).slice(-2) + '-' + ('0'+d.getDate()).slice(-2);
+  const g = opEl('gov'); if (g) g.textContent = '';
+  opRenderPhotos(); opCalc();
+  document.getElementById('op-list').style.display = 'none';
+  document.getElementById('op-form').style.display = '';
+}
+
+// שליפת פרטי הרכב מהצי, ואם אינו שם — ממשרד הרישוי
+async function opGovLookup() {
+  const plate = opVal('plate').replace(/\D/g, '');
+  const g = opEl('gov');
+  if (plate.length < 7) { if (g) g.textContent = ''; return; }
+  const v = (VEHICLES || []).find(x => String(x.plate||'').replace(/\D/g,'') === plate);
+  const fill = (k, val) => { const e = opEl(k); if (e && !e.value && val) e.value = val; };
+  if (v) {
+    fill('make', v.make); fill('model', v.model); fill('year', v.year);
+    fill('km', v.currentKm); fill('driver', (v.driverName||'').split('-')[0].trim());
+    fill('phone', v.driverPhone); fill('owner', v.company);
+    if (g) g.textContent = '✓ מהצי';
+  }
+  if (g) g.textContent = (g.textContent || '') + ' ⏳';
+  try {
+    const rec = await govVehicleRecord(plate);
+    if (!rec) { if (g) g.textContent = v ? '✓ מהצי' : '❌ לא נמצא'; return; }
+    fill('make', rec.tozeret_nm); fill('model', rec.degem_nm || rec.kinuy_mishari);
+    fill('year', rec.shnat_yitzur ? String(rec.shnat_yitzur) : '');
+    fill('color', rec.tzeva_rechev); fill('owner', rec.baalut);
+    if (g) g.textContent = '✓ ' + [rec.tozeret_nm, rec.kinuy_mishari].filter(Boolean).join(' ');
+  } catch(e) { if (g) g.textContent = v ? '✓ מהצי' : '⚠ המאגר לא הגיב'; }
+}
+
+async function opAddPhotos(input) {
+  const files = Array.from(input.files || []); input.value = '';
+  for (const f of files) {
+    if (!f.type.startsWith('image/')) continue;
+    try {
+      const b64 = await _opShrink(f);
+      if (b64) OP_PHOTOS.push({ b64, caption: '' });
+    } catch(e) { console.log('opinion photo', f.name, e); }
+  }
+  opRenderPhotos();
+}
+
+// תמונות חוות דעת נשמרות עם הרשומה, ולכן מוקטנות כדי שהמסמך לא יחרוג
+// ממגבלת 1MB של Firestore.
+function _opShrink(file) {
+  return new Promise(res => {
+    const fr = new FileReader();
+    fr.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const max = 1100, r = Math.min(1, max / Math.max(img.width, img.height));
+        const w = Math.round(img.width * r), h = Math.round(img.height * r);
+        const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+        const cx = cv.getContext('2d');
+        cx.fillStyle = '#fff'; cx.fillRect(0, 0, w, h);
+        cx.drawImage(img, 0, 0, w, h);
+        try { res(cv.toDataURL('image/jpeg', 0.62).split(',')[1]); } catch(e) { res(''); }
+      };
+      img.onerror = () => res('');
+      img.src = fr.result;
+    };
+    fr.onerror = () => res('');
+    fr.readAsDataURL(file);
+  });
+}
+
+function opRenderPhotos() {
+  const box = document.getElementById('op-photos');
+  const cnt = document.getElementById('op-photo-count');
+  if (cnt) {
+    const kb = Math.round(OP_PHOTOS.reduce((a, p) => a + p.b64.length, 0) / 1024 * 0.75);
+    cnt.textContent = OP_PHOTOS.length ? `· ${OP_PHOTOS.length} תמונות (${kb}KB)` : '';
+  }
+  if (!box) return;
+  box.innerHTML = OP_PHOTOS.map((p, i) =>
+    '<div class="op-photo">' +
+      '<img src="data:image/jpeg;base64,' + p.b64 + '" alt="">' +
+      '<input value="' + esc(p.caption) + '" placeholder="כיתוב" oninput="OP_PHOTOS[' + i + '].caption=this.value">' +
+      '<button type="button" onclick="OP_PHOTOS.splice(' + i + ',1);opRenderPhotos()">הסר</button>' +
+    '</div>').join('');
+}
+
+function opCollect() {
+  const rec = { type: 'opinion', id: OP_EDIT_ID || ('op_' + Date.now()), created: Date.now() };
+  OP_FIELDS.forEach(k => rec[k] = opVal(k));
+  const c = opCalc();
+  rec.calc = { direct: c.direct, deprecAmount: c.depAmt, total: c.total, salvage: c.salvage };
+  rec.photos = OP_PHOTOS.map(p => ({ b64: p.b64, caption: p.caption }));
+  rec.officer = (typeof loadOfficerInfo === 'function') ? loadOfficerInfo() : {};
+  return rec;
+}
+
+async function opSave() {
+  if (!opVal('plate')) { toast('הזן מספר רישוי', true); return; }
+  const rec = opCollect();
+  const size = JSON.stringify(rec).length;
+  if (size > 900000) { toast('המסמך גדול מדי — הסר כמה תמונות', true); return; }
+  try {
+    await fcol().doc(rec.id).set(rec);
+    OP_EDIT_ID = rec.id;
+    toast('חוות הדעת נשמרה ✓');
+    opLoadList();
+  } catch(e) { console.log('opSave', e); toast('שגיאה בשמירה', true); }
+}
+
+async function opLoadList() {
+  try {
+    OP_LIST = (await readDriverDocs('opinion')).sort((a, b) => (b.created||0) - (a.created||0));
+  } catch(e) { OP_LIST = []; }
+  const c = document.getElementById('op-count'); if (c) c.textContent = OP_LIST.length;
+  const box = document.getElementById('op-list');
+  if (!box) return;
+  box.innerHTML = OP_LIST.length
+    ? OP_LIST.map((r, i) =>
+        '<div class="op-row" onclick="opOpen(' + i + ')">' +
+          '<span style="font-weight:800;direction:ltr">' + esc(r.plate||'') + '</span>' +
+          '<span style="flex:1;font-size:0.82rem;color:var(--muted)">' + esc([r.make, r.model, r.client].filter(Boolean).join(' · ')) + '</span>' +
+          '<span style="font-size:0.76rem;color:var(--muted)">' + esc(r.date||'') + '</span>' +
+          ((r.photos||[]).length ? '<span class="badge badge-gray">📷 ' + r.photos.length + '</span>' : '') +
+        '</div>').join('')
+    : '<div style="color:var(--muted);padding:12px;font-size:0.88rem">אין חוות דעת שמורות.</div>';
+}
+
+function opToggleList() {
+  const l = document.getElementById('op-list'), f = document.getElementById('op-form');
+  const show = l.style.display === 'none';
+  l.style.display = show ? '' : 'none';
+  f.style.display = show ? 'none' : '';
+  if (show) opLoadList();
+}
+
+function opOpen(i) {
+  const r = OP_LIST[i]; if (!r) return;
+  OP_EDIT_ID = r.id || null;
+  OP_FIELDS.forEach(k => { const e = opEl(k); if (e) e.value = r[k] || ''; });
+  OP_PHOTOS = (r.photos || []).map(p => ({ b64: p.b64, caption: p.caption || '' }));
+  opRenderPhotos(); opCalc();
+  document.getElementById('op-list').style.display = 'none';
+  document.getElementById('op-form').style.display = '';
+}
+
+// ── פלט ──
+function opHtml() {
+  const r = opCollect();
+  const ils = n => '₪' + Math.round(n).toLocaleString('he-IL');
+  const row = (k, v) => v ? '<tr><td style="border:1px solid #cbd5e1;padding:5px 9px;background:#f8fafc;font-weight:700;width:34%">' + esc(k) + '</td><td style="border:1px solid #cbd5e1;padding:5px 9px">' + esc(v) + '</td></tr>' : '';
+  const block = (title, body) => body ? '<div style="margin-top:14px"><div style="font-weight:800;font-size:14px;border-bottom:1.5px solid #1e3a8a;padding-bottom:3px;margin-bottom:6px">' + title + '</div><div style="font-size:12.5px;line-height:1.75;white-space:pre-wrap">' + esc(body) + '</div></div>' : '';
+  const o = r.officer || {};
+  return '<div dir="rtl" style="font-family:Arial,Heebo,sans-serif;color:#0f172a;width:760px;padding:26px;background:#fff">' +
+    '<div style="text-align:center;font-size:21px;font-weight:900">חוות דעת שמאי</div>' +
+    '<div style="text-align:center;font-size:12px;color:#475569;margin-bottom:14px">' + esc(COMPANY_NAME||'') + (r.date ? ' | ' + esc(r.date) : '') + '</div>' +
+    '<table style="width:100%;border-collapse:collapse;font-size:12.5px">' +
+      row('מס׳ רישוי', r.plate) + row('יצרן ודגם', [r.make, r.model].filter(Boolean).join(' ')) +
+      row('שנתון', r.year) + row('צבע', r.color) + row('קילומטראז׳', r.km) + row('בעלות', r.owner) +
+      row('מזמין חוות הדעת', r.client) + row('מס׳ תביעה', r.claim) +
+      row('נהג', r.driver) + row('טלפון', r.phone) +
+    '</table>' +
+    block('נסיבות האירוע', r.circ) +
+    block('מוקדי הנזק', r.areas) +
+    block('ממצאים', r.findings) +
+    '<div style="margin-top:14px"><div style="font-weight:800;font-size:14px;border-bottom:1.5px solid #1e3a8a;padding-bottom:3px;margin-bottom:6px">אומדן הנזק</div>' +
+    '<table style="width:100%;border-collapse:collapse;font-size:12.5px">' +
+      row('חלפים', r.parts ? ils(+r.parts) : '') + row('עבודה', r.labor ? ils(+r.labor) : '') +
+      row('צבע', r.paint ? ils(+r.paint) : '') +
+      row('נזק ישיר', ils(r.calc.direct)) +
+      (r.deprec ? row('ירידת ערך (' + esc(r.deprec) + '%)', ils(r.calc.deprecAmount)) : '') +
+      (r.salvage ? row('שרידים', ils(+r.salvage)) : '') +
+      '<tr><td style="border:1px solid #cbd5e1;padding:6px 9px;background:#eff6ff;font-weight:800">סה״כ</td><td style="border:1px solid #cbd5e1;padding:6px 9px;font-weight:800;font-size:14px">' + ils(r.calc.total) + '</td></tr>' +
+    '</table></div>' +
+    block('מסקנות', r.summary) +
+    ((r.photos||[]).length
+      ? '<div style="margin-top:16px"><div style="font-weight:800;font-size:14px;border-bottom:1.5px solid #1e3a8a;padding-bottom:3px;margin-bottom:8px">תמונות</div>' +
+        '<table style="width:100%;border-collapse:collapse"><tr>' +
+        r.photos.map((ph, i) =>
+          '<td style="width:50%;padding:4px;vertical-align:top">' +
+          '<img src="data:image/jpeg;base64,' + ph.b64 + '" style="width:100%;border:1px solid #cbd5e1;border-radius:4px">' +
+          (ph.caption ? '<div style="font-size:11px;color:#475569;padding-top:3px">' + esc(ph.caption) + '</div>' : '') +
+          '</td>' + ((i % 2 === 1) ? '</tr><tr>' : '')).join('') +
+        '</tr></table></div>'
+      : '') +
+    '<table style="width:100%;font-size:12px;margin-top:20px"><tr>' +
+      '<td>' + (o.name ? '<b>' + esc(o.name) + '</b><br>' : '') + (o.certNum ? 'מס׳ רישיון שמאי: ' + esc(o.certNum) + '<br>' : '') + (o.phone ? esc(o.phone) : '') + '</td>' +
+      '<td style="text-align:left">' + (window.OFFICER_SIGNATURE ? '<div style="font-size:11px;color:#475569">חתימה:</div><img src="' + window.OFFICER_SIGNATURE + '" style="width:170px;border-bottom:1px solid #0f172a">' : '') + '</td>' +
+    '</tr></table>' +
+  '</div>';
+}
+
+async function opPdf() {
+  if (!opVal('plate')) { toast('הזן מספר רישוי', true); return; }
+  const holder = document.createElement('div');
+  holder.style.cssText = 'position:absolute;left:-9999px;top:0';
+  holder.innerHTML = opHtml();
+  document.body.appendChild(holder);
+  try {
+    await html2pdf().set({
+      margin: 8, image: { type: 'jpeg', quality: 0.9 },
+      html2canvas: { scale: 2, backgroundColor: '#ffffff' },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+      pagebreak: { mode: ['css', 'legacy'] }
+    }).from(holder.firstElementChild).save('חוות דעת ' + opVal('plate') + '.pdf');
+    toast('ה-PDF נוצר ✓');
+  } catch(e) { console.log('opPdf', e); toast('שגיאה ביצירת PDF', true); }
+  finally { document.body.removeChild(holder); }
+}
+
+function opMail() {
+  if (!opVal('plate')) { toast('הזן מספר רישוי', true); return; }
+  const subj = 'חוות דעת שמאי — רכב ' + opVal('plate') + (opVal('claim') ? ' | תביעה ' + opVal('claim') : '');
+  const body = 'שלום,\n\nמצורפת חוות דעת שמאי עבור רכב ' + opVal('plate') +
+    (opVal('make') ? ' (' + opVal('make') + ' ' + opVal('model') + ')' : '') + '.\n' +
+    (opVal('claim') ? 'מספר תביעה: ' + opVal('claim') + '\n' : '') +
+    'סה״כ אומדן: ₪' + Math.round(opCalc().total).toLocaleString('he-IL') + '\n\n' +
+    (typeof coSig === 'function' ? coSig() : '');
+  toast('צור PDF ולאחר מכן צרף אותו למייל');
+  window.location.href = 'mailto:?subject=' + encodeURIComponent(subj) + '&body=' + encodeURIComponent(body);
+}
+
 /* --- מערכות ----------------------------------------------------
    שלוש מערכות תחת אותה אפליקציה. כל כפתור ניווט מסומן ב-data-sys,
    והסרגל התחתון מציג רק את הלשוניות של המערכת הפעילה. הלשוניות עצמן
