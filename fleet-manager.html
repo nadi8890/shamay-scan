@@ -1454,6 +1454,10 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
       <div class="modal-row" style="grid-column:1/-1"><label>תיאור עבירה</label><input id="vm-offense" type="text"></div>
       <div class="modal-row"><label>נקודות</label><input id="vm-points" type="number" placeholder="0"></div>
       <div class="modal-row"><label>קנס (₪)</label><input id="vm-fine" type="number" placeholder="0"></div>
+      <div class="modal-row"><label>ת.ז נהג</label><input id="vm-driver-id" type="text" inputmode="numeric" style="direction:ltr" placeholder="000000000"></div>
+      <div class="modal-row"><label>מס׳ רישיון נהיגה</label><input id="vm-lic" type="text" inputmode="numeric" style="direction:ltr"></div>
+      <div class="modal-row" style="grid-column:1/-1"><label>כתובת הנהג <span style="font-weight:400;color:#94a3b8;font-size:0.68rem">לטופס ההסבה</span></label><input id="vm-addr" type="text" placeholder="רחוב, מספר, עיר"></div>
+      <div class="modal-row"><label>תאריך קבלת הדוח</label><input id="vm-arrived" type="date"></div>
       <div class="modal-row" style="grid-column:1/-1"><label>הערות</label><input id="vm-notes" type="text"></div>
     </div>
     <div class="btn-row">
@@ -1475,6 +1479,10 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
       <div class="modal-row" style="grid-column:1/-1"><label>תיאור עבירה</label><input id="ve-offense" type="text"></div>
       <div class="modal-row"><label>נקודות</label><input id="ve-points" type="number" placeholder="0"></div>
       <div class="modal-row"><label>קנס (₪)</label><input id="ve-fine" type="number" placeholder="0"></div>
+      <div class="modal-row"><label>ת.ז נהג</label><input id="ve-driver-id" type="text" inputmode="numeric" style="direction:ltr" placeholder="000000000"></div>
+      <div class="modal-row"><label>מס׳ רישיון נהיגה</label><input id="ve-lic" type="text" inputmode="numeric" style="direction:ltr"></div>
+      <div class="modal-row" style="grid-column:1/-1"><label>כתובת הנהג <span style="font-weight:400;color:#94a3b8;font-size:0.68rem">לטופס ההסבה</span></label><input id="ve-addr" type="text" placeholder="רחוב, מספר, עיר"></div>
+      <div class="modal-row"><label>תאריך קבלת הדוח</label><input id="ve-arrived" type="date"></div>
       <div class="modal-row" style="grid-column:1/-1"><label>הערות</label><textarea id="ve-notes" rows="2" placeholder="הערות חופשיות על הדוח / הטיפול בו..."></textarea></div>
     </div>
     <div style="border-top:1px solid var(--border);margin:10px 0 8px;padding-top:8px;font-weight:800;font-size:0.82rem;color:#1e3a8a">סטטוס טיפול</div>
@@ -3811,6 +3819,9 @@ function openViolEdit(id) {
   document.getElementById('ve-points').value = v.points || '';
   document.getElementById('ve-fine').value = v.fine || '';
   document.getElementById('ve-notes').value = v.notes || '';
+  document.getElementById('ve-arrived').value = _toISOInput(v.arrived);
+  ['ve-driver-id','ve-lic','ve-addr'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  violLoadDriverFields('ve', v.driver);
   document.getElementById('ve-hosav').checked = !!v.stHosav;
   document.getElementById('ve-hosav-date').value = v.stHosavDate || '';
   document.getElementById('ve-paid').checked = !!v.stPaid;
@@ -3845,6 +3856,9 @@ function saveViolEdit() {
   v.points = document.getElementById('ve-points').value.trim();
   v.fine = document.getElementById('ve-fine').value.trim();
   v.notes = document.getElementById('ve-notes').value.trim();
+  const _arr = document.getElementById('ve-arrived').value;
+  v.arrived = _arr ? _arr.split('-').reverse().join('/') : '';
+  violSaveDriverFields('ve', v.driver);
   v.stHosav = document.getElementById('ve-hosav').checked;
   v.stHosavDate = document.getElementById('ve-hosav-date').value;
   v.stPaid = document.getElementById('ve-paid').checked;
@@ -3856,13 +3870,50 @@ function saveViolEdit() {
   renderViolations();
   toast('הדוח עודכן ✓');
 }
+// ת.ז, רישיון נהיגה וכתובת הם נתוני אדם ולא של הדוח: אותו נהג נושא
+// אותם לכל דוח ולכל רכב. הם נקראים מספריית הנהגים ונשמרים אליה, כדי
+// שמילוי במקום אחד יופיע בכל השאר — כולל בטופס ההסבה.
+function violLoadDriverFields(pre, driverName) {
+  const dk = driverKey(driverName || '');
+  const d = (dk && DRIVERS[dk]) || {};
+  const veh = VEHICLES.find(x => driverKey(x.driverName) === dk) || {};
+  const set = (id, val) => { const el = document.getElementById(id); if (el && !el.value) el.value = val || ''; };
+  set(pre + '-driver-id', d.driverId || veh.driverId || '');
+  set(pre + '-lic', d.licNum || '');
+  set(pre + '-addr', d.address || '');
+}
+
+function violSaveDriverFields(pre, driverName) {
+  const dk = driverKey(driverName || '');
+  if (!dk) return;
+  const val = id => ((document.getElementById(id) || {}).value || '').trim();
+  const did = val(pre + '-driver-id'), lic = val(pre + '-lic'), addr = val(pre + '-addr');
+  DRIVERS[dk] = DRIVERS[dk] || {};
+  let changed = false;
+  if (did  && DRIVERS[dk].driverId !== did)  { DRIVERS[dk].driverId = did; changed = true; }
+  if (lic  && DRIVERS[dk].licNum   !== lic)  { DRIVERS[dk].licNum   = lic; changed = true; }
+  if (addr && DRIVERS[dk].address  !== addr) { DRIVERS[dk].address  = addr; changed = true; }
+  if (!changed) return;
+  if (did) VEHICLES.forEach(v => { if (driverKey(v.driverName) === dk && !v.driverId) v.driverId = did; });
+  try { saveToFirestore('drivers', DRIVERS); } catch(e) {}
+}
+
+// נקרא כשמשנים את שם הנהג בטופס — מושך את הפרטים שלו
+function violOnDriverChange(pre) {
+  const el = document.getElementById(pre + '-driver');
+  violLoadDriverFields(pre, el ? el.value : '');
+}
+
 function openViolationModal() {
-  ['vm-plate','vm-driver','vm-reportNum','vm-date','vm-offense','vm-points','vm-fine','vm-notes'].forEach(id => {
+  ['vm-plate','vm-driver','vm-reportNum','vm-date','vm-offense','vm-points','vm-fine','vm-notes',
+   'vm-driver-id','vm-lic','vm-addr','vm-arrived'].forEach(id => {
     const el = document.getElementById(id); if (el) el.value = '';
   });
+  const drvIn = document.getElementById('vm-driver');
+  if (drvIn) drvIn.addEventListener('change', () => violOnDriverChange('vm'), { once: false });
   const drv0 = document.getElementById('vm-driver'); if (drv0) drv0.dataset.manual = '';   // טופס חדש — לאפשר זיהוי אוטומטי
   const plateEl = document.getElementById('vm-plate');
-  plateEl.onchange = () => autoFillHolder('vm-plate','vm-date','vm-driver');
+  plateEl.onchange = () => { autoFillHolder('vm-plate','vm-date','vm-driver'); violOnDriverChange('vm'); };
   document.getElementById('violation-modal').classList.add('open');
 }
 function saveViolationForm() {
@@ -3880,9 +3931,11 @@ function saveViolationForm() {
     reportNum: document.getElementById('vm-reportNum').value.trim(),
     points: document.getElementById('vm-points').value.trim(),
     fine: document.getElementById('vm-fine').value.trim(),
-    notes: document.getElementById('vm-notes').value.trim()
+    notes: document.getElementById('vm-notes').value.trim(),
+    arrived: (function(){ const a = document.getElementById('vm-arrived').value; return a ? a.split('-').reverse().join('/') : ''; })()
   };
   VIOLATIONS.push(rec);
+  violSaveDriverFields('vm', driver);
   persistViolations();
   document.getElementById('violation-modal').classList.remove('open');
   renderViolations();
