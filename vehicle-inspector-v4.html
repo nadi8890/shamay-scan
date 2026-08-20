@@ -301,6 +301,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue)}
   </div>
 
   <button class="btn-sm btn-green" style="width:100%;padding:13px;font-size:0.95rem;border-radius:12px;margin-top:12px" onclick="saveRecord()">✅ שמור אומדן</button>
+      <button class="btn" style="background:#4f46e5;color:#fff" onclick="sendToOpinion()" title="העברת פרטי האומדן לחוות דעת">📝 הוסף לחוות דעת</button>
 </div>
 
 <!-- AI PHOTO -->
@@ -1558,6 +1559,42 @@ function toast(msg, err=false) {
   t.textContent = msg;
   t.className = 'toast show' + (err ? ' err' : '');
   setTimeout(() => t.className = 'toast', 2800);
+}
+
+// ═══ העברת אומדן לחוות דעת ═══
+// שני הדפים באותו דומיין, ולכן localStorage משותף ביניהם. האומדן
+// נכתב למפתח ייעודי, ומנהל הצי מציע לייבא אותו כשנפתחת לשונית חוות
+// הדעת. בלי לחיצה על הכפתור — שום דבר לא עובר.
+function sendToOpinion() {
+  const val = id => { const e = document.getElementById(id); return e ? e.value.trim() : ''; };
+  const items = getRows();
+  const w = getWorkTotals();
+  const payload = {
+    from: 'estimate',
+    at: Date.now(),
+    plate: val('f-plate'),
+    make: val('f-make'),
+    model: val('f-model'),
+    year: val('f-year'),
+    color: val('f-color'),
+    km: val('f-km'),
+    vin: val('f-serial'),
+    client: val('f-client'),
+    insurance: val('f-insurance'),
+    date: val('f-date'),
+    incidentDate: val('f-incident-date'),
+    location: val('f-location'),
+    notes: val('f-notes'),
+    items: items.map(r => ({ desc: r.part, kind: r.type || 'תק׳', cost: r.parts })),
+    paint: w.paint,
+    panel: (w.body || 0) + (w.electric || 0) + (w.extra || 0)
+  };
+  try {
+    localStorage.setItem('op_handoff', JSON.stringify(payload));
+    toast('✓ האומדן מוכן לחוות דעת — פתח את לשונית שמAI');
+  } catch(e) {
+    alert('לא ניתן להעביר: ' + (e.message || e));
+  }
 }
 </script>
 </body>

@@ -999,6 +999,18 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
     </div>
   </div>
 
+  <div id="op-handoff" class="card" style="display:none;background:#eef2ff;border-color:#c7d2fe">
+    <div style="display:flex;align-items:center;gap:11px;flex-wrap:wrap">
+      <span style="font-size:1.4rem">📥</span>
+      <div style="flex:1;min-width:180px">
+        <div style="font-weight:800;font-size:0.92rem;color:#3730a3">יש אומדן ממתין</div>
+        <div id="op-handoff-info" style="font-size:0.8rem;color:#4338ca"></div>
+      </div>
+      <button class="btn btn-primary" onclick="opImportHandoff()">ייבא לחוות הדעת</button>
+      <button class="btn btn-gray" onclick="opDismissHandoff()">התעלם</button>
+    </div>
+  </div>
+
   <div id="op-list" class="card" style="display:none"></div>
 
   <div id="op-form">
@@ -2560,7 +2572,7 @@ function showTab(name, btn) {
   if (name==='violations') { renderViolations(); buildViolColFilterRow(); }
   if (name==='invoices') { renderInvoices(); buildInvColFilterRow(); }
   if (name==='tasks') renderTasks();
-  if (name==='opinion') { if (!OP_PHOTOS.length && !document.getElementById('op-plate').value) opNew(); opLoadList(); }
+  if (name==='opinion') { if (!OP_PHOTOS.length && !document.getElementById('op-plate').value) opNew(); opLoadList(); opCheckHandoff(); }
   if (name==='returns') renderReturns();
   if (name==='forms') renderFormsTab();
   if (name==='dashboard') renderManagerDashboard();
@@ -9561,6 +9573,68 @@ function opOpen(i) {
   document.getElementById('op-list').style.display = 'none';
   document.getElementById('op-form').style.display = '';
 }
+
+/* ── קליטת אומדן מכלי האומדן ──
+   הכלי כותב ל-localStorage באותו דומיין. אנחנו רק מציעים לייבא —
+   הייבוא עצמו תמיד בלחיצה מפורשת. */
+function _opHandoff() {
+  try { const r = localStorage.getItem('op_handoff'); return r ? JSON.parse(r) : null; }
+  catch(e) { return null; }
+}
+
+function opCheckHandoff() {
+  const box = document.getElementById('op-handoff');
+  if (!box) return;
+  const h = _opHandoff();
+  if (!h) { box.style.display = 'none'; return; }
+  const info = document.getElementById('op-handoff-info');
+  const sum = (h.items || []).reduce((a, x) => a + (parseFloat(x.cost) || 0), 0) + (h.paint || 0) + (h.panel || 0);
+  if (info) info.textContent = [h.plate, [h.make, h.model].filter(Boolean).join(' '),
+    (h.items || []).length + ' שורות', sum ? opILS(sum) : ''].filter(Boolean).join(' · ');
+  box.style.display = '';
+}
+
+function opDismissHandoff() {
+  try { localStorage.removeItem('op_handoff'); } catch(e) {}
+  opCheckHandoff();
+  toast('האומדן נותר שמור בכלי האומדן בלבד');
+}
+
+function opImportHandoff() {
+  const h = _opHandoff();
+  if (!h) { opCheckHandoff(); return; }
+  const set = (k, v) => { const e = opEl(k); if (e && v) e.value = String(v); };
+  const setIfEmpty = (k, v) => { const e = opEl(k); if (e && !e.value && v) e.value = String(v); };
+  setIfEmpty('plate', h.plate);
+  setIfEmpty('model', [h.make, h.model, h.year].filter(Boolean).join(' '));
+  setIfEmpty('km', h.km);
+  setIfEmpty('vin', h.vin);
+  setIfEmpty('owner', h.client);
+  setIfEmpty('client', h.insurance);
+  setIfEmpty('inspplace', h.location);
+  setIfEmpty('notes', h.notes);
+  if (h.date) setIfEmpty('inspdate', h.date);
+  if (h.incidentDate) setIfEmpty('eventdate', h.incidentDate);
+  // שורות הנזק והעבודות מוחלפות, כי זה גוף האומדן
+  if ((h.items || []).length) {
+    OP_DMG = h.items.map(x => ({ kind: x.kind || 'תק׳', desc: x.desc || '', sku: '', cost: x.cost || '' }));
+    opRenderDmg();
+  }
+  if (h.paint) set('paint', h.paint);
+  if (h.panel) set('panel', h.panel);
+  opCalc();
+  try { localStorage.removeItem('op_handoff'); } catch(e) {}
+  opCheckHandoff();
+  document.getElementById('op-list').style.display = 'none';
+  document.getElementById('op-form').style.display = '';
+  toast('✓ האומדן יובא לחוות הדעת');
+}
+
+// בדיקה חוזרת כשחוזרים לאפליקציה מהחלון של כלי האומדן
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && document.getElementById('tab-opinion') &&
+      document.getElementById('tab-opinion').classList.contains('active')) opCheckHandoff();
+});
 
 /* ── פלט חוות הדעת ── */
 const OP_DECLARATION =
