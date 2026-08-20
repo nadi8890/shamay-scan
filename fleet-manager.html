@@ -1489,6 +1489,7 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
     <p style="font-size:0.75rem;color:var(--muted);margin-top:8px">סימון אחד לפחות = הדוח טופל. ללא סימון — השורה תסומן באדום.</p>
     <div class="btn-row">
       <button class="btn btn-secondary" onclick="document.getElementById('viol-edit-modal').classList.remove('open')">ביטול</button>
+      <button class="btn btn-secondary" style="background:#fef2f2;color:#b91c1c" onclick="deleteViolationRow(editingViolId)">🗑️ מחק דוח</button>
       <button class="btn btn-primary" onclick="saveViolEdit()">💾 שמור</button>
     </div>
   </div>
@@ -3273,7 +3274,7 @@ function renderViolations() {
       <td>${v.points ? `<span class="badge badge-orange">${esc(v.points)}</span>` : '—'}</td>
       <td style="font-weight:700">${esc(v.fine)||'—'}</td>
       <td style="white-space:nowrap">${statusHtml}</td>
-      <td style="white-space:nowrap"><button class="btn btn-secondary" style="padding:3px 9px;font-size:0.75rem" onclick="event.stopPropagation();openViolEdit(${v.id})">✏️ עריכה</button> <button class="btn btn-secondary" style="padding:3px 9px;font-size:0.75rem;background:#eef2ff;color:#4338ca" onclick="event.stopPropagation();openTransferForm(${v.id})" title="בקשה להסבת הדוח לנהג">📄 הסבה</button></td>
+      <td style="white-space:nowrap"><button class="btn btn-secondary" style="padding:3px 9px;font-size:0.75rem" onclick="event.stopPropagation();openViolEdit(${v.id})">✏️ עריכה</button> <button class="btn btn-secondary" style="padding:3px 9px;font-size:0.75rem;background:#eef2ff;color:#4338ca" onclick="event.stopPropagation();openTransferForm(${v.id})" title="בקשה להסבת הדוח לנהג">📄 הסבה</button> <button class="btn btn-secondary" style="padding:3px 9px;font-size:0.75rem;background:#fef2f2;color:#b91c1c" onclick="event.stopPropagation();deleteViolationRow(${v.id})" title="מחיקת הדוח">🗑️</button></td>
     </tr>`;
   }).join('');
 }
@@ -3293,6 +3294,33 @@ function tfToggleAuthority() {
   document.getElementById('tf-authority-wrap').style.display = isMuni ? '' : 'none';
 }
 let _transferViolId = null;
+// כל מה שהוקלד ידנית בטופס ההסבה נשמר על הנהג, כדי שההסבה הבאה
+// תגיע מלאה. נקרא גם בעת יצירת ה-PDF וגם בשינוי שדה.
+function tfRememberDriver() {
+  const nameEl = document.getElementById('tf-driver');
+  const dk = driverKey(nameEl ? nameEl.value : '');
+  if (!dk) return;
+  const val = id => ((document.getElementById(id) || {}).value || '').trim();
+  const lic = val('tf-license'), addr = val('tf-driver-addr'), did = val('tf-driver-id');
+  DRIVERS[dk] = DRIVERS[dk] || {};
+  let changed = false;
+  if (lic  && DRIVERS[dk].licNum   !== lic)  { DRIVERS[dk].licNum = lic;   changed = true; }
+  if (addr && DRIVERS[dk].address  !== addr) { DRIVERS[dk].address = addr; changed = true; }
+  if (did  && DRIVERS[dk].driverId !== did)  { DRIVERS[dk].driverId = did; changed = true; }
+  if (!changed) return;
+  // ת.ז נשמרת גם על הרכב, שם היא כבר בשימוש בטפסים אחרים
+  if (did) VEHICLES.forEach(v => { if (driverKey(v.driverName) === dk && !v.driverId) v.driverId = did; });
+  try { saveToFirestore('drivers', DRIVERS); } catch(e) {}
+}
+
+// מעבר מהסבה לעריכת פרטי הדוח עצמו ובחזרה
+function tfEditViolation() {
+  const id = _transferViolId;
+  tfRememberDriver();
+  document.getElementById('transfer-modal').classList.remove('open');
+  if (id != null) openViolEdit(id);
+}
+
 function openTransferForm(id) {
   const v = VIOLATIONS.find(x => x.id === id);
   if (!v) return;
@@ -3310,9 +3338,13 @@ function openTransferForm(id) {
   set('tf-plate', v.plate);
   set('tf-company', veh.company || COMPANY_NAME || '');
   set('tf-driver', v.driver || veh.driverName || '');
-  set('tf-driver-id', veh.driverId || '');
-  set('tf-license', ''); // license number — per-driver, left blank for the officer to fill
-  set('tf-driver-addr', ''); // address is per-driver — left blank for the officer to fill
+  // מספר רישיון, ת.ז וכתובת הם נתונים של האדם. עד כה הם רוקנו בכל
+  // פתיחה והוקלדו מחדש בכל הסבה; עכשיו הם נטענים ממה שנשמר עליו.
+  const _tdk = driverKey(v.driver || veh.driverName);
+  const _td = (_tdk && DRIVERS[_tdk]) || {};
+  set('tf-driver-id', veh.driverId || _td.driverId || '');
+  set('tf-license', _td.licNum || '');
+  set('tf-driver-addr', _td.address || '');
   set('tf-cert', oi.certNum);
   set('tf-officer-id', oi.officerId);
   set('tf-phone', oi.phone || (MAIL_SETTINGS && MAIL_SETTINGS.phone) || '');
@@ -3390,6 +3422,7 @@ async function transferPdf() {
       html2canvas: { scale: 2, backgroundColor: '#ffffff' },
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
     }).from(holder.firstElementChild).save();
+    tfRememberDriver();
     // mark the report as transferred (הוסב)
     const v = VIOLATIONS.find(x => x.id === _transferViolId);
     if (v) {
@@ -3786,6 +3819,20 @@ function openViolEdit(id) {
   document.getElementById('ve-handled-date').value = v.stHandledDate || '';
   document.getElementById('viol-edit-modal').classList.add('open');
 }
+// מחיקת דוח. דורשת אישור מפורש כי אין ביטול לפעולה.
+function deleteViolationRow(id) {
+  const v = VIOLATIONS.find(x => x.id === id);
+  if (!v) return;
+  const what = [v.reportNum && ('דוח ' + v.reportNum), v.driver, v.plate].filter(Boolean).join(' · ') || ('דוח #' + id);
+  if (!confirm('למחוק לצמיתות?\n\n' + what + '\n\nלא ניתן לשחזר.')) return;
+  VIOLATIONS = VIOLATIONS.filter(x => x.id !== id);
+  persistViolations();
+  renderViolations();
+  if (typeof renderManagerDashboard === 'function') { try { renderManagerDashboard(); } catch(e) {} }
+  document.getElementById('viol-edit-modal').classList.remove('open');
+  toast('הדוח נמחק');
+}
+
 function saveViolEdit() {
   const v = VIOLATIONS.find(x => x.id === editingViolId);
   if (!v) return;
@@ -8724,6 +8771,7 @@ function renderAgentMsgs(showTyping = false) {
     <div id="tf-sig-note" style="font-size:0.76rem;color:#64748b;margin-top:8px"></div>
     <div class="btn-row">
       <button class="btn btn-gray" onclick="document.getElementById('transfer-modal').classList.remove('open')">ביטול</button>
+      <button class="btn btn-secondary" onclick="tfEditViolation()" title="שינוי העבירה, הקנס, הנקודות והתאריך">✏️ ערוך את פרטי הדוח</button>
       <button class="btn btn-green" onclick="transferPdf()">📄 צור PDF</button>
     </div>
   </div>
