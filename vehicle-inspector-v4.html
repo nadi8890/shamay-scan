@@ -1457,6 +1457,60 @@ function onPlateInput(val) {
   }
 }
 
+
+// ═══ שאילתה למאגר משרד התחבורה ═══
+// שתי מגבלות במאגר: הוא אינו שולח Access-Control-Allow-Origin ולכן
+// fetch נחסם בדפדפן, והחיפוש החופשי (q) מחזיר ריק גם לרכבים קיימים.
+// הפתרון: JSONP להרצה, ו-filters להתאמה מדויקת. שלושת המאגרים
+// נסרקים בזה אחר זה — רכב מסחרי ואוטובוס אינם במאגר הרכב הפרטי.
+const GOV_RESOURCES = [
+  '053cea08-09bc-40ec-8f7a-156f0677aff3', // רכב פרטי ומסחרי קל
+  'cd3acc5c-03c3-4c89-9c54-d40f93c0d790', // רכב מסחרי
+  'bf9df4e2-d90d-4c0a-a400-19e15af8e95f'  // אוטובוסים
+];
+let _govSeq = 0;
+
+function govJsonp(rid, query, timeoutMs) {
+  return new Promise((resolve, reject) => {
+    const cb = '_govCb' + (++_govSeq) + '_' + Math.floor(Date.now() % 1e7);
+    const url = 'https://data.gov.il/api/3/action/datastore_search'
+              + '?resource_id=' + rid + '&' + query + '&limit=5&callback=' + cb;
+    const el = document.createElement('script');
+    let done = false;
+    const cleanup = () => {
+      try { delete window[cb]; } catch(e) { window[cb] = undefined; }
+      if (el.parentNode) el.parentNode.removeChild(el);
+    };
+    const timer = setTimeout(() => {
+      if (done) return;
+      done = true; cleanup(); reject(new Error('timeout'));
+    }, timeoutMs || 9000);
+    window[cb] = data => { if (done) return; done = true; clearTimeout(timer); cleanup(); resolve(data); };
+    el.onerror = () => { if (done) return; done = true; clearTimeout(timer); cleanup(); reject(new Error('network')); };
+    el.src = url;
+    document.head.appendChild(el);
+  });
+}
+
+async function govVehicleRecord(rawPlate) {
+  const plate = String(rawPlate || '').replace(/\D/g, '');
+  if (!plate) return null;
+  const num = parseInt(plate, 10);
+  const pick = data => {
+    const recs = (data && data.result && data.result.records) || [];
+    return recs.find(r => String(r.mispar_rechev || '').replace(/\D/g, '') === plate) || recs[0] || null;
+  };
+  if (!isNaN(num)) {
+    const filter = 'filters=' + encodeURIComponent(JSON.stringify({ mispar_rechev: num }));
+    for (const rid of GOV_RESOURCES) {
+      try { const rec = pick(await govJsonp(rid, filter)); if (rec) return rec; }
+      catch(e) { console.log('gov lookup failed on', rid, e && e.message); }
+    }
+  }
+  try { return pick(await govJsonp(GOV_RESOURCES[0], 'q=' + encodeURIComponent(plate))); }
+  catch(e) { console.log('gov text lookup failed:', e && e.message); return null; }
+}
+
 async function lookupPlate() {
   const raw   = document.getElementById('f-plate').value.trim();
   const plate = raw.replace(/[^0-9]/g,'');
@@ -1470,22 +1524,7 @@ async function lookupPlate() {
   statusEl.style.color = 'var(--muted)';
 
   try {
-    // Try main vehicle registry first, then bus registry as fallback
-    const RESOURCES = [
-      '053cea08-09bc-40ec-8f7a-156f0677aff3', // רכב פרטי/כללי
-      'bf9df4e2-d90d-4c0a-a400-19e15af8e95f', // אוטובוסים
-      'cd3acc5c-03c3-4c89-9c54-d40f93c0d790', // רכב מסחרי
-    ];
-    let v = null;
-    for (const rid of RESOURCES) {
-      const url = `https://data.gov.il/api/3/action/datastore_search?resource_id=${rid}&q=${plate}&limit=1`;
-      try {
-        const res  = await fetch(url);
-        const data = await res.json();
-        const recs = data?.result?.records;
-        if (recs && recs.length > 0) { v = recs[0]; break; }
-      } catch(e) { /* try next */ }
-    }
+    const v = await govVehicleRecord(plate);
     if (!v) {
       statusEl.textContent = '⚠️ לא נמצא מידע עבור מספר זה';
       statusEl.style.color = 'var(--accent)';

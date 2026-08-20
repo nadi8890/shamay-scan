@@ -3502,14 +3502,20 @@ function _cpDetectDivision(name){
 // data.gov.il מחזיר את הנתונים אך אינו שולח Access-Control-Allow-Origin,
 // ולכן fetch רגיל נחסם בדפדפן וכל חיפוש נכשל. ה-API תומך ב-JSONP
 // (פרמטר callback), שעוקף את המגבלה בלי שרת מתווך.
-const GOV_RESOURCE = '053cea08-09bc-40ec-8f7a-156f0677aff3';
+// שלושה מאגרים נפרדים במשרד התחבורה. רכב מסחרי או אוטובוס אינם
+// מופיעים במאגר הרכב הפרטי, ולכן חיפוש במאגר אחד בלבד החמיץ אותם.
+const GOV_RESOURCES = [
+  '053cea08-09bc-40ec-8f7a-156f0677aff3', // רכב פרטי ומסחרי קל
+  'cd3acc5c-03c3-4c89-9c54-d40f93c0d790', // רכב מסחרי
+  'bf9df4e2-d90d-4c0a-a400-19e15af8e95f'  // אוטובוסים
+];
 let _govSeq = 0;
 
-function govJsonp(query, timeoutMs) {
+function govJsonp(rid, query, timeoutMs) {
   return new Promise((resolve, reject) => {
     const cb = '_govCb' + (++_govSeq) + '_' + Math.floor(Date.now() % 1e7);
     const url = 'https://data.gov.il/api/3/action/datastore_search'
-              + '?resource_id=' + GOV_RESOURCE
+              + '?resource_id=' + rid
               + '&' + query
               + '&limit=5&callback=' + cb;
     const el = document.createElement('script');
@@ -3549,15 +3555,17 @@ async function govVehicleRecord(rawPlate) {
   };
 
   if (!isNaN(num)) {
-    try {
-      const exact = await govJsonp('filters=' + encodeURIComponent(JSON.stringify({ mispar_rechev: num })));
-      const rec = pick(exact);
-      if (rec) return rec;
-    } catch(e) { console.log('gov exact lookup failed:', e && e.message); }
+    const filter = 'filters=' + encodeURIComponent(JSON.stringify({ mispar_rechev: num }));
+    for (const rid of GOV_RESOURCES) {
+      try {
+        const rec = pick(await govJsonp(rid, filter));
+        if (rec) return rec;
+      } catch(e) { console.log('gov lookup failed on', rid, e && e.message); }
+    }
   }
 
   try {
-    return pick(await govJsonp('q=' + encodeURIComponent(plate)));
+    return pick(await govJsonp(GOV_RESOURCES[0], 'q=' + encodeURIComponent(plate)));
   } catch(e) {
     console.log('gov text lookup failed:', e && e.message);
     return null;
