@@ -327,6 +327,7 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
     <svg viewBox="0 0 48 48" width="26" height="26" style="flex-shrink:0"><rect x="15" y="3" width="18" height="42" rx="8" fill="#0f172a" stroke="rgba(255,255,255,.28)" stroke-width="1.4"/><circle cx="24" cy="13" r="4.6" fill="#ef4444"/><circle cx="24" cy="24" r="4.6" fill="#fbbf24"/><circle cx="24" cy="35" r="4.6" fill="#22c55e"/></svg>
     <span class="brand-name"><span style="color:#6ee7b7">ר.מ</span><span style="color:#fff">זור</span></span>
   </div>
+  <button class="sys-out" onclick="doLogout()" title="התנתקות" aria-label="התנתקות">🚪</button>
   <div class="sys-bar" id="sys-bar" role="tablist" aria-label="מערכות">
   <button class="sys-btn active" data-sys="fleet"  type="button" role="tab" aria-selected="true"  onclick="showSystem('fleet')"><span class="sys-ico" aria-hidden="true">🚗</span>ניהול צי רכב</button>
   <button class="sys-btn"        data-sys="shamai" type="button" role="tab" aria-selected="false" onclick="showSystem('shamai')"><span class="sys-ico" aria-hidden="true">🔍</span>שמAI</button>
@@ -343,7 +344,7 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
     <button class="btn" id="reminders-bell" style="position:relative;padding:7px 12px;font-size:0.82rem;background:rgba(255,255,255,.16);color:#fff;font-weight:700;border-radius:8px" title="תזכורות — מסמכים לאישור / התראות תוקף / נהלים / ק&quot;מ" onclick="showRemindersPopup(true)">🔔<span id="rem-bell-badge" style="display:none;position:absolute;top:-5px;left:-5px;min-width:18px;height:18px;background:#16a34a;color:#fff;border-radius:999px;font-size:0.62rem;font-weight:800;line-height:18px;text-align:center;padding:0 4px;box-shadow:0 1px 4px rgba(0,0,0,.3)">0</span></button>
         <button class="btn hdr-secondary" data-sheet-icon="📥" data-sheet-label="ייבוא מאקסל" style="padding:7px 12px;font-size:0.82rem;background:rgba(255,255,255,.16);color:#fff;font-weight:700;border-radius:8px" title="ייבוא צי מקובץ אקסל / CSV" onclick="openImportWizard()">📥 ייבוא מאקסל</button>
     <button class="btn hdr-secondary" data-sheet-action="openRestoreDeleted" data-sheet-icon="♻️" data-sheet-label="שחזור" style="padding:7px 12px;font-size:0.82rem;background:rgba(255,255,255,.16);color:#fff;font-weight:700;border-radius:8px" title="שחזור רכב שנמחק מהגיבוי היומי" onclick="openRestoreDeleted()">♻️ שחזור</button>
-    <button class="btn" style="padding:7px 12px;font-size:0.82rem;background:rgba(255,255,255,.18);color:#fff;font-weight:700;border-radius:8px" onclick="doLogout()" title="התנתקות">🚪</button>
+    
   </div>
 </header>
 
@@ -819,6 +820,9 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
   border-inline-end:1px solid rgba(255,255,255,.14);
 }
 .sys-logo .brand-name{font-size:1.15rem;font-weight:900;letter-spacing:.3px;white-space:nowrap}
+.sys-out{order:9;flex-shrink:0;border:none;background:none;color:rgba(255,255,255,.7);
+  cursor:pointer;font-size:1.05rem;padding:0 14px;border-inline-start:1px solid rgba(255,255,255,.14)}
+.sys-out:hover{color:#fff;background:rgba(255,255,255,.07)}
 .sys-bar{
   display:flex; flex:1; min-width:0; background:transparent;
   overflow-x:auto; scrollbar-width:none;
@@ -3893,6 +3897,41 @@ function govJsonp(rid, query, timeoutMs) {
 // החיפוש החופשי (q) של המאגר אינו אמין — הוא מחזיר 0 תוצאות לרכבים
 // שקיימים בו. התאמה מדויקת דרך filters על mispar_rechev עובדת, ולכן
 // היא הנתיב הראשי; q נשאר כגיבוי בלבד.
+
+// שלושת מאגרי משרד התחבורה משתמשים בשמות שדות שונים: רכב פרטי מחזיק
+// kinuy_mishari ו-sug_degem, המסחרי/אוטובוסים מחזיק degem_nm ו-
+// kvutzat_sug_rechev, והדו-גלגלי מחזיק sug_rechev_nm. בלי נרמול,
+// אוטובוס או משאית מחזירים רשומה אך שום שדה לא מתמלא.
+const _SUG_DEGEM = { P: 'פרטי', M: 'מסחרי', N: 'משא', O: 'נגרר', B: 'אוטובוס', T: 'טרקטור' };
+
+function govNormalize(r) {
+  if (!r) return null;
+  const s = v => (v === null || v === undefined) ? '' : String(v).trim();
+  const type = s(r.sug_rechev_nm) || s(r.kvutzat_sug_rechev) ||
+               _SUG_DEGEM[s(r.sug_degem)] || s(r.sug_degem);
+  return {
+    plate:     s(r.mispar_rechev),
+    make:      s(r.tozeret_nm),
+    model:     s(r.kinuy_mishari) || s(r.degem_nm),
+    modelCode: s(r.degem_cd) || s(r.degem_nm),
+    trim:      s(r.ramat_gimur),
+    year:      s(r.shnat_yitzur),
+    type:      type,
+    color:     s(r.tzeva_rechev),
+    fuel:      s(r.sug_delek_nm),
+    vin:       s(r.misgeret) || s(r.mispar_shilda),
+    ownership: s(r.baalut),
+    seats:     s(r.mispar_mekomot),
+    weight:    s(r.mishkal_kolel),
+    engineVol: s(r.nefach_manoa),
+    licCode:   s(r.tozeret_cd),
+    regDate:   s(r.moed_aliya_lakvish),
+    regExpiry: s(r.tokef_dt),
+    lastTest:  s(r.mivchan_acharon_dt),
+    raw: r
+  };
+}
+
 async function govVehicleRecord(rawPlate) {
   const plate = String(rawPlate || '').replace(/\D/g, '');
   if (!plate) return null;
@@ -8691,11 +8730,12 @@ function _govDateStr(s) {
 
 // השדות שהמאגר יודע למלא, עם התווית שלהם
 function _govFields(rec) {
+  const n = govNormalize(rec) || {};
   return [
-    ['m-make',      'יצרן',        rec.tozeret_nm || ''],
-    ['m-model',     'דגם',         rec.degem_nm || rec.kinuy_mishari || ''],
-    ['m-year',      'שנתון',       rec.shnat_yitzur ? String(rec.shnat_yitzur) : ''],
-    ['m-regExpiry', 'תוקף רישוי',  _govDateStr(rec.tokef_dt)]
+    ['m-make',      'יצרן',        n.make],
+    ['m-model',     'דגם',         n.model],
+    ['m-year',      'שנתון',       n.year],
+    ['m-regExpiry', 'תוקף רישוי',  _govDateStr(n.regExpiry)]
   ].filter(f => f[2]);
 }
 
@@ -8716,7 +8756,8 @@ function _govRenderStatus(justFilled) {
   const statusEl = document.getElementById('m-gov-status');
   if (!statusEl || !_lastGovRec) return;
   const rec = _lastGovRec;
-  const title = [rec.tozeret_nm, rec.degem_nm || rec.kinuy_mishari].filter(Boolean).join(' ');
+  const _n = govNormalize(rec) || {};
+  const title = [_n.make, _n.model, _n.type ? '· ' + _n.type : ''].filter(Boolean).join(' ');
   // מה במאגר שונה ממה שרשום בטופס כרגע
   const diff = _govFields(rec).filter(([id, , val]) => {
     const el = document.getElementById(id);
@@ -9507,12 +9548,18 @@ async function opGovLookup() {
   try {
     const r = await govVehicleRecord(plate);
     if (!r) { if (g) g.textContent = v ? '✓ מהצי' : '❌ לא נמצא'; return; }
-    fill('model', [r.tozeret_nm, r.kinuy_mishari || r.degem_nm, r.shnat_yitzur].filter(Boolean).join(' '));
-    fill('vtype', r.sug_degem === 'P' ? 'פרטי' : (r.sug_degem || ''));
-    fill('modelcode', r.degem_cd); fill('liccode', r.tozeret_cd);
-    fill('vin', r.misgeret);
-    if (r.moed_aliya_lakvish) fill('regdate', String(r.moed_aliya_lakvish).split('-').reverse().join('/'));
-    if (g) g.textContent = '✓ ' + [r.tozeret_nm, r.kinuy_mishari].filter(Boolean).join(' ');
+    const n = govNormalize(r) || {};
+    fill('model', [n.make, n.model, n.year].filter(Boolean).join(' '));
+    fill('vtype', n.type);
+    fill('modelcode', n.modelCode); fill('liccode', n.licCode);
+    fill('vin', n.vin); fill('color', n.color);
+    if (n.regDate) fill('regdate', String(n.regDate).split('-').reverse().join('/'));
+    // פרטים שאין להם שדה ייעודי נכנסים להגדרות הדגם
+    const extra = [n.trim, n.fuel && 'דלק: ' + n.fuel, n.seats && n.seats + ' מקומות',
+                   n.weight && n.weight !== '0' && 'משקל כולל ' + n.weight + ' ק״ג',
+                   n.ownership && 'בעלות: ' + n.ownership].filter(Boolean).join(' · ');
+    if (extra) fill('specs', extra);
+    if (g) g.textContent = '✓ ' + [n.make, n.model, n.type && '· ' + n.type].filter(Boolean).join(' ');
   } catch(e) { if (g) g.textContent = v ? '✓ מהצי' : '⚠ המאגר לא הגיב'; }
 }
 
@@ -9718,12 +9765,12 @@ const OP_DECLARATION =
   'שלעניין הוראות החוק הפלילי בדבר עדות שקר בשבועה בבית המשפט, דין חוות דעתי זו, ' +
   'כאשר היא חתומה על ידי, כדין עדות בבית המשפט.';
 
-function _opHead(rec, pageNo, pageTotal, title) {
-  const o = rec.office || '';
+// הכותרת של חוות הדעת היא משרד השמאות — לא חברת הצי שמנוהלת במערכת.
+function _opHead(rec, title) {
   return '<div style="border-bottom:1.5px solid #1e3a8a;padding-bottom:6px;margin-bottom:12px;font-size:10.5px;color:#334155;display:flex;justify-content:space-between;gap:10px">' +
-      '<div><b style="font-size:12px;color:#0f172a">' + esc(o) + '</b><br>' +
+      '<div><b style="font-size:12.5px;color:#0f172a">' + esc(rec.office || rec.appraiser || '') + '</b><br>' +
         (rec.appraiserPhone ? 'טל: ' + esc(rec.appraiserPhone) + ' · ' : '') + esc(rec.appraiserMail || '') + '</div>' +
-      '<div style="text-align:left">תאריך: <b>' + esc(rec.dateHe || '') + '</b><br>מס׳ תיק: <b>' + esc(rec.case || '') + '</b><br>עמוד ' + pageNo + ' מתוך ' + pageTotal + '</div>' +
+      '<div style="text-align:left">תאריך: <b>' + esc(rec.dateHe || '') + '</b><br>מס׳ תיק: <b>' + esc(rec.case || '') + '</b></div>' +
     '</div>' +
     '<div style="text-align:center;font-weight:900;font-size:15px;margin-bottom:10px">' + esc(title) + '</div>';
 }
@@ -9747,12 +9794,12 @@ function opHtml() {
   const o = (typeof loadOfficerInfo === 'function') ? loadOfficerInfo() : {};
   r.appraiserPhone = o.phone || ''; r.appraiserMail = o.mail || o.email || '';
 
-  const PAGE = 'width:760px;padding:22px 26px;background:#fff;font-family:Arial,Heebo,sans-serif;color:#0f172a;box-sizing:border-box';
+  const PAGE = 'display:block;width:100%;padding:4px 0 10px;background:#fff;font-family:Arial,Heebo,sans-serif;color:#0f172a;box-sizing:border-box;direction:rtl';
   const pages = [];
 
   // 1 — סיכום
   pages.push(
-    _opHead(r, 1, '{T}', 'סיכום חוות הדעת') +
+    _opHead(r, 'סיכום חוות הדעת') +
     (r.owner || r.address ? '<div style="font-size:11.5px;margin-bottom:10px">לכבוד<br><b>' + esc(r.owner) + '</b>' + (r.address ? '<br>' + esc(r.address) : '') + '</div>' : '') +
     _opSection('פרטים כלליים', _opTable([
       ['בעל הרכב', r.owner], ['מספר רישוי', r.plate], ['דגם הרכב', r.model],
@@ -9770,7 +9817,7 @@ function opHtml() {
 
   // 2 — השמאי והצהרה
   pages.push(
-    _opHead(r, 2, '{T}', 'סיכום חוות הדעת — המשך') +
+    _opHead(r, 'פרטי השמאי והצהרה') +
     _opSection('פרטי השמאי', _opTable([
       ['שם השמאי', r.appraiser], ['מקום עבודתו', r.office]
     ]) + ((r.edu||[]).length ? '<div style="margin-top:7px;font-size:11.5px;line-height:1.9"><b>השכלתו וניסיונו:</b><br>' +
@@ -9793,7 +9840,7 @@ function opHtml() {
              '<td style="border:1px solid #cbd5e1;padding:4px 8px;text-align:left">' + opILS(val) + '</td></tr>';
     }).join('');
     pages.push(
-      _opHead(r, 3, '{T}', 'תחשיב ערך הרכב') +
+      _opHead(r, 'תחשיב ערך הרכב') +
       _opSection('פרטים כלליים', _opTable([
         ['בעל הרכב', r.owner], ['דגם הרכב', r.model], ['מספר רישוי', r.plate], ['מחירון', r.pricelist]
       ])) +
@@ -9813,7 +9860,7 @@ function opHtml() {
 
   // 4 — פרטי התיק
   pages.push(
-    _opHead(r, pages.length + 1, '{T}', 'פרטי התיק') +
+    _opHead(r, 'פרטי התיק') +
     _opSection('פרטי הרכב', _opTable([
       ['מספר רישוי', r.plate], ['דגם הרכב', r.model], ['סוג רכב', r.vtype],
       ['תאריך רישום', r.regdate], ['קילומטרים', r.km], ['מספר שילדה', r.vin],
@@ -9843,7 +9890,7 @@ function opHtml() {
     '<td style="border:1px solid #cbd5e1;padding:4px 8px" colspan="2">' + lbl + '</td>' +
     '<td style="border:1px solid #cbd5e1;padding:4px 8px;text-align:left">' + opILS(v) + '</td></tr>' : '';
   pages.push(
-    _opHead(r, pages.length + 1, '{T}', 'אומדן הנזק') +
+    _opHead(r, 'אומדן הנזק') +
     (r.focus ? '<div style="font-weight:800;font-size:12px;margin-bottom:6px">מוקד: ' + esc(r.focus) + '</div>' : '') +
     '<table style="width:100%;border-collapse:collapse;font-size:11.5px">' +
       '<tr><th style="border:1px solid #cbd5e1;padding:4px 8px;background:#f1f5f9;text-align:right">סוג</th>' +
@@ -9868,18 +9915,20 @@ function opHtml() {
     let grid = '<table style="width:100%;border-collapse:collapse"><tr>';
     chunk.forEach((x, j) => {
       grid += '<td style="width:33.3%;padding:4px;vertical-align:top">' +
-        '<img src="data:image/jpeg;base64,' + x.b64 + '" style="width:100%;border:1px solid #cbd5e1;border-radius:3px">' +
+        '<img src="data:image/jpeg;base64,' + x.b64 + '" style="width:100%;height:150px;object-fit:cover;border:1px solid #cbd5e1;border-radius:3px">' +
         '<div style="font-size:10px;color:#475569;text-align:center;padding-top:2px">' + esc(x.caption || opPhotoLabel(i + j)) + '</div></td>';
       if (j % 3 === 2) grid += '</tr><tr>';
     });
     grid += '</tr></table>';
-    pages.push(_opHead(r, pages.length + 1, '{T}', i === 0 ? 'תמונות' : 'תמונות — המשך') + grid);
+    pages.push(_opHead(r, i === 0 ? 'תמונות' : 'תמונות — המשך') + grid);
   }
 
-  const total = pages.length;
+  // שבירה לפני כל קטע (חוץ מהראשון) במקום גובה עמוד קשיח. כפיית
+  // page-break-after על div בגובה משתנה, יחד עם החיתוך של html2pdf
+  // לפי A4, יצרה עמודים ריקים ותוכן חתוך.
   return pages.map((html, i) =>
-    '<div dir="rtl" style="' + PAGE + (i < total - 1 ? ';page-break-after:always' : '') + '">' +
-    html.replace('{T}', total) + '</div>').join('');
+    '<section class="op-pg" style="' + PAGE + (i ? ';page-break-before:always' : '') + '">' +
+    html + '</section>').join('');
 }
 
 async function opPdf() {
@@ -9890,17 +9939,19 @@ async function opPdf() {
   const holder = document.createElement('div');
   holder.style.cssText = 'position:absolute;left:-9999px;top:0;width:760px;background:#fff';
   const doc = document.createElement('div');
-  doc.style.cssText = 'width:760px;background:#fff';
+  doc.setAttribute('dir', 'rtl');
+  doc.style.cssText = 'width:720px;background:#fff;font-family:Arial,Heebo,sans-serif';
   doc.innerHTML = opHtml();
   holder.appendChild(doc);
   document.body.appendChild(holder);
   toast('מכין את חוות הדעת…');
   try {
     await html2pdf().set({
-      margin: 0, image: { type: 'jpeg', quality: 0.9 },
-      html2canvas: { scale: 2, backgroundColor: '#ffffff', windowWidth: 800 },
+      margin: [12, 10, 12, 10],
+      image: { type: 'jpeg', quality: 0.92 },
+      html2canvas: { scale: 2, backgroundColor: '#ffffff', windowWidth: 760, scrollY: 0 },
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-      pagebreak: { mode: ['css', 'legacy'] }
+      pagebreak: { mode: ['css', 'legacy'], before: '.op-pg', avoid: ['tr', 'img', 'table'] }
     }).from(doc).save('חוות דעת ' + (opVal('case') || opVal('plate')) + '.pdf');
     toast('חוות הדעת נוצרה ✓');
   } catch(e) { console.log('opPdf', e); toast('שגיאה ביצירת PDF', true); }
@@ -9945,6 +9996,10 @@ function showSystem(name, keepTab) {
   document.querySelectorAll('.nav-btn[data-tab]').forEach(b => {
     b.dataset.offsys = (b.dataset.sys === name) ? '' : '1';
   });
+  // הכותרת נושאת שעון, שם חברה, פעמון תזכורות, ייבוא ושחזור — כולם
+  // שייכים לניהול הצי בלבד, ולכן היא מוצגת רק שם.
+  const hdr = document.querySelector('header');
+  if (hdr) hdr.style.display = (name === 'fleet') ? '' : 'none';
   // "עוד" נחוץ רק כשיש לשוניות משניות במערכת הזאת
   const more = document.getElementById('nav-more-btn');
   if (more) {

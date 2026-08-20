@@ -1493,6 +1493,41 @@ function govJsonp(rid, query, timeoutMs) {
   });
 }
 
+
+// שלושת מאגרי משרד התחבורה משתמשים בשמות שדות שונים: רכב פרטי מחזיק
+// kinuy_mishari ו-sug_degem, המסחרי/אוטובוסים מחזיק degem_nm ו-
+// kvutzat_sug_rechev, והדו-גלגלי מחזיק sug_rechev_nm. בלי נרמול,
+// אוטובוס או משאית מחזירים רשומה אך שום שדה לא מתמלא.
+const _SUG_DEGEM = { P: 'פרטי', M: 'מסחרי', N: 'משא', O: 'נגרר', B: 'אוטובוס', T: 'טרקטור' };
+
+function govNormalize(r) {
+  if (!r) return null;
+  const s = v => (v === null || v === undefined) ? '' : String(v).trim();
+  const type = s(r.sug_rechev_nm) || s(r.kvutzat_sug_rechev) ||
+               _SUG_DEGEM[s(r.sug_degem)] || s(r.sug_degem);
+  return {
+    plate:     s(r.mispar_rechev),
+    make:      s(r.tozeret_nm),
+    model:     s(r.kinuy_mishari) || s(r.degem_nm),
+    modelCode: s(r.degem_cd) || s(r.degem_nm),
+    trim:      s(r.ramat_gimur),
+    year:      s(r.shnat_yitzur),
+    type:      type,
+    color:     s(r.tzeva_rechev),
+    fuel:      s(r.sug_delek_nm),
+    vin:       s(r.misgeret) || s(r.mispar_shilda),
+    ownership: s(r.baalut),
+    seats:     s(r.mispar_mekomot),
+    weight:    s(r.mishkal_kolel),
+    engineVol: s(r.nefach_manoa),
+    licCode:   s(r.tozeret_cd),
+    regDate:   s(r.moed_aliya_lakvish),
+    regExpiry: s(r.tokef_dt),
+    lastTest:  s(r.mivchan_acharon_dt),
+    raw: r
+  };
+}
+
 async function govVehicleRecord(rawPlate) {
   const plate = String(rawPlate || '').replace(/\D/g, '');
   if (!plate) return null;
@@ -1532,17 +1567,17 @@ async function lookupPlate() {
       return;
     }
     // Fill fields
-    const fill = (id, val) => { if (val && val !== 'לא ידוע') document.getElementById(id).value = String(val).trim(); };
-    fill('f-make',  v.tozeret_nm || v.tozeret_cd);
-    fill('f-model', v.kinuy_mishari || v.degem_nm);
-    fill('f-year',  v.shnat_yitzur);
-    fill('f-color', v.tzeva_rechev);
-    // Extra info for notes hint
-    const fuel  = v.sug_delek_nm || '';
-    const owner = v.baalut || '';
-    const test  = v.mivchan_acharon_dt ? v.mivchan_acharon_dt.split('T')[0] : '';
-    const extra = [fuel && 'דלק: '+fuel, owner && 'בעלות: '+owner, test && 'טסט: '+test].filter(Boolean).join(' | ');
-    statusEl.innerHTML = '✓ נמצא: <strong>' + (v.tozeret_nm||'') + ' ' + (v.kinuy_mishari||'') + ' ' + (v.shnat_yitzur||'') + '</strong>' + (extra ? '<br><small>'+extra+'</small>' : '');
+    const n = govNormalize(v) || {};
+    const fill = (id, val) => { const el = document.getElementById(id); if (el && val && val !== 'לא ידוע') el.value = String(val).trim(); };
+    fill('f-make',  n.make);
+    fill('f-model', n.model);
+    fill('f-year',  n.year);
+    fill('f-color', n.color);
+    fill('f-serial', n.vin);
+    const test = n.lastTest ? String(n.lastTest).split('T')[0] : '';
+    const extra = [n.type && 'סוג: '+n.type, n.fuel && 'דלק: '+n.fuel, n.seats && n.seats+' מקומות',
+                   n.ownership && 'בעלות: '+n.ownership, test && 'טסט: '+test].filter(Boolean).join(' | ');
+    statusEl.innerHTML = '✓ נמצא: <strong>' + [n.make, n.model, n.year].filter(Boolean).join(' ') + '</strong>' + (extra ? '<br><small>'+extra+'</small>' : '');
     statusEl.style.color = 'var(--green)';
     toast('✓ פרטי הרכב הובאו ממשרד התחבורה');
   } catch(err) {
