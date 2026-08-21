@@ -730,7 +730,7 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
         <button class="btn btn-primary" style="padding:4px 11px;font-size:0.74rem" title="אפשר לבחור כמה קבצים ביחד: Excel, CSV או PDF" onclick="document.getElementById('cost-file').click()">📥 ייבוא חשבוניות (כמה ביחד)</button>
       </span>
     </div>
-    <input id="cost-file" type="file" accept=".csv,text/csv,.txt,.xlsx,.xls,.pdf,application/pdf" multiple style="display:none" onchange="onCostFile(this)">
+    <input id="cost-file" type="file" accept=".csv,text/csv,.txt,.xlsx,.xls,.xlsm,.pdf,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" multiple style="display:none" onchange="onCostFile(this)">
     <div id="dash-costs-view"></div>
   </div>
   <div class="dash-sec" id="dash-divisions-sec"><div class="dash-sec-hdr">🏷️ חלוקה לפי חטיבה</div><div id="dash-divisions"></div></div>
@@ -1233,6 +1233,20 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
     .insp-section-hdr{background:#f8fafc;padding:9px 12px;font-weight:800;font-size:0.85rem;border-bottom:1px solid #e2e8f0}
     .form-card{background:#fff;border:1.5px solid #e2e8f0;border-radius:14px;padding:16px;cursor:pointer;box-shadow:0 1px 5px rgba(0,0,0,.06);display:flex;align-items:center;gap:12px;max-width:420px}
     .form-card:hover{border-color:var(--accent)}
+    /* כל הכלים וההגדרות בקופסה אחת מתקפלת, כדי שהלשונית תיפתח על
+       הטופס עצמו ולא על קיר של כרטיסים. details נותן קיפול נטיב. */
+    .settings-box{border:1.5px solid #e2e8f0;border-radius:14px;background:#fff;margin-top:16px;overflow:hidden}
+    .settings-box>summary{list-style:none;cursor:pointer;padding:12px 14px;font-weight:800;font-size:0.9rem;
+      background:#f8fafc;display:flex;align-items:center;gap:8px;user-select:none}
+    .settings-box>summary::-webkit-details-marker{display:none}
+    .settings-box>summary::after{content:'▾';margin-inline-start:auto;color:#64748b;transition:transform .15s}
+    .settings-box[open]>summary::after{transform:rotate(180deg)}
+    .settings-box>summary:hover{background:#f1f5f9}
+    .settings-body{padding:14px;border-top:1px solid #e2e8f0}
+    .settings-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px;align-items:start}
+    .settings-grid .form-card{max-width:none!important;margin-top:0!important;height:100%}
+    .settings-grp{font-weight:800;font-size:0.82rem;color:#1e3a8a;margin:18px 0 8px}
+    .settings-body .insp-section{max-width:none!important;margin-top:0!important}
     .insp-hist-row{background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:9px 12px;margin-bottom:7px;display:flex;justify-content:space-between;align-items:center;gap:8px;cursor:pointer;font-size:0.8rem;flex-wrap:wrap}
   </style>
 
@@ -1244,6 +1258,10 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
       <div><div style="font-weight:800;color:#fff;font-size:1rem">ביקורת קצין בטיחות</div>
       <div style="font-size:0.75rem;color:#dbeafe">מילוי דיגיטלי בשטח — נשמר בתיק הרכב ונשלח למייל</div></div>
     </div>
+    <details class="settings-box" id="forms-settings">
+      <summary>⚙️ הגדרות וכלים</summary>
+      <div class="settings-body">
+        <div class="settings-grid">
     <div class="form-card" onclick="copyBotLink()" style="background:linear-gradient(135deg,#4f46e5,#7c3aed);border-color:#4f46e5;margin-top:10px">
       <span style="font-size:2.2rem">🤖</span>
       <div><div style="font-weight:800;color:#fff;font-size:1rem">קישור לבוט נדי (לנהגים)</div>
@@ -1286,6 +1304,8 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
       <div><div style="font-weight:800;color:#fff;font-size:1rem">בדיקת גיבויים / שחזור מדויק</div>
       <div style="font-size:0.75rem;color:#cbd5e1">רואים כמה מלא כל גיבוי ובוחרים מאיזה בדיוק לשחזר</div></div>
     </div>
+        </div>
+        <div class="settings-grp">📧 מייל, טוקנים וחתימה קבועה</div>
     <div class="insp-section" style="max-width:420px;margin-top:18px">
       <div class="insp-section-hdr">⚙️ לאן נשלחות הביקורות במייל</div>
       <div style="padding:10px">
@@ -1307,15 +1327,6 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
         <button class="btn btn-primary" onclick="saveMailSettings()">💾 שמור הגדרות</button>
       </div>
     </div>
-    <div class="section-hdr" style="margin-top:18px"><div style="display:flex;align-items:center;gap:8px"><span class="section-title">ביקורות שבוצעו</span><span class="count-badge" id="insp-count">0</span></div></div>
-    <div id="insp-history"></div>
-    <div class="section-hdr" style="margin-top:18px"><div style="display:flex;align-items:center;gap:8px"><span class="section-title" id="kmround-title">🛣️ סבב עדכון ק"מ</span><span class="count-badge" id="kmround-count">—</span></div>
-      <div style="display:flex;gap:6px">
-        <button class="btn btn-primary" style="padding:5px 12px;font-size:0.78rem" onclick="copyKmGroupMsg()">📋 העתק הודעה לקבוצה</button>
-        <button class="btn btn-secondary" style="padding:5px 12px;font-size:0.78rem" id="kmround-sent-btn" onclick="markKmRoundSent()">✔ סמן שנשלח</button>
-      </div>
-    </div>
-    <div id="kmround-panel"></div>
     <div class="section-hdr" style="margin-top:18px"><span class="section-title">🛡️ החתימה הקבועה שלך (קצין בטיחות)</span></div>
     <div style="background:var(--card);border:1.5px solid var(--border);border-radius:12px;padding:14px;margin-bottom:6px">
       <div style="font-size:0.78rem;color:var(--muted);margin-bottom:8px">חתום/חתמי כאן פעם אחת — החתימה תיחתם אוטומטית על כל טופס "מבחן נהיגה מעשי" שעובד ממלא.</div>
@@ -1326,6 +1337,17 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
       </div>
       <div id="officer-sig-status" style="font-size:0.75rem;color:var(--muted);margin-top:6px"></div>
     </div>
+      </div>
+    </details>
+    <div class="section-hdr" style="margin-top:18px"><div style="display:flex;align-items:center;gap:8px"><span class="section-title">ביקורות שבוצעו</span><span class="count-badge" id="insp-count">0</span></div></div>
+    <div id="insp-history"></div>
+    <div class="section-hdr" style="margin-top:18px"><div style="display:flex;align-items:center;gap:8px"><span class="section-title" id="kmround-title">🛣️ סבב עדכון ק"מ</span><span class="count-badge" id="kmround-count">—</span></div>
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-primary" style="padding:5px 12px;font-size:0.78rem" onclick="copyKmGroupMsg()">📋 העתק הודעה לקבוצה</button>
+        <button class="btn btn-secondary" style="padding:5px 12px;font-size:0.78rem" id="kmround-sent-btn" onclick="markKmRoundSent()">✔ סמן שנשלח</button>
+      </div>
+    </div>
+    <div id="kmround-panel"></div>
 
     <div class="section-hdr" style="margin-top:18px"><div style="display:flex;align-items:center;gap:8px"><span class="section-title">🚗 מסמכי רכב שהעלו נהגים</span><span class="count-badge" id="vdocs-count">0</span></div></div>
     <div id="vdocs-panel"></div>
@@ -2668,7 +2690,16 @@ function openVehicleCost(plate, month) {
 function _curMonth() { const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth() + 1).padStart(2, '0')}`; }
 function _csvRows(text) { return text.split(/\r?\n/).filter(l => l.trim()).map(l => l.split(/[,;\t]/).map(c => c.trim().replace(/^"|"$/g, ''))); }
 function _rowsToCsv(rows) { return rows.map(r => r.join(',')).join('\n'); }
-function _xlsxRows(buf) { const wb = XLSX.read(buf, { type: 'array', cellDates: false }); const ws = wb.Sheets[wb.SheetNames[0]]; return XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: false, blankrows: false }); }
+function _xlsxRows(buf) { return (_xlsxSheets(buf)[0] || { rows: [] }).rows; }
+// חוברת עבודה יכולה לפתוח בגיליון הסבר או תפריט, והנתונים יושבים
+// בגיליון הבא. קוראים את כולם ונותנים למנתח לבחור.
+function _xlsxSheets(buf) {
+  const wb = XLSX.read(buf, { type: 'array', cellDates: false });
+  return wb.SheetNames.map(n => ({
+    name: n,
+    rows: XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, defval: '', raw: false, blankrows: false })
+  }));
+}
 async function _pdfText(file) {
   if (typeof pdfjsLib === 'undefined') throw new Error('pdfjs');
   try { pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'; } catch (e) {}
@@ -2682,14 +2713,36 @@ async function _pdfText(file) {
 function _tabularRecords(rows, category) {
   if (!rows || rows.length < 2) return [];
   const num = s => parseFloat(String(s).replace(/[₪,\s]/g, ''));
-  const plateLike = s => { const d = String(s).replace(/\D/g, ''); return d.length >= 6 && d.length <= 8; };
-  const headerRow = rows[0].every(c => isNaN(num(c))) && rows[0].some(Boolean);
-  const dataRows = headerRow ? rows.slice(1) : rows;
+  // תאריך מתפרק ל-8 ספרות ונראה בדיוק כמו מספר רישוי. בלי ההפרדה הזו
+  // עמודת תאריך שמופיעה ראשונה נבחרת בטעות כעמודת הרכב.
+  const dateLike = s => /^\s*\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4}\s*$/.test(String(s));
+  const plateLike = s => { if (dateLike(s)) return false; const d = String(s).replace(/\D/g, ''); return d.length >= 6 && d.length <= 8; };
+  const nonEmpty = r => (r || []).some(c => String(c).trim() !== '');
+  // דוחות רבים פותחים בכותרת, בשם החברה ובשורות ריקות. הן דחפו את
+  // הטבלה מטה ודיללו את יחס הזיהוי מתחת לסף, ולכן הקובץ נדחה כולו.
+  // מתחילים מהשורה הראשונה שנראית כמו נתונים.
+  const firstData = rows.findIndex(r => (r || []).some(c => plateLike(c)));
+  if (firstData < 0) return [];
+  const dataRows = rows.slice(firstData).filter(nonEmpty);
+  const header = firstData > 0 ? (rows[firstData - 1] || []) : [];
   const ncol = Math.max(...dataRows.map(r => r.length)); const N = dataRows.length || 1;
+  const hdrHit = (c, re) => re.test(String(header[c] || ''));
   let plateCol = -1, plateBest = 0;
-  for (let c = 0; c < ncol; c++) { let pl = 0; dataRows.forEach(r => { if (r[c] && plateLike(r[c])) pl++; }); if (pl / N > plateBest) { plateBest = pl / N; plateCol = c; } }
+  for (let c = 0; c < ncol; c++) {
+    let pl = 0; dataRows.forEach(r => { if (r[c] && plateLike(r[c])) pl++; });
+    let score = pl / N;
+    if (score && hdrHit(c, /רכב|רישוי|לוחית|מספר\s*רכב|מ\.?ר\.?/)) score += 1;  // הכותרת מכריעה
+    if (score > plateBest) { plateBest = score; plateCol = c; }
+  }
+  if (plateBest > 1) plateBest -= 1;
   let amtCol = -1, amtBest = 0;
-  for (let c = 0; c < ncol; c++) { if (c === plateCol) continue; let sum = 0, cnt = 0; dataRows.forEach(r => { const f = num(r[c]); if (!isNaN(f)) { sum += Math.abs(f); cnt++; } }); if (cnt / N > 0.5 && sum > amtBest) { amtBest = sum; amtCol = c; } }
+  for (let c = 0; c < ncol; c++) {
+    if (c === plateCol) continue;
+    let sum = 0, cnt = 0; dataRows.forEach(r => { const f = num(r[c]); if (!isNaN(f)) { sum += Math.abs(f); cnt++; } });
+    if (cnt / N <= 0.5) continue;
+    const score = hdrHit(c, /סכום|עלות|חיוב|מחיר|תשלום|₪/) ? sum * 1e6 : sum;
+    if (score > amtBest) { amtBest = score; amtCol = c; }
+  }
   if (plateCol < 0 || amtCol < 0 || plateBest < 0.3) return [];
   let dateCol = -1;
   for (let c = 0; c < ncol; c++) if (dataRows.some(r => /\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4}/.test(String(r[c] || '')))) { dateCol = c; break; }
@@ -2813,10 +2866,16 @@ async function onCostFile(input) {
         }
         if (r && !r._skip) recs.push(r);
         else skipped.push(file.name + (r && r._skip ? ' — ' + r._skip : ''));
-      } else if (nm.endsWith('.xlsx') || nm.endsWith('.xls')) {
-        const rows = _xlsxRows(await file.arrayBuffer());
-        const rr = (category === 'fuel') ? _fuelRecords(_rowsToCsv(rows)) : _tabularRecords(rows, category);
-        if (rr.length) recs.push(...rr); else skipped.push(file.name + ' — לא זוהו עמודות רכב וסכום');
+      } else if (nm.endsWith('.xlsx') || nm.endsWith('.xls') || nm.endsWith('.xlsm')) {
+        const sheets = _xlsxSheets(await file.arrayBuffer());
+        let rr = [], used = '';
+        for (const sh of sheets) {
+          const got = (category === 'fuel') ? _fuelRecords(_rowsToCsv(sh.rows)) : _tabularRecords(sh.rows, category);
+          if (got.length > rr.length) { rr = got; used = sh.name; }
+        }
+        if (rr.length) { recs.push(...rr); if (sheets.length > 1) console.log('cost import: sheet', used); }
+        else skipped.push(file.name + ' — נקרא (' + sheets.length + ' גיליונות, ' +
+          sheets.reduce((n, sh) => n + sh.rows.length, 0) + ' שורות) אך לא זוהו עמודת רכב ועמודת סכום');
       } else {
         const txt = await file.text();
         const rr = (category === 'fuel') ? _fuelRecords(txt) : _tabularRecords(_csvRows(txt), category);
@@ -7511,6 +7570,52 @@ function _viewB64(b64, mime){
     window.open(url, '_blank'); setTimeout(()=>URL.revokeObjectURL(url), 60000);
   } catch(e){ toast('שגיאה בפתיחת הקובץ', true); }
 }
+// ═══ סגירת חלון בלחיצה על הרקע ═══
+// נקודת ההתחלה של הלחיצה היא הקובעת, ולא סופה, כדי שסימון טקסט בתוך
+// החלון וגרירת העכבר החוצה לא יסגרו אותו. חלון שיש בו שינויים שלא
+// נשמרו מבקש אישור — סגירה בטעות של טופס רכב מלא היא אובדן עבודה.
+(function initBackdropClose(){
+  // "שינוי" נמדד לפי הקלדה של המשתמש ולא לפי השוואת ערכים לרגע
+  // הפתיחה: חלונות רבים ממלאים את השדות אחרי הפתיחה, ולעיתים בתוך
+  // await, ואז כל סגירה הייתה נראית כאובדן נתונים ומקפיצה שאלה.
+  document.addEventListener('input', e => {
+    const ov = e.target.closest && e.target.closest('.modal-overlay');
+    if (ov) ov._dirty = true;
+  }, true);
+
+  const watch = ov => new MutationObserver(() => { ov._dirty = false; })
+    .observe(ov, { attributes: true, attributeFilter: ['class'] });
+  // חלק מהחלונות מוגדרים אחרי בלוק הסקריפט הזה, ולכן ההצמדה מחכה
+  // לסיום טעינת ה-DOM ולא רצה מיד.
+  const attachAll = () => document.querySelectorAll('.modal-overlay').forEach(watch);
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', attachAll);
+  else attachAll();
+
+  const closeOverlay = ov => {
+    if (!ov || ov.dataset.keepOpen === '1') return;
+    if (ov._dirty && !confirm('יש שינויים שלא נשמרו בחלון הזה. לסגור בלי לשמור?')) return;
+    ov._dirty = false;
+    ov.classList.remove('open');
+  };
+
+  let downOn = null;
+  document.addEventListener('pointerdown', e => { downOn = e.target; }, true);
+  document.addEventListener('click', e => {
+    const t = e.target;
+    if (t !== downOn) { downOn = null; return; }
+    downOn = null;
+    if (t.classList && t.classList.contains('modal-overlay') && t.classList.contains('open')) closeOverlay(t);
+  });
+  document.addEventListener('keydown', e => {
+    if (e.key !== 'Escape') return;
+    const open = [...document.querySelectorAll('.modal-overlay.open')];
+    if (!open.length) return;
+    // החלון העליון ביותר לפי z-index, כדי שחלון על חלון ייסגר לפי הסדר
+    open.sort((a, b) => (parseInt(getComputedStyle(a).zIndex) || 600) - (parseInt(getComputedStyle(b).zIndex) || 600));
+    closeOverlay(open[open.length - 1]);
+  });
+})();
+
 function _empView(cat, di, fi){
   const D = window._EMPDOCS; if(!D || !D[cat] || !D[cat][di]) return;
   const doc = D[cat][di];
