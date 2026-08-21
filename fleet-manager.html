@@ -5811,33 +5811,50 @@ const _REQ_DATE = {
   registration: { field:'registrationExpiry', prompt: VDOC_SCAN_PROMPT, key:'registrationExpiry' },
   license:      { field:'licenseExpiry',      prompt: LIC_SCAN_PROMPT,  key:'licenseExpiry' }
 };
-const _reqScanCache = {}; // docId → תאריך שזוהה (או null); 'pending' בזמן סריקה
-async function scanReqExpiry(r){
-  const cfg = _REQ_DATE[r.reqType]; if (!cfg) return null;
-  if (r._docId in _reqScanCache) return _reqScanCache[r._docId] === 'pending' ? null : _reqScanCache[r._docId];
-  const imgs = (r.files||[]).filter(f => f.kind === 'image' && f.base64).map(f => f.base64);
-  if (!imgs.length || !agentApiKey) { _reqScanCache[r._docId] = null; return null; }
-  _reqScanCache[r._docId] = 'pending';
-  try {
-    const out = await scanDatesFromImages(imgs, cfg.prompt);
-    const d = (out[cfg.key] && parseDate(out[cfg.key])) ? out[cfg.key] : null;
-    _reqScanCache[r._docId] = d;
-    return d;
-  } catch(e) { _reqScanCache[r._docId] = null; return null; }
+const _reqScanCache = {}; // docId|סוג → תאריך שזוהה (או null); 'pending' בזמן סריקה
+const _reqScanRaw = {};   // סריקה משותפת: ביטוח ורישוי נקראים מאותו צילום
+// הסוגים שיש להם תאריך תוקף. קריאה משולבת מחזיקה יותר מאחד, ולכן
+// _REQ_DATE[r.reqType] לבדו החמיץ אותה — reqType הוא general.
+function reqDateKinds(r) { return reqKinds(r).filter(k => _REQ_DATE[k]); }
+// הצילומים ששייכים לסוג מסוים. בהגשה מתויגת נלקחים רק שלו; בהגשה
+// ישנה שאינה מתויגת נלקחים כולם, ונותנים לסורק להחליט.
+function _reqImages(r, kind) {
+  const imgs = (r.files || []).filter(f => f.kind === 'image' && f.base64);
+  const mine = imgs.filter(f => f.docKind === kind);
+  if (mine.length) return mine.map(f => f.base64);
+  return imgs.some(f => f.docKind) ? [] : imgs.map(f => f.base64);
 }
-// סורק כל קריאה מסוג תאריך שעדיין לא נסרקה וממלא את שדה התוקף בכרטיס
+async function scanReqExpiry(r, kind){
+  const cfg = _REQ_DATE[kind]; if (!cfg) return null;
+  const ck = r._docId + '|' + kind;
+  if (ck in _reqScanCache) return _reqScanCache[ck] === 'pending' ? null : _reqScanCache[ck];
+  const imgs = _reqImages(r, kind);
+  if (!imgs.length || !agentApiKey) { _reqScanCache[ck] = null; return null; }
+  _reqScanCache[ck] = 'pending';
+  // רישיון הרכב ותעודת הביטוח נקראים מאותו פרומפט ומחזירים את שני
+  // התאריכים יחד — סורקים פעם אחת ומחלקים, במקום פעמיים על אותה תמונה.
+  const rk = r._docId + '|' + (cfg.prompt === LIC_SCAN_PROMPT ? 'lic' : 'veh') + '|' + imgs.length + '|' + (imgs[0] || '').slice(0, 24);
+  try {
+    if (!_reqScanRaw[rk]) _reqScanRaw[rk] = scanDatesFromImages(imgs, cfg.prompt);
+    const out = await _reqScanRaw[rk];
+    const d = (out[cfg.key] && parseDate(out[cfg.key])) ? out[cfg.key] : null;
+    _reqScanCache[ck] = d;
+    return d;
+  } catch(e) { _reqScanCache[ck] = null; return null; }
+}
+// סורק כל סוג מסמך בכל קריאה ממתינה וממלא את שדה התוקף שלו
 function _scanPendingReqs(){
-  PENDING_REQS.forEach(r => {
-    if (!_REQ_DATE[r.reqType]) return;
+  PENDING_REQS.forEach(r => reqDateKinds(r).forEach(kind => {
+    const ck = r._docId + '|' + kind;
     const fill = d => {
-      const inp = document.getElementById('reqdate-' + r._docId);
-      const note = document.getElementById('reqscan-' + r._docId);
+      const inp = document.getElementById('reqdate-' + r._docId + '-' + kind);
+      const note = document.getElementById('reqscan-' + r._docId + '-' + kind);
       if (inp && !inp.value && d) inp.value = d;
-      if (note) note.textContent = d ? '✓ זוהה אוטומטית מהמסמך' : (agentApiKey ? 'לא זוהה — הזן ידנית' : 'הזן ידנית');
+      if (note) note.textContent = d ? '✓ זוהה אוטומטית' : (agentApiKey ? 'לא זוהה — הזן ידנית' : 'הזן ידנית');
     };
-    if ((r._docId in _reqScanCache) && _reqScanCache[r._docId] !== 'pending') { fill(_reqScanCache[r._docId]); return; }
-    scanReqExpiry(r).then(fill);
-  });
+    if ((ck in _reqScanCache) && _reqScanCache[ck] !== 'pending') { fill(_reqScanCache[ck]); return; }
+    scanReqExpiry(r, kind).then(fill);
+  }));
 }
 async function loadPendingRequests() {
   const box = document.getElementById('pending-reqs'); if (!box) return;
@@ -5854,12 +5871,17 @@ async function loadPendingRequests() {
   document.getElementById('pending-list').innerHTML = PENDING_REQS.map(r => {
     const files = r.files || [];
     const fileBtns = files.map((f, i) => `<button class="btn btn-gray" style="padding:2px 8px;font-size:0.68rem;margin:2px 3px 2px 0" onclick="viewReqFile('${esc(r._docId)}',${i})">${f.kind === 'pdf' ? '📄' : '🖼️'} ${esc((f.name || ('קובץ ' + (i + 1))).slice(0, 16))}</button>`).join('');
-    const _cached = (r._docId in _reqScanCache && _reqScanCache[r._docId] !== 'pending') ? _reqScanCache[r._docId] : '';
-    const dateRow = _REQ_DATE[r.reqType] ? `<div style="margin-top:8px;display:flex;align-items:center;gap:7px;flex-wrap:wrap;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:7px 9px">
-        <span style="font-size:0.74rem;font-weight:700;color:#334155">🔎 תוקף חדש:</span>
-        <input type="text" id="reqdate-${esc(r._docId)}" value="${esc(_cached || '')}" placeholder="dd/mm/yyyy" style="direction:ltr;width:118px;border:1.5px solid #cbd5e1;border-radius:7px;padding:4px 8px;font-size:0.8rem;font-family:'Heebo',sans-serif">
-        <span id="reqscan-${esc(r._docId)}" style="font-size:0.7rem;color:#94a3b8">🔍 סורק…</span>
-      </div>` : '';
+    // שורת תאריך לכל מסמך בנפרד. בקריאה משולבת יש כאן שתי שורות,
+    // ולכן אישור אחד מעדכן גם את הביטוח וגם את הרישוי.
+    const dateRow = reqDateKinds(r).map(kind => {
+      const ck = r._docId + '|' + kind;
+      const _cached = (ck in _reqScanCache && _reqScanCache[ck] !== 'pending') ? _reqScanCache[ck] : '';
+      return `<div style="margin-top:8px;display:flex;align-items:center;gap:7px;flex-wrap:wrap;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:7px 9px">
+        <span style="font-size:0.74rem;font-weight:700;color:#334155">🔎 ${esc(_REQ_TITLE[kind] || kind)} — תוקף:</span>
+        <input type="text" id="reqdate-${esc(r._docId)}-${kind}" value="${esc(_cached || '')}" placeholder="dd/mm/yyyy" style="direction:ltr;width:118px;border:1.5px solid #cbd5e1;border-radius:7px;padding:4px 8px;font-size:0.8rem;font-family:'Heebo',sans-serif">
+        <span id="reqscan-${esc(r._docId)}-${kind}" style="font-size:0.7rem;color:#94a3b8">🔍 סורק…</span>
+      </div>`;
+    }).join('');
     return `<div style="background:#fff;border:1px solid #d1fae5;border-radius:11px;padding:11px 13px;margin-bottom:9px">
       <div style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px;align-items:center">
         <div style="font-size:0.85rem"><b style="direction:ltr">${esc(r.plate)}</b>${r.driver ? ` · ${esc(r.driver)}` : ''} <span style="font-size:0.7rem;color:#64748b">· ${esc(r.dateStr || '')}</span></div>
@@ -5900,21 +5922,30 @@ function viewReqFile(id, idx) {
 }
 async function approveRequest(id) {
   const r = PENDING_REQS.find(x => x._docId === id); if (!r) return;
+  const _kinds = reqKinds(r);
+  const _dateKinds = reqDateKinds(r);
+  // התאריכים שהוזנו/זוהו, לפי סוג מסמך
+  const _dates = {};
+  _dateKinds.forEach(k => {
+    const inp = document.getElementById('reqdate-' + r._docId + '-' + k);
+    const val = inp ? inp.value.trim() : '';
+    if (val && parseDate(val)) _dates[k] = val;
+  });
   let markService = false;
-  const _dcfg = _REQ_DATE[r.reqType];
-  let _newDate = '';
-  if (r.reqType === 'service') {
+  if (_kinds.includes('service') || r.reqType === 'service') {
     const v = VEHICLES.find(x => String(x.plate).trim() === String(r.plate).trim());
     const anchor = v ? (parseKm(v.nextServiceKm) || parseKm(v.currentKm) || 0) : 0; // נקודת הטיפול הקודמת
     const newNext = anchor + 15000;
     markService = confirm(`אישור קריאת טיפול — רכב ${r.plate}\n\nאישור = לרשום שהטיפול בוצע:\n• הטיפול הבא יעודכן ל-${newNext.toLocaleString()} ק"מ (15,000 מנקודת הטיפול הקודמת ${anchor.toLocaleString()})\n• תאריך טיפול = היום\n• הקריאה תיסגר\n\nביטול = לא לאשר כרגע.`);
     if (!markService) return;
-  } else if (_dcfg) {
-    const inp = document.getElementById('reqdate-' + r._docId);
-    _newDate = inp ? inp.value.trim() : '';
-    const ok = _newDate && parseDate(_newDate);
-    const msg = ok
-      ? `אישור קריאת ${r.reqLabel || ''} — רכב ${r.plate}\n\n• התוקף ${_newDate} יעודכן ברכב\n• ההתראה תיעלם\n• הקריאה תיסגר\n\nלאשר?`
+  } else if (_dateKinds.length) {
+    const got = _dateKinds.filter(k => _dates[k]);
+    const miss = _dateKinds.filter(k => !_dates[k]);
+    const line = k => '• ' + (_REQ_TITLE[k] || k) + ': ' + _dates[k] + ' — יעודכן ברכב';
+    const msg = got.length
+      ? `אישור קריאת ${r.reqLabel || ''} — רכב ${r.plate}\n\n` + got.map(line).join('\n') +
+        (miss.length ? '\n\nבלי תאריך (ההתראה לא תיעלם):\n' + miss.map(k => '• ' + (_REQ_TITLE[k] || k)).join('\n') : '') +
+        '\n\nהקריאה תיסגר. לאשר?'
       : `לא הוזן/זוהה תאריך תוקף לרכב ${r.plate}.\n\nאם תאשר בלי תאריך — הקריאה תיסגר אבל ההתראה לא בהכרח תיעלם.\n\nלהמשיך בכל זאת?`;
     if (!confirm(msg)) return;
   } else {
@@ -5932,12 +5963,16 @@ async function approveRequest(id) {
         saveVehiclesSafely(v.plate, null, v.plate);
       }
     }
-    // ביטוח/רישוי/רישיון — עדכון התוקף ברכב כדי שההתראה תיעלם
-    if (_dcfg && _newDate && parseDate(_newDate)) {
+    // ביטוח/רישוי/רישיון — עדכון כל תוקף שהוזן, כדי שההתראות ייעלמו
+    const _kk = Object.keys(_dates);
+    if (_kk.length) {
       const v = VEHICLES.find(x => String(x.plate).replace(/\D/g,'') === String(r.plate).replace(/\D/g,''));
       if (v) {
-        v[_dcfg.field] = _newDate;
-        if (_dcfg.field === 'licenseExpiry') { const dk = driverKey(v.driverName); if (dk) { DRIVERS[dk] = DRIVERS[dk] || {}; DRIVERS[dk].licenseExpiry = _newDate; if (typeof syncDriverToVehicles === 'function') syncDriverToVehicles(dk); } }
+        _kk.forEach(k => {
+          const cfg = _REQ_DATE[k]; if (!cfg) return;
+          v[cfg.field] = _dates[k];
+          if (cfg.field === 'licenseExpiry') { const dk = driverKey(v.driverName); if (dk) { DRIVERS[dk] = DRIVERS[dk] || {}; DRIVERS[dk].licenseExpiry = _dates[k]; if (typeof syncDriverToVehicles === 'function') syncDriverToVehicles(dk); } }
+        });
         saveVehiclesSafely(v.plate, null, v.plate);
       }
     }
