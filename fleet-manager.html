@@ -6980,7 +6980,7 @@ async function commitDriverEmails(){
       for (const x of all) {
         const dk = driverKey(x.driverName);
         if (DRIVERS[dk] && DRIVERS[dk].docsId) continue;
-        try { await buildDriverBundle(x, { ldocs: [], vdocs: [], decls: [] }); } catch(e) {}
+        try { await buildDriverBundle(x, { ldocs: [], vdocs: [], decls: [], reqs: [] }); } catch(e) {}
       }
       try { saveToFirestore('drivers', DRIVERS); } catch(e) {}
       if (await pushDocsDirectory(all)) toast('✓ הפורטל עודכן ל-' + all.length + ' עובדים');
@@ -7043,17 +7043,68 @@ function docsLinkFor(v) {
   return 'https://nadi8890.github.io/shamay-scan/my-docs.html?d=' + id + tParam('&');
 }
 
+// מסמך שהעובד העלה בתגובה ל"קריאה" נשמר כרשומת קריאה, והצילום נשאר
+// שם: אישור הקריאה העתיק רק את תאריך התוקף לכרטיס הרכב. לכן מגירת
+// רישיון הרכב והביטוח נראתה ריקה, והפורטל של העובד לא הציג דבר.
+// כאן הקריאות מתורגמות לרשומות מסמך רגילות לפי סוג הקריאה, כך שהן
+// יושבות במגירה הנכונה — גם קריאות שכבר אושרו בעבר.
+const _REQ_DRAWER = { insurance: 'vdocs', registration: 'vdocs', license: 'ldocs' };
+function reqAsDocs(reqs, drawer) {
+  return (reqs || [])
+    .filter(r => _REQ_DRAWER[r.reqType] === drawer && r.status !== 'rejected')
+    .map(r => ({
+      _docId: r._docId, _ref: r._ref, _fromReq: true,
+      reqType: r.reqType || '', reqLabel: r.reqLabel || '',
+      plate: r.plate || '', driver: r.driver || r.name || '',
+      dateStr: r.dateStr || '', created: r.created || 0,
+      images: (r.files || []).filter(f => f.kind === 'image' && f.base64).map(f => f.base64)
+    }))
+    .filter(r => r.images.length);
+}
+const _REQ_TITLE = { insurance: 'תעודת ביטוח', registration: 'רישיון רכב', license: 'רישיון נהיגה' };
+// ביטוח ורישיון רכב מגיעים כשתי קריאות נפרדות. בחירת "הרשומה האחרונה"
+// בלבד הסתירה את אחת מהן, ולכן נלקח כאן העדכני ביותר מכל סוג.
+function latestPerKind(arr, fallbackTitle) {
+  const best = new Map();
+  for (const r of (arr || [])) {
+    const k = r.reqType || 'doc';
+    const cur = best.get(k);
+    if (!cur || (r.created || 0) > (cur.created || 0)) best.set(k, r);
+  }
+  return [...best.entries()].map(([k, r]) => ({ rec: r, title: _REQ_TITLE[k] || fallbackTitle }));
+}
+
+function mergeReqDocs(cache) {
+  return {
+    ldocs: [...(cache.ldocs || []), ...reqAsDocs(cache.reqs, 'ldocs')],
+    vdocs: [...(cache.vdocs || []), ...reqAsDocs(cache.reqs, 'vdocs')]
+  };
+}
+// מטמון המסמכים נקרא בחמישה מקומות — ריכוז כדי שסוג חדש לא יישכח באחד מהם
+async function docsCache() {
+  const [ldocs, vdocs, decls, reqs] = await Promise.all([
+    readDriverDocs('licensedocs'), readDriverDocs('vehicledocs'),
+    readDriverDocs('declaration'), readDriverDocs('requirement')
+  ]);
+  return { ldocs, vdocs, decls, reqs };
+}
+
 async function buildDriverBundle(v, cache){
   const email=(v.driverEmail||'').trim().toLowerCase(); if(!email) return false;   // תואם למייל המאומת (Firebase ממיר לאותיות קטנות)
   const pk=String(v.plate||'').replace(/\D/g,'');
   const dkey=driverKey(v.driverName);
   const latestByDriver = arr => (arr||[]).filter(r=>driverKey(r.driver||r.name)===dkey).sort((a,b)=>(b.created||0)-(a.created||0))[0];
   const latestByPlate  = arr => (arr||[]).filter(r=>String(r.plate||'').replace(/\D/g,'')===pk).sort((a,b)=>(b.created||0)-(a.created||0))[0];
-  const lic=latestByDriver(cache.ldocs), veh=latestByPlate(cache.vdocs);
+  const _m=mergeReqDocs(cache);
+  const byDriverAll = arr => (arr||[]).filter(r=>driverKey(r.driver||r.name)===dkey);
+  const byPlateAll  = arr => (arr||[]).filter(r=>String(r.plate||'').replace(/\D/g,'')===pk);
   const photos=[];
   const addImgs = async (imgs,label,cat) => { for(const b of (imgs||[]).slice(0,2)){ if(b) photos.push({ cat, label, b64: await _shrinkB64(b, 1000, 0.5) }); } };
-  if(lic) await addImgs(lic.images, 'רישיון נהיגה', 'driver');       // מסמך נהג — עובר עם העובד
-  if(veh) await addImgs(veh.images, 'רישיון רכב / ביטוח', 'vehicle'); // מסמך רכב — של הרכב הנוכחי
+  // מסמכי נהג עוברים עם העובד; מסמכי רכב שייכים לרכב הנוכחי
+  for (const it of latestPerKind(byDriverAll(_m.ldocs), 'רישיון נהיגה').slice(0,3))
+    await addImgs(it.rec.images, it.title, 'driver');
+  for (const it of latestPerKind(byPlateAll(_m.vdocs), 'רישיון רכב / ביטוח').slice(0,3))
+    await addImgs(it.rec.images, it.title, 'vehicle');
   // הטפסים שהעובד חתם עליהם. עד כה התיק הכיל רק צילומים שהוא צירף,
   // ולכן נהלי הרכב וטפסי הקבלה לא הופיעו בפורטל שלו כלל.
   const signed = (cache.decls || [])
@@ -7107,9 +7158,13 @@ async function _employeeFiles(v, cache) {
   const byPlate  = arr => (arr || []).filter(r => String(r.plate || '').replace(/\D/g, '') === pk)
                                      .sort((a, b) => (b.created || 0) - (a.created || 0))[0];
 
-  const lic = byDriver(cache.ldocs), veh = byPlate(cache.vdocs);
-  (lic && lic.images || []).slice(0, 3).forEach((b, i) => push(b, 'image/jpeg', `רישיון נהיגה ${i + 1}.jpg`));
-  (veh && veh.images || []).slice(0, 3).forEach((b, i) => push(b, 'image/jpeg', `רישיון רכב וביטוח ${i + 1}.jpg`));
+  const _m = mergeReqDocs(cache);
+  const allByDriver = arr => (arr || []).filter(r => driverKey(r.driver || r.name) === dkey);
+  const allByPlate  = arr => (arr || []).filter(r => String(r.plate || '').replace(/\D/g, '') === pk);
+  latestPerKind(allByDriver(_m.ldocs), 'רישיון נהיגה').slice(0, 3).forEach(it =>
+    (it.rec.images || []).slice(0, 3).forEach((b, i) => push(b, 'image/jpeg', `${it.title} ${i + 1}.jpg`)));
+  latestPerKind(allByPlate(_m.vdocs), 'רישיון רכב וביטוח').slice(0, 3).forEach(it =>
+    (it.rec.images || []).slice(0, 3).forEach((b, i) => push(b, 'image/jpeg', `${it.title} ${i + 1}.jpg`)));
 
   // הטפסים החתומים — החתימה כתמונה, כדי שהעובד יראה על מה חתם
   (cache.decls || []).filter(r => driverKey(r.driver || r.name) === dkey)
@@ -7171,10 +7226,8 @@ async function autoSyncEmployee(v) {
   const known = (DRIVERS[dk] && DRIVERS[dk].dirEmail) || '';
   if (known === email && DRIVERS[dk] && DRIVERS[dk].docsId) return;   // כלום לא השתנה
   try {
-    const [ldocs, vdocs, decls] = await Promise.all([
-      readDriverDocs('licensedocs'), readDriverDocs('vehicledocs'), readDriverDocs('declaration')
-    ]);
-    await buildDriverBundle(v, { ldocs, vdocs, decls });
+    const { ldocs, vdocs, decls, reqs } = await docsCache();
+    await buildDriverBundle(v, { ldocs, vdocs, decls, reqs });
     DRIVERS[dk] = DRIVERS[dk] || {};
     DRIVERS[dk].dirEmail = email;
     try { saveToFirestore('drivers', DRIVERS); } catch(e) {}
@@ -7238,10 +7291,8 @@ async function mailOneDocsLink(plate) {
   const v = _vehByPlate(plate);
   if (!v) { toast('הרכב לא נמצא', true); return; }
   if (!(v.driverEmail || '').trim()) { toast('לעובד אין מייל שמור', true); return; }
-  const [ldocs, vdocs, decls] = await Promise.all([
-    readDriverDocs('licensedocs'), readDriverDocs('vehicledocs'), readDriverDocs('declaration')
-  ]);
-  await buildDriverBundle(v, { ldocs, vdocs, decls });
+  const { ldocs, vdocs, decls, reqs } = await docsCache();
+  await buildDriverBundle(v, { ldocs, vdocs, decls, reqs });
   try { saveToFirestore('drivers', DRIVERS); } catch(e) {}
   const ok = await mailDocsLink(v);
   toast(ok ? '✓ הקישור נשלח ל-' + v.driverEmail : 'השליחה נכשלה', !ok);
@@ -7255,10 +7306,8 @@ async function mailOneEmployee(plate) {
   if (!v) { toast('הרכב לא נמצא', true); return; }
   if (!(v.driverEmail || '').trim()) { toast('לעובד אין מייל שמור', true); return; }
   toast('שולח…');
-  const [ldocs, vdocs, decls] = await Promise.all([
-    readDriverDocs('licensedocs'), readDriverDocs('vehicledocs'), readDriverDocs('declaration')
-  ]);
-  const r = await mailEmployeeDocs(v, { ldocs, vdocs, decls });
+  const { ldocs, vdocs, decls, reqs } = await docsCache();
+  const r = await mailEmployeeDocs(v, { ldocs, vdocs, decls, reqs });
   toast(r.ok ? `✓ נשלח ל-${v.driverEmail} (${r.files} קבצים)` : 'לא נשלח — ' + r.why, !r.ok);
 }
 
@@ -7270,10 +7319,8 @@ async function mailAllEmployeeDocs() {
   if (!list.length) { toast('אין עובדים עם מייל שמור', true); return; }
   if (!confirm('לשלוח לכל אחד מ-' + list.length + ' העובדים את המסמכים שלו בלבד?\n\nכל מייל נשלח אך ורק לכתובת של בעליו.')) return;
   toast('אוסף מסמכים…');
-  const [ldocs, vdocs, decls] = await Promise.all([
-    readDriverDocs('licensedocs'), readDriverDocs('vehicledocs'), readDriverDocs('declaration')
-  ]);
-  const cache = { ldocs, vdocs, decls };
+  const { ldocs, vdocs, decls, reqs } = await docsCache();
+  const cache = { ldocs, vdocs, decls, reqs };
   let sent = 0, skipped = 0;
   for (const v of list) {
     const r = await mailEmployeeDocs(v, cache);
@@ -7290,10 +7337,8 @@ async function syncDriverPortals(){
   if(!confirm(`לבנות/לעדכן פורטל מסמכים ל-${list.length} עובדים (בעלי מייל)?\nכל עובד יוכל להיכנס עם המייל שלו ולראות רק את המסמכים שלו.`)) return;
   toast('בונה פורטלים... ('+list.length+')');
   try {
-    const [ldocs, vdocs, decls] = await Promise.all([
-      readDriverDocs('licensedocs'), readDriverDocs('vehicledocs'), readDriverDocs('declaration')
-    ]);
-    const cache = { ldocs, vdocs, decls };
+    const { ldocs, vdocs, decls, reqs } = await docsCache();
+    const cache = { ldocs, vdocs, decls, reqs };
     const built = [];
     for(const v of list){ try{ if(await buildDriverBundle(v, cache)) built.push(v); }catch(e){ console.log('bundle', v.plate, e); } }
     try { saveToFirestore('drivers', DRIVERS); } catch(e) {}   // המזהים נשמרים
@@ -7442,7 +7487,8 @@ async function openEmployeeDocs(plate){
       readDriverDocs('declaration'), readDriverDocs('vehicledocs'), readDriverDocs('licensedocs'), readDriverDocs('requirement'), readDriverDocs('inspection')
     ]);
     const reqSel = (reqs||[]).filter(r => String(r.plate||'').replace(/\D/g,'')===pk || (dkey && _dk(r.driver||r.name)===dkey)).sort((a,b)=>(b.created||0)-(a.created||0));
-    const D = window._EMPDOCS = { decls:byDriver(decls), vdocs:byPlate(vdocs), ldocs:byDriver(ldocs), reqs:reqSel, insps:byPlate(insps) };
+    const _m = mergeReqDocs({ ldocs, vdocs, reqs });
+    const D = window._EMPDOCS = { decls:byDriver(decls), vdocs:byPlate(_m.vdocs), ldocs:byDriver(_m.ldocs), reqs:reqSel, insps:byPlate(insps) };
     const sec = (icon,title,count,html) => `<div style="margin-bottom:14px"><div style="font-weight:800;color:#1e3a8a;font-size:0.88rem;margin-bottom:6px">${icon} ${title} <span class="badge badge-gray">${count}</span></div>${count ? html : '<div style="color:#94a3b8;font-size:0.76rem">— אין —</div>'}</div>`;
     const dates = `<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:9px 11px;font-size:0.8rem;line-height:1.95;margin-bottom:12px">
       <div>📋 נהלים: <b>${esc(v.procedures||'—')}</b></div>
