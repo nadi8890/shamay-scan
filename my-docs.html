@@ -59,6 +59,9 @@ input{width:100%;border:1.5px solid #dde3ed;border-radius:10px;padding:12px;font
 <!-- מסך הזדהות -->
 <div id="auth-card" class="card" style="display:none">
   <div class="sec-title">🔐 כניסה מאובטחת</div>
+    <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:10px;padding:11px 13px;margin-bottom:12px;font-size:0.85rem;color:#1e40af;line-height:1.6">
+      הדרך המהירה: בבוט הנהגים לחץ/י על <b>📁 המסמכים שלי</b>, הזן/י את המייל שלך, ותקבל/י קישור אישי לתיק שלך.
+    </div>
   <p style="font-size:0.84rem;color:#475569;margin-bottom:12px;line-height:1.6">כדי לראות את המסמכים שלך, הזן/י את כתובת המייל שלך. נשלח אליך קישור כניסה — בלי סיסמה.</p>
   <label>כתובת המייל שלך</label>
   <input id="email" type="email" placeholder="name@nofar-energy.co.il" autocomplete="email">
@@ -199,7 +202,32 @@ async function loadDocs(email){
   } catch(e){ document.getElementById('loading').innerHTML='שגיאה בטעינת המסמכים ('+(e.code||e.message)+')'; console.log(e); }
 }
 
+// טעינת התיק לפי מזהה הקישור האישי. המזהה הוא 32 תווים אקראיים
+// שנשלחו למייל של העובד בלבד — הקישור עצמו הוא ההרשאה, כמו קישור
+// לאיפוס סיסמה. הכניסה אנונימית כי אין כאן זהות לאמת, רק הרשאה.
+async function loadByDocsId(docsId){
+  document.getElementById('loading').style.display='block';
+  document.getElementById('loading').textContent='טוען את המסמכים שלך…';
+  try {
+    if (!firebase.auth().currentUser) await firebase.auth().signInAnonymously();
+    const snap = await fcol().doc('mydocs_' + docsId).get();
+    if (!snap.exists) {
+      document.getElementById('loading').innerHTML =
+        '<div style="padding:12px;line-height:1.7">הקישור אינו תקף או שהתיק טרם הוכן.<br>' +
+        '<span style="color:#64748b;font-size:0.85rem">פנה/י למחלקת הרכב, או בקש/י קישור חדש מהבוט.</span></div>';
+      return;
+    }
+    render(snap.data());
+  } catch(e){
+    document.getElementById('loading').innerHTML='שגיאה בטעינת המסמכים ('+(e.code||e.message)+')';
+    console.log(e);
+  }
+}
+
 (async function init(){
+  // קישור אישי — המסלול הרגיל מהבוט או מהמייל
+  const docsId = params.get('d');
+  if (docsId && /^[a-f0-9]{16,64}$/.test(docsId)) { loadByDocsId(docsId); return; }
   try {
     if (firebase.auth().isSignInWithEmailLink(location.href)) {
       let email = window.localStorage.getItem('mydocs_email');

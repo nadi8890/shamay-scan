@@ -1302,6 +1302,7 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
         <div class="modal-row" style="margin-top:6px"><label>מפתח Web3Forms — לשליחה אוטומטית</label><input id="ms-key" type="text" placeholder="הדבק כאן את המפתח" style="direction:ltr"></div>
         <div class="modal-row" style="margin-top:6px"><label>כתובת Apps Script — לשליחת קובץ הביקורת במייל</label><input id="ms-gas" type="text" placeholder="https://script.google.com/macros/s/..." style="direction:ltr"></div>
         <div class="modal-row" style="margin-top:6px"><label>טוקן ל-Apps Script <span style="font-weight:400;color:#94a3b8;font-size:0.68rem">מגן על הסקריפט משימוש לרעה</span></label><input id="ms-token" type="text" placeholder="המחרוזת שהגדרת ב-SHARED_TOKEN" style="direction:ltr"></div>
+        <div class="modal-row" style="margin-top:6px"><label>טוקן ציבורי לבוט <span style="font-weight:400;color:#94a3b8;font-size:0.68rem">מרשה רק שליחת קישור אישי</span></label><input id="ms-ptoken" type="text" placeholder="מחרוזת אקראית שנייה, שונה מהראשונה" style="direction:ltr"></div>
         <div style="font-size:0.7rem;color:var(--muted);margin:6px 0 10px">להפקת מפתח חינם (פעם אחת): היכנס ל-<b>web3forms.com</b>, הזן את מייל העבודה ולחץ Create Access Key. המפתח יגיע למייל — הדבק אותו כאן. אם מוגדרת כתובת Apps Script — המייל יישלח מה-Gmail שלך עם קובץ ה-PDF מצורף.</div>
         <button class="btn btn-primary" onclick="saveMailSettings()">💾 שמור הגדרות</button>
       </div>
@@ -2307,7 +2308,11 @@ async function writePubRoster() {
     const ms = (typeof MAIL_SETTINGS !== 'undefined' && MAIL_SETTINGS) ? MAIL_SETTINGS : {};
     // הטוקן נשאר במסמך המוגן בלבד. pubroster נקרא בהזדהות אנונימית,
     // וכתיבתו לשם הייתה מבטלת את כל ההגנה שהוא נועד לספק.
-    const mailSettings = { gasUrl: ms.gasUrl || '', mailProvider: ms.mailProvider || '', fromEmail: ms.fromEmail || '' };
+    // gasToken (הראשי) לעולם לא נכתב לכאן. gasPublicToken כן — הבוט
+    // זקוק לו, והוא מרשה פעולה אחת בלבד: שליחת קישור לכתובת שכבר
+    // רשומה בספר. אי אפשר לשלוח איתו מייל חופשי.
+    const mailSettings = { gasUrl: ms.gasUrl || '', mailProvider: ms.mailProvider || '',
+                           fromEmail: ms.fromEmail || '', publicToken: ms.gasPublicToken || '' };
     // set ללא merge - כתיבה זו דורסת את המסמך כולו ולכן מוחקת בפועל את
     // officerSignature ואת הטלפונים שנכתבו בגרסאות קודמות
     await fcol().doc('pubroster').set({ vehicles: stripUndef(vehicles), mailSettings, updatedAt: Date.now() });
@@ -4321,7 +4326,8 @@ function saveMailSettings() {
     mailProvider: document.getElementById('ms-provider').value,
     web3formsKey: document.getElementById('ms-key').value.trim(),
     gasUrl: document.getElementById('ms-gas').value.trim(),
-    gasToken: document.getElementById('ms-token').value.trim()
+    gasToken: document.getElementById('ms-token').value.trim(),
+    gasPublicToken: document.getElementById('ms-ptoken').value.trim()
   };
   try { localStorage.setItem('fleet_mailSettings', JSON.stringify(MAIL_SETTINGS)); } catch(e) {}
   saveToFirestore('mailSettings', MAIL_SETTINGS);
@@ -4348,6 +4354,7 @@ function renderFormsTab() {
   document.getElementById('ms-key').value = MAIL_SETTINGS.web3formsKey || '';
   document.getElementById('ms-gas').value = MAIL_SETTINGS.gasUrl || '';
   document.getElementById('ms-token').value = MAIL_SETTINGS.gasToken || '';
+  document.getElementById('ms-ptoken').value = MAIL_SETTINGS.gasPublicToken || '';
   loadInspectionHistory();
   loadDeclarations();
   loadVehicleDocs();
@@ -7003,6 +7010,27 @@ async function _shrinkSignature(dataUrl) {
   });
 }
 
+// מזהה אקראי בן 32 תווים לתיק האישי. הוא נשמר על העובד בספריית
+// הנהגים, כך שסנכרון חוזר מעדכן את אותו תיק ולא יוצר עותקים יתומים,
+// והקישור שכבר נשלח לעובד ממשיך לעבוד.
+function _docsIdFor(v) {
+  const dk = driverKey(v.driverName);
+  if (!dk) return '';
+  DRIVERS[dk] = DRIVERS[dk] || {};
+  if (!DRIVERS[dk].docsId) {
+    const a = new Uint8Array(16);
+    (window.crypto || window.msCrypto).getRandomValues(a);
+    DRIVERS[dk].docsId = Array.from(a).map(x => x.toString(16).padStart(2, '0')).join('');
+  }
+  return DRIVERS[dk].docsId;
+}
+
+function docsLinkFor(v) {
+  const id = _docsIdFor(v);
+  if (!id) return '';
+  return 'https://nadi8890.github.io/shamay-scan/my-docs.html?d=' + id + tParam('&');
+}
+
 async function buildDriverBundle(v, cache){
   const email=(v.driverEmail||'').trim().toLowerCase(); if(!email) return false;   // תואם למייל המאומת (Firebase ממיר לאותיות קטנות)
   const pk=String(v.plate||'').replace(/\D/g,'');
@@ -7036,7 +7064,12 @@ async function buildDriverBundle(v, cache){
     driver:(v.driverName||'').split('-')[0].trim(), plate:v.plate, make:v.make||'', model:v.model||'',
     procedures:v.procedures||'', registrationExpiry:v.registrationExpiry||'', insuranceExpiry:v.insuranceExpiry||'', licenseExpiry:v.licenseExpiry||'', inspection:v.inspection||'',
     photos, forms, updated:Date.now() };
-  await fcol().doc('mydocs_'+_emailKey(email)).set(bundle);
+  const docsId = _docsIdFor(v);
+  if (!docsId) return false;
+  bundle.docsId = docsId;
+  // נשמר תחת מזהה אקראי. הקישור עצמו הוא ההרשאה — מי שאין לו את
+  // הקישור אינו יכול לנחש את המזהה.
+  await fcol().doc('mydocs_' + docsId).set(bundle);
   return true;
 }
 // ═══ שליחת מסמכי עובד למייל שלו ═══
@@ -7115,6 +7148,68 @@ async function mailEmployeeDocs(v, cache) {
   }
 }
 
+// ספר קישורים: מייל → קישור אישי. נדחף ל-Apps Script, ששומר אותו
+// אצלו. כשעובד מקליד מייל בבוט, הסקריפט מחפש בספר ושולח לו את
+// הקישור — לאותה כתובת בלבד. כך אין צורך לזכור קישור, והבוט אינו
+// מקבל גישה לשום מסמך.
+async function pushDocsDirectory(list) {
+  const dir = (list || []).map(v => ({
+    email: (v.driverEmail || '').trim().toLowerCase(),
+    name: (v.driverName || '').split('-')[0].trim(),
+    link: docsLinkFor(v)
+  })).filter(x => x.email && x.link);
+  if (!dir.length) return false;
+  try {
+    await fetch(MAIL_SETTINGS.gasUrl, {
+      method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ token: MAIL_SETTINGS.gasToken, action: 'setDirectory',
+                             publicToken: MAIL_SETTINGS.gasPublicToken || '', directory: dir })
+    });
+    return true;
+  } catch (e) { console.log('pushDocsDirectory', e); return false; }
+}
+
+// שולח לעובד את הקישור האישי לתיק שלו. הקישור מגיע רק לכתובת
+// השמורה עליו, ולכן אין דרך לקבל קישור של מישהו אחר.
+async function mailDocsLink(v) {
+  const to = (v.driverEmail || '').trim();
+  const link = docsLinkFor(v);
+  if (!to || !link) return false;
+  const nm = (v.driverName || '').split('-')[0].trim();
+  try {
+    await fetch(MAIL_SETTINGS.gasUrl, {
+      method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({
+        token: MAIL_SETTINGS.gasToken,
+        to: to,
+        subject: 'המסמכים שלך — ' + nm,
+        body: 'שלום ' + nm + ',\n\n' +
+          'זהו הקישור האישי שלך לצפייה במסמכים שלך:\n' + link + '\n\n' +
+          'הקישור אישי — נא לא להעביר אותו הלאה.\n' +
+          'בקישור תמצא/י את רישיון הנהיגה, רישיון הרכב והביטוח, והטפסים שחתמת עליהם.\n\n' +
+          (typeof coSig === 'function' ? coSig() : '')
+      })
+    });
+    return true;
+  } catch (e) { console.log('mailDocsLink', to, e); return false; }
+}
+
+// שליחת הקישור לעובד בודד
+async function mailOneDocsLink(plate) {
+  const why = _mailReady();
+  if (why) { toast(why, true); return; }
+  const v = _vehByPlate(plate);
+  if (!v) { toast('הרכב לא נמצא', true); return; }
+  if (!(v.driverEmail || '').trim()) { toast('לעובד אין מייל שמור', true); return; }
+  const [ldocs, vdocs, decls] = await Promise.all([
+    readDriverDocs('licensedocs'), readDriverDocs('vehicledocs'), readDriverDocs('declaration')
+  ]);
+  await buildDriverBundle(v, { ldocs, vdocs, decls });
+  try { saveToFirestore('drivers', DRIVERS); } catch(e) {}
+  const ok = await mailDocsLink(v);
+  toast(ok ? '✓ הקישור נשלח ל-' + v.driverEmail : 'השליחה נכשלה', !ok);
+}
+
 // שליחה לעובד בודד — מתוך מסך המסמכים שלו
 async function mailOneEmployee(plate) {
   const why = _mailReady();
@@ -7162,9 +7257,17 @@ async function syncDriverPortals(){
       readDriverDocs('licensedocs'), readDriverDocs('vehicledocs'), readDriverDocs('declaration')
     ]);
     const cache = { ldocs, vdocs, decls };
-    let n=0;
-    for(const v of list){ try{ if(await buildDriverBundle(v, cache)) n++; }catch(e){ console.log('bundle', v.plate, e); } }
-    toast('✓ סונכרנו '+n+' פורטלי עובדים');
+    const built = [];
+    for(const v of list){ try{ if(await buildDriverBundle(v, cache)) built.push(v); }catch(e){ console.log('bundle', v.plate, e); } }
+    try { saveToFirestore('drivers', DRIVERS); } catch(e) {}   // המזהים נשמרים
+    toast('✓ סונכרנו '+built.length+' פורטלי עובדים');
+
+    // דחיפת ספר הקישורים ל-Apps Script. משם הבוט יכול לשלוח לעובד
+    // את הקישור שלו לפי מייל, בלי שהדפדפן שלו יראה דבר.
+    const why = _mailReady();
+    if (why) { toast('הספר לא נדחף: ' + why, true); return; }
+    const ok = await pushDocsDirectory(built);
+    toast(ok ? '✓ ' + built.length + ' עובדים זמינים לשליחה מהבוט' : 'דחיפת הספר נכשלה', !ok);
   } catch(e){ toast('שגיאה בסנכרון', true); console.log(e); }
 }
 // שחזור נתונים שנעלמו מהגיבוי היומי — ממלא כל שדה ריק מהגיבוי המלא ביותר, בלי לגעת בקיים
@@ -7636,6 +7739,7 @@ function wipeSeedData() {
   if (typeof OP_EDU !== 'undefined') OP_EDU = [];
   if (typeof OP_NOTES !== 'undefined') OP_NOTES = [];
   window.CONTACTS = { list: [], emails: [], byPlate: {} };
+  // docsId חי בתוך DRIVERS שכבר מתאפס למעלה — אין צורך בטיפול נפרד
   window.OFFICER_INFO = null;
   window.OFFICER_SIGNATURE = '';
   ['fleet_vehicles','fleet_incidents','fleet_violations','fleet_replacements','fleet_returns',
