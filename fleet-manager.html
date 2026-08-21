@@ -5731,7 +5731,9 @@ function requestDocFromEmployee(plate) {
   const primary = types.includes('service') ? 'service' : (types.length === 1 ? types[0] : 'general');
   const label = items.join(' + ');
   const nm = (v.driverName || '').split('-')[0].trim();
-  const link = `${TASK_LINK}?t=${encodeURIComponent(TENANT || 'nofar')}&plate=${encodeURIComponent(v.plate)}&type=${encodeURIComponent(primary)}&req=${encodeURIComponent(label)}`;
+  // types נשלח במפורש: primary הופך ל-general כשנדרש יותר ממסמך אחד,
+  // ואז לבדו אי אפשר לדעת אילו מסמכים נתבקשו בפועל.
+  const link = `${TASK_LINK}?t=${encodeURIComponent(TENANT || 'nofar')}&plate=${encodeURIComponent(v.plate)}&type=${encodeURIComponent(primary)}&types=${encodeURIComponent(types.join(','))}&req=${encodeURIComponent(label)}`;
   const msg = `היי ${nm} 👋\nנדרש מסמך/אישור עבור הרכב ${v.plate}:\n• ${items.join('\n• ')}\n\nנא להיכנס לקישור, לצרף צילום/מסמך ולשלוח (דקה):\n${link}\n\nתודה!\n${coSig()}`;
   const digits = (v.driverPhone || '').replace(/\D/g, '');
   if (digits) {
@@ -7049,17 +7051,35 @@ function docsLinkFor(v) {
 // כאן הקריאות מתורגמות לרשומות מסמך רגילות לפי סוג הקריאה, כך שהן
 // יושבות במגירה הנכונה — גם קריאות שכבר אושרו בעבר.
 const _REQ_DRAWER = { insurance: 'vdocs', registration: 'vdocs', license: 'ldocs' };
+// כשנדרשים כמה מסמכים יחד (ביטוח + רישוי) הקריאה נשמרת כ-general,
+// ולכן reqType לבדו אינו מספיק לניתוב. reqTypes נשמר מעכשיו במפורש,
+// ולקריאות שכבר קיימות הסיווג נגזר מהתווית שהמערכת עצמה בנתה.
+function reqKinds(r) {
+  if (Array.isArray(r.reqTypes) && r.reqTypes.length) return r.reqTypes;
+  if (r.reqType && r.reqType !== 'general') return [r.reqType];
+  const lab = String(r.reqLabel || '');
+  const out = [];
+  if (lab.includes('ביטוח')) out.push('insurance');
+  if (lab.includes('רישוי') || lab.includes('טסט')) out.push('registration');
+  if (lab.includes('רישיון נהיגה')) out.push('license');
+  return out;
+}
 function reqAsDocs(reqs, drawer) {
-  return (reqs || [])
-    .filter(r => _REQ_DRAWER[r.reqType] === drawer && r.status !== 'rejected')
-    .map(r => ({
+  return (reqs || []).filter(r => r.status !== 'rejected').map(r => {
+    const kinds = reqKinds(r).filter(k => _REQ_DRAWER[k] === drawer);
+    if (!kinds.length) return null;
+    const images = (r.files || []).filter(f => f.kind === 'image' && f.base64).map(f => f.base64);
+    if (!images.length) return null;
+    // הגשה אחת יכולה לכסות שני מסמכים, ואי אפשר לדעת איזה צילום שייך
+    // לאיזה — לכן היא נשארת פריט אחד, עם התווית שנשלחה לעובד.
+    return {
       _docId: r._docId, _ref: r._ref, _fromReq: true,
-      reqType: r.reqType || '', reqLabel: r.reqLabel || '',
+      reqType: kinds.join('+'), reqLabel: r.reqLabel || '',
+      title: kinds.length === 1 ? _REQ_TITLE[kinds[0]] : (r.reqLabel || ''),
       plate: r.plate || '', driver: r.driver || r.name || '',
-      dateStr: r.dateStr || '', created: r.created || 0,
-      images: (r.files || []).filter(f => f.kind === 'image' && f.base64).map(f => f.base64)
-    }))
-    .filter(r => r.images.length);
+      dateStr: r.dateStr || '', created: r.created || 0, images
+    };
+  }).filter(Boolean);
 }
 const _REQ_TITLE = { insurance: 'תעודת ביטוח', registration: 'רישיון רכב', license: 'רישיון נהיגה' };
 // ביטוח ורישיון רכב מגיעים כשתי קריאות נפרדות. בחירת "הרשומה האחרונה"
@@ -7071,7 +7091,7 @@ function latestPerKind(arr, fallbackTitle) {
     const cur = best.get(k);
     if (!cur || (r.created || 0) > (cur.created || 0)) best.set(k, r);
   }
-  return [...best.entries()].map(([k, r]) => ({ rec: r, title: _REQ_TITLE[k] || fallbackTitle }));
+  return [...best.entries()].map(([k, r]) => ({ rec: r, title: r.title || _REQ_TITLE[k] || fallbackTitle }));
 }
 
 function mergeReqDocs(cache) {

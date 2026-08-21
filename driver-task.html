@@ -98,6 +98,9 @@ const TENANT = (params.get('t') || 'nofar');
 const fcol = () => db.collection('tenants').doc(TENANT).collection('data');
 const PLATE = (params.get('plate') || '').trim();
 const REQ_TYPE = (params.get('type') || 'general').trim();
+// רשימת הסוגים שנתבקשו בפועל. REQ_TYPE הוא general כשיש יותר מאחד,
+// ולכן הוא לבדו לא מאפשר לתייק את המסמך במגירה הנכונה.
+const REQ_TYPES = (params.get('types') || '').split(',').map(x => x.trim()).filter(Boolean);
 const REQ_LABEL = (params.get('req') || '').trim();
 const LABELS = { service:'טיפול תקופתי', insurance:'ביטוח חובה', registration:'רישוי (טסט)', license:'רישיון נהיגה', general:'דרישת מחלקת הרכב' };
 /* Firestore rules: anonymous drivers must be allowed to create req_* docs — see firestore-rules-hardened.rules */
@@ -196,6 +199,7 @@ async function submitTask(){
   const rec = {
     type: 'requirement',
     reqType: REQ_TYPE,
+    reqTypes: REQ_TYPES.length ? REQ_TYPES : (REQ_TYPE && REQ_TYPE !== 'general' ? [REQ_TYPE] : []),
     reqLabel: reqLabel(),
     plate: VEH ? VEH.plate : PLATE,
     driver: drv,
