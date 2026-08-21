@@ -1260,6 +1260,12 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
       <div style="font-size:0.75rem;color:#ede9fe">העלה קובץ אנשי קשר — נתאים מייל לכל נהג לפי שם, ונראה למי חסר</div></div>
     </div>
     <input id="drvemail-file" type="file" accept=".xlsx,.xls,.csv" style="display:none" onchange="onDriverEmailFile(this)">
+    <div class="form-card" onclick="mailAllEmployeeDocs()" style="background:linear-gradient(135deg,#065f46,#059669);border-color:#065f46;margin-top:10px">
+      <div>
+        <div style="font-weight:800;color:#fff;font-size:1rem">📧 שלח לכל עובד את המסמכים שלו</div>
+        <div style="font-size:0.75rem;color:#d1fae5">כל מייל נשלח אך ורק לכתובת של בעליו</div>
+      </div>
+    </div>
     <div class="form-card" onclick="syncDriverPortals()" style="background:linear-gradient(135deg,#1e3a8a,#2563eb);border-color:#1e3a8a;margin-top:10px">
       <span style="font-size:2.2rem">🔐</span>
       <div><div style="font-weight:800;color:#fff;font-size:1rem">סנכרן פורטל מסמכים לעובדים</div>
@@ -1295,6 +1301,7 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
         <div class="modal-row" style="margin-top:6px"><label>מייל הנהלת חשבונות<span style="font-weight:400;color:#94a3b8;font-size:0.7rem"> — יעד ברירת מחדל לעדכון על החלפות רכב</span></label><input id="ms-accounting" type="email" placeholder="accounting@company.co.il" style="direction:ltr"></div>
         <div class="modal-row" style="margin-top:6px"><label>מפתח Web3Forms — לשליחה אוטומטית</label><input id="ms-key" type="text" placeholder="הדבק כאן את המפתח" style="direction:ltr"></div>
         <div class="modal-row" style="margin-top:6px"><label>כתובת Apps Script — לשליחת קובץ הביקורת במייל</label><input id="ms-gas" type="text" placeholder="https://script.google.com/macros/s/..." style="direction:ltr"></div>
+        <div class="modal-row" style="margin-top:6px"><label>טוקן ל-Apps Script <span style="font-weight:400;color:#94a3b8;font-size:0.68rem">מגן על הסקריפט משימוש לרעה</span></label><input id="ms-token" type="text" placeholder="המחרוזת שהגדרת ב-SHARED_TOKEN" style="direction:ltr"></div>
         <div style="font-size:0.7rem;color:var(--muted);margin:6px 0 10px">להפקת מפתח חינם (פעם אחת): היכנס ל-<b>web3forms.com</b>, הזן את מייל העבודה ולחץ Create Access Key. המפתח יגיע למייל — הדבק אותו כאן. אם מוגדרת כתובת Apps Script — המייל יישלח מה-Gmail שלך עם קובץ ה-PDF מצורף.</div>
         <button class="btn btn-primary" onclick="saveMailSettings()">💾 שמור הגדרות</button>
       </div>
@@ -2298,6 +2305,8 @@ async function writePubRoster() {
       inspection: v.inspection || ''
     }));
     const ms = (typeof MAIL_SETTINGS !== 'undefined' && MAIL_SETTINGS) ? MAIL_SETTINGS : {};
+    // הטוקן נשאר במסמך המוגן בלבד. pubroster נקרא בהזדהות אנונימית,
+    // וכתיבתו לשם הייתה מבטלת את כל ההגנה שהוא נועד לספק.
     const mailSettings = { gasUrl: ms.gasUrl || '', mailProvider: ms.mailProvider || '', fromEmail: ms.fromEmail || '' };
     // set ללא merge - כתיבה זו דורסת את המסמך כולו ולכן מוחקת בפועל את
     // officerSignature ואת הטלפונים שנכתבו בגרסאות קודמות
@@ -4311,7 +4320,8 @@ function saveMailSettings() {
     accountingEmail: document.getElementById('ms-accounting').value.trim(),
     mailProvider: document.getElementById('ms-provider').value,
     web3formsKey: document.getElementById('ms-key').value.trim(),
-    gasUrl: document.getElementById('ms-gas').value.trim()
+    gasUrl: document.getElementById('ms-gas').value.trim(),
+    gasToken: document.getElementById('ms-token').value.trim()
   };
   try { localStorage.setItem('fleet_mailSettings', JSON.stringify(MAIL_SETTINGS)); } catch(e) {}
   saveToFirestore('mailSettings', MAIL_SETTINGS);
@@ -4337,6 +4347,7 @@ function renderFormsTab() {
   document.getElementById('ms-provider').value = MAIL_SETTINGS.mailProvider || 'outlook';
   document.getElementById('ms-key').value = MAIL_SETTINGS.web3formsKey || '';
   document.getElementById('ms-gas').value = MAIL_SETTINGS.gasUrl || '';
+  document.getElementById('ms-token').value = MAIL_SETTINGS.gasToken || '';
   loadInspectionHistory();
   loadDeclarations();
   loadVehicleDocs();
@@ -7028,6 +7039,119 @@ async function buildDriverBundle(v, cache){
   await fcol().doc('mydocs_'+_emailKey(email)).set(bundle);
   return true;
 }
+// ═══ שליחת מסמכי עובד למייל שלו ═══
+// מודל דחיפה: מנהל הצי שולח, וכל עובד מקבל אך ורק את המסמכים שלו.
+// אין טופס פתוח שזר יכול להשתמש בו, ואין תלות במסירת המייל של
+// Firebase — השליחה מתבצעת דרך ה-Apps Script של הלקוח.
+function _mailReady() {
+  const ms = MAIL_SETTINGS || {};
+  if (!ms.gasUrl) return 'לא הוגדרה כתובת Apps Script בהגדרות המייל';
+  if (!ms.gasToken) return 'לא הוגדר טוקן ל-Apps Script בהגדרות המייל';
+  return '';
+}
+
+// מרכיב את קבצי העובד: צילומי רישיון ומסמכי רכב, והטפסים שחתם עליהם
+async function _employeeFiles(v, cache) {
+  const dkey = driverKey(v.driverName);
+  const pk = String(v.plate || '').replace(/\D/g, '');
+  const files = [];
+  const push = (b64, mime, name) => { if (b64) files.push({ base64: b64, mimeType: mime, filename: name }); };
+
+  const byDriver = arr => (arr || []).filter(r => driverKey(r.driver || r.name) === dkey)
+                                     .sort((a, b) => (b.created || 0) - (a.created || 0))[0];
+  const byPlate  = arr => (arr || []).filter(r => String(r.plate || '').replace(/\D/g, '') === pk)
+                                     .sort((a, b) => (b.created || 0) - (a.created || 0))[0];
+
+  const lic = byDriver(cache.ldocs), veh = byPlate(cache.vdocs);
+  (lic && lic.images || []).slice(0, 3).forEach((b, i) => push(b, 'image/jpeg', `רישיון נהיגה ${i + 1}.jpg`));
+  (veh && veh.images || []).slice(0, 3).forEach((b, i) => push(b, 'image/jpeg', `רישיון רכב וביטוח ${i + 1}.jpg`));
+
+  // הטפסים החתומים — החתימה כתמונה, כדי שהעובד יראה על מה חתם
+  (cache.decls || []).filter(r => driverKey(r.driver || r.name) === dkey)
+    .sort((a, b) => (b.created || 0) - (a.created || 0)).slice(0, 6)
+    .forEach(r => {
+      if (!r.signature) return;
+      const meta = (typeof DECL_FORM_META !== 'undefined' && DECL_FORM_META[r.formType]) || null;
+      const label = (meta ? meta.label : 'טופס').replace(/[^\u0590-\u05FF a-zA-Z0-9]/g, '').trim();
+      push(String(r.signature).split(',')[1], 'image/png', `${label} ${(r.dateStr || '').split(' ')[0].replace(/\//g, '-')}.png`);
+    });
+  return files;
+}
+
+function _employeeBody(v) {
+  const nm = (v.driverName || '').split('-')[0].trim();
+  const line = (lab, val) => val ? '• ' + lab + ': ' + val + '\n' : '';
+  return 'שלום ' + nm + ',\n\n' +
+    'מצורפים המסמכים השמורים עבורך במערכת ניהול צי הרכב.\n\n' +
+    'רכב ' + (v.plate || '') + ' — ' + [v.make, v.model].filter(Boolean).join(' ') + '\n' +
+    line('תוקף רישוי', v.registrationExpiry) +
+    line('תוקף ביטוח', v.insuranceExpiry) +
+    line('תוקף רישיון נהיגה', v.licenseExpiry) +
+    line('נהלים נחתמו', v.procedures) +
+    '\nלשאלות — השב/י להודעה זו.\n\n' +
+    (typeof coSig === 'function' ? coSig() : '');
+}
+
+async function mailEmployeeDocs(v, cache) {
+  const to = (v.driverEmail || '').trim();
+  if (!to) return { ok: false, why: 'אין מייל' };
+  const files = await _employeeFiles(v, cache);
+  const nm = (v.driverName || '').split('-')[0].trim();
+  try {
+    await fetch(MAIL_SETTINGS.gasUrl, {
+      method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({
+        token: MAIL_SETTINGS.gasToken,
+        to: to,
+        subject: 'המסמכים שלך — ' + nm + (v.plate ? ' | רכב ' + v.plate : ''),
+        body: _employeeBody(v),
+        files: files
+      })
+    });
+    return { ok: true, files: files.length };
+  } catch (e) {
+    console.log('mailEmployeeDocs', to, e);
+    return { ok: false, why: 'שגיאת שליחה' };
+  }
+}
+
+// שליחה לעובד בודד — מתוך מסך המסמכים שלו
+async function mailOneEmployee(plate) {
+  const why = _mailReady();
+  if (why) { toast(why, true); return; }
+  const v = _vehByPlate(plate);
+  if (!v) { toast('הרכב לא נמצא', true); return; }
+  if (!(v.driverEmail || '').trim()) { toast('לעובד אין מייל שמור', true); return; }
+  toast('שולח…');
+  const [ldocs, vdocs, decls] = await Promise.all([
+    readDriverDocs('licensedocs'), readDriverDocs('vehicledocs'), readDriverDocs('declaration')
+  ]);
+  const r = await mailEmployeeDocs(v, { ldocs, vdocs, decls });
+  toast(r.ok ? `✓ נשלח ל-${v.driverEmail} (${r.files} קבצים)` : 'לא נשלח — ' + r.why, !r.ok);
+}
+
+// שליחה לכל העובדים — כל אחד מקבל את שלו בלבד
+async function mailAllEmployeeDocs() {
+  const why = _mailReady();
+  if (why) { toast(why, true); return; }
+  const list = (VEHICLES || []).filter(v => (v.driverEmail || '').trim() && driverKey(v.driverName));
+  if (!list.length) { toast('אין עובדים עם מייל שמור', true); return; }
+  if (!confirm('לשלוח לכל אחד מ-' + list.length + ' העובדים את המסמכים שלו בלבד?\n\nכל מייל נשלח אך ורק לכתובת של בעליו.')) return;
+  toast('אוסף מסמכים…');
+  const [ldocs, vdocs, decls] = await Promise.all([
+    readDriverDocs('licensedocs'), readDriverDocs('vehicledocs'), readDriverDocs('declaration')
+  ]);
+  const cache = { ldocs, vdocs, decls };
+  let sent = 0, skipped = 0;
+  for (const v of list) {
+    const r = await mailEmployeeDocs(v, cache);
+    if (r.ok) sent++; else skipped++;
+    // הסקריפט מגביל 40 מיילים בשעה; מרווח קטן מונע חסימה מיותרת
+    await new Promise(res => setTimeout(res, 400));
+  }
+  toast('✓ נשלחו ' + sent + ' מיילים' + (skipped ? ' · ' + skipped + ' דולגו' : ''));
+}
+
 async function syncDriverPortals(){
   const list=(VEHICLES||[]).filter(v=>(v.driverEmail||'').trim() && driverKey(v.driverName));
   if(!list.length){ toast('אין נהגים עם מייל — מלא/שייך מיילים קודם', true); return; }
@@ -7164,6 +7288,7 @@ async function openEmployeeDocs(plate){
   const pk = String(plate).replace(/\D/g,'');
   const drv = (v.driverName||'').split('-')[0].trim();
   document.getElementById('empdocs-title').textContent = `📁 מסמכי ${drv} · ${v.plate}`;
+  window._empdocsPlate = plate;
   const body = document.getElementById('empdocs-body');
   body.innerHTML = '<div style="color:var(--muted);padding:14px">טוען מסמכים...</div>';
   document.getElementById('empdocs-modal').classList.add('open');
@@ -9311,6 +9436,7 @@ function renderAgentMsgs(showTyping = false) {
     <div id="empdocs-body" style="max-height:60vh;overflow-y:auto"></div>
     <div class="btn-row">
       <button class="btn btn-gray" onclick="document.getElementById('empdocs-modal').classList.remove('open')">סגור</button>
+      <button class="btn btn-primary" onclick="mailOneEmployee(window._empdocsPlate)" title="שליחת המסמכים לכתובת המייל של העובד">📧 שלח לעובד במייל</button>
     </div>
   </div>
 </div>
