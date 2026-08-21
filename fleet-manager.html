@@ -7064,22 +7064,53 @@ function reqKinds(r) {
   if (lab.includes('רישיון נהיגה')) out.push('license');
   return out;
 }
+function _reqDoc(r, kind, images) {
+  return {
+    _docId: r._docId + (kind ? ':' + kind : ''), _ref: r._ref, _fromReq: true,
+    reqType: kind, reqLabel: r.reqLabel || '', title: _REQ_TITLE[kind] || (r.reqLabel || ''),
+    plate: r.plate || '', driver: r.driver || r.name || '',
+    dateStr: r.dateStr || '', created: r.created || 0, images
+  };
+}
+// כל קובץ נושא מעכשיו docKind שנקבע ברובריקה שאליה העובד צירף אותו,
+// ולכן הניתוב מדויק גם כשהוגשו כמה מסמכים יחד. הגשה ישנה שאינה
+// מתויגת ושכיסתה יותר מסוג אחד אינה מנוחשת — היא נשארת ברשימת
+// הקריאות עד שתתויג משם, כדי שצילום ביטוח לא ייכנס לרישיון נהיגה.
 function reqAsDocs(reqs, drawer) {
-  return (reqs || []).filter(r => r.status !== 'rejected').map(r => {
-    const kinds = reqKinds(r).filter(k => _REQ_DRAWER[k] === drawer);
-    if (!kinds.length) return null;
-    const images = (r.files || []).filter(f => f.kind === 'image' && f.base64).map(f => f.base64);
-    if (!images.length) return null;
-    // הגשה אחת יכולה לכסות שני מסמכים, ואי אפשר לדעת איזה צילום שייך
-    // לאיזה — לכן היא נשארת פריט אחד, עם התווית שנשלחה לעובד.
-    return {
-      _docId: r._docId, _ref: r._ref, _fromReq: true,
-      reqType: kinds.join('+'), reqLabel: r.reqLabel || '',
-      title: kinds.length === 1 ? _REQ_TITLE[kinds[0]] : (r.reqLabel || ''),
-      plate: r.plate || '', driver: r.driver || r.name || '',
-      dateStr: r.dateStr || '', created: r.created || 0, images
-    };
-  }).filter(Boolean);
+  const out = [];
+  for (const r of (reqs || [])) {
+    if (r.status === 'rejected') continue;
+    const imgs = (r.files || []).filter(f => f.kind === 'image' && f.base64);
+    if (!imgs.length) continue;
+    const kinds = reqKinds(r);
+    if (imgs.some(f => f.docKind)) {
+      const byKind = new Map();
+      imgs.forEach(f => {
+        const k = f.docKind || (kinds.length === 1 ? kinds[0] : '');
+        if (_REQ_DRAWER[k] !== drawer) return;
+        if (!byKind.has(k)) byKind.set(k, []);
+        byKind.get(k).push(f.base64);
+      });
+      byKind.forEach((images, k) => out.push(_reqDoc(r, k, images)));
+    } else {
+      const mine = kinds.filter(k => _REQ_DRAWER[k] === drawer);
+      if (mine.length !== 1 || kinds.length !== 1) continue;
+      out.push(_reqDoc(r, mine[0], imgs.map(f => f.base64)));
+    }
+  }
+  return out;
+}
+// תיוג ידני של הגשה ישנה, מתוך רשימת הקריאות
+async function tagReqFile(docId, fileIdx, kind) {
+  const r = (window._EMPDOCS && window._EMPDOCS.reqs || []).find(x => x._docId === docId);
+  if (!r || !r._ref) return;
+  const files = (r.files || []).map((f, i) => i === fileIdx ? { ...f, docKind: kind } : f);
+  try {
+    await r._ref.set({ files }, { merge: true });
+    r.files = files;
+    toast('✓ תויק כ' + (_REQ_TITLE[kind] || kind));
+    if (window._empdocsPlate) openEmployeeDocs(window._empdocsPlate);
+  } catch(e) { toast('שגיאה בתיוג', true); console.log('tagReqFile', e); }
 }
 const _REQ_TITLE = { insurance: 'תעודת ביטוח', registration: 'רישיון רכב', license: 'רישיון נהיגה' };
 // ביטוח ורישיון רכב מגיעים כשתי קריאות נפרדות. בחירת "הרשומה האחרונה"
@@ -7520,7 +7551,16 @@ async function openEmployeeDocs(plate){
       <span style="color:var(--muted)">${esc(r.dateStr||'')}</span><span class="badge badge-green">✓ נחתם</span></div>`).join('');
     const imgRow = (arr, cat) => arr.map((r,di)=>`<div style="margin-bottom:5px;font-size:0.74rem"><span style="color:#64748b">${esc(r.dateStr||'')}${r.licNum?' · רישיון '+esc(r.licNum):''}</span> ${(r.images||[]).map((b,fi)=>`<button class="btn btn-gray" style="padding:3px 9px;font-size:0.68rem;margin:2px" onclick="_empView('${cat}',${di},${fi})">🖼️ ${fi+1}</button>`).join('')}</div>`).join('');
     const inspHtml = D.insps.map((r,i)=>{ const bad=Object.values(r.items||{}).filter(x=>x==='לא תקין').length; return `<div class="insp-hist-row" onclick="_empViewInsp(${i})" style="cursor:pointer"><span style="color:var(--muted);font-size:0.74rem">${esc(r.dateStr||'')}${r.driver?' · '+esc((r.driver||'').split('-')[0].trim()):''}</span>${bad?`<span class="badge badge-red">${bad} לא תקין</span>`:'<span class="badge badge-green">✓ תקין</span>'}</div>`; }).join('');
-    const reqHtml = D.reqs.map((r,di)=>`<div style="margin-bottom:5px;font-size:0.74rem"><b>${esc(r.reqLabel||'קריאה')}</b> <span style="color:#64748b">${esc(r.dateStr||'')}</span> <span class="badge ${r.status==='approved'?'badge-green':r.status==='rejected'?'badge-red':'badge-orange'}" style="font-size:0.56rem">${esc(r.status||'ממתין')}</span> ${(r.files||[]).map((f,fi)=>`<button class="btn btn-gray" style="padding:3px 9px;font-size:0.68rem;margin:2px" onclick="_empView('reqs',${di},${fi})">${f.kind==='pdf'?'📄':'🖼️'} ${fi+1}</button>`).join('')}</div>`).join('');
+    // הגשה ישנה שכיסתה כמה מסמכים אינה מתויגת, ולכן אי אפשר לדעת איזה
+    // צילום שייך לאיזו רובריקה. במקום לנחש — כאן בוחרים, פעם אחת.
+    const kindSel = (r, f, fi) => {
+      const ks = reqKinds(r).filter(k => _REQ_DRAWER[k]);
+      if (ks.length < 2 || f.kind !== 'image') return '';
+      return `<select onchange="tagReqFile('${r._docId}',${fi},this.value)" style="font-size:0.64rem;padding:2px 5px;border:1px solid ${f.docKind?'#86efac':'#fdba74'};border-radius:6px;margin:2px">
+        <option value="">${f.docKind ? '' : '⚠️ '}לאיזו רובריקה?</option>
+        ${ks.map(k=>`<option value="${k}"${f.docKind===k?' selected':''}>${esc(_REQ_TITLE[k]||k)}</option>`).join('')}</select>`;
+    };
+    const reqHtml = D.reqs.map((r,di)=>`<div style="margin-bottom:5px;font-size:0.74rem"><b>${esc(r.reqLabel||'קריאה')}</b> <span style="color:#64748b">${esc(r.dateStr||'')}</span> <span class="badge ${r.status==='approved'?'badge-green':r.status==='rejected'?'badge-red':'badge-orange'}" style="font-size:0.56rem">${esc(r.status||'ממתין')}</span> ${(r.files||[]).map((f,fi)=>`<button class="btn btn-gray" style="padding:3px 9px;font-size:0.68rem;margin:2px" onclick="_empView('reqs',${di},${fi})">${f.kind==='pdf'?'📄':'🖼️'} ${fi+1}</button>${kindSel(r,f,fi)}`).join('')}</div>`).join('');
     body.innerHTML = dates
       + `<div style="font-size:0.72rem;color:#94a3b8;margin-bottom:8px">מסמכי הנהג עוברים עם העובד · מסמכי הרכב נשארים עם הרכב</div>`
       + sec('📋','נהלים ואחריות · <span style="color:#7c3aed">עם הנהג</span>', D.decls.length, declHtml)

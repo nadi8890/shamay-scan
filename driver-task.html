@@ -57,10 +57,8 @@ textarea{width:100%;border:1.5px solid #dde3ed;border-radius:10px;padding:11px;f
   <div class="veh" id="veh-info"></div>
   <div class="req" id="req-info"></div>
 
-  <label>צרף/י מסמך (צילום או קובץ PDF) — אפשר כמה</label>
-  <button type="button" class="btn btn-upload" onclick="document.getElementById('file-inp').click()">📷 צלם / בחר קובץ</button>
+  <div id="slots"></div>
   <input id="file-inp" type="file" accept="image/*,application/pdf" multiple capture="environment" style="display:none" onchange="onFiles(this.files)">
-  <div class="thumbs" id="thumbs"></div>
   <div class="hint" id="size-hint"></div>
 
   <label style="margin-top:12px">הערה (אופציונלי)</label>
@@ -128,7 +126,38 @@ const MAX_TOTAL = 900 * 1024; // ~900KB — נשאר מתחת למגבלת המ�
     ? `🚗 <b>${esc(VEH.make||'')} ${esc(VEH.model||'')}</b> · <span dir="ltr">${esc(VEH.plate)}</span>${drv ? `<br>נהג/ת: <b>${esc(drv)}</b>` : ''}`
     : `🚗 רכב <span dir="ltr">${esc(PLATE)}</span>`;
   document.getElementById('req-info').innerHTML = `נדרש: ${esc(reqLabel())}`;
+  renderSlots();
 })();
+
+// כל מסמך מקבל רובריקה משלו. עד כה כל הקבצים הגיעו בערימה אחת, ולכן
+// כשנתבקשו שני מסמכים המערכת לא ידעה איזה צילום שייך לאיזו רובריקה —
+// וצילום ביטוח היה נוחת תחת רישיון נהיגה. התיוג נעשה כאן, במקור.
+const SLOT_META = {
+  insurance:    { icon: '🛡️', label: 'תעודת ביטוח חובה' },
+  registration: { icon: '🚗', label: 'רישיון רכב (טסט)' },
+  license:      { icon: '🪪', label: 'רישיון נהיגה' },
+  service:      { icon: '🔧', label: 'אישור טיפול' },
+  general:      { icon: '📎', label: 'מסמך' }
+};
+const SLOTS = (REQ_TYPES.length ? REQ_TYPES : [REQ_TYPE]).filter(k => SLOT_META[k]);
+if (!SLOTS.length) SLOTS.push('general');
+let _pickKind = SLOTS[0];
+let _partialAck = false;
+
+function slotLabel(k){ const m = SLOT_META[k] || SLOT_META.general; return m.icon + ' ' + (k === 'general' ? reqLabel() : m.label); }
+function filesOf(k){ return FILES.filter(f => f.docKind === k); }
+
+function renderSlots(){
+  document.getElementById('slots').innerHTML = SLOTS.map(k => `
+    <div style="margin-bottom:14px">
+      <label>${esc(slotLabel(k))}</label>
+      <button type="button" class="btn btn-upload" onclick="pickFor('${k}')">📷 צלם / בחר קובץ</button>
+      <div class="thumbs" id="th-${k}"></div>
+    </div>`).join('')
+    + (SLOTS.length > 1 ? '<div class="hint">נא לצרף כל מסמך תחת הכותרת שלו — כך הוא נשמר במקום הנכון בתיק.</div>' : '');
+  renderThumbs();
+}
+function pickFor(k){ _pickKind = k; document.getElementById('file-inp').click(); }
 
 function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
@@ -175,6 +204,7 @@ async function onFiles(list){
     if (FILES.length >= 6){ showErr('אפשר עד 6 קבצים'); break; }
     try {
       const item = file.type === 'application/pdf' ? await readPdf(file) : await compressImage(file);
+      item.docKind = _pickKind;   // תיוג במקור — לא ניחוש בדיעבד
       FILES.push(item);
     } catch(e){ showErr('קובץ לא נתמך: ' + (file.name||'')); }
   }
@@ -182,16 +212,30 @@ async function onFiles(list){
   renderThumbs(); refreshHint();
 }
 function renderThumbs(){
-  document.getElementById('thumbs').innerHTML = FILES.map((f,i) =>
-    `<div class="thumb">${f.kind==='image' ? `<img src="${f.previewUrl}">` : `📄<br>${esc((f.name||'PDF').slice(0,14))}`}<button onclick="removeFile(${i})">✕</button></div>`
-  ).join('');
+  SLOTS.forEach(k => {
+    const el = document.getElementById('th-' + k); if (!el) return;
+    el.innerHTML = FILES.map((f,i) => f.docKind === k
+      ? `<div class="thumb">${f.kind==='image' ? `<img src="${f.previewUrl}">` : `📄<br>${esc((f.name||'PDF').slice(0,14))}`}<button onclick="removeFile(${i})">✕</button></div>`
+      : '').join('');
+  });
 }
-function removeFile(i){ FILES.splice(i,1); renderThumbs(); refreshHint(); }
+function removeFile(i){ FILES.splice(i,1); _partialAck = false; renderThumbs(); refreshHint(); }
 function showErr(m){ const e = document.getElementById('err'); e.textContent = m; e.style.display = 'block'; }
 
 async function submitTask(){
   const err = document.getElementById('err'); err.style.display = 'none';
   if (!FILES.length){ showErr('נא לצרף לפחות מסמך אחד'); return; }
+  // חסר מסמך באחת הרובריקות: מתריעים פעם אחת, ולא חוסמים — לעובד לא
+  // תמיד יש את שניהם ברגע זה, ועדיף הגשה חלקית מנטישה.
+  const missing = SLOTS.filter(k => !filesOf(k).length);
+  if (missing.length && !_partialAck){
+    _partialAck = true;
+    showErr('לא צורף: ' + missing.map(k => (SLOT_META[k]||SLOT_META.general).label).join(', ') +
+            '. אם אין לך אותו כרגע — לחץ/י שוב על שליחה.');
+    document.getElementById('send-btn').disabled = false;
+    document.getElementById('send-btn').textContent = '✅ שליחה בכל זאת';
+    return;
+  }
   if (totalBytes() > MAX_TOTAL){ showErr('הקבצים גדולים מדי (מעל ~900KB). הסר/החלף קובץ או צלם באיכות נמוכה יותר.'); return; }
   const btn = document.getElementById('send-btn'); btn.disabled = true; btn.textContent = 'שולח…';
   const drv = VEH ? (VEH.driverName || '').split('-')[0].trim() : '';
@@ -204,7 +248,7 @@ async function submitTask(){
     plate: VEH ? VEH.plate : PLATE,
     driver: drv,
     note: (document.getElementById('note').value || '').trim(),
-    files: FILES.map(f => ({ name:f.name, mime:f.mime, kind:f.kind, base64:f.data })),
+    files: FILES.map(f => ({ name:f.name, mime:f.mime, kind:f.kind, docKind:f.docKind || '', base64:f.data })),
     status: 'pending',
     created,
     dateStr: new Date(created).toLocaleDateString('he-IL'),
