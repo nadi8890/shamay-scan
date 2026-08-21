@@ -6724,6 +6724,7 @@ function saveVehicle() {
     VEHICLES.unshift(v);
   }
   registerLeaseCompany(v.company);
+  autoSyncEmployee(v);   // ברקע — לא מעכב את השמירה
   // החלפת נהג ברכב: המייל של הקודם לא עובר לחדש
   if (_prevV) {
     const _prevDk = driverKey(_prevV.driverName);
@@ -6973,6 +6974,17 @@ async function commitDriverEmails(){
     if (typeof renderFleet === 'function') renderFleet();
     document.getElementById('drvemail-modal').classList.remove('open');
     toast(`✓ נשמרו מיילים ל-${n} נהגים`);
+    // המיילים החדשים נכנסים לפורטל בלי סנכרון ידני
+    if (!_mailReady()) {
+      const all = VEHICLES.filter(x => (x.driverEmail || '').trim() && driverKey(x.driverName));
+      for (const x of all) {
+        const dk = driverKey(x.driverName);
+        if (DRIVERS[dk] && DRIVERS[dk].docsId) continue;
+        try { await buildDriverBundle(x, { ldocs: [], vdocs: [], decls: [] }); } catch(e) {}
+      }
+      try { saveToFirestore('drivers', DRIVERS); } catch(e) {}
+      if (await pushDocsDirectory(all)) toast('✓ הפורטל עודכן ל-' + all.length + ' עובדים');
+    }
   } catch(e){ console.log('save emails', e); toast('שגיאה בשמירה', true); }
 }
 // ═══ פורטל מסמכים לעובד — בניית תיק אישי ננעל למייל ═══
@@ -7146,6 +7158,31 @@ async function mailEmployeeDocs(v, cache) {
     console.log('mailEmployeeDocs', to, e);
     return { ok: false, why: 'שגיאת שליחה' };
   }
+}
+
+// עובד חדש או מייל שהשתנה — התיק והספר מתעדכנים מאליהם, כדי שלא
+// יידרש סנכרון ידני שנוטים לשכוח. פועל רק כשיש מייל, וכשבאמת השתנה
+// משהו, כדי לא לירות בקשות על כל שמירה.
+async function autoSyncEmployee(v) {
+  const email = (v && v.driverEmail || '').trim().toLowerCase();
+  if (!email || !driverKey(v.driverName)) return;
+  if (_mailReady()) return;                       // מייל לא מוגדר — אין מה לדחוף
+  const dk = driverKey(v.driverName);
+  const known = (DRIVERS[dk] && DRIVERS[dk].dirEmail) || '';
+  if (known === email && DRIVERS[dk] && DRIVERS[dk].docsId) return;   // כלום לא השתנה
+  try {
+    const [ldocs, vdocs, decls] = await Promise.all([
+      readDriverDocs('licensedocs'), readDriverDocs('vehicledocs'), readDriverDocs('declaration')
+    ]);
+    await buildDriverBundle(v, { ldocs, vdocs, decls });
+    DRIVERS[dk] = DRIVERS[dk] || {};
+    DRIVERS[dk].dirEmail = email;
+    try { saveToFirestore('drivers', DRIVERS); } catch(e) {}
+    // הספר קטן, ולכן פשוט נדחף מחדש במלואו
+    const all = (VEHICLES || []).filter(x => (x.driverEmail || '').trim() && driverKey(x.driverName));
+    await pushDocsDirectory(all);
+    toast('✓ ' + (v.driverName || '').split('-')[0].trim() + ' נוסף לפורטל המסמכים');
+  } catch(e) { console.log('autoSyncEmployee', e); }
 }
 
 // ספר קישורים: מייל → קישור אישי. נדחף ל-Apps Script, ששומר אותו
