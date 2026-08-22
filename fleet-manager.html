@@ -721,6 +721,7 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
     <div class="dash-sec-hdr" style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
       <span>💰 עלות כוללת לכל רכב</span>
       <span style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+        <select id="dash-cost-month-sel" onchange="setDashCostMonth(this.value)" style="padding:4px 8px;font-size:0.74rem;border:1px solid var(--border);border-radius:8px;font-family:'Heebo',sans-serif"></select>
         <span id="dash-cost-month" style="font-size:0.7rem;color:var(--muted);font-weight:400"></span>
         <select id="cost-category" style="padding:4px 8px;font-size:0.74rem;border:1px solid var(--border);border-radius:8px;font-family:'Heebo',sans-serif">
           <option value="fuel">⛽ דלק</option>
@@ -2682,7 +2683,25 @@ function _costMonthOf(s) {
   return '';
 }
 // עלות מלאה של רכב לחודש: קטגוריות מיובאות + מוסך (חשבוניות) + נזקים (השתתפות עצמית)
+// רשימת החודשים שיש בהם נתוני עלות כלשהם — מיובאים, מוסך או נזקים
+function costMonths() {
+  const set = new Set(Object.keys(COSTS || {}).filter(mk => /^\d{4}-\d{2}$/.test(mk)));
+  (typeof INVOICES !== 'undefined' ? INVOICES : []).forEach(i => { const m = _costMonthOf(i.date); if (m && parseMoney(i.amount) > 0) set.add(m); });
+  (typeof INCIDENTS !== 'undefined' ? INCIDENTS : []).forEach(i => { const m = _costMonthOf(i.date); if (m && parseMoney(i.deductible) > 0) set.add(m); });
+  return [...set].sort();
+}
 function vehicleMonthCost(pk, month) {
+  // 'all' מסכם את כל התקופה. בלי זה ייבוא של שנה שלמה לא נראה בדשבורד,
+  // מפני שהתצוגה מציגה את החודש האחרון בלבד.
+  if (month === 'all') {
+    const brk = {}; let total = 0;
+    costMonths().forEach(m => {
+      const r = vehicleMonthCost(pk, m);
+      Object.entries(r.brk).forEach(([k, v]) => { brk[k] = (brk[k] || 0) + v; });
+      total += r.total;
+    });
+    return { total, brk };
+  }
   const c = (COSTS[month] && COSTS[month][pk]) || {};
   const brk = {};
   COST_CATS.forEach(k => { const v = Number(c[k]) || 0; if (v > 0) brk[k] = Math.round(v); });
@@ -2698,7 +2717,7 @@ function openVehicleCost(plate, month) {
   const { total, brk } = vehicleMonthCost(pk, month);
   const vv = VEHICLES.find(x => _cpk(x.plate) === pk);
   const name = vv ? (vv.driverName || '').split('-')[0].trim() : '';
-  document.getElementById('vcost-title').textContent = `💰 ${vv ? vv.plate : plate}${name ? ' · ' + name : ''} — ${month}`;
+  document.getElementById('vcost-title').textContent = `💰 ${vv ? vv.plate : plate}${name ? ' · ' + name : ''} — ${month === 'all' ? 'כל התקופה' : month}`;
   const order = ['fuel', 'leasing', 'wash', 'insurance', 'garage', 'damages', 'other'];
   const rows = order.filter(k => brk[k] > 0).map(k => `<tr><td style="padding:8px 12px;border:1px solid var(--border)">${COST_LABEL[k] || k}</td><td style="padding:8px 12px;border:1px solid var(--border);text-align:left;font-weight:700">₪${brk[k].toLocaleString()}</td></tr>`).join('');
   document.getElementById('vcost-body').innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:0.9rem">${rows || '<tr><td style="padding:10px;color:var(--muted)">אין עלויות לחודש זה</td></tr>'}<tr style="background:#f0fdf4"><td style="padding:9px 12px;border:1px solid var(--border);font-weight:900">סה"כ</td><td style="padding:9px 12px;border:1px solid var(--border);text-align:left;font-weight:900;color:#059669">₪${total.toLocaleString()}</td></tr></table><div style="font-size:0.72rem;color:var(--muted);margin-top:8px">דלק/ליסינג/שטיפה — מייבוא חשבוניות · מוסך/נזקים — אוטומטית מהמערכת.</div>`;
@@ -2952,6 +2971,9 @@ async function _invoiceFromImage(b64, category, fileName) {
 }
 
 let _costImportAgg = [], _costImportCat = 'other';
+// החודש שנבחר לתצוגת העלויות. ריק = החודש האחרון שיש בו נתונים.
+let _dashCostMonth = '';
+function setDashCostMonth(v) { _dashCostMonth = v || ''; renderManagerDashboard(); }
 async function onCostFile(input) {
   const files = Array.from(input.files || []); input.value = '';
   if (!files.length) return;
@@ -3068,6 +3090,11 @@ function commitCostImport() {
     n++; plates.add(pk);
   });
   if (!n) { toast('אין שורות תקינות לייבוא', true); return; }
+  // הייבוא יכול להיות של חודשים ישנים, והתצוגה מראה את החודש האחרון.
+  // בלי קפיצה לתקופה שיובאה, נראה כאילו הייבוא לא עשה דבר.
+  const _imported = [...new Set(_costImportAgg.map(r => String(r.mk || '').trim()))]
+    .filter(m => /^\d{4}-\d{2}$/.test(m)).sort();
+  _dashCostMonth = _imported.length > 1 ? 'all' : (_imported[0] || '');
   saveToFirestore('costs', COSTS);
   document.getElementById('costimp-modal').classList.remove('open');
   if (typeof renderManagerDashboard === 'function') renderManagerDashboard();
@@ -3210,17 +3237,26 @@ function renderManagerDashboard() {
     coEntries.map(([c,n])=>`<div class="dash-row"><span style="width:12px;height:12px;border-radius:3px;background:${coColors[c]||'#64748b'};flex-shrink:0"></span><div class="dash-name">${esc(c)}</div><div class="dash-val">${n} רכב · ${Math.round(n/coTotal*100)}%</div></div>`).join('');
 
   // ── עלות כוללת לכל רכב: מיובא (דלק/ליסינג/שטיפה/ביטוח) + מוסך + נזקים (מהחודש האחרון) ──
-  const _mset = new Set(Object.keys(COSTS || {}).filter(mk => /^\d{4}-\d{2}$/.test(mk)));
-  (typeof INVOICES !== 'undefined' ? INVOICES : []).forEach(i => { const m = _costMonthOf(i.date); if (m && parseMoney(i.amount) > 0) _mset.add(m); });
-  (typeof INCIDENTS !== 'undefined' ? INCIDENTS : []).forEach(i => { const m = _costMonthOf(i.date); if (m && parseMoney(i.deductible) > 0) _mset.add(m); });
-  const _monthsArr = [..._mset].sort();
-  const _lastMonth = _monthsArr[_monthsArr.length - 1];
-  const _plateSet = new Set();
-  if (_lastMonth) {
-    Object.keys(COSTS[_lastMonth] || {}).forEach(p => _plateSet.add(_cpk(p)));
-    (typeof INVOICES !== 'undefined' ? INVOICES : []).forEach(i => { if (_costMonthOf(i.date) === _lastMonth) _plateSet.add(_cpk(i.plate)); });
-    (typeof INCIDENTS !== 'undefined' ? INCIDENTS : []).forEach(i => { if (_costMonthOf(i.date) === _lastMonth && parseMoney(i.deductible) > 0) _plateSet.add(_cpk(i.plate)); });
+  const _monthsArr = costMonths();
+  // ברירת המחדל היא החודש האחרון, אבל הבחירה של המשתמש גוברת — ייבוא
+  // של שנה שעברה היה נעלם מהמסך רק מפני שיש חשבונית חדשה יותר.
+  const _lastMonth = (_dashCostMonth === 'all' || _monthsArr.includes(_dashCostMonth))
+    ? _dashCostMonth : _monthsArr[_monthsArr.length - 1];
+  const _selEl = document.getElementById('dash-cost-month-sel');
+  if (_selEl) {
+    _selEl.style.display = _monthsArr.length ? '' : 'none';
+    const heb = m => { const [y, mo] = m.split('-'); return mo + '/' + y; };
+    _selEl.innerHTML = (_monthsArr.length > 1 ? '<option value="all">כל התקופה</option>' : '') +
+      _monthsArr.slice().reverse().map(m => `<option value="${m}">${heb(m)}</option>`).join('');
+    if (_lastMonth) _selEl.value = _lastMonth;
   }
+  const _monthsFor = _lastMonth === 'all' ? _monthsArr : [_lastMonth];
+  const _plateSet = new Set();
+  _monthsFor.filter(Boolean).forEach(mk => {
+    Object.keys(COSTS[mk] || {}).forEach(p => _plateSet.add(_cpk(p)));
+    (typeof INVOICES !== 'undefined' ? INVOICES : []).forEach(i => { if (_costMonthOf(i.date) === mk) _plateSet.add(_cpk(i.plate)); });
+    (typeof INCIDENTS !== 'undefined' ? INCIDENTS : []).forEach(i => { if (_costMonthOf(i.date) === mk && parseMoney(i.deductible) > 0) _plateSet.add(_cpk(i.plate)); });
+  });
   const _rows = [..._plateSet].filter(Boolean).map(pk => {
     const rr = vehicleMonthCost(pk, _lastMonth);
     const vv = VEHICLES.find(x => _cpk(x.plate) === pk);
@@ -3228,7 +3264,9 @@ function renderManagerDashboard() {
   }).filter(r => r.total > 0).sort((a, b) => b.total - a.total);
   const _grand = _rows.reduce((s, r) => s + r.total, 0);
   const _monthEl = document.getElementById('dash-cost-month');
-  if (_monthEl) _monthEl.textContent = _lastMonth ? `חודש ${_lastMonth} · סה"כ צי ₪${Math.round(_grand).toLocaleString()}` : '';
+  if (_monthEl) _monthEl.textContent = _lastMonth
+    ? `${_lastMonth === 'all' ? 'כל התקופה' : 'חודש ' + _lastMonth} · ${_rows.length} רכבים · סה"כ צי ₪${Math.round(_grand).toLocaleString()}`
+    : '';
   const _cvEl = document.getElementById('dash-costs-view');
   if (_cvEl) {
     if (!_lastMonth || !_rows.length) {
