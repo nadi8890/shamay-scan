@@ -2718,6 +2718,81 @@ function _xlsxSheets(buf) {
     rows: XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, defval: '', raw: false, blankrows: false })
   }));
 }
+// דוח תדלוקים של חברת דלק אינו חשבונית בודדת אלא טבלה אחת רחבה,
+// שהמערכת שהפיקה אותה פיצלה לגושי עמודות לאורך העמודים: מספרי הרכב
+// בגוש הראשון, תאריך העסקה וכמות הדלק בגוש השני. כל גוש חוזר על אותן
+// שורות בדיוק ובאותו סדר, ולכן החיבור הוא לפי מיקום השורה בעמוד
+// המקביל. בלי זה כל הדוח נקרא כחשבונית אחת — תדלוק אחד מתוך אלפיים.
+async function _pdfPageRows(pdf, n) {
+  const tc = await (await pdf.getPage(n)).getTextContent();
+  const its = tc.items
+    .map(i => ({ x: +i.transform[4].toFixed(1), y: +i.transform[5].toFixed(1), s: i.str }))
+    .filter(o => o.s.trim());
+  its.sort((a, b) => b.y - a.y || b.x - a.x);   // מלמעלה למטה, ומימין לשמאל
+  const rows = []; let cur = null;
+  its.forEach(o => {
+    if (!cur || Math.abs(cur.y - o.y) > 2) { cur = { y: o.y, items: [] }; rows.push(cur); }
+    cur.items.push(o);
+  });
+  return rows;
+}
+function _rowText(r) { return r.items.map(i => i.s).join(''); }
+function _rowPlate(r) {
+  for (const it of r.items) { const t = it.s.trim(); if (/^\d{7,8}$/.test(t)) return t; }
+  return '';
+}
+function _rowLiters(r) {
+  // כמות הדלק היא הערך העשרוני היחיד בשורה; כמות השמן נרשמת כ-0 שלם
+  for (const it of r.items) { const t = it.s.trim(); if (/^\d{1,4}\.\d{1,2}$/.test(t)) return parseFloat(t); }
+  return NaN;
+}
+async function _fuelReportPdf(file, onProgress) {
+  if (typeof pdfjsLib === 'undefined') return [];
+  try { pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'; } catch(e) {}
+  const pdf = await pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise;
+  if (pdf.numPages < 4) return [];
+  const pages = [];
+  for (let n = 1; n <= pdf.numPages; n++) {
+    pages.push(await _pdfPageRows(pdf, n));
+    if (onProgress && n % 10 === 0) onProgress(n, pdf.numPages);
+  }
+  // גבולות הגושים נקבעים לפי הכותרות עצמן, ולא לפי מספרי עמודים קבועים
+  const findHdr = re => pages.findIndex(rows => rows.some(r => re.test(_rowText(r).replace(/\s+/g, ''))));
+  const aStart = findHdr(/מספררישוי/), bStart = findHdr(/כמותדלק/);
+  if (aStart < 0 || bStart <= aStart) return [];
+  const size = bStart - aStart;
+  const out = [];
+  let mismatched = 0;
+  for (let i = 0; i < size; i++) {
+    const A = (pages[aStart + i] || []).map(_rowPlate).filter(Boolean);
+    const B = (pages[bStart + i] || [])
+      .map(r => ({ d: (_rowText(r).match(/(\d{2})\/(\d{2})\/(\d{4})/) || [])[0] || '', l: _rowLiters(r) }))
+      .filter(o => o.d);
+    if (A.length !== B.length) mismatched++;
+    const n = Math.min(A.length, B.length);
+    for (let k = 0; k < n; k++) {
+      const m = B[k].d.match(/(\d{2})\/(\d{2})\/(\d{4})/);
+      out.push({ plate: A[k], mk: m[3] + '-' + m[2], amt: 0,
+                 liters: isNaN(B[k].l) ? 0 : B[k].l, cat: 'fuel' });
+    }
+  }
+  // שני גושים שאינם באותו אורך פירושם שהזיהוי שגוי, ואז עדיף לא לייבא
+  // מאשר לשייך תדלוק לרכב הלא נכון.
+  if (mismatched > size * 0.2) { console.log('fuel pdf: blocks out of sync', mismatched, '/', size); return []; }
+  return out;
+}
+// הדוח מכיל ליטרים בלבד. עלות מחושבת ממחיר לליטר שהמשתמש מזין, ומסומנת
+// כמשוערת — לא נכון להציג אותה כאילו הגיעה מהדוח.
+function _askLitrePrice(rows) {
+  const liters = rows.reduce((s, r) => s + (r.liters || 0), 0);
+  const v = prompt('נקראו ' + rows.length + ' תדלוקים · ' + Math.round(liters).toLocaleString() + ' ליטר.' + String.fromCharCode(10) + String.fromCharCode(10) +
+    'בדוח אין עמודת סכום בשקלים, רק כמויות.' + String.fromCharCode(10) + String.fromCharCode(10) +
+    'הזן מחיר ממוצע לליטר לחישוב עלות משוערת (ביטול — לא לייבא):', '7.20');
+  if (v === null) return null;
+  const n = parseFloat(String(v).replace(',', '.'));
+  return (isNaN(n) || n <= 0) ? null : n;
+}
+
 async function _pdfText(file) {
   if (typeof pdfjsLib === 'undefined') throw new Error('pdfjs');
   try { pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'; } catch (e) {}
@@ -2884,10 +2959,27 @@ async function onCostFile(input) {
   if (typeof XLSX === 'undefined') { toast('הספריות עדיין נטענות — נסה שוב בעוד רגע', true); return; }
   toast(`קורא ${files.length} קבצים…`);
   const recs = []; const skipped = [];
+  _costImportNote = '';
   for (const file of files) {
     const nm = (file.name || '').toLowerCase();
     try {
       if (nm.endsWith('.pdf')) {
+        // קודם כל: האם זה דוח תדלוקים רב-עמודי ולא חשבונית בודדת
+        let fuelRows = [];
+        if (category === 'fuel') {
+          try {
+            toast('קורא דוח תדלוקים…');
+            fuelRows = await _fuelReportPdf(file, (n, tot) => toast('קורא דוח תדלוקים… ' + n + '/' + tot));
+          } catch(e) { console.log('fuel report pdf', file.name, e); }
+        }
+        if (fuelRows.length) {
+          const price = _askLitrePrice(fuelRows);
+          if (price === null) { skipped.push(file.name + ' — הייבוא בוטל'); continue; }
+          fuelRows.forEach(r => { r.amt = Math.round(r.liters * price * 100) / 100; r.est = true; });
+          _costImportNote = 'העלות חושבה לפי ' + price + ' ₪ לליטר — הדוח מכיל כמויות בלבד.';
+          recs.push(...fuelRows);
+          continue;
+        }
         let text = '';
         try { text = await _pdfText(file); } catch(e) { console.log('pdf text', file.name, e); }
         let r = _invoiceFromText(text, file.name, category);
@@ -2946,13 +3038,14 @@ async function onCostFile(input) {
   _costImportCat = category;
   _renderCostImportPreview(skipped);
 }
+let _costImportNote = '';
 function _renderCostImportPreview(skipped) {
   const list = _costImportAgg, cat = COST_LABEL[_costImportCat] || _costImportCat;
   const grand = list.reduce((s, r) => s + (Number(r.amt) || 0), 0);
   const _nm = pk => { const v = VEHICLES.find(x => _cpk(x.plate) === _cpk(pk)); return v ? cleanName(v.driverName) : '<span style="color:#dc2626">לא בצי</span>'; };
   document.getElementById('costimp-title').textContent = `📥 אישור ייבוא — ${cat}`;
   document.getElementById('costimp-body').innerHTML =
-    `<div style="font-size:0.85rem;margin-bottom:8px">${list.length} רכבים · סה"כ <b style="color:#059669">₪${Math.round(grand).toLocaleString()}</b>${skipped && skipped.length ? ` · <span style="color:#b45309">${skipped.length} קבצים לא זוהו</span>` : ''}<br><span style="font-size:0.72rem;color:var(--muted)">אפשר לתקן סכום/חודש לפני הייבוא. שורה עם 0 לא תיובא.</span></div>
+    `<div style="font-size:0.85rem;margin-bottom:8px">${list.length} רכבים · סה"כ <b style="color:#059669">₪${Math.round(grand).toLocaleString()}</b>${skipped && skipped.length ? ` · <span style="color:#b45309">${skipped.length} קבצים לא זוהו</span>` : ''}<br><span style="font-size:0.72rem;color:var(--muted)">אפשר לתקן סכום/חודש לפני הייבוא. שורה עם 0 לא תיובא.</span>${_costImportNote ? `<br><span style="font-size:0.72rem;color:#b45309">⚠️ ${esc(_costImportNote)}</span>` : ''}</div>
      <div style="max-height:46vh;overflow-y:auto"><table style="width:100%;border-collapse:collapse;font-size:0.82rem">
      <thead><tr style="position:sticky;top:0;background:#f8fafc"><th style="padding:5px;border:1px solid var(--border)">רכב</th><th style="padding:5px;border:1px solid var(--border)">נהג</th><th style="padding:5px;border:1px solid var(--border)">חודש</th><th style="padding:5px;border:1px solid var(--border)">₪</th></tr></thead>
      <tbody>${list.map((r, i) => `<tr>
