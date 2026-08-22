@@ -1907,7 +1907,16 @@ async function loadFromFirestore() {
       if (typeof d.officerSignature === 'string') { window.OFFICER_SIGNATURE = d.officerSignature; }
       if (Array.isArray(d.entities)) ENTITIES = d.entities;
       if (Array.isArray(d.leaseCompanies)) LEASE_COMPANIES = d.leaseCompanies;
-      if (d.appraiser && typeof d.appraiser === 'object') OP_PROFILE = d.appraiser;
+      if (d.appraiser && typeof d.appraiser === 'object') {
+        OP_PROFILE = d.appraiser;
+        // גרסה קודמת מילאה את "מקום עבודה" בשם חברת הצי, ולכן הוא הופיע
+        // בכותרת של כל חוות דעת. משרד השמאות אינו החברה שמנוהלת במערכת.
+        const _co = (COMPANY_NAME || '').trim();
+        if (_co && (OP_PROFILE.office || '').trim() === _co) {
+          OP_PROFILE.office = '';
+          try { fcol().doc('main').set({ appraiser: OP_PROFILE }, { merge: true }); } catch(e) {}
+        }
+      }
       if (d.orgInfo && typeof d.orgInfo === 'object') { ORG_INFO = { name: d.orgInfo.name || '', hp: d.orgInfo.hp || '' }; }
       if (d.officerInfo && typeof d.officerInfo === 'object') { window.OFFICER_INFO = d.officerInfo; try { localStorage.setItem('fleet_officerInfo', JSON.stringify(d.officerInfo)); } catch(e){} }
       if (d.contacts && typeof d.contacts === 'object') { window.CONTACTS = _ensureContacts({ list: d.contacts.list || [], emails: d.contacts.emails || [], byPlate: d.contacts.byPlate || {} }); try { localStorage.setItem('fleet_contacts', JSON.stringify(window.CONTACTS)); } catch(e){} const _cb = document.getElementById('contacts-list'); if (_cb) renderContacts(); }
@@ -10683,7 +10692,9 @@ function opHtml() {
   // html2canvas מאבד רווחים בין מילים אלא אם letter-spacing ו-
   // word-spacing מוגדרים במפורש. זו בדיוק המחסנית שבה משתמשים
   // מכתב ההסבה ואישור העירייה, ששניהם יוצאים תקין.
-  const PAGE = "display:block;width:100%;padding:4px 0 12px;background:#fff;" +
+  // בלי שוליים אופקיים הטבלאות נגעו בקצה הגיליון, וכל עיגול של פיקסל
+  // בהמרה ל-PDF גזר את הטור האחרון. 10px נותנים מרווח נשימה.
+  const PAGE = "display:block;width:100%;padding:4px 10px 12px;background:#fff;" +
     "font-family:Arial,'Segoe UI','Arial Hebrew','Heebo',sans-serif;" +
     "letter-spacing:normal;word-spacing:normal;color:#0f172a;box-sizing:border-box;direction:rtl";
   const pages = [];
@@ -10830,8 +10841,10 @@ async function opPdf() {
   // html2canvas מצלם ריק כשמעבירים לו אלמנט שהוא עצמו position:absolute
   // מחוץ למסך. לכן המעטפת מוסתרת, והמסמך עצמו הוא ילד רגיל בזרימה —
   // בדיוק הדפוס שעובד בשאר הדוחות במערכת.
+  // אלמנט שממוקם ב--9999px מאלץ את html2canvas לחשב היסטים בעצמו, ושם
+  // נוצר החיתוך בקצה. שקוף ובתוך המסך — אותה תוצאה, בלי חישוב היסטים.
   const holder = document.createElement('div');
-  holder.style.cssText = 'position:absolute;left:-9999px;top:0;width:760px;background:#fff';
+  holder.style.cssText = 'position:fixed;left:0;top:0;width:760px;background:#fff;opacity:0;z-index:-1;pointer-events:none';
   const doc = document.createElement('div');
   doc.setAttribute('dir', 'rtl');
   doc.style.cssText = "width:720px;background:#fff;overflow:hidden;letter-spacing:normal;word-spacing:normal;" +
@@ -10845,7 +10858,9 @@ async function opPdf() {
     await html2pdf().set({
       margin: [12, 10, 12, 10],
       image: { type: 'jpeg', quality: 0.92 },
-      html2canvas: { scale: 2, backgroundColor: '#ffffff', width: 720, windowWidth: 720, scrollX: 0, scrollY: 0 },
+      // בלי כפיית width/windowWidth — html2canvas מודד את האלמנט עצמו,
+      // ולכן אין פער בין מה שנמדד למה שצולם.
+      html2canvas: { scale: 2, backgroundColor: '#ffffff' },
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
       pagebreak: { mode: ['css', 'legacy'], before: '.op-brk', avoid: ['tr', 'img'] }
     }).from(doc).save('חוות דעת ' + (opVal('case') || opVal('plate')) + '.pdf');
