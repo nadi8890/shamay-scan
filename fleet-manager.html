@@ -3444,7 +3444,6 @@ function renderFleet() {
       })()}
       <td class="${yc(v.vehicleFrom)}" style="font-size:0.73rem;white-space:nowrap">${esc(v.vehicleFrom)||'—'}</td>
       <td style="white-space:nowrap">
-        <button class="btn btn-gray" style="padding:3px 8px;font-size:0.7rem" onclick="event.stopPropagation();editVehicle('${esc(v.plate)}')">✏️</button>
         <button class="btn btn-gray" style="padding:3px 8px;font-size:0.7rem" title="שלח טפסי קבלת רכב לנהג" onclick="event.stopPropagation();openDeclShare('${esc(v.plate)}')">📨</button>
         <button class="btn btn-gray" style="padding:3px 8px;font-size:0.7rem" title="כל המסמכים של העובד" onclick="event.stopPropagation();openEmployeeDocs('${esc(v.plate)}')">📁</button>
         <button class="btn btn-gray" style="padding:3px 8px;font-size:0.7rem" title="אישור החזקה ברכב לעירייה — מילוי אוטומטי + עריכה → PDF" onclick="event.stopPropagation();openCityPermit('${esc(v.plate)}')">🏛️</button>
@@ -7715,6 +7714,46 @@ function startInspectionFor(plate) {
   openInspectionForm(plate);
 }
 
+// רשומת מסמכי רכב שהעובד יצר בטופס קבלת רכב מכילה צילומים מעורבים —
+// רישיון רכב ותעודת ביטוח יחד — בלי סימון מי מהם מי. פיצול לשתי
+// מגירות מחייב לדעת זאת, ולכן צילום שלא סווג מוצג בנפרד עם בורר,
+// ועובר למגירה שלו ברגע שבוחרים. הסימון נשמר לכל צילום ולא לרשומה,
+// כי רשומה אחת מחזיקה את שניהם.
+function _vdocSub(r, kind, idxs) {
+  return { ...r, images: idxs.map(i => r.images[i]), _srcIdx: idxs,
+           title: kind ? (_REQ_TITLE[kind] || '') : (r.title || '') };
+}
+function vdocSplit(list) {
+  const reg = [], ins = [], un = [];
+  for (const r of (list || [])) {
+    if (r.reqType === 'registration') { reg.push(r); continue; }
+    if (r.reqType === 'insurance')    { ins.push(r); continue; }
+    const ks = Array.isArray(r.imgKinds) ? r.imgKinds : [];
+    const idxOf = f => (r.images || []).map((_, i) => i).filter(f);
+    const ri = idxOf(i => ks[i] === 'registration');
+    const ii = idxOf(i => ks[i] === 'insurance');
+    const rest = idxOf(i => ks[i] !== 'registration' && ks[i] !== 'insurance');
+    if (ri.length) reg.push(_vdocSub(r, 'registration', ri));
+    if (ii.length) ins.push(_vdocSub(r, 'insurance', ii));
+    if (rest.length) un.push(_vdocSub(r, '', rest));
+  }
+  return { reg, ins, un };
+}
+async function tagVdocImage(docId, imgIdx, kind) {
+  if (!kind) return;
+  const rec = ((window._EMPDOCS || {}).vall || []).find(x => x._docId === docId);
+  if (!rec || !rec._ref) { toast('לא ניתן לתייק את הפריט הזה', true); return; }
+  const ks = Array.isArray(rec.imgKinds) ? rec.imgKinds.slice() : [];
+  while (ks.length < (rec.images || []).length) ks.push('');
+  ks[imgIdx] = kind;
+  try {
+    await rec._ref.set({ imgKinds: ks }, { merge: true });
+    rec.imgKinds = ks;
+    toast('✓ תויק כ' + (_REQ_TITLE[kind] || kind));
+    if (window._empdocsPlate) openEmployeeDocs(window._empdocsPlate);
+  } catch(e) { toast('שגיאה בתיוג', true); console.log('tagVdocImage', e); }
+}
+
 async function deleteEmpDoc(cat, di) {
   const D = window._EMPDOCS; const doc = D && D[cat] && D[cat][di];
   if (!doc || !doc._ref) { toast('לא ניתן למחוק את הפריט הזה', true); return; }
@@ -7733,6 +7772,19 @@ async function deleteEmpDoc(cat, di) {
         if (!confirm(`"${label}" הגיע כקריאה מהעובד.
 מחיקה תסיר את הקריאה כולה מהיומן. להמשיך?`)) return;
         await doc._ref.delete();
+      }
+    } else if (Array.isArray(doc._srcIdx)) {
+      // תצוגה מפוצלת: מוחקים רק את הצילומים שמוצגים כאן, לא את הרשומה
+      const rec = ((window._EMPDOCS || {}).vall || []).find(x => x._docId === doc._docId) || doc;
+      const keep = (rec.images || []).map((_, i) => i).filter(i => !doc._srcIdx.includes(i));
+      if (!keep.length) {
+        if (!confirm(`למחוק את "${label}" מתיק הרכב?
+הפעולה אינה הפיכה. התוקף שכבר עודכן בכרטיס יישאר.`)) return;
+        await doc._ref.delete();
+      } else {
+        if (!confirm('למחוק את "' + label + '"?\nשאר הצילומים באותה רשומה יישארו.')) return;
+        await doc._ref.set({ images: keep.map(i => rec.images[i]),
+                             imgKinds: keep.map(i => (rec.imgKinds || [])[i] || '') }, { merge: true });
       }
     } else {
       if (!confirm(`למחוק את "${label}" מתיק הרכב?
@@ -7881,9 +7933,20 @@ async function openEmployeeDocs(plate){
     const [decls, vdocs, ldocs, reqs, insps] = await Promise.all([
       readDriverDocs('declaration'), readDriverDocs('vehicledocs'), readDriverDocs('licensedocs'), readDriverDocs('requirement'), readDriverDocs('inspection')
     ]);
-    const reqSel = (reqs||[]).filter(r => String(r.plate||'').replace(/\D/g,'')===pk || (dkey && _dk(r.driver||r.name)===dkey)).sort((a,b)=>(b.created||0)-(a.created||0));
+    // קריאה היא כמעט תמיד מסמך של הרכב — רישיון רכב, ביטוח, אישור טיפול —
+    // ולכן היא נשארת עם הרכב. היוצא מן הכלל הוא רישיון נהיגה, שהוא של
+    // האדם ועובר איתו כשהוא מחליף רכב.
+    const _reqIsDriver = r => reqKinds(r).includes('license');
+    const reqSel = (reqs||[]).filter(r => _reqIsDriver(r)
+        ? (dkey && _dk(r.driver||r.name)===dkey)
+        : String(r.plate||'').replace(/\D/g,'')===pk
+      ).sort((a,b)=>(b.created||0)-(a.created||0));
     const _m = mergeReqDocs({ ldocs, vdocs, reqs });
-    const D = window._EMPDOCS = { decls:byDriver(decls), vdocs:byPlate(_m.vdocs), ldocs:byDriver(_m.ldocs), reqs:reqSel, insps:byPlate(insps) };
+    const _vall = byPlate(_m.vdocs);
+    const _vs = vdocSplit(_vall);
+    const D = window._EMPDOCS = { decls:byDriver(decls), vall:_vall,
+      vreg:_vs.reg, vins:_vs.ins, vun:_vs.un,
+      ldocs:byDriver(_m.ldocs), reqs:reqSel, insps:byPlate(insps) };
     // כפתור ההוספה יושב בכותרת הרובריקה שאליה הוא שייך, ולא בשורה
     // נפרדת מעליהן — פחות מקום, ובלי לבחור סוג פעמיים.
     const sec = (icon,title,count,html,add) => `<div style="margin-bottom:14px"><div style="font-weight:800;color:#1e3a8a;font-size:0.88rem;margin-bottom:6px;display:flex;align-items:center;gap:6px"><span>${icon} ${title}</span><span class="badge badge-gray">${count}</span>${add || ''}</div>${count ? html : '<div style="color:#94a3b8;font-size:0.76rem">— אין —</div>'}</div>`;
@@ -7897,6 +7960,18 @@ async function openEmployeeDocs(plate){
       <span style="font-weight:700">${r.formType && typeof DECL_FORM_META!=='undefined' && DECL_FORM_META[r.formType] ? DECL_FORM_META[r.formType].label : '📋 טפסים'}</span>
       <span style="color:var(--muted)">${esc(r.dateStr||'')}</span><span class="badge badge-green">✓ נחתם</span></div>`).join('');
     const imgRow = (arr, cat) => arr.map((r,di)=>`<div style="margin-bottom:5px;font-size:0.74rem;display:flex;align-items:center;gap:4px;flex-wrap:wrap"><span style="color:#64748b">${esc(r.title||'')}${r.title?' · ':''}${esc(r.dateStr||'')}${r.licNum?' · רישיון '+esc(r.licNum):''}</span> ${(r.images||[]).map((b,fi)=>`<button class="btn btn-gray" style="padding:3px 9px;font-size:0.68rem;margin:2px" onclick="_empView('${cat}',${di},${fi})">🖼️ ${fi+1}</button>`).join('')}<button class="btn" style="padding:3px 8px;font-size:0.68rem;margin:2px;background:#fee2e2;color:#b91c1c" title="מחק מסמך" onclick="deleteEmpDoc('${cat}',${di})">🗑️</button></div>`).join('');
+    // צילום שאינו מסווג: כפתור צפייה + בורר. הבחירה מעבירה אותו למגירה.
+    const unRow = arr => arr.map((r,di)=>`<div style="margin-bottom:6px;font-size:0.74rem;display:flex;align-items:center;gap:4px;flex-wrap:wrap">
+      <span style="color:#64748b">${esc(r.dateStr||'')}</span>
+      ${(r.images||[]).map((b,fi)=>`<span style="display:inline-flex;align-items:center;gap:3px;margin:2px">
+        <button class="btn btn-gray" style="padding:3px 9px;font-size:0.68rem" onclick="_empView('vun',${di},${fi})">🖼️ ${fi+1}</button>
+        <select onchange="tagVdocImage('${esc(r._docId)}',${r._srcIdx[fi]},this.value)" style="font-size:0.64rem;padding:2px 5px;border:1px solid #fdba74;border-radius:6px">
+          <option value="">⚠️ מה זה?</option>
+          <option value="registration">🚗 רישיון רכב</option>
+          <option value="insurance">🛡️ תעודת ביטוח</option>
+        </select></span>`).join('')}
+      <button class="btn" style="padding:3px 8px;font-size:0.68rem;margin:2px;background:#fee2e2;color:#b91c1c" title="מחק" onclick="deleteEmpDoc('vun',${di})">🗑️</button>
+    </div>`).join('') + '<div style="font-size:0.7rem;color:#94a3b8;margin-top:4px">צילומים מטופס קבלת רכב הגיעו בערימה אחת. בחר/י לכל אחד את הרובריקה שלו והוא יעבור אליה.</div>';
     const inspHtml = D.insps.map((r,i)=>{ const bad=Object.values(r.items||{}).filter(x=>x==='לא תקין').length; return `<div class="insp-hist-row" onclick="_empViewInsp(${i})" style="cursor:pointer"><span style="color:var(--muted);font-size:0.74rem">${esc(r.dateStr||'')}${r.driver?' · '+esc((r.driver||'').split('-')[0].trim()):''}</span>${bad?`<span class="badge badge-red">${bad} לא תקין</span>`:'<span class="badge badge-green">✓ תקין</span>'}</div>`; }).join('');
     // הגשה ישנה שכיסתה כמה מסמכים אינה מתויגת, ולכן אי אפשר לדעת איזה
     // צילום שייך לאיזו רובריקה. במקום לנחש — כאן בוחרים, פעם אחת.
@@ -7913,11 +7988,14 @@ async function openEmployeeDocs(plate){
       + sec('📋','נהלים ואחריות · <span style="color:#7c3aed">עם הנהג</span>', D.decls.length, declHtml)
       + sec('🪪','רישיון נהיגה · <span style="color:#7c3aed">עם הנהג</span>', D.ldocs.length, imgRow(D.ldocs,'ldocs'),
             addBtn("openManualDoc('license')", 'העלה רישיון נהיגה'))
-      + sec('🚗','רישיון רכב + ביטוח · <span style="color:#0891b2">עם הרכב</span>', D.vdocs.length, imgRow(D.vdocs,'vdocs'),
-            addBtn("openManualDoc('registration')", 'העלה רישיון רכב או תעודת ביטוח'))
+      + sec('🚗','רישיון רכב (טסט) · <span style="color:#0891b2">עם הרכב</span>', D.vreg.length, imgRow(D.vreg,'vreg'),
+            addBtn("openManualDoc('registration')", 'העלה רישיון רכב'))
+      + sec('🛡️','תעודת ביטוח חובה · <span style="color:#0891b2">עם הרכב</span>', D.vins.length, imgRow(D.vins,'vins'),
+            addBtn("openManualDoc('insurance')", 'העלה תעודת ביטוח'))
+      + (D.vun.length ? sec('📄','מסמכי רכב שטרם סווגו', D.vun.length, unRow(D.vun)) : '')
       + sec('🛡️','ביקורות בטיחות · <span style="color:#0891b2">עם הרכב</span>', D.insps.length, inspHtml,
             addBtn(`startInspectionFor('${esc(v.plate)}')`, 'ביקורת קצין בטיחות חדשה'))
-      + sec('📎','קריאות / מסמכים שהתבקשו', D.reqs.length, reqHtml);
+      + sec('📎','קריאות / מסמכים שהתבקשו · <span style="color:#0891b2">עם הרכב</span>', D.reqs.length, reqHtml);
   } catch(e){ body.innerHTML = '<div style="color:#dc2626;padding:12px">שגיאה בטעינת המסמכים</div>'; console.log('empdocs', e); }
 }
 function openImportWizard() {
