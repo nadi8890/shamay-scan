@@ -2518,7 +2518,12 @@ function parseDate(s) {
   if (!m) return null;
   let [,d,mo,y] = m;
   if (y.length===2) y = '20'+y;
-  return new Date(+y, +mo-1, +d);
+  const dt = new Date(+y, +mo-1, +d);
+  // Date מגלגל ערכים בלתי אפשריים בשקט: 32/13/2027 הפך ל-01/02/2028
+  // ו-31/02 הפך ל-03/03. תאריך כזה נכנס לכרטיס כאילו הוא תקין, ולכן
+  // נדרשת בדיקת הלוך-ושוב לפני שמחזירים אותו.
+  if (dt.getFullYear() !== +y || dt.getMonth() !== +mo-1 || dt.getDate() !== +d) return null;
+  return dt;
 }
 function daysUntil(s) {
   const d = parseDate(s);
@@ -7605,6 +7610,195 @@ function _viewB64(b64, mime){
     window.open(url, '_blank'); setTimeout(()=>URL.revokeObjectURL(url), 60000);
   } catch(e){ toast('שגיאה בפתיחת הקובץ', true); }
 }
+// ═══ העלאה ידנית של מסמך חסר ═══
+// עד כה מסמך נכנס לתיק רק דרך העובד — טופס קבלת רכב או קריאה. מסמך
+// שהגיע במייל או ביד לא היה לו מסלול, ולכן המגירה נשארה ריקה.
+// הסריקה כאן מוציאה מספר רישוי ותוקף מהצילום עצמו, כדי שלא נקליד ידנית.
+const MDOC_VEH_PROMPT = `אלה צילומים של מסמכי רכב ישראליים — רישיון רכב ("טסט") ו/או תעודת ביטוח חובה. חלץ אך ורק:
+1) plate: מספר הרכב, ספרות בלבד (7-8 ספרות)
+2) registrationExpiry: ברישיון הרכב, תחת "בתוקף עד" — תאריך תפוגת הרישיון
+3) insuranceExpiry: בתעודת ביטוח החובה, "מועד פקיעת הביטוח" / "בתוקף עד" — תאריך הסיום
+שדה שאינו מופיע — החזר "". אל תנחש. החזר JSON בלבד:
+{"plate":"","registrationExpiry":"DD/MM/YYYY","insuranceExpiry":"DD/MM/YYYY"}`;
+const MDOC_LIC_PROMPT = `אלה צילומים של רישיון נהיגה ישראלי. חלץ אך ורק:
+1) licenseExpiry: תאריך תפוגת הרישיון — מופיע ליד השדה המסומן "4b" (בתוקף עד). קח את התאריך המאוחר.
+2) licNum: מספר הרישיון / תעודת הזהות של בעל הרישיון
+שדה שאינו מופיע — החזר "". אל תנחש. החזר JSON בלבד:
+{"licenseExpiry":"DD/MM/YYYY","licNum":""}`;
+
+let _MDOC = null;   // { kind, plate, driver, images[] }
+
+function openManualDoc(kind) {
+  const plate = window._empdocsPlate || '';
+  const v = VEHICLES.find(x => _cpk2(x.plate) === _cpk2(plate));
+  _MDOC = { kind, plate, driver: v ? (v.driverName || '') : '', images: [] };
+  const f = document.getElementById('mdoc-file'); f.value = ''; f.click();
+}
+function _cpk2(p) { return String(p == null ? '' : p).replace(/\D/g, ''); }
+
+function _fileToB64(file) {
+  return new Promise((res, rej) => {
+    const fr = new FileReader();
+    fr.onload = () => res(String(fr.result).split(',')[1]);
+    fr.onerror = rej; fr.readAsDataURL(file);
+  });
+}
+
+async function onManualDocFiles(input) {
+  const files = Array.from(input.files || []); input.value = '';
+  if (!files.length || !_MDOC) return;
+  toast('מכווץ תמונות…');
+  for (const f of files.slice(0, 3)) {
+    try { _MDOC.images.push(await _shrinkB64(await _fileToB64(f), 1100, 0.55)); }
+    catch(e) { console.log('mdoc read', f.name, e); }
+  }
+  if (!_MDOC.images.length) { toast('לא הצלחתי לקרוא את הקבצים', true); return; }
+
+  document.getElementById('mdoc-kind').value = _MDOC.kind;
+  ['mdoc-plate','mdoc-reg','mdoc-ins','mdoc-licexp','mdoc-licnum'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('mdoc-plate').value = _MDOC.plate || '';
+  document.getElementById('mdoc-warn').textContent = '';
+  document.getElementById('mdoc-thumbs').innerHTML = _MDOC.images.map(b =>
+    `<img src="data:image/jpeg;base64,${b}" style="width:74px;height:74px;object-fit:cover;border-radius:8px;border:1px solid #e2e8f0">`).join('');
+  _mdocFields();
+  document.getElementById('mdoc-modal').classList.add('open');
+  _mdocScan();
+}
+
+function _mdocFields() {
+  const k = document.getElementById('mdoc-kind').value;
+  document.getElementById('mdoc-veh').style.display = (k === 'license') ? 'none' : 'block';
+  document.getElementById('mdoc-lic').style.display = (k === 'license') ? 'block' : 'none';
+  document.getElementById('mdoc-title').textContent = '➕ ' + (_REQ_TITLE[k] || 'מסמך') +
+    (_MDOC && _MDOC.plate ? ' · ' + _MDOC.plate : '');
+}
+
+async function _mdocScan() {
+  const el = document.getElementById('mdoc-scan');
+  if (!agentApiKey) { el.textContent = 'אין מפתח סריקה — מלא/י את השדות ידנית.'; return; }
+  el.textContent = '🔍 קורא את המסמך…';
+  const k = document.getElementById('mdoc-kind').value;
+  try {
+    const out = await scanDatesFromImages(_MDOC.images, k === 'license' ? MDOC_LIC_PROMPT : MDOC_VEH_PROMPT);
+    const set = (id, val) => { const e = document.getElementById(id); if (val && !e.value) e.value = val; };
+    const ok = d => d && parseDate(d);
+    let got = [];
+    if (k === 'license') {
+      if (ok(out.licenseExpiry)) { set('mdoc-licexp', out.licenseExpiry); got.push('תוקף'); }
+      if (out.licNum) { set('mdoc-licnum', String(out.licNum)); got.push('מספר רישיון'); }
+    } else {
+      const scanned = _cpk2(out.plate);
+      if (scanned.length >= 6) {
+        // הרכב שבצילום אינו בהכרח הרכב שפתוח — מוטב להתריע מלהחליף בשקט
+        if (_MDOC.plate && scanned !== _cpk2(_MDOC.plate)) {
+          document.getElementById('mdoc-warn').textContent =
+            '⚠️ במסמך מופיע רכב ' + scanned + ', והתיק הפתוח הוא ' + _MDOC.plate + '. בדוק/י לפני שמירה.';
+        } else { document.getElementById('mdoc-plate').value = out.plate; }
+        got.push('מספר רישוי');
+      }
+      if (ok(out.registrationExpiry)) { set('mdoc-reg', out.registrationExpiry); got.push('תוקף טסט'); }
+      if (ok(out.insuranceExpiry))    { set('mdoc-ins', out.insuranceExpiry);   got.push('תוקף ביטוח'); }
+    }
+    el.textContent = got.length ? '✓ זוהה מהמסמך: ' + got.join(' · ') : 'לא זוהה מידע — מלא/י ידנית.';
+  } catch(e) { el.textContent = 'הסריקה נכשלה — מלא/י ידנית.'; console.log('mdoc scan', e); }
+}
+
+// מחיקת מסמך מהתיק. מסמך שהגיע כקריאה מהעובד נמחק ממנה בלבד כשאפשר,
+// כדי שלא תימחק גם הקריאה עצמה ושאר הקבצים שהוגשו איתה.
+async function deleteEmpDoc(cat, di) {
+  const D = window._EMPDOCS; const doc = D && D[cat] && D[cat][di];
+  if (!doc || !doc._ref) { toast('לא ניתן למחוק את הפריט הזה', true); return; }
+  const label = doc.title || doc.reqLabel || 'המסמך';
+  try {
+    if (doc._fromReq) {
+      const baseId = String(doc._docId).split(':')[0];
+      const req = (D.reqs || []).find(x => x._docId === baseId);
+      const all = (req && req.files) || [];
+      const keep = all.filter(f => !(f.kind === 'image' && (f.docKind || '') === doc.reqType));
+      if (keep.length && keep.length < all.length) {
+        if (!confirm(`למחוק את "${label}" מהקריאה?
+שאר הקבצים שהוגשו איתה יישארו.`)) return;
+        await doc._ref.set({ files: keep }, { merge: true });
+      } else {
+        if (!confirm(`"${label}" הגיע כקריאה מהעובד.
+מחיקה תסיר את הקריאה כולה מהיומן. להמשיך?`)) return;
+        await doc._ref.delete();
+      }
+    } else {
+      if (!confirm(`למחוק את "${label}" מתיק הרכב?
+הפעולה אינה הפיכה. התוקף שכבר עודכן בכרטיס יישאר.`)) return;
+      await doc._ref.delete();
+    }
+    toast('המסמך נמחק — הרץ סנכרון פורטלים כדי לעדכן את תיק העובד');
+    if (window._empdocsPlate) openEmployeeDocs(window._empdocsPlate);
+  } catch(e) { toast('שגיאה במחיקה: ' + (e.code || e.message), true); console.log('deleteEmpDoc', e); }
+}
+async function deleteReqRecord(docId) {
+  const r = (window._EMPDOCS && window._EMPDOCS.reqs || []).find(x => x._docId === docId);
+  if (!r || !r._ref) return;
+  if (!confirm(`למחוק את הקריאה "${r.reqLabel || ''}" מ-${r.dateStr || ''}?
+הקבצים שהוגשו בה יימחקו איתה.`)) return;
+  try {
+    await r._ref.delete();
+    toast('הקריאה נמחקה');
+    if (window._empdocsPlate) openEmployeeDocs(window._empdocsPlate);
+  } catch(e) { toast('שגיאה במחיקה', true); console.log('deleteReqRecord', e); }
+}
+
+async function saveManualDoc() {
+  if (!_MDOC || !_MDOC.images.length) return;
+  const btn = document.getElementById('mdoc-save');
+  const k = document.getElementById('mdoc-kind').value;
+  const plate = (document.getElementById('mdoc-plate').value || _MDOC.plate || '').trim();
+  const bad = d => d && !parseDate(d);
+  const reg = document.getElementById('mdoc-reg').value.trim();
+  const ins = document.getElementById('mdoc-ins').value.trim();
+  const lex = document.getElementById('mdoc-licexp').value.trim();
+  if (k !== 'license' && !plate) { toast('חסר מספר רישוי', true); return; }
+  for (const [d, nm] of [[reg,'תוקף טסט'], [ins,'תוקף ביטוח'], [lex,'תוקף רישיון']])
+    if (bad(d)) { toast(nm + ' אינו תאריך תקין', true); return; }
+
+  const bytes = _MDOC.images.reduce((n, b) => n + b.length, 0);
+  if (bytes > 850000) { toast('התמונות גדולות מדי — צלם/י פחות תמונות', true); return; }
+
+  btn.disabled = true; btn.textContent = 'שומר…';
+  const created = Date.now();
+  try {
+    await fcol().doc('mdoc_' + created).set({
+      type: k === 'license' ? 'licensedocs' : 'vehicledocs',
+      reqType: k, source: 'manual', created,
+      dateStr: new Date(created).toLocaleDateString('he-IL'),
+      plate, driver: _MDOC.driver || '',
+      licNum: document.getElementById('mdoc-licnum').value.trim(),
+      images: _MDOC.images,
+      // כבר החלנו את התאריכים כאן, ואין צורך שהסורק האוטומטי יחזור עליהם
+      scanned: true, applied: true
+    });
+    // עדכון התוקפים בכרטיס הרכב, כדי שההתראות ייעלמו
+    const v = VEHICLES.find(x => _cpk2(x.plate) === _cpk2(plate)) ||
+              (k === 'license' ? VEHICLES.find(x => _cpk2(x.plate) === _cpk2(_MDOC.plate)) : null);
+    if (v) {
+      if (reg) v.registrationExpiry = reg;
+      if (ins) v.insuranceExpiry = ins;
+      if (lex) {
+        v.licenseExpiry = lex;
+        const dk = driverKey(v.driverName);
+        if (dk) { DRIVERS[dk] = DRIVERS[dk] || {}; DRIVERS[dk].licenseExpiry = lex;
+                  if (typeof syncDriverToVehicles === 'function') syncDriverToVehicles(dk); }
+      }
+      if (reg || ins || lex) saveVehiclesSafely(v.plate, null, v.plate);
+    }
+    document.getElementById('mdoc-modal').classList.remove('open');
+    toast('✓ המסמך נשמר בתיק' + (v && (reg || ins || lex) ? ' והתוקף עודכן' : ''));
+    if (typeof renderAlerts === 'function') renderAlerts();
+    if (typeof renderFleet === 'function') renderFleet();
+    if (window._empdocsPlate) openEmployeeDocs(window._empdocsPlate);
+  } catch(e) {
+    toast('שגיאה בשמירה: ' + (e.code || e.message), true);
+    console.log('saveManualDoc', e);
+  } finally { btn.disabled = false; btn.textContent = '💾 שמור בתיק'; }
+}
+
 // ═══ סגירת חלון בלחיצה על הרקע ═══
 // נקודת ההתחלה של הלחיצה היא הקובעת, ולא סופה, כדי שסימון טקסט בתוך
 // החלון וגרירת העכבר החוצה לא יסגרו אותו. חלון שיש בו שינויים שלא
@@ -7689,7 +7883,7 @@ async function openEmployeeDocs(plate){
     const declHtml = D.decls.map((r,i)=>`<div class="insp-hist-row" onclick="_empViewDecl(${i})" style="cursor:pointer">
       <span style="font-weight:700">${r.formType && typeof DECL_FORM_META!=='undefined' && DECL_FORM_META[r.formType] ? DECL_FORM_META[r.formType].label : '📋 טפסים'}</span>
       <span style="color:var(--muted)">${esc(r.dateStr||'')}</span><span class="badge badge-green">✓ נחתם</span></div>`).join('');
-    const imgRow = (arr, cat) => arr.map((r,di)=>`<div style="margin-bottom:5px;font-size:0.74rem"><span style="color:#64748b">${esc(r.dateStr||'')}${r.licNum?' · רישיון '+esc(r.licNum):''}</span> ${(r.images||[]).map((b,fi)=>`<button class="btn btn-gray" style="padding:3px 9px;font-size:0.68rem;margin:2px" onclick="_empView('${cat}',${di},${fi})">🖼️ ${fi+1}</button>`).join('')}</div>`).join('');
+    const imgRow = (arr, cat) => arr.map((r,di)=>`<div style="margin-bottom:5px;font-size:0.74rem;display:flex;align-items:center;gap:4px;flex-wrap:wrap"><span style="color:#64748b">${esc(r.title||'')}${r.title?' · ':''}${esc(r.dateStr||'')}${r.licNum?' · רישיון '+esc(r.licNum):''}</span> ${(r.images||[]).map((b,fi)=>`<button class="btn btn-gray" style="padding:3px 9px;font-size:0.68rem;margin:2px" onclick="_empView('${cat}',${di},${fi})">🖼️ ${fi+1}</button>`).join('')}<button class="btn" style="padding:3px 8px;font-size:0.68rem;margin:2px;background:#fee2e2;color:#b91c1c" title="מחק מסמך" onclick="deleteEmpDoc('${cat}',${di})">🗑️</button></div>`).join('');
     const inspHtml = D.insps.map((r,i)=>{ const bad=Object.values(r.items||{}).filter(x=>x==='לא תקין').length; return `<div class="insp-hist-row" onclick="_empViewInsp(${i})" style="cursor:pointer"><span style="color:var(--muted);font-size:0.74rem">${esc(r.dateStr||'')}${r.driver?' · '+esc((r.driver||'').split('-')[0].trim()):''}</span>${bad?`<span class="badge badge-red">${bad} לא תקין</span>`:'<span class="badge badge-green">✓ תקין</span>'}</div>`; }).join('');
     // הגשה ישנה שכיסתה כמה מסמכים אינה מתויגת, ולכן אי אפשר לדעת איזה
     // צילום שייך לאיזו רובריקה. במקום לנחש — כאן בוחרים, פעם אחת.
@@ -7700,8 +7894,14 @@ async function openEmployeeDocs(plate){
         <option value="">${f.docKind ? '' : '⚠️ '}לאיזו רובריקה?</option>
         ${ks.map(k=>`<option value="${k}"${f.docKind===k?' selected':''}>${esc(_REQ_TITLE[k]||k)}</option>`).join('')}</select>`;
     };
-    const reqHtml = D.reqs.map((r,di)=>`<div style="margin-bottom:5px;font-size:0.74rem"><b>${esc(r.reqLabel||'קריאה')}</b> <span style="color:#64748b">${esc(r.dateStr||'')}</span> <span class="badge ${r.status==='approved'?'badge-green':r.status==='rejected'?'badge-red':'badge-orange'}" style="font-size:0.56rem">${esc(r.status||'ממתין')}</span> ${(r.files||[]).map((f,fi)=>`<button class="btn btn-gray" style="padding:3px 9px;font-size:0.68rem;margin:2px" onclick="_empView('reqs',${di},${fi})">${f.kind==='pdf'?'📄':'🖼️'} ${fi+1}</button>${kindSel(r,f,fi)}`).join('')}</div>`).join('');
+    const reqHtml = D.reqs.map((r,di)=>`<div style="margin-bottom:5px;font-size:0.74rem"><b>${esc(r.reqLabel||'קריאה')}</b> <span style="color:#64748b">${esc(r.dateStr||'')}</span> <span class="badge ${r.status==='approved'?'badge-green':r.status==='rejected'?'badge-red':'badge-orange'}" style="font-size:0.56rem">${esc(r.status||'ממתין')}</span> ${(r.files||[]).map((f,fi)=>`<button class="btn btn-gray" style="padding:3px 9px;font-size:0.68rem;margin:2px" onclick="_empView('reqs',${di},${fi})">${f.kind==='pdf'?'📄':'🖼️'} ${fi+1}</button>${kindSel(r,f,fi)}`).join('')}<button class="btn" style="padding:3px 8px;font-size:0.68rem;margin:2px;background:#fee2e2;color:#b91c1c" title="מחק קריאה" onclick="deleteReqRecord('${esc(r._docId)}')">🗑️</button></div>`).join('');
     body.innerHTML = dates
+      + `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">
+          <span style="font-size:0.74rem;color:#64748b;align-self:center">חסר מסמך? העלה בעצמך:</span>
+          <button class="btn btn-secondary" style="padding:4px 10px;font-size:0.72rem" onclick="openManualDoc('registration')">🚗 רישיון רכב</button>
+          <button class="btn btn-secondary" style="padding:4px 10px;font-size:0.72rem" onclick="openManualDoc('insurance')">🛡️ ביטוח</button>
+          <button class="btn btn-secondary" style="padding:4px 10px;font-size:0.72rem" onclick="openManualDoc('license')">🪪 רישיון נהיגה</button>
+        </div>`
       + `<div style="font-size:0.72rem;color:#94a3b8;margin-bottom:8px">מסמכי הנהג עוברים עם העובד · מסמכי הרכב נשארים עם הרכב</div>`
       + sec('📋','נהלים ואחריות · <span style="color:#7c3aed">עם הנהג</span>', D.decls.length, declHtml)
       + sec('🪪','רישיון נהיגה · <span style="color:#7c3aed">עם הנהג</span>', D.ldocs.length, imgRow(D.ldocs,'ldocs'))
@@ -9817,6 +10017,37 @@ function renderAgentMsgs(showTyping = false) {
 </div>
 
 <!-- ═══ מסמכי עובד (מנהל) ═══ -->
+<!-- ══ העלאה ידנית של מסמך חסר, עם סריקה ══ -->
+<div class="modal-overlay" id="mdoc-modal" style="z-index:690">
+  <div class="modal" style="max-width:520px">
+    <h3 id="mdoc-title">➕ העלאת מסמך</h3>
+    <div id="mdoc-thumbs" style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px"></div>
+    <div id="mdoc-scan" style="font-size:0.78rem;color:#64748b;margin-bottom:10px"></div>
+    <div class="modal-row"><label>סוג המסמך</label>
+      <select id="mdoc-kind" onchange="_mdocFields()">
+        <option value="registration">🚗 רישיון רכב (טסט)</option>
+        <option value="insurance">🛡️ תעודת ביטוח חובה</option>
+        <option value="license">🪪 רישיון נהיגה</option>
+      </select>
+    </div>
+    <div id="mdoc-veh">
+      <div class="modal-row" style="margin-top:6px"><label>מספר רישוי</label><input id="mdoc-plate" type="text" style="direction:ltr"></div>
+      <div class="modal-row" style="margin-top:6px"><label>תוקף רישיון רכב (טסט)</label><input id="mdoc-reg" type="text" placeholder="dd/mm/yyyy" style="direction:ltr"></div>
+      <div class="modal-row" style="margin-top:6px"><label>תוקף ביטוח חובה</label><input id="mdoc-ins" type="text" placeholder="dd/mm/yyyy" style="direction:ltr"></div>
+    </div>
+    <div id="mdoc-lic" style="display:none">
+      <div class="modal-row" style="margin-top:6px"><label>תוקף רישיון נהיגה</label><input id="mdoc-licexp" type="text" placeholder="dd/mm/yyyy" style="direction:ltr"></div>
+      <div class="modal-row" style="margin-top:6px"><label>מספר רישיון / ת.ז</label><input id="mdoc-licnum" type="text" style="direction:ltr"></div>
+    </div>
+    <div id="mdoc-warn" style="font-size:0.74rem;color:#b45309;margin-top:8px"></div>
+    <div class="btn-row" style="margin-top:12px">
+      <button class="btn btn-secondary" onclick="document.getElementById('mdoc-modal').classList.remove('open')">ביטול</button>
+      <button class="btn btn-green" id="mdoc-save" onclick="saveManualDoc()">💾 שמור בתיק</button>
+    </div>
+  </div>
+</div>
+<input type="file" id="mdoc-file" accept="image/*" multiple capture="environment" style="display:none" onchange="onManualDocFiles(this)">
+
 <div class="modal-overlay" id="empdocs-modal">
   <div class="modal" style="max-width:600px">
     <h3 id="empdocs-title">📁 מסמכי עובד</h3>
