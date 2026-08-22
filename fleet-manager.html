@@ -352,11 +352,13 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
 
 <!-- ═══ הנציג: שוטר / רמזור עם בועת קומיקס מתחלפת ═══ -->
 <style>
-#mascot{display:none;position:fixed;left:14px;bottom:86px;z-index:600;flex-direction:column;align-items:flex-start;gap:7px;cursor:pointer;pointer-events:none}
-.mascot-bubble{max-width:240px;background:#fff;color:#0f172a;border:2.5px solid #1e3a8a;border-radius:15px;padding:9px 13px;font-size:0.82rem;font-weight:800;box-shadow:0 8px 22px rgba(0,0,0,.2);opacity:0;transform:translateY(10px) scale(.85);transform-origin:bottom left;transition:opacity .3s cubic-bezier(.17,.67,.3,1.4),transform .3s cubic-bezier(.17,.67,.3,1.4);position:relative;line-height:1.45}
+/* הבובה ישבה באותה פינה של .agent-fab (left:16px) והסתירה אותו.
+   עברה לפינה הנגדית; הבועה והזנב עוברים איתה. */
+#mascot{display:none;position:fixed;right:14px;bottom:86px;z-index:600;flex-direction:column;align-items:flex-end;gap:7px;cursor:pointer;pointer-events:none}
+.mascot-bubble{max-width:240px;background:#fff;color:#0f172a;border:2.5px solid #1e3a8a;border-radius:15px;padding:9px 13px;font-size:0.82rem;font-weight:800;box-shadow:0 8px 22px rgba(0,0,0,.2);opacity:0;transform:translateY(10px) scale(.85);transform-origin:bottom right;transition:opacity .3s cubic-bezier(.17,.67,.3,1.4),transform .3s cubic-bezier(.17,.67,.3,1.4);position:relative;line-height:1.45}
 .mascot-bubble.show{opacity:1;transform:translateY(0) scale(1)}
-.mascot-bubble::after{content:'';position:absolute;left:22px;bottom:-11px;width:0;height:0;border:10px solid transparent;border-top-color:#1e3a8a;border-bottom:0}
-.mascot-bubble::before{content:'';position:absolute;left:24px;bottom:-7px;width:0;height:0;border:7px solid transparent;border-top-color:#fff;border-bottom:0;z-index:1}
+.mascot-bubble::after{content:'';position:absolute;right:22px;bottom:-11px;width:0;height:0;border:10px solid transparent;border-top-color:#1e3a8a;border-bottom:0}
+.mascot-bubble::before{content:'';position:absolute;right:24px;bottom:-7px;width:0;height:0;border:7px solid transparent;border-top-color:#fff;border-bottom:0;z-index:1}
 .mascot-body{animation:mascotBob 2.8s ease-in-out infinite;filter:drop-shadow(0 5px 8px rgba(0,0,0,.22));pointer-events:auto;cursor:pointer}
 #mascot:hover .mascot-body{animation-duration:.7s}
 @keyframes mascotBob{0%,100%{transform:translateY(0) rotate(-2deg)}50%{transform:translateY(-6px) rotate(2deg)}}
