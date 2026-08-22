@@ -1253,15 +1253,15 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
   <!-- forms menu -->
   <div id="forms-menu">
     <div class="section-hdr"><span class="section-title">📝 טפסים</span></div>
+    <details class="settings-box" id="forms-settings">
+      <summary>⚙️ הגדרות וכלים</summary>
+      <div class="settings-body">
+        <div class="settings-grid">
     <div class="form-card" onclick="openInspectionForm()" style="background:linear-gradient(135deg,#1e3a8a,#3b82f6);border-color:#1e3a8a">
       <span style="font-size:2.2rem">🚗</span>
       <div><div style="font-weight:800;color:#fff;font-size:1rem">ביקורת קצין בטיחות</div>
       <div style="font-size:0.75rem;color:#dbeafe">מילוי דיגיטלי בשטח — נשמר בתיק הרכב ונשלח למייל</div></div>
     </div>
-    <details class="settings-box" id="forms-settings">
-      <summary>⚙️ הגדרות וכלים</summary>
-      <div class="settings-body">
-        <div class="settings-grid">
     <div class="form-card" onclick="copyBotLink()" style="background:linear-gradient(135deg,#4f46e5,#7c3aed);border-color:#4f46e5;margin-top:10px">
       <span style="font-size:2.2rem">🤖</span>
       <div><div style="font-weight:800;color:#fff;font-size:1rem">קישור לבוט נדי (לנהגים)</div>
@@ -7705,6 +7705,16 @@ async function _mdocScan() {
 
 // מחיקת מסמך מהתיק. מסמך שהגיע כקריאה מהעובד נמחק ממנה בלבד כשאפשר,
 // כדי שלא תימחק גם הקריאה עצמה ושאר הקבצים שהוגשו איתה.
+// פתיחת ביקורת לרכב שהמגירה שלו פתוחה — סוגר את המגירה, עובר ללשונית
+// הטפסים ופותח את הטופס עם מספר הרכב כבר בפנים.
+function startInspectionFor(plate) {
+  document.getElementById('empdocs-modal').classList.remove('open');
+  const btn = document.querySelector('.nav-btn[data-tab="forms"]');
+  if (typeof showSystem === 'function') showSystem('fleet', true);
+  showTab('forms', btn);
+  openInspectionForm(plate);
+}
+
 async function deleteEmpDoc(cat, di) {
   const D = window._EMPDOCS; const doc = D && D[cat] && D[cat][di];
   if (!doc || !doc._ref) { toast('לא ניתן למחוק את הפריט הזה', true); return; }
@@ -7901,6 +7911,7 @@ async function openEmployeeDocs(plate){
           <button class="btn btn-secondary" style="padding:4px 10px;font-size:0.72rem" onclick="openManualDoc('registration')">🚗 רישיון רכב</button>
           <button class="btn btn-secondary" style="padding:4px 10px;font-size:0.72rem" onclick="openManualDoc('insurance')">🛡️ ביטוח</button>
           <button class="btn btn-secondary" style="padding:4px 10px;font-size:0.72rem" onclick="openManualDoc('license')">🪪 רישיון נהיגה</button>
+          <button class="btn btn-primary" style="padding:4px 10px;font-size:0.72rem" onclick="startInspectionFor('${esc(v.plate)}')">🛡️ ביקורת קצין בטיחות</button>
         </div>`
       + `<div style="font-size:0.72rem;color:#94a3b8;margin-bottom:8px">מסמכי הנהג עוברים עם העובד · מסמכי הרכב נשארים עם הרכב</div>`
       + sec('📋','נהלים ואחריות · <span style="color:#7c3aed">עם הנהג</span>', D.decls.length, declHtml)
