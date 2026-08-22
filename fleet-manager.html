@@ -10402,7 +10402,7 @@ function opNew() {
   if (opEl('license'))   opEl('license').value   = OP_PROFILE.license || o.certNum || '';
   // משרד השמאות אינו חברת הצי שמנוהלת במערכת. ברירת מחדל מ-COMPANY_NAME
   // הכניסה "נופר אנרגיה" לכותרת של כל חוות דעת.
-  if (opEl('office'))    opEl('office').value    = OP_PROFILE.office || '';
+  if (opEl('office'))    opEl('office').value    = OP_PROFILE.office || opDefaultOffice();
   if (opEl('declaration')) opEl('declaration').value = OP_PROFILE.declaration || OP_DECLARATION;
   OP_EDU   = (OP_PROFILE.education && OP_PROFILE.education.length) ? OP_PROFILE.education.slice() : OP_EDU_DEFAULT.slice();
   OP_NOTES = OP_NOTE_DEFAULT.slice();
@@ -10411,6 +10411,12 @@ function opNew() {
   document.getElementById('op-list').style.display = 'none';
   document.getElementById('op-form').style.display = '';
 }
+
+// משרד השמאות של בעל המערכת, כברירת מחדל בסביבת העבודה שלו בלבד.
+// לקוח אחר שמשתמש בשמAI לא יקבל את שם המשרד הזה בדוחות שלו, ולכן
+// זה מוגבל לפי דייר. ערך שנשמר בפרופיל תמיד גובר על ברירת המחדל.
+const OP_OFFICE_DEFAULT = 'ר.מ מרציאנו שמאות וסקרים';
+function opDefaultOffice() { return TENANT === 'nofar' ? OP_OFFICE_DEFAULT : ''; }
 
 let OP_PROFILE = {};   // פרטי השמאי — נשמרים ב-main.appraiser
 
