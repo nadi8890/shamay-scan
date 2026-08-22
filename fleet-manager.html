@@ -3064,7 +3064,9 @@ let _costImportNote = '';
 function _renderCostImportPreview(skipped) {
   const list = _costImportAgg, cat = COST_LABEL[_costImportCat] || _costImportCat;
   const grand = list.reduce((s, r) => s + (Number(r.amt) || 0), 0);
-  const _nm = pk => { const v = VEHICLES.find(x => _cpk(x.plate) === _cpk(pk)); return v ? cleanName(v.driverName) : '<span style="color:#dc2626">לא בצי</span>'; };
+  // רכב שאינו בצי נבדק מול היסטוריית ההחזקה, ולכן ההוצאה משויכת לעובד
+  // שהחזיק בו באותו חודש במקום להיראות כרכב אלמוני.
+  const _nm = (pk, mk) => holderLabel(pk, mk);
   document.getElementById('costimp-title').textContent = `📥 אישור ייבוא — ${cat}`;
   document.getElementById('costimp-body').innerHTML =
     `<div style="font-size:0.85rem;margin-bottom:8px">${list.length} רכבים · סה"כ <b style="color:#059669">₪${Math.round(grand).toLocaleString()}</b>${skipped && skipped.length ? ` · <span style="color:#b45309">${skipped.length} קבצים לא זוהו</span>` : ''}<br><span style="font-size:0.72rem;color:var(--muted)">אפשר לתקן סכום/חודש לפני הייבוא. שורה עם 0 לא תיובא.</span>${_costImportNote ? `<br><span style="font-size:0.72rem;color:#b45309">⚠️ ${esc(_costImportNote)}</span>` : ''}</div>
@@ -3072,7 +3074,7 @@ function _renderCostImportPreview(skipped) {
      <thead><tr style="position:sticky;top:0;background:#f8fafc"><th style="padding:5px;border:1px solid var(--border)">רכב</th><th style="padding:5px;border:1px solid var(--border)">נהג</th><th style="padding:5px;border:1px solid var(--border)">חודש</th><th style="padding:5px;border:1px solid var(--border)">₪</th></tr></thead>
      <tbody>${list.map((r, i) => `<tr>
        <td style="padding:3px 6px;border:1px solid var(--border);direction:ltr;font-weight:700">${esc(r.plate)}${r.sure === false ? ' <span title="המספר נוחש מהטקסט — ודא שהוא נכון" style="color:#b45309">⚠</span>' : ''}${r.ai ? ' <span title="זוהה בסריקת AI" style="color:#7c3aed;font-size:0.7rem">AI</span>' : ''}</td>
-       <td style="padding:3px 6px;border:1px solid var(--border);font-size:0.74rem">${_nm(r.plate)}</td>
+       <td style="padding:3px 6px;border:1px solid var(--border);font-size:0.74rem">${_nm(r.plate, r.mk)}</td>
        <td style="padding:3px 6px;border:1px solid var(--border)"><input value="${esc(r.mk)}" oninput="_costImportAgg[${i}].mk=this.value.trim()" style="width:74px;font-size:0.76rem;text-align:center"></td>
        <td style="padding:3px 6px;border:1px solid var(--border)"><input type="number" value="${Math.round(r.amt)}" oninput="_costImportAgg[${i}].amt=parseFloat(this.value)||0" style="width:84px;text-align:left"></td>
      </tr>`).join('')}</tbody></table></div>
@@ -3260,7 +3262,14 @@ function renderManagerDashboard() {
   const _rows = [..._plateSet].filter(Boolean).map(pk => {
     const rr = vehicleMonthCost(pk, _lastMonth);
     const vv = VEHICLES.find(x => _cpk(x.plate) === pk);
-    return { plate: pk, name: vv ? cleanName(vv.driverName) : ('רכב ' + pk), total: rr.total, brk: rr.brk };
+    // רכב שהוחזר עדיין נושא הוצאות. השם נלקח מהיסטוריית ההחזקה, כדי
+    // שהעלות תשויך לעובד ולא תופיע כ"רכב 12345678" מנותק.
+    let nm = vv ? cleanName(vv.driverName) : '';
+    if (!nm) {
+      const h = plateHolder(pk, _lastMonth === 'all' ? '' : _lastMonth);
+      nm = h.name ? h.name + (h.active ? ' · רכב קודם' : ' · עזב') : ('רכב ' + pk);
+    }
+    return { plate: pk, name: nm, total: rr.total, brk: rr.brk };
   }).filter(r => r.total > 0).sort((a, b) => b.total - a.total);
   const _grand = _rows.reduce((s, r) => s + r.total, 0);
   const _monthEl = document.getElementById('dash-cost-month');
@@ -3681,6 +3690,48 @@ function holderOnDate(plate, dateStr){
   if (rec && rec.employee) return _nameBeforeDash(rec.employee);
   return v ? _nameBeforeDash(v.driverName) : '';           // גיבוי — הנהג הנוכחי
 }
+// רכב שיצא מהצי אינו "לא בצי" — הוא היה של מישהו. היסטוריית ההחזקה
+// יודעת של מי ובאיזו תקופה, ולכן אפשר לשייך הוצאה של חודש מסוים לעובד
+// גם אחרי שהרכב הוחזר. משמש בייבוא העלויות ובדשבורד.
+function _monthMidDate(mk) {
+  const m = /^(\d{4})-(\d{2})$/.exec(String(mk || ''));
+  return m ? new Date(+m[1], +m[2] - 1, 15) : null;   // אמצע החודש כנקודת ייחוס
+}
+function plateHolder(plate, mk) {
+  const pd = String(plate || '').replace(/\D/g, '');
+  if (!pd) return { name: '', inFleet: false, active: false };
+  const v = (typeof _vehByPlate === 'function') ? _vehByPlate(pd) : null;
+  if (v) return { name: cleanName(v.driverName), inFleet: true, active: true };
+  const recs = (typeof RETURNS !== 'undefined' ? RETURNS : [])
+    .filter(r => String(r.plate || '').replace(/\D/g, '') === pd);
+  if (!recs.length) return { name: '', inFleet: false, active: false };
+  const D = _monthMidDate(mk);
+  // קודם רשומה שתקופתה מכסה את החודש; אם אין — האחרונה שנרשמה לרכב
+  let rec = null;
+  if (D) rec = recs.find(r => {
+    const f = _anyDate(r.fromDate), t = _anyDate(r.toDate);
+    if (!f && !t) return false;
+    if (t && D > t) return false;
+    if (f && D < f) return false;
+    return true;
+  });
+  if (!rec) rec = recs[0];
+  const nm = _nameBeforeDash(rec.employee || '');
+  if (!nm) return { name: '', inFleet: false, active: false };
+  // "פעיל" = לעובד יש היום רכב בצי
+  const dk = driverKey(nm);
+  const active = !!dk && (VEHICLES || []).some(x => driverKey(x.driverName) === dk);
+  return { name: nm, inFleet: false, active, period: (rec.fromDate || '') + '–' + (rec.toDate || '') };
+}
+// תווית לתצוגה: שם העובד, ובסוגריים מה מצבו
+function holderLabel(plate, mk) {
+  const h = plateHolder(plate, mk);
+  if (h.inFleet) return esc(h.name || '');
+  if (!h.name) return '<span style="color:#dc2626">לא בצי</span>';
+  return esc(h.name) + ' <span style="color:#b45309;font-size:0.66rem">(' +
+    (h.active ? 'רכב קודם' : 'עובד שעזב') + ')</span>';
+}
+
 function autoFillHolder(plateId, dateId, driverId){
   const d = document.getElementById(driverId); if(!d) return;
   if (d.dataset && d.dataset.manual === '1') return;       // לא לדרוס שם שהוקלד ידנית
