@@ -730,7 +730,9 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
         <button class="btn btn-primary" style="padding:4px 11px;font-size:0.74rem" title="אפשר לבחור כמה קבצים ביחד: Excel, CSV או PDF" onclick="document.getElementById('cost-file').click()">📥 ייבוא חשבוניות (כמה ביחד)</button>
       </span>
     </div>
-    <input id="cost-file" type="file" accept=".csv,text/csv,.txt,.xlsx,.xls,.xlsm,.pdf,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" multiple style="display:none" onchange="onCostFile(this)">
+    <!-- בלי accept: סינון לפי סיומת/MIME הסתיר קבצי אקסל תקינים בחלק
+         מהמערכות, ואז נראה כאילו "אי אפשר להעלות". הבדיקה בקוד. -->
+    <input id="cost-file" type="file" multiple style="display:none" onchange="onCostFile(this)">
     <div id="dash-costs-view"></div>
   </div>
   <div class="dash-sec" id="dash-divisions-sec"><div class="dash-sec-hdr">🏷️ חלוקה לפי חטיבה</div><div id="dash-divisions"></div></div>
@@ -1277,7 +1279,7 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
       <div><div style="font-weight:800;color:#fff;font-size:1rem">שיוך מיילים לנהגים (מאקסל)</div>
       <div style="font-size:0.75rem;color:#ede9fe">העלה קובץ אנשי קשר — נתאים מייל לכל נהג לפי שם, ונראה למי חסר</div></div>
     </div>
-    <input id="drvemail-file" type="file" accept=".xlsx,.xls,.csv" style="display:none" onchange="onDriverEmailFile(this)">
+    <input id="drvemail-file" type="file" style="display:none" onchange="onDriverEmailFile(this)">
     <div class="form-card" onclick="mailAllEmployeeDocs()" style="background:linear-gradient(135deg,#065f46,#059669);border-color:#065f46;margin-top:10px">
       <div>
         <div style="font-weight:800;color:#fff;font-size:1rem">📧 שלח לכל עובד את המסמכים שלו</div>
@@ -1606,7 +1608,7 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
       </p>
       <label class="btn btn-primary" style="display:inline-block;cursor:pointer">
         בחר קובץ…
-        <input type="file" id="imp-file" accept=".xlsx,.xls,.csv" style="display:none" onchange="handleImportFile(this)">
+        <input type="file" id="imp-file" style="display:none" onchange="handleImportFile(this)">
       </label>
       <span id="imp-file-name" style="font-size:0.8rem;color:var(--muted);margin-inline-start:10px"></span>
       <div id="imp-file-err" style="color:#dc2626;font-size:0.82rem;font-weight:700;margin-top:10px;display:none"></div>
@@ -2890,10 +2892,12 @@ async function onCostFile(input) {
         if (rr.length) { recs.push(...rr); if (sheets.length > 1) console.log('cost import: sheet', used); }
         else skipped.push(file.name + ' — נקרא (' + sheets.length + ' גיליונות, ' +
           sheets.reduce((n, sh) => n + sh.rows.length, 0) + ' שורות) אך לא זוהו עמודת רכב ועמודת סכום');
-      } else {
+      } else if (/\.(csv|txt|tsv)$/i.test(nm) || !/\.[a-z0-9]+$/i.test(nm)) {
         const txt = await file.text();
         const rr = (category === 'fuel') ? _fuelRecords(txt) : _tabularRecords(_csvRows(txt), category);
         if (rr.length) recs.push(...rr); else skipped.push(file.name + ' — לא זוהו עמודות רכב וסכום');
+      } else {
+        skipped.push(file.name + ' — סוג קובץ לא נתמך. נתמכים: Excel‏ (xlsx/xls/xlsm), CSV ו-PDF');
       }
     } catch (e) { skipped.push(file.name + ' — שגיאה בקריאה'); console.log('cost import', file.name, e); }
   }
@@ -10267,6 +10271,18 @@ let OP_DMG = [];           // שורות נזק: {kind, desc, sku, cost}
 let OP_EDU = [];           // השכלה וניסיון — שורה לפריט
 let OP_NOTES = [];         // הערות חוות הדעת — פסקה לשורה
 let OP_EDIT_ID = null;
+// מספר תיק רץ. נגזר מהתיקים השמורים ולא ממונה נפרד — מונה נפרד היה
+// מתפצל בין מכשירים ונשבר כשרשומה נמחקת. נספרים רק ערכים מספריים,
+// ולכן מספר ידני בפורמט אחר אינו מזיז את הרץ.
+let OP_AUTO_CASE = '';
+function opNextCase() {
+  let max = 0;
+  (typeof OP_LIST !== 'undefined' ? OP_LIST : []).forEach(r => {
+    const v = String((r && r.case) || '').trim();
+    if (/^\d+$/.test(v)) max = Math.max(max, parseInt(v, 10));
+  });
+  return String(max + 1);
+}
 let OP_LIST = [];
 
 const OP_FIELDS = ['case','date','casetype','damagetype','eventdate','inspdate','inspplace',
@@ -10392,6 +10408,7 @@ function opNew() {
   if (opEl('date')) opEl('date').value = iso;
   if (opEl('inspdate')) opEl('inspdate').value = iso;
   if (opEl('vat')) opEl('vat').value = '18';
+  if (opEl('case')) { OP_AUTO_CASE = opNextCase(); opEl('case').value = OP_AUTO_CASE; }
   if (opEl('casetype')) opEl('casetype').value = 'פרטי';
   if (opEl('damagetype')) opEl('damagetype').value = 'תאונה';
   if (opEl('pricelist')) opEl('pricelist').value = 'לוי יצחק';
@@ -10532,6 +10549,17 @@ function opCollect() {
 async function opSave() {
   if (!opVal('plate') && !opVal('case')) { toast('הזן מספר רישוי או מספר תיק', true); return; }
   const rec = opCollect();
+  // שני תיקים חדשים שנפתחו במקביל יכולים לקבל את אותו מספר. אם המספר
+  // שהוצע כבר תפוס, נלקח הבא בתור. מספר שהוקלד ידנית לא נוגעים בו.
+  if (!OP_EDIT_ID) {
+    const taken = new Set((OP_LIST || []).map(r => String((r && r.case) || '').trim()));
+    if (String(rec.case || '').trim() === OP_AUTO_CASE && taken.has(OP_AUTO_CASE)) {
+      rec.case = opNextCase();
+      OP_AUTO_CASE = rec.case;
+      if (opEl('case')) opEl('case').value = rec.case;
+      toast('מספר התיק היה תפוס — עודכן ל-' + rec.case);
+    }
+  }
   if (JSON.stringify(rec).length > 900000) { toast('המסמך גדול מדי — הסר כמה תמונות', true); return; }
   try {
     await fcol().doc(rec.id).set(rec);
@@ -10546,6 +10574,12 @@ async function opLoadList() {
   try { OP_LIST = (await readDriverDocs('opinion')).sort((a, b) => (b.created||0) - (a.created||0)); }
   catch(e) { OP_LIST = []; }
   const c = document.getElementById('op-count'); if (c) c.textContent = OP_LIST.length;
+  // הרשימה נטענת אחרי opNew, ולכן המספר נקבע סופית כאן — ורק אם לא
+  // נגעו בו, כדי לא לדרוס מספר שהוקלד ידנית.
+  if (!OP_EDIT_ID && opEl('case') && opEl('case').value === OP_AUTO_CASE) {
+    OP_AUTO_CASE = opNextCase();
+    opEl('case').value = OP_AUTO_CASE;
+  }
   const box = document.getElementById('op-list');
   if (!box) return;
   box.innerHTML = OP_LIST.length
@@ -10842,6 +10876,39 @@ function opHtml() {
     (i === pages.length - 1 ? ';padding-bottom:0' : '') + '">' + html + '</section>').join('');
 }
 
+// חישוב שבירת העמודים של html2pdf יכול להותיר עמוד שלא נכנס אליו דבר,
+// והוא מגיע למשתמש כדף לבן. הקנבס נחתך לעמודים בגובה קבוע, ולכן אפשר
+// לבדוק כל פרוסה ולמחוק את מי שאין בה דיו. דגימה כל 4 פיקסלים מספיקה
+// כדי להבחין בין דף ריק לדף עם תוכן, ושומרת על מהירות.
+function _pdfDropBlankPages(pdf, canvas, usableWmm, usableHmm) {
+  if (!pdf || !canvas || !canvas.width) return 0;
+  let g;
+  try { g = canvas.getContext('2d', { willReadFrequently: true }); } catch(e) { return 0; }
+  if (!g) return 0;
+  const pageH = Math.round(canvas.width * (usableHmm / usableWmm));
+  const total = pdf.internal.getNumberOfPages();
+  const hasInk = (top) => {
+    const h = Math.min(pageH, canvas.height - top);
+    if (h <= 0) return false;
+    let data;
+    try { data = g.getImageData(0, top, canvas.width, h).data; } catch(e) { return true; }
+    for (let y = 0; y < h; y += 4) {
+      const row = y * canvas.width * 4;
+      for (let x = 0; x < canvas.width; x += 4) {
+        const i = row + x * 4;
+        if (data[i] < 245 || data[i+1] < 245 || data[i+2] < 245) return true;
+      }
+    }
+    return false;
+  };
+  const blanks = [];
+  for (let n = 1; n <= total; n++) if (!hasInk((n - 1) * pageH)) blanks.push(n);
+  // אף פעם לא מוחקים את כל העמודים — עדיף PDF חלקי מקובץ שבור
+  if (blanks.length >= total) return 0;
+  for (let k = blanks.length - 1; k >= 0; k--) pdf.deletePage(blanks[k]);
+  return blanks.length;
+}
+
 async function opPdf() {
   if (!opVal('plate') && !opVal('case')) { toast('הזן מספר רישוי או מספר תיק', true); return; }
   // html2canvas מצלם ריק כשמעבירים לו אלמנט שהוא עצמו position:absolute
@@ -10861,7 +10928,7 @@ async function opPdf() {
   toast('מכין את חוות הדעת…');
   try {
     await (document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve());
-    await html2pdf().set({
+    const worker = html2pdf().set({
       margin: [12, 10, 12, 10],
       image: { type: 'jpeg', quality: 0.92 },
       // בלי כפיית width/windowWidth — html2canvas מודד את האלמנט עצמו,
@@ -10869,8 +10936,11 @@ async function opPdf() {
       html2canvas: { scale: 2, backgroundColor: '#ffffff' },
       jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
       pagebreak: { mode: ['css', 'legacy'], before: '.op-brk', avoid: ['tr', 'img'] }
-    }).from(doc).save('חוות דעת ' + (opVal('case') || opVal('plate')) + '.pdf');
-    toast('חוות הדעת נוצרה ✓');
+    }).from(doc).toPdf();
+    const pdf = await worker.get('pdf');
+    const removed = _pdfDropBlankPages(pdf, await worker.get('canvas'), 190, 273);
+    pdf.save('חוות דעת ' + (opVal('case') || opVal('plate')) + '.pdf');
+    toast('חוות הדעת נוצרה ✓' + (removed ? ' (הוסרו ' + removed + ' עמודים ריקים)' : ''));
   } catch(e) { console.log('opPdf', e); toast('שגיאה ביצירת PDF', true); }
   finally { document.body.removeChild(holder); }
 }
