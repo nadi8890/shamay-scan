@@ -2725,6 +2725,16 @@ async function _pdfText(file) {
   for (let p = 1; p <= pdf.numPages; p++) { const pg = await pdf.getPage(p); const tc = await pg.getTextContent(); out += tc.items.map(i => i.str).join(' ') + '\n'; }
   return out;
 }
+// כשקובץ נדחה, ההודעה "לא זוהו עמודות" אינה אומרת דבר על מה באמת יש
+// בקובץ. הצצה לשתי השורות הראשונות מאפשרת להבין מיד אם הבעיה בכותרות,
+// בפורמט מספר הרכב, או בגיליון הלא נכון.
+function _sheetPeek(rows) {
+  const cut = a => (a || []).slice(0, 8).map(c => String(c == null ? '' : c).slice(0, 14)).join(' | ');
+  if (!rows || !rows.length) return '';
+  const l1 = cut(rows[0]), l2 = rows[1] ? cut(rows[1]) : '';
+  return String.fromCharCode(10) + 'שורה 1: ' + l1 + (l2 ? String.fromCharCode(10) + 'שורה 2: ' + l2 : '');
+}
+
 // טבלה (Excel/CSV): זיהוי עמודת רכב + סכום (+תאריך) → רשומות
 function _tabularRecords(rows, category) {
   if (!rows || rows.length < 2) return [];
@@ -2760,6 +2770,9 @@ function _tabularRecords(rows, category) {
     if (score > amtBest) { amtBest = score; amtCol = c; }
   }
   if (plateCol < 0 || amtCol < 0 || plateBest < 0.3) return [];
+  let litCol = -1;
+  if (category === 'fuel') for (let c = 0; c < ncol; c++)
+    if (c !== plateCol && c !== amtCol && hdrHit(c, /ליטר|כמות|litre|liter/i)) { litCol = c; break; }
   let dateCol = -1;
   for (let c = 0; c < ncol; c++) if (dataRows.some(r => /\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4}/.test(String(r[c] || '')))) { dateCol = c; break; }
   const def = _curMonth(); const out = [];
@@ -2768,7 +2781,14 @@ function _tabularRecords(rows, category) {
     const amt = num(r[amtCol]); if (isNaN(amt) || amt <= 0) return;
     let mk = def;
     if (dateCol >= 0) { const dm = String(r[dateCol]).match(/(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})/); if (dm) { const y = dm[3].length === 2 ? '20' + dm[3] : dm[3]; mk = `${y}-${dm[2].padStart(2, '0')}`; } }
-    out.push({ plate, mk, amt: Math.round(amt * 100) / 100, cat: category });
+    const rec = { plate, mk, amt: Math.round(amt * 100) / 100, cat: category };
+    // דוח דלק מאקסל אינו בפורמט הקבוע, ולכן עמודת הליטרים מזוהה לפי
+    // הכותרת. בלעדיה הצריכה הממוצעת לא הייתה מחושבת.
+    if (category === 'fuel' && litCol >= 0) {
+      const lt = num(r[litCol]);
+      if (!isNaN(lt) && lt > 0) rec.liters = lt;
+    }
+    out.push(rec);
   });
   return out;
 }
@@ -2884,18 +2904,27 @@ async function onCostFile(input) {
         else skipped.push(file.name + (r && r._skip ? ' — ' + r._skip : ''));
       } else if (nm.endsWith('.xlsx') || nm.endsWith('.xls') || nm.endsWith('.xlsm')) {
         const sheets = _xlsxSheets(await file.arrayBuffer());
-        let rr = [], used = '';
+        let rr = [], used = '', widest = [];
         for (const sh of sheets) {
-          const got = (category === 'fuel') ? _fuelRecords(_rowsToCsv(sh.rows)) : _tabularRecords(sh.rows, category);
+          // דוח דלק בפורמט הקבוע נקרא קודם; כל שאר הגיליונות — ובכללם
+          // דוח דלק רגיל מאקסל — עוברים למנתח הטבלאי. בלי הנפילה הזו
+          // כל קובץ דלק שאינו ה-CSV הקבוע נדחה בלי סיבה נראית לעין.
+          let got = (category === 'fuel') ? _fuelRecords(_rowsToCsv(sh.rows)) : [];
+          if (!got.length) got = _tabularRecords(sh.rows, category);
           if (got.length > rr.length) { rr = got; used = sh.name; }
+          if (sh.rows.length > widest.length) widest = sh.rows;
         }
         if (rr.length) { recs.push(...rr); if (sheets.length > 1) console.log('cost import: sheet', used); }
         else skipped.push(file.name + ' — נקרא (' + sheets.length + ' גיליונות, ' +
-          sheets.reduce((n, sh) => n + sh.rows.length, 0) + ' שורות) אך לא זוהו עמודת רכב ועמודת סכום');
+          sheets.reduce((n, sh) => n + sh.rows.length, 0) + ' שורות) אך לא זוהו עמודת רכב ועמודת סכום.' +
+          _sheetPeek(widest));
       } else if (/\.(csv|txt|tsv)$/i.test(nm) || !/\.[a-z0-9]+$/i.test(nm)) {
         const txt = await file.text();
-        const rr = (category === 'fuel') ? _fuelRecords(txt) : _tabularRecords(_csvRows(txt), category);
-        if (rr.length) recs.push(...rr); else skipped.push(file.name + ' — לא זוהו עמודות רכב וסכום');
+        const rows = _csvRows(txt);
+        let rr = (category === 'fuel') ? _fuelRecords(txt) : [];
+        if (!rr.length) rr = _tabularRecords(rows, category);
+        if (rr.length) recs.push(...rr);
+        else skipped.push(file.name + ' — לא זוהו עמודות רכב וסכום.' + _sheetPeek(rows));
       } else {
         skipped.push(file.name + ' — סוג קובץ לא נתמך. נתמכים: Excel‏ (xlsx/xls/xlsm), CSV ו-PDF');
       }
