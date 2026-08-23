@@ -1224,7 +1224,7 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
 <!-- Bottom Nav -->
 <nav class="bottom-nav" role="tablist" aria-label="ניווט ראשי">
   <button class="nav-btn active" data-tab="fleet" data-sys="fleet" type="button" role="tab" aria-selected="true" aria-controls="tab-fleet" onclick="showTab('fleet',this)"><span class="icon" aria-hidden="true">🚗</span>ציי רכב</button>
-  <button class="nav-btn" data-tab="alerts" data-sys="fleet" type="button" role="tab" aria-selected="false" aria-controls="tab-alerts" style="position:relative" onclick="showTab('alerts',this)"><span class="icon" aria-hidden="true">🔔</span>התראות<span id="alerts-nav-badge" style="display:none;position:absolute;top:1px;left:5px;min-width:17px;height:17px;background:#dc2626;color:#fff;border-radius:999px;font-size:0.62rem;font-weight:800;line-height:17px;text-align:center;padding:0 4px;box-shadow:0 1px 4px rgba(0,0,0,.25)">0</span></button>
+  <button class="nav-btn" data-tab="alerts" data-sys="fleet" type="button" role="tab" aria-selected="false" aria-controls="tab-alerts" style="position:relative" onclick="showTab('alerts',this)"><span class="icon" aria-hidden="true">🔔</span>התראות</button>
   <button class="nav-btn" data-tab="incidents" data-sys="fleet" type="button" role="tab" aria-selected="false" aria-controls="tab-incidents" onclick="showTab('incidents',this)"><span class="icon" aria-hidden="true">💥</span>אירועים</button>
   <button class="nav-btn" data-tab="tasks" data-sys="fleet" type="button" role="tab" aria-selected="false" aria-controls="tab-tasks" onclick="showTab('tasks',this)"><span class="icon" aria-hidden="true">✅</span>משימות</button>
   <button class="nav-btn nav-secondary" data-tab="violations" data-sys="fleet" type="button" role="tab" aria-selected="false" aria-controls="tab-violations" onclick="showTab('violations',this)"><span class="icon" aria-hidden="true">📄</span>דוחות</button>
@@ -3696,11 +3696,15 @@ function renderFleet() {
         return `<td class="cell-yellow"><span class="badge badge-yellow" style="background:#fefce8;color:#713f12;border:1px solid #fde68a">📝 למילוי</span><br><span style="color:#b45309;font-size:0.58rem">הנהג צריך לחתום</span></td>`;
       })()}
       <td class="${yc(v.vehicleFrom)}" style="font-size:0.73rem;white-space:nowrap">${esc(v.vehicleFrom)||'—'}</td>
-      <td style="white-space:nowrap">
-        <button class="btn btn-gray" style="padding:3px 8px;font-size:0.7rem" title="שלח טפסי קבלת רכב לנהג" onclick="event.stopPropagation();openDeclShare('${esc(v.plate)}')">📨</button>
-        <button class="btn btn-gray" style="padding:3px 8px;font-size:0.7rem" title="כל המסמכים של העובד" onclick="event.stopPropagation();openEmployeeDocs('${esc(v.plate)}')">📁</button>
-        <button class="btn btn-gray" style="padding:3px 8px;font-size:0.7rem" title="אישור החזקה ברכב לעירייה — מילוי אוטומטי + עריכה → PDF" onclick="event.stopPropagation();openCityPermit('${esc(v.plate)}')">🏛️</button>
-        <button class="btn btn-gray" style="padding:3px 8px;font-size:0.7rem" title="מחק רכב מהצי" onclick="event.stopPropagation();deleteVehicleRow('${esc(v.plate)}')">🗑️</button>
+      <td>
+        <!-- ארבעה כפתורים בשורה אחת הרחיבו את העמודה. רשת 2×2 חוסכת
+             כמחצית מהרוחב בלי לוותר על אף פעולה. -->
+        <div style="display:grid;grid-template-columns:repeat(2,auto);gap:3px;justify-content:start;width:max-content">
+          <button class="btn btn-gray" style="padding:3px 8px;font-size:0.7rem" title="שלח טפסי קבלת רכב לנהג" onclick="event.stopPropagation();openDeclShare('${esc(v.plate)}')">📨</button>
+          <button class="btn btn-gray" style="padding:3px 8px;font-size:0.7rem" title="כל המסמכים של העובד" onclick="event.stopPropagation();openEmployeeDocs('${esc(v.plate)}')">📁</button>
+          <button class="btn btn-gray" style="padding:3px 8px;font-size:0.7rem" title="אישור החזקה ברכב לעירייה — מילוי אוטומטי + עריכה → PDF" onclick="event.stopPropagation();openCityPermit('${esc(v.plate)}')">🏛️</button>
+          <button class="btn btn-gray" style="padding:3px 8px;font-size:0.7rem" title="מחק רכב מהצי" onclick="event.stopPropagation();deleteVehicleRow('${esc(v.plate)}')">🗑️</button>
+        </div>
       </td>
     </tr>`;
   }).join('');
@@ -6161,8 +6165,8 @@ async function loadPendingRequests() {
   try { items = await readDriverDocs('requirement'); } catch(e) { console.log('load reqs', e); }
   PENDING_REQS = items.filter(r => (r.status || 'pending') === 'pending').sort((a, b) => (b.created || 0) - (a.created || 0));
   const cnt = document.getElementById('pending-count'); if (cnt) cnt.textContent = PENDING_REQS.length;
-  const navB = document.getElementById('alerts-nav-badge');
-  if (navB) { if (PENDING_REQS.length) { navB.textContent = PENDING_REQS.length; navB.style.display = 'block'; } else navB.style.display = 'none'; }
+  // תג הספירה נשאר על הפעמון שלמעלה בלבד. שני מונים לאותו דבר, אחד
+  // למעלה ואחד למטה, רק הוסיפו רעש.
   const bellB = document.getElementById('rem-bell-badge');
   if (bellB) { if (PENDING_REQS.length) { bellB.textContent = PENDING_REQS.length; bellB.style.display = 'flex'; } else bellB.style.display = 'none'; }
   if (!PENDING_REQS.length) { box.style.display = 'none'; return; }
