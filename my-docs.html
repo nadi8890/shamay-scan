@@ -38,6 +38,10 @@ input{width:100%;border:1.5px solid #dde3ed;border-radius:10px;padding:12px;font
 .frm-sig{margin-top:9px;border-top:1px dashed #e2e8f0;padding-top:8px;cursor:pointer}
 .frm-sig img{max-width:190px;width:100%;display:block;border-radius:6px}
 .photo{width:88px;height:88px;border-radius:10px;overflow:hidden;border:1.5px solid #dde3ed;cursor:pointer;position:relative}
+.photo img{cursor:zoom-in;display:block;width:100%;height:100%;object-fit:cover}
+.dlbtn{position:absolute;top:3px;left:3px;background:rgba(15,23,42,.72);color:#fff;border:0;border-radius:7px;
+  width:24px;height:24px;font-size:0.8rem;cursor:pointer;line-height:1;padding:0}
+.dlbtn:hover{background:#1e3a8a}
 .photo img{width:100%;height:100%;object-fit:cover}
 .photo-label{position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,.55);color:#fff;font-size:0.56rem;padding:2px;text-align:center}
 .loading{text-align:center;padding:34px;color:#64748b}
@@ -147,11 +151,32 @@ function _dateBadge(s){
   const note = days<0?('פג לפני '+Math.abs(days)+' ימים'):(days<=30?('בעוד '+days+' ימים'):'בתוקף');
   return '<span class="badge '+cls+'">'+esc(s)+' · '+note+'</span>';
 }
+// עד כה אפשר היה רק להגדיל תמונה. עובד שצריך את המסמך לצירוף במקום
+// אחר נאלץ לצלם את המסך, ולכן נוספה הורדה עם שם קובץ אמיתי.
+let _ALLP = [];
+function _safeName(s){ return String(s||'').replace(/[\/:*?"<>|]/g,'-').replace(/\s+/g,' ').trim().slice(0,80); }
+function _dl(b64, name){
+  try{
+    const bin=atob(b64), bytes=new Uint8Array(bin.length);
+    for(let i=0;i<bin.length;i++) bytes[i]=bin.charCodeAt(i);
+    const url=URL.createObjectURL(new Blob([bytes],{type:'image/jpeg'}));
+    const a=document.createElement('a'); a.href=url; a.download=_safeName(name)||'document.jpg';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),20000);
+  }catch(e){ alert('לא הצלחתי להוריד את הקובץ'); }
+}
+function _dlOne(i){ const p=_ALLP[i]; if(p) _dl(p.b64, (p.label||'מסמך')+' '+(i+1)+'.jpg'); }
+async function _dlAll(){
+  for(let i=0;i<_ALLP.length;i++){ _dlOne(i); await new Promise(r=>setTimeout(r,220)); }
+}
 function _photoHtml(arr, fallback){
   if(!arr || !arr.length) return '<div style="color:#94a3b8;font-size:0.8rem">'+fallback+'</div>';
-  return '<div class="photos">'+arr.map(p =>
-    '<div class="photo" onclick="_zoom(\''+p.b64+'\')"><img src="data:image/jpeg;base64,'+p.b64+'">'+
-    (p.label?'<div class="photo-label">'+esc(p.label)+'</div>':'')+'</div>').join('')+'</div>';
+  return '<div class="photos">'+arr.map(p => {
+    const i = _ALLP.indexOf(p);
+    return '<div class="photo"><img src="data:image/jpeg;base64,'+p.b64+'" onclick="_zoom(\'' + p.b64 + '\')">'+
+      (p.label?'<div class="photo-label">'+esc(p.label)+'</div>':'')+
+      '<button class="dlbtn" title="הורדה" onclick="event.stopPropagation();_dlOne('+i+')">⬇</button></div>';
+  }).join('')+'</div>';
 }
 function _formsHtml(arr){
   if(!arr || !arr.length) return '<div style="color:#94a3b8;font-size:0.8rem">עדיין לא חתמת על טפסים במערכת.</div>';
@@ -182,6 +207,7 @@ function render(d){
     '<div class="drow"><span>🚗 תוקף רישוי (טסט)</span>'+_dateBadge(d.registrationExpiry)+'</div>'+
     '<div class="drow"><span>🛡️ תוקף ביטוח חובה</span>'+_dateBadge(d.insuranceExpiry)+'</div>';
   const photos = d.photos || [];
+  _ALLP = photos;   // אינדקס יציב לכפתורי ההורדה
   const driverP = photos.filter(p => (p.cat||'')==='driver');
   const vehicleP = photos.filter(p => (p.cat||'')==='vehicle');
   document.getElementById('signed-forms').innerHTML = _formsHtml(d.forms);

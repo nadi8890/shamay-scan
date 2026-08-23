@@ -7895,6 +7895,28 @@ function shareMyDocsLink(){
   else _fallbackCopy(msg, done);
 }
 // ═══ מסך מנהל: כל המסמכים של עובד ═══
+// ═══ הורדת מסמכים למחשב ═══
+// המסמכים נשמרים כ-base64 בתוך הרשומה, ולכן הצפייה בהם הייתה פתיחה
+// בלשונית בלבד. שם קובץ אמיתי חוסך את "הורדה (3).jpg" בתיקיית ההורדות.
+function _safeName(s) {
+  return String(s || '').replace(/[\\/:*?"<>|]/g, '-').replace(/\s+/g, ' ').trim().slice(0, 80);
+}
+function _b64Blob(b64, mime) {
+  const bin = atob(b64); const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return new Blob([bytes], { type: mime || 'image/jpeg' });
+}
+function _downloadB64(b64, filename, mime) {
+  if (!b64) { toast('הקובץ לא זמין', true); return false; }
+  try {
+    const url = URL.createObjectURL(_b64Blob(b64, mime));
+    const a = document.createElement('a');
+    a.href = url; a.download = _safeName(filename) || 'document';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 20000);
+    return true;
+  } catch(e) { toast('שגיאה בהורדה', true); console.log('_downloadB64', e); return false; }
+}
 function _viewB64(b64, mime){
   if(!b64){ toast('הקובץ לא זמין', true); return; }
   try {
@@ -8202,6 +8224,49 @@ async function saveManualDoc() {
   });
 })();
 
+// שם הקובץ נבנה מהמסמך עצמו: סוג · רכב · תאריך · מספר סידורי
+// כותרת המסמך אינה תמיד שמורה ברשומה: היא קיימת רק בתצוגה מפוצלת.
+// לכן היא נגזרת מסוג הרשומה, ובאין כזה — מהמגירה שממנה ההורדה יצאה.
+const _CAT_TITLE = { vreg: 'רישיון רכב', vins: 'תעודת ביטוח', ldocs: 'רישיון נהיגה',
+                     vun: 'מסמך רכב', reqs: 'מסמך שהתבקש' };
+function _empDocName(doc, fi, ext, cat) {
+  const title = doc.title || (doc.reqType && _REQ_TITLE[doc.reqType]) ||
+                doc.reqLabel || _CAT_TITLE[cat] || 'מסמך';
+  const parts = [title];
+  if (doc.plate) parts.push(doc.plate);
+  else if (window._empdocsPlate) parts.push(window._empdocsPlate);
+  if (doc.driver) parts.push(String(doc.driver).split('-')[0].trim());
+  if (doc.dateStr) parts.push(String(doc.dateStr).replace(/\//g, '-'));
+  return parts.join(' · ') + (fi != null ? ' ' + (fi + 1) : '') + '.' + (ext || 'jpg');
+}
+function _empDownload(cat, di, fi) {
+  const D = window._EMPDOCS; const doc = D && D[cat] && D[cat][di]; if (!doc) return;
+  if (cat === 'reqs') {
+    const f = (doc.files || [])[fi]; if (!f) return;
+    _downloadB64(f.base64, _empDocName(doc, fi, f.kind === 'pdf' ? 'pdf' : 'jpg', cat), f.mime);
+  } else {
+    const b = (doc.images || [])[fi]; if (!b) return;
+    _downloadB64(b, _empDocName(doc, fi, 'jpg', cat), 'image/jpeg');
+  }
+}
+// הורדת כל המסמכים של הרכב הפתוח. הדפדפן חוסם מטח הורדות, ולכן יש
+// השהיה קצרה בין קובץ לקובץ.
+async function downloadAllEmpDocs() {
+  const D = window._EMPDOCS; if (!D) return;
+  const jobs = [];
+  ['vreg', 'vins', 'vun', 'ldocs'].forEach(cat => (D[cat] || []).forEach((doc, di) =>
+    (doc.images || []).forEach((_, fi) => jobs.push({ cat, di, fi }))));
+  (D.reqs || []).forEach((doc, di) => (doc.files || []).forEach((_, fi) => jobs.push({ cat: 'reqs', di, fi })));
+  if (!jobs.length) { toast('אין מסמכים להורדה', true); return; }
+  if (!confirm('להוריד ' + jobs.length + ' קבצים למחשב?')) return;
+  toast('מוריד ' + jobs.length + ' קבצים…');
+  for (let i = 0; i < jobs.length; i++) {
+    _empDownload(jobs[i].cat, jobs[i].di, jobs[i].fi);
+    await new Promise(r => setTimeout(r, 220));
+  }
+  toast('✓ ' + jobs.length + ' קבצים הורדו');
+}
+
 function _empView(cat, di, fi){
   const D = window._EMPDOCS; if(!D || !D[cat] || !D[cat][di]) return;
   const doc = D[cat][di];
@@ -8254,12 +8319,13 @@ async function openEmployeeDocs(plate){
     const declHtml = D.decls.map((r,i)=>`<div class="insp-hist-row" onclick="_empViewDecl(${i})" style="cursor:pointer">
       <span style="font-weight:700">${r.formType && typeof DECL_FORM_META!=='undefined' && DECL_FORM_META[r.formType] ? DECL_FORM_META[r.formType].label : '📋 טפסים'}</span>
       <span style="color:var(--muted)">${esc(r.dateStr||'')}</span><span class="badge badge-green">✓ נחתם</span></div>`).join('');
-    const imgRow = (arr, cat) => arr.map((r,di)=>`<div style="margin-bottom:5px;font-size:0.74rem;display:flex;align-items:center;gap:4px;flex-wrap:wrap"><span style="color:#64748b">${esc(r.title||'')}${r.title?' · ':''}${esc(r.dateStr||'')}${r.licNum?' · רישיון '+esc(r.licNum):''}</span> ${(r.images||[]).map((b,fi)=>`<button class="btn btn-gray" style="padding:3px 9px;font-size:0.68rem;margin:2px" onclick="_empView('${cat}',${di},${fi})">🖼️ ${fi+1}</button>`).join('')}<button class="btn" style="padding:3px 8px;font-size:0.68rem;margin:2px;background:#fee2e2;color:#b91c1c" title="מחק מסמך" onclick="deleteEmpDoc('${cat}',${di})">🗑️</button></div>`).join('');
+    const imgRow = (arr, cat) => arr.map((r,di)=>`<div style="margin-bottom:5px;font-size:0.74rem;display:flex;align-items:center;gap:4px;flex-wrap:wrap"><span style="color:#64748b">${esc(r.title||'')}${r.title?' · ':''}${esc(r.dateStr||'')}${r.licNum?' · רישיון '+esc(r.licNum):''}</span> ${(r.images||[]).map((b,fi)=>`<button class="btn btn-gray" style="padding:3px 9px;font-size:0.68rem;margin:2px" onclick="_empView('${cat}',${di},${fi})">🖼️ ${fi+1}</button><button class="btn btn-gray" style="padding:3px 7px;font-size:0.68rem;margin:2px 0" title="הורד למחשב" onclick="_empDownload('${cat}',${di},${fi})">⬇️</button>`).join('')}<button class="btn" style="padding:3px 8px;font-size:0.68rem;margin:2px;background:#fee2e2;color:#b91c1c" title="מחק מסמך" onclick="deleteEmpDoc('${cat}',${di})">🗑️</button></div>`).join('');
     // צילום שאינו מסווג: כפתור צפייה + בורר. הבחירה מעבירה אותו למגירה.
     const unRow = arr => arr.map((r,di)=>`<div style="margin-bottom:6px;font-size:0.74rem;display:flex;align-items:center;gap:4px;flex-wrap:wrap">
       <span style="color:#64748b">${esc(r.dateStr||'')}</span>
       ${(r.images||[]).map((b,fi)=>`<span style="display:inline-flex;align-items:center;gap:3px;margin:2px">
         <button class="btn btn-gray" style="padding:3px 9px;font-size:0.68rem" onclick="_empView('vun',${di},${fi})">🖼️ ${fi+1}</button>
+        <button class="btn btn-gray" style="padding:3px 7px;font-size:0.68rem" title="הורד למחשב" onclick="_empDownload('vun',${di},${fi})">⬇️</button>
         <select onchange="tagVdocImage('${esc(r._docId)}',${r._srcIdx[fi]},this.value)" style="font-size:0.64rem;padding:2px 5px;border:1px solid #fdba74;border-radius:6px">
           <option value="">⚠️ מה זה?</option>
           <option value="registration">🚗 רישיון רכב</option>
@@ -8277,7 +8343,7 @@ async function openEmployeeDocs(plate){
         <option value="">${f.docKind ? '' : '⚠️ '}לאיזו רובריקה?</option>
         ${ks.map(k=>`<option value="${k}"${f.docKind===k?' selected':''}>${esc(_REQ_TITLE[k]||k)}</option>`).join('')}</select>`;
     };
-    const reqHtml = D.reqs.map((r,di)=>`<div style="margin-bottom:5px;font-size:0.74rem"><b>${esc(r.reqLabel||'קריאה')}</b> <span style="color:#64748b">${esc(r.dateStr||'')}</span> <span class="badge ${r.status==='approved'?'badge-green':r.status==='rejected'?'badge-red':'badge-orange'}" style="font-size:0.56rem">${esc(r.status||'ממתין')}</span> ${(r.files||[]).map((f,fi)=>`<button class="btn btn-gray" style="padding:3px 9px;font-size:0.68rem;margin:2px" onclick="_empView('reqs',${di},${fi})">${f.kind==='pdf'?'📄':'🖼️'} ${fi+1}</button>${kindSel(r,f,fi)}`).join('')}<button class="btn" style="padding:3px 8px;font-size:0.68rem;margin:2px;background:#fee2e2;color:#b91c1c" title="מחק קריאה" onclick="deleteReqRecord('${esc(r._docId)}')">🗑️</button></div>`).join('');
+    const reqHtml = D.reqs.map((r,di)=>`<div style="margin-bottom:5px;font-size:0.74rem"><b>${esc(r.reqLabel||'קריאה')}</b> <span style="color:#64748b">${esc(r.dateStr||'')}</span> <span class="badge ${r.status==='approved'?'badge-green':r.status==='rejected'?'badge-red':'badge-orange'}" style="font-size:0.56rem">${esc(r.status||'ממתין')}</span> ${(r.files||[]).map((f,fi)=>`<button class="btn btn-gray" style="padding:3px 9px;font-size:0.68rem;margin:2px" onclick="_empView('reqs',${di},${fi})">${f.kind==='pdf'?'📄':'🖼️'} ${fi+1}</button><button class="btn btn-gray" style="padding:3px 7px;font-size:0.68rem;margin:2px 0" title="הורד למחשב" onclick="_empDownload('reqs',${di},${fi})">⬇️</button>${kindSel(r,f,fi)}`).join('')}<button class="btn" style="padding:3px 8px;font-size:0.68rem;margin:2px;background:#fee2e2;color:#b91c1c" title="מחק קריאה" onclick="deleteReqRecord('${esc(r._docId)}')">🗑️</button></div>`).join('');
     body.innerHTML = dates
       + `<div style="font-size:0.72rem;color:#94a3b8;margin-bottom:8px">מסמכי הנהג עוברים עם העובד · מסמכי הרכב נשארים עם הרכב</div>`
       + sec('📋','נהלים ואחריות · <span style="color:#7c3aed">עם הנהג</span>', D.decls.length, declHtml)
@@ -10443,6 +10509,7 @@ function renderAgentMsgs(showTyping = false) {
     <div id="empdocs-body" style="max-height:60vh;overflow-y:auto"></div>
     <div class="btn-row">
       <button class="btn btn-gray" onclick="document.getElementById('empdocs-modal').classList.remove('open')">סגור</button>
+      <button class="btn btn-secondary" onclick="downloadAllEmpDocs()" title="הורדת כל מסמכי הרכב למחשב">⬇️ הורד הכל</button>
       <button class="btn btn-primary" onclick="mailOneEmployee(window._empdocsPlate)" title="שליחת המסמכים לכתובת המייל של העובד">📧 שלח לעובד במייל</button>
     </div>
   </div>
