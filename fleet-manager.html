@@ -28,6 +28,33 @@ window.addEventListener('appinstalled', () => { window._pwaPrompt = null; try { 
 <!-- pdf.js — חילוץ טקסט מחשבוניות PDF לייבוא עלויות בכמות (בלי AI) -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script>
+// ═══ עדכון גרסה ═══
+// עד כה גרסה חדשה גררה location.reload() מיידי, ובאמצע עבודה זה נראה
+// כאילו התוכנה "מתנקה מעצמה" וחוזרת להתחלה. כעת מוצגת הודעה, והמשתמש
+// בוחר מתי לרענן. רענון מעצמו קורה רק בחזרה אחרי הפסקה ארוכה, כשברור
+// שלא הייתה עבודה באמצע.
+window.__updateReady = false;
+function showUpdateBanner() {
+  if (window.__updateReady) return;
+  window.__updateReady = true;
+  const put = () => {
+    if (document.getElementById('update-banner')) return;
+    const b = document.createElement('div');
+    b.id = 'update-banner';
+    b.style.cssText = 'position:fixed;bottom:78px;left:50%;transform:translateX(-50%);z-index:900;' +
+      'background:#1e3a8a;color:#fff;border-radius:12px;box-shadow:0 6px 22px rgba(0,0,0,.28);' +
+      'padding:9px 12px;display:flex;align-items:center;gap:10px;font-family:Heebo,sans-serif;' +
+      'font-size:0.82rem;max-width:92vw';
+    b.innerHTML = '<span>✨ יש גרסה חדשה</span>' +
+      '<button style="background:#fff;color:#1e3a8a;border:0;border-radius:8px;padding:5px 12px;' +
+      'font-weight:800;font-family:Heebo,sans-serif;cursor:pointer" onclick="location.reload()">רענן</button>' +
+      '<button style="background:transparent;color:#c7d2fe;border:0;font-size:1.05rem;cursor:pointer" ' +
+      'title="אחר כך" onclick="this.parentElement.remove()">✕</button>';
+    document.body.appendChild(b);
+  };
+  if (document.body) put(); else document.addEventListener('DOMContentLoaded', put);
+}
+
 // Service Worker registration — network-first for home screen shortcuts
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('/shamay-scan/sw.js', { scope: '/shamay-scan/' })
@@ -38,8 +65,7 @@ if ('serviceWorker' in navigator) {
         const nw = reg.installing;
         nw.addEventListener('statechange', () => {
           if (nw.state === 'installed' && navigator.serviceWorker.controller) {
-            // New version available — reload to get fresh page
-            window.location.reload(true);
+            showUpdateBanner();   // לא מרעננים באמצע עבודה
           }
         });
       });
@@ -49,11 +75,9 @@ if ('serviceWorker' in navigator) {
       document.addEventListener('visibilitychange', () => { if (!document.hidden) poll(); });
       setInterval(poll, 2 * 60 * 1000);
     });
-  // When the controlling SW changes (new version activated), reload once for fresh assets.
-  let _swReloaded = false;
-  navigator.serviceWorker.addEventListener('controllerchange', () => {
-    if (_swReloaded) return; _swReloaded = true; window.location.reload();
-  });
+  // החלפת ה-Service Worker אינה מחייבת רענון: הדף עצמו נטען network-first.
+  // רענון כאן היה מוציא את המשתמש מהעבודה בלי סיבה.
+  navigator.serviceWorker.addEventListener('controllerchange', () => showUpdateBanner());
 }
 // Auto-refresh when a new version is published (fixes stale home-screen shortcuts).
 // Compares the page ETag every few minutes and on app resume; reloads only when
@@ -79,13 +103,22 @@ if ('serviceWorker' in navigator) {
       const r = await fetch(location.pathname + '?vchk=' + Date.now(), { method: 'HEAD', cache: 'no-store' });
       const e = r.headers.get('etag') || r.headers.get('last-modified');
       if (!e) return;
-      if (_etag && e !== _etag && safeToReload()) { location.reload(); return; }
+      if (_etag && e !== _etag) { showUpdateBanner(); return; }
       if (!_etag) _etag = e;
     } catch (err) {}
   }
   window.addEventListener('load', checkVersion);
   setInterval(checkVersion, 5 * 60 * 1000);
-  document.addEventListener('visibilitychange', () => { if (!document.hidden) checkVersion(); });
+  // חזרה לאפליקציה אחרי חצי שעה ומעלה: אין עבודה באמצע, ולכן אפשר
+  // לרענן בשקט. זו הייתה כל מטרת המנגנון — קיצור דרך ישן שמתרענן לבד.
+  let _hiddenAt = 0;
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) { _hiddenAt = Date.now(); return; }
+    if (window.__updateReady && _hiddenAt && (Date.now() - _hiddenAt) > 30 * 60 * 1000 && safeToReload()) {
+      location.reload(); return;
+    }
+    checkVersion();
+  });
 })();
 </script>
 <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;600;700;900&display=swap" rel="stylesheet">
@@ -2667,6 +2700,8 @@ function toast(msg, err=false) {
 
 // ── TAB SWITCHING ──
 function showTab(name, btn) {
+  // הלשונית נשמרת כדי שרענון לא יזרוק אותך חזרה לצי הרכב
+  try { localStorage.setItem('fleet_tab', name); } catch(e) {}
   document.querySelectorAll('.tab-content').forEach(el=>el.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(el=>{el.classList.remove('active');el.setAttribute('aria-selected','false');});
   document.getElementById('tab-'+name).classList.add('active');
@@ -8597,6 +8632,12 @@ function bootApp() {
   _appBooted = true;
   guardTenantCache();
   try { showSystem(localStorage.getItem('fleet_sys') || 'fleet'); } catch(e) { showSystem('fleet'); }
+  // שחזור הלשונית האחרונה, רק אם היא שייכת למערכת שנפתחה ויש לה כפתור
+  try {
+    const t = localStorage.getItem('fleet_tab');
+    const b = t && document.querySelector('.nav-btn[data-tab="' + t + '"]');
+    if (b && b.dataset.offsys !== '1' && document.getElementById('tab-' + t)) showTab(t, b);
+  } catch(e) {}
   const cb = document.getElementById('company-badge'); if (cb) cb.textContent = COMPANY_NAME || '';
   document.getElementById('login-gate').style.display = 'none';
   startHeaderClock();
