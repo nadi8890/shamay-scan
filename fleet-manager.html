@@ -1068,6 +1068,22 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
     </div>
 
     <div class="card">
+      <div class="card-title">💰 מצב התיק ושכר טרחה</div>
+      <div class="op-grid">
+        <div class="modal-row"><label>מצב התיק</label>
+          <select id="op-status">
+            <option value="פתוח">פתוח</option>
+            <option value="נמסר">נמסר ללקוח</option>
+            <option value="סגור">סגור</option>
+          </select></div>
+        <div class="modal-row"><label>תאריך מסירה</label><input id="op-delivered" type="date"></div>
+        <div class="modal-row"><label>שכר טרחה (₪, כולל מע״מ)</label><input id="op-fee" type="number" inputmode="decimal" placeholder="0" oninput="opFeeNote()"></div>
+        <div class="modal-row"><label>שולם (₪)</label><input id="op-feepaid" type="number" inputmode="decimal" placeholder="0" oninput="opFeeNote()"></div>
+      </div>
+      <div id="op-fee-note" style="font-size:0.76rem;color:var(--muted);margin-top:6px"></div>
+    </div>
+
+    <div class="card">
       <div class="card-title">🚗 פרטי הרכב</div>
       <div class="op-grid">
         <div class="modal-row"><label>מס׳ רישוי</label><div style="display:flex;gap:5px"><input id="op-plate" type="text" placeholder="12345678" style="flex:1" onblur="opGovLookup()"><span id="op-gov" style="font-size:0.7rem;color:var(--muted);white-space:nowrap;align-self:center"></span></div></div>
@@ -1147,6 +1163,22 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
   </div>
 </div>
 
+<!-- ══════════════ TAB: CASES (מעקב תיקים וכספים) ══════════════ -->
+<div class="tab-content" id="tab-cases">
+  <div class="section-hdr">
+    <span class="section-title">📊 מעקב תיקים</span>
+    <select id="cases-filter" onchange="renderCases()" style="padding:5px 10px;font-size:0.8rem;border:1px solid var(--border);border-radius:8px;font-family:'Heebo',sans-serif">
+      <option value="open">פתוחים בלבד</option>
+      <option value="unpaid">יתרה לגבייה</option>
+      <option value="all">כל התיקים</option>
+    </select>
+  </div>
+  <div id="cases-kpis" class="dash-grid" style="margin-bottom:12px"></div>
+  <div class="dash-sec"><div class="dash-sec-hdr">⏳ תיקים פתוחים לפי ותק</div><div id="cases-aging"></div></div>
+  <div class="dash-sec"><div class="dash-sec-hdr" id="cases-list-hdr">📁 תיקים</div><div id="cases-list"></div></div>
+  <div style="height:20px"></div>
+</div>
+
 <!-- ══════════════ TAB: GARAGE ══════════════ -->
 <div class="tab-content" id="tab-garage">
   <div class="card sys-empty">
@@ -1169,6 +1201,7 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
   <button class="nav-btn nav-secondary" data-tab="forms" data-sys="fleet" type="button" role="tab" aria-selected="false" aria-controls="tab-forms" onclick="showTab('forms',this)"><span class="icon" aria-hidden="true">📝</span>טפסים</button>
   <button class="nav-btn nav-secondary" data-tab="dashboard" data-sys="fleet" type="button" role="tab" aria-selected="false" aria-controls="tab-dashboard" onclick="showTab('dashboard',this)"><span class="icon" aria-hidden="true">📊</span>דשבורד</button>
   <button class="nav-btn" data-tab="opinion" data-sys="shamai" type="button" role="tab" aria-selected="false" aria-controls="tab-opinion" onclick="showTab('opinion',this)"><span class="icon" aria-hidden="true">📝</span>חוות דעת</button>
+  <button class="nav-btn" data-tab="cases" data-sys="shamai" type="button" role="tab" aria-selected="false" aria-controls="tab-cases" style="position:relative" onclick="showTab('cases',this)"><span class="icon" aria-hidden="true">📊</span>מעקב<span id="cases-nav-badge" style="display:none;position:absolute;top:1px;left:5px;min-width:17px;height:17px;background:#dc2626;color:#fff;border-radius:999px;font-size:0.62rem;font-weight:800;line-height:17px;text-align:center;padding:0 4px;box-shadow:0 1px 4px rgba(0,0,0,.25)">0</span></button>
   <button class="nav-btn" data-tab="garage" data-sys="garage" type="button" role="tab" aria-selected="false" aria-controls="tab-garage" onclick="showTab('garage',this)"><span class="icon" aria-hidden="true">🔧</span>מוסך</button>
   <button class="nav-btn nav-more" id="nav-more-btn" type="button" aria-haspopup="dialog" aria-expanded="false" aria-label="עוד לשוניות" onclick="openMoreSheet()"><span class="icon" aria-hidden="true">☰</span>עוד</button>
 </nav>
@@ -2660,6 +2693,7 @@ function showTab(name, btn) {
   if (name==='invoices') { renderInvoices(); buildInvColFilterRow(); }
   if (name==='tasks') renderTasks();
   if (name==='opinion') { if (!OP_PHOTOS.length && !document.getElementById('op-plate').value) opNew(); opLoadList(); opCheckHandoff(); }
+  if (name==='cases') { opLoadList().then(() => renderCases()).catch(() => renderCases()); }
   if (name==='returns') renderReturns();
   if (name==='forms') renderFormsTab();
   if (name==='dashboard') renderManagerDashboard();
@@ -10502,7 +10536,10 @@ const OP_FIELDS = ['case','date','casetype','damagetype','eventdate','inspdate',
                    'owner','phone','address','client','claim',
                    'plate','model','vtype','regdate','km','vin','modelcode','liccode','specs',
                    'basevalue','pricelist','ratiobase','focus','paint','panel','vat',
-                   'attached','appraiser','license','office','declaration'];
+                   'attached','appraiser','license','office','declaration',
+                   // מעקב עסקי: מצב התיק ושכר הטרחה. בלעדיהם אין דרך לדעת
+                   // מה פתוח ומה טרם שולם, וזה בדיוק מה שחסר בשמאית.
+                   'status','fee','feepaid','delivered'];
 
 const opEl = k => document.getElementById('op-' + k);
 const opVal = k => { const e = opEl(k); return e ? e.value.trim() : ''; };
@@ -10622,6 +10659,8 @@ function opNew() {
   if (opEl('inspdate')) opEl('inspdate').value = iso;
   if (opEl('vat')) opEl('vat').value = '18';
   if (opEl('case')) { OP_AUTO_CASE = opNextCase(); opEl('case').value = OP_AUTO_CASE; }
+  if (opEl('status')) opEl('status').value = 'פתוח';
+  opFeeNote();
   if (opEl('casetype')) opEl('casetype').value = 'פרטי';
   if (opEl('damagetype')) opEl('damagetype').value = 'תאונה';
   if (opEl('pricelist')) opEl('pricelist').value = 'לוי יצחק';
@@ -10783,10 +10822,111 @@ async function opSave() {
   } catch(e) { console.log('opSave', e); toast('שגיאה בשמירה', true); }
 }
 
+// ═══ מעקב תיקים וכספים ═══
+// שמאית מציגה שכר טרחה בתוך התיק הבודד בלבד, ולכן אין דרך לראות מה
+// פתוח, כמה זמן, וכמה כסף טרם נגבה. כאן זו התמונה הרוחבית.
+function _caseNum(v) { const n = parseFloat(String(v == null ? '' : v).replace(/[^\d.-]/g, '')); return isNaN(n) ? 0 : n; }
+function _caseStatus(r) { return (String((r && r.status) || '').trim()) || 'פתוח'; }
+function _caseAge(r) {
+  const d = _anyDate(r.date) || (r.created ? new Date(r.created) : null);
+  if (!d || isNaN(d)) return 0;
+  return Math.max(0, Math.floor((Date.now() - d.getTime()) / 86400000));
+}
+function _caseDue(r) { return Math.max(0, _caseNum(r.fee) - _caseNum(r.feepaid)); }
+function caseStats(list) {
+  const st = { total: 0, open: 0, delivered: 0, closed: 0, fee: 0, paid: 0, due: 0, dueCount: 0, oldest: 0 };
+  (list || []).forEach(r => {
+    st.total++;
+    const s0 = _caseStatus(r);
+    if (s0 === 'סגור') st.closed++; else if (s0 === 'נמסר') st.delivered++; else st.open++;
+    st.fee += _caseNum(r.fee); st.paid += _caseNum(r.feepaid);
+    const d = _caseDue(r);
+    if (d > 0) { st.due += d; st.dueCount++; }
+    if (s0 !== 'סגור') st.oldest = Math.max(st.oldest, _caseAge(r));
+  });
+  return st;
+}
+function opFeeNote() {
+  const el = document.getElementById('op-fee-note'); if (!el) return;
+  const fee = _caseNum(opVal('fee')), paid = _caseNum(opVal('feepaid'));
+  if (!fee && !paid) { el.textContent = ''; return; }
+  const due = Math.max(0, fee - paid);
+  el.innerHTML = due > 0
+    ? `נותר לגבייה: <b style="color:#b45309">₪${due.toLocaleString()}</b>`
+    : '<b style="color:#059669">שולם במלואו ✓</b>';
+}
+function casesOpen(i) {
+  const btn = document.querySelector('.nav-btn[data-tab="opinion"]');
+  showTab('opinion', btn);
+  if (typeof opOpen === 'function') opOpen(i);
+}
+function renderCases() {
+  const box = document.getElementById('cases-list'); if (!box) return;
+  const all = (typeof OP_LIST !== 'undefined' ? OP_LIST : []);
+  const mode = (document.getElementById('cases-filter') || {}).value || 'open';
+  const st = caseStats(all);
+
+  const badge = document.getElementById('cases-nav-badge');
+  if (badge) { if (st.dueCount) { badge.textContent = st.dueCount; badge.style.display = 'block'; } else badge.style.display = 'none'; }
+
+  const tile = (n, l, c) => `<div class="dash-tile"><div class="n" style="color:${c}">${n}</div><div class="l">${l}</div></div>`;
+  const kp = document.getElementById('cases-kpis');
+  if (kp) kp.innerHTML =
+    tile(st.open, 'תיקים פתוחים', 'var(--blue)') +
+    tile(st.delivered, 'נמסרו ללקוח', '#7c3aed') +
+    tile('₪' + Math.round(st.fee).toLocaleString(), 'שכ״ט שנרשם', '#059669') +
+    tile('₪' + Math.round(st.due).toLocaleString(), `יתרה לגבייה (${st.dueCount})`, st.due > 0 ? 'var(--red)' : '#059669');
+
+  // ותק התיקים הפתוחים — מה שעומד יותר מדי זמן בולט מיד
+  const buckets = [
+    { l: 'עד 14 יום', min: 0,  max: 14,       c: '#22c55e' },
+    { l: '15–30 יום', min: 15, max: 30,       c: '#eab308' },
+    { l: '31–60 יום', min: 31, max: 60,       c: '#f97316' },
+    { l: 'מעל 60 יום', min: 61, max: 1e9,     c: '#dc2626' }
+  ];
+  const openCases = all.filter(r => _caseStatus(r) !== 'סגור');
+  const ag = document.getElementById('cases-aging');
+  if (ag) {
+    const maxB = Math.max(1, ...buckets.map(b => openCases.filter(r => { const a = _caseAge(r); return a >= b.min && a <= b.max; }).length));
+    ag.innerHTML = openCases.length ? buckets.map(b => {
+      const n = openCases.filter(r => { const a = _caseAge(r); return a >= b.min && a <= b.max; }).length;
+      return `<div class="dash-row"><div class="dash-name">${b.l}</div>
+        <div class="dash-bar-wrap"><div class="dash-bar" style="width:${Math.round(n / maxB * 100)}%;background:${b.c}"></div></div>
+        <div class="dash-val">${n}</div></div>`;
+    }).join('') : '<div class="empty-note">אין תיקים פתוחים.</div>';
+  }
+
+  let rows = all.map((r, i) => ({ r, i }));
+  if (mode === 'open')   rows = rows.filter(o => _caseStatus(o.r) !== 'סגור');
+  if (mode === 'unpaid') rows = rows.filter(o => _caseDue(o.r) > 0);
+  rows.sort((a, b) => _caseAge(b.r) - _caseAge(a.r));   // הוותיק ראשון — הוא הדחוף
+
+  const hdr = document.getElementById('cases-list-hdr');
+  if (hdr) hdr.textContent = `📁 ${rows.length} תיקים` +
+    (mode === 'open' ? ' פתוחים' : mode === 'unpaid' ? ' עם יתרה' : '');
+
+  const stBadge = s0 => s0 === 'סגור' ? '<span class="badge badge-gray">סגור</span>'
+    : s0 === 'נמסר' ? '<span class="badge" style="background:#ede9fe;color:#5b21b6;border:1px solid #c4b5fd">נמסר</span>'
+    : '<span class="badge badge-green">פתוח</span>';
+
+  box.innerHTML = rows.length ? rows.map(({ r, i }) => {
+    const age = _caseAge(r), due = _caseDue(r), s0 = _caseStatus(r);
+    const ageC = s0 === 'סגור' ? 'var(--muted)' : age > 60 ? '#dc2626' : age > 30 ? '#f97316' : 'var(--muted)';
+    return `<div class="dash-row" style="cursor:pointer" onclick="casesOpen(${i})" title="לחץ לפתיחת התיק">
+      <div style="font-weight:800;min-width:74px">${esc(r.case || '—')}</div>
+      <div class="dash-name">${esc(r.owner || '')}${r.plate ? ` <span style="color:var(--muted);font-weight:400;direction:ltr">· ${esc(r.plate)}</span>` : ''}</div>
+      ${stBadge(s0)}
+      <div style="font-size:0.72rem;color:${ageC};min-width:56px;text-align:center">${age} ימים</div>
+      <div class="dash-val" style="color:${due > 0 ? '#b45309' : '#059669'}">${due > 0 ? '₪' + due.toLocaleString() : '✓'}</div>
+    </div>`;
+  }).join('') : '<div class="empty-note">אין תיקים להצגה.</div>';
+}
+
 async function opLoadList() {
   try { OP_LIST = (await readDriverDocs('opinion')).sort((a, b) => (b.created||0) - (a.created||0)); }
   catch(e) { OP_LIST = []; }
   const c = document.getElementById('op-count'); if (c) c.textContent = OP_LIST.length;
+  if (typeof renderCases === 'function') renderCases();   // גם המונה שעל הלשונית וגם הרשימה
   // הרשימה נטענת אחרי opNew, ולכן המספר נקבע סופית כאן — ורק אם לא
   // נגעו בו, כדי לא לדרוס מספר שהוקלד ידנית.
   if (!OP_EDIT_ID && opEl('case') && opEl('case').value === OP_AUTO_CASE) {
