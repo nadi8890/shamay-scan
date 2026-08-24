@@ -307,8 +307,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue)}
     <textarea id="f-notes" rows="2" placeholder="הערות נוספות..."></textarea>
   </div>
 
-  <button class="btn-sm btn-green" style="width:100%;padding:13px;font-size:0.95rem;border-radius:12px;margin-top:12px" onclick="saveRecord()">✅ שמור אומדן</button>
-      <button class="btn" style="background:#4f46e5;color:#fff" onclick="sendToOpinion()" title="העברת פרטי האומדן לחוות דעת">📝 הוסף לחוות דעת</button>
+  <button class="btn-sm btn-green" style="width:100%;padding:13px;font-size:0.95rem;border-radius:12px;margin-top:12px" onclick="saveRecord()" title="שומר לטבלת התיעוד ומכין להעברה לחוות דעת — בלחיצה אחת">✅ שמור אומדן והעבר לחוות דעת</button>
 </div>
 
 <!-- AI PHOTO -->
@@ -1103,8 +1102,11 @@ function persistRecord(record) {
 function saveRecord() {
   const record = buildRecordFromForm();
   const full = persistRecord(record);
+  const sentOk = pushToOpinion(record);
   newInspection();
-  toast(full ? '✅ אומדן נשמר! המחירים נלמדו 🧠' : '⚠️ אומדן נשמר ללא תמונה (אחסון מלא)');
+  toast(!full ? '⚠️ אומדן נשמר ללא תמונה (אחסון מלא)'
+    : sentOk ? '✅ אומדן נשמר בטבלה ומוכן לחוות דעת! 🧠'
+             : '✅ אומדן נשמר! (ההעברה לחוות דעת לא הצליחה)');
 }
 
 async function syncToSheets(record) {
@@ -1651,41 +1653,24 @@ function toast(msg, err=false) {
 // שני הדפים באותו דומיין, ולכן localStorage משותף ביניהם. האומדן
 // נכתב למפתח ייעודי, ומנהל הצי מציע לייבא אותו כשנפתחת לשונית חוות
 // הדעת. בלי לחיצה על הכפתור — שום דבר לא עובר.
-function sendToOpinion() {
-  // התיק נכנס לטבלת התיעוד באותה נקודה שבה הוא נשלח לחוות דעת —
-  // הפעולה הזו היא "סיימתי את התיק" בפועל, גם בלי לחיצה נפרדת על
-  // "שמור אומדן". הטופס לא מתאפס, כדי שאפשר יהיה עוד להמשיך לערוך
-  // לפני שעוברים ללשונית חוות דעת.
-  persistRecord(buildRecordFromForm());
-  const val = id => { const e = document.getElementById(id); return e ? e.value.trim() : ''; };
-  const items = getRows();
-  const w = getWorkTotals();
-  const payload = {
-    from: 'estimate',
-    at: Date.now(),
-    plate: val('f-plate'),
-    make: val('f-make'),
-    model: val('f-model'),
-    year: val('f-year'),
-    color: val('f-color'),
-    km: val('f-km'),
-    vin: val('f-serial'),
-    client: val('f-client'),
-    insurance: val('f-insurance'),
-    date: val('f-date'),
-    incidentDate: val('f-incident-date'),
-    location: val('f-location'),
-    notes: val('f-notes'),
-    items: items.map(r => ({ desc: r.part, kind: r.type || 'תק׳', cost: r.parts })),
-    paint: w.paint,
-    panel: (w.body || 0) + (w.electric || 0) + (w.extra || 0)
+// כתיבת האומדן ל-localStorage שממנו לשונית חוות הדעת בשמAI קולטת
+// אותו. נבנה מתוך אותו record ששמור בטבלה — לא קריאה חוזרת מהטופס —
+// כדי שהנתונים בשני המקומות תמיד יהיו זהים.
+function opinionPayloadFrom(record) {
+  return {
+    from: 'estimate', at: Date.now(),
+    plate: record.plate, make: record.make, model: record.model, year: record.year,
+    color: record.color, km: record.km, vin: record.serial, client: record.client,
+    insurance: record.insurance, date: record.date, incidentDate: record.incidentDate,
+    location: record.location, notes: record.notes,
+    items: (record.items || []).map(r => ({ desc: r.part, kind: r.type || 'תק׳', cost: r.parts })),
+    paint: (record.works || {}).paint || 0,
+    panel: ((record.works || {}).body || 0) + ((record.works || {}).electric || 0) + ((record.works || {}).extra || 0)
   };
-  try {
-    localStorage.setItem('op_handoff', JSON.stringify(payload));
-    toast('✓ האומדן מוכן לחוות דעת — פתח את לשונית שמAI');
-  } catch(e) {
-    alert('לא ניתן להעביר: ' + (e.message || e));
-  }
+}
+function pushToOpinion(record) {
+  try { localStorage.setItem('op_handoff', JSON.stringify(opinionPayloadFrom(record))); return true; }
+  catch(e) { console.log('pushToOpinion', e); return false; }
 }
 </script>
 </body>

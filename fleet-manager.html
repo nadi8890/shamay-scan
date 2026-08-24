@@ -11331,9 +11331,16 @@ function opDismissHandoff() {
   toast('האומדן נותר שמור בכלי האומדן בלבד');
 }
 
-function opImportHandoff() {
+async function opImportHandoff() {
   const h = _opHandoff();
   if (!h) { opCheckHandoff(); return; }
+  // אם כרגע פתוח תיק אחר (רישוי שונה מזה שבאומדן) — לא ממזגים לתוכו.
+  // שורות הנזק תמיד מוחלפות (הן גוף האומדן), ובלי הבדיקה הזו רישוי
+  // של תיק אחד היה נשאר בטופס בעוד הנזקים של תיק שני מוחלפים לתוכו —
+  // רשומה מעורבת, ועם השמירה האוטומטית למטה גם הייתה נשמרת ככה.
+  const curPlate = (opVal('plate') || '').replace(/\D/g, '');
+  const hPlate = String(h.plate || '').replace(/\D/g, '');
+  if (curPlate && hPlate && curPlate !== hPlate) opNew();
   const set = (k, v) => { const e = opEl(k); if (e && v) e.value = String(v); };
   const setIfEmpty = (k, v) => { const e = opEl(k); if (e && !e.value && v) e.value = String(v); };
   setIfEmpty('plate', h.plate);
@@ -11358,7 +11365,10 @@ function opImportHandoff() {
   opCheckHandoff();
   document.getElementById('op-list').style.display = 'none';
   document.getElementById('op-form').style.display = '';
-  toast('✓ האומדן יובא לחוות הדעת');
+  // נשמר מיד — התיק מופיע ב"מעקב" כ"פתוח" בלי לחיצה נוספת על שמור.
+  // המשך עריכה ולחיצה חוזרת על שמור מעדכנים אותה רשומה, לא משכפלים.
+  await opSave();
+  toast('✓ האומדן יובא לחוות הדעת ונשמר במעקב');
 }
 
 // בדיקה חוזרת כשחוזרים לאפליקציה מהחלון של כלי האומדן
