@@ -5447,6 +5447,35 @@ function buildDeclText(r) {
   }
   return L.join('\n');
 }
+// דף driver-forms.html כבר יודע לבנות את המסמך המעוצב המלא — כותרת,
+// טבלת פרטים, סעיפי הנהלים עם "✔ קראתי ואישרתי", ועמוד חתימה. הטקסט
+// המשפטי של כל סעיף יושב שם כ-HTML קבוע בעמוד, לא ברשומה השמורה,
+// ולכן בניית עותק כאן הייתה מחייבת להעתיק את כל הנוסח המשפטי פעם
+// נוספת — וכל תיקון עתידי בו היה נשכח משם. במקום זה, docToPdfBlob
+// של אותו דף נקרא ישירות מתוך iframe נסתר באותו דומיין.
+async function _renderDeclPdf(rec) {
+  return new Promise((resolve, reject) => {
+    const ifr = document.createElement('iframe');
+    ifr.style.cssText = 'position:fixed;left:-9999px;top:0;width:800px;height:600px;border:0';
+    let done = false;
+    const cleanup = () => { try { ifr.remove(); } catch(e) {} };
+    const timer = setTimeout(() => { if (done) return; done = true; cleanup(); reject(new Error('timeout')); }, 15000);
+    ifr.onload = async () => {
+      if (done) return;
+      try {
+        await new Promise(r => setTimeout(r, 500)); // לתת לסקריפט של הדף להשלים אתחול
+        const w = ifr.contentWindow;
+        if (!w || typeof w.docToPdfBlob !== 'function') throw new Error('docToPdfBlob not available');
+        const blob = await w.docToPdfBlob(rec);
+        if (done) return; done = true;
+        clearTimeout(timer); cleanup(); resolve(blob);
+      } catch(e) { if (done) return; done = true; clearTimeout(timer); cleanup(); reject(e); }
+    };
+    ifr.src = 'driver-forms.html?t=' + encodeURIComponent(TENANT || 'nofar');
+    document.body.appendChild(ifr);
+  });
+}
+
 // שליחה חוזרת של טופס שכבר התקבל — לשחזור הודעות שהטוקן החדש חסם
 // בשקט לפני התיקון. מצרפת את החתימה, ואם נשמרו גם צילומי המסמכים
 // (vdocs_/licdocs_ עם אותו created — נכתבים תמיד יחד עם ההצהרה),
@@ -5454,9 +5483,21 @@ function buildDeclText(r) {
 async function resendDeclarationMail(i) {
   const r = (window._DECLS||[])[i]; if (!r) return;
   if (!MAIL_SETTINGS.gasUrl) { toast('לא הוגדרה כתובת Apps Script בהגדרות המייל', true); return; }
-  toast('שולח…');
+  toast('מכין מסמך…');
   const files = [];
-  if (r.signature) files.push({ base64: String(r.signature).split(',')[1], mimeType:'image/png', filename:`חתימה ${r.name||''}.png` });
+  let pdfOk = false;
+  try {
+    const pdfBlob = await _renderDeclPdf(r);
+    const pdfB64 = await new Promise((res, rej) => { const fr = new FileReader();
+      fr.onload = () => res(String(fr.result).split(',')[1]); fr.onerror = rej; fr.readAsDataURL(pdfBlob); });
+    const title = (r.formType && DECL_FORM_META[r.formType] ? DECL_FORM_META[r.formType].label : 'טפסי קבלת רכב').replace(/^\S+\s/, '');
+    files.push({ base64: pdfB64, mimeType: 'application/pdf', filename: `${title} - ${r.name||''} ${r.plate||''}.pdf` });
+    pdfOk = true;
+  } catch(e) { console.log('resend pdf render failed', e); }
+  // גיבוי: אם בניית המסמך המלא נכשלה מכל סיבה — לפחות החתימה מצורפת,
+  // כדי שהשליחה עדיין תעביר משהו ולא תיכשל בשקט.
+  if (!pdfOk && r.signature) files.push({ base64: String(r.signature).split(',')[1], mimeType:'image/png', filename:`חתימה ${r.name||''}.png` });
+  toast('שולח…');
   try {
     const [vd, ld] = await Promise.all([
       fcol().doc('vdocs_' + r.created).get().catch(() => null),
@@ -5466,13 +5507,13 @@ async function resendDeclarationMail(i) {
       files.push({ base64: b64, mimeType: 'image/jpeg', filename: `${label} ${idx + 1}.jpg` })); };
     addImgs(vd, 'מסמכי רכב'); addImgs(ld, 'רישיון נהיגה');
   } catch(e) {}
-  const title = (r.formType && DECL_FORM_META[r.formType]) ? DECL_FORM_META[r.formType].label : 'טפסי קבלת רכב';
   try {
+    const title = (r.formType && DECL_FORM_META[r.formType]) ? DECL_FORM_META[r.formType].label : 'טפסי קבלת רכב';
     await fetch(MAIL_SETTINGS.gasUrl, { method:'POST', mode:'no-cors', headers:{'Content-Type':'text/plain'},
       body: JSON.stringify({ token: MAIL_SETTINGS.gasToken,
         subject: `📋 טופס נהג (נשלח שוב) — ${r.name || ''} (${r.plate || ''}) · ${title}`,
         body: buildDeclText(r), files }) });
-    toast('✓ נשלח שוב במייל');
+    toast(pdfOk ? '✓ נשלח שוב במייל, כולל המסמך המלא' : '✓ נשלח שוב (בלי המסמך המעוצב — נכשלה הבנייה, נא לבדוק)');
   } catch(e) { toast('שגיאה בשליחה', true); console.log('resendDeclarationMail', e); }
 }
 
