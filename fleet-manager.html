@@ -374,7 +374,7 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
     <span id="header-clock" style="color:#fff;font-size:0.8rem;font-weight:600;white-space:nowrap;opacity:.9"></span>
     <span id="tenant-status" style="display:none"></span>
     <span id="save-indicator">💾 לא נשמר</span>
-    <button class="btn" id="reminders-bell" style="position:relative;padding:7px 12px;font-size:0.82rem;background:rgba(255,255,255,.16);color:#fff;font-weight:700;border-radius:8px" title="תזכורות — מסמכים לאישור / התראות תוקף / נהלים / ק&quot;מ" onclick="showRemindersPopup(true)">🔔<span id="rem-bell-badge" style="display:none;position:absolute;top:-5px;left:-5px;min-width:18px;height:18px;background:#16a34a;color:#fff;border-radius:999px;font-size:0.62rem;font-weight:800;line-height:18px;text-align:center;padding:0 4px;box-shadow:0 1px 4px rgba(0,0,0,.3)">0</span></button>
+    <button class="btn" id="reminders-bell" style="position:relative;padding:7px 12px;font-size:0.82rem;background:rgba(255,255,255,.16);color:#fff;font-weight:700;border-radius:8px" title="תזכורות — מסמכים לאישור / התראות תוקף / נהלים / ק&quot;מ" onclick="showRemindersPopup(true)">🔔</button>
         <button class="btn hdr-secondary" data-sheet-icon="📥" data-sheet-label="ייבוא מאקסל" style="padding:7px 12px;font-size:0.82rem;background:rgba(255,255,255,.16);color:#fff;font-weight:700;border-radius:8px" title="ייבוא צי מקובץ אקסל / CSV" onclick="openImportWizard()">📥 ייבוא מאקסל</button>
     <button class="btn hdr-secondary" data-sheet-action="openRestoreDeleted" data-sheet-icon="♻️" data-sheet-label="שחזור" style="padding:7px 12px;font-size:0.82rem;background:rgba(255,255,255,.16);color:#fff;font-weight:700;border-radius:8px" title="שחזור רכב שנמחק מהגיבוי היומי" onclick="openRestoreDeleted()">♻️ שחזור</button>
     
@@ -6167,8 +6167,7 @@ async function loadPendingRequests() {
   const cnt = document.getElementById('pending-count'); if (cnt) cnt.textContent = PENDING_REQS.length;
   // תג הספירה נשאר על הפעמון שלמעלה בלבד. שני מונים לאותו דבר, אחד
   // למעלה ואחד למטה, רק הוסיפו רעש.
-  const bellB = document.getElementById('rem-bell-badge');
-  if (bellB) { if (PENDING_REQS.length) { bellB.textContent = PENDING_REQS.length; bellB.style.display = 'flex'; } else bellB.style.display = 'none'; }
+  // בלי מונה על הפעמון: הספירה נמצאת ממילא ברשימה עצמה כשנפתחת.
   if (!PENDING_REQS.length) { box.style.display = 'none'; return; }
   box.style.display = 'block';
   document.getElementById('pending-list').innerHTML = PENDING_REQS.map(r => {
@@ -9358,6 +9357,151 @@ ${info.tire}`;
   return bestScore > 0 ? best : null; // null = let Anthropic API handle it
 }
 // ═════════════════════════════════════════════════════════════════════
+// ═══════════ תשובות מקומיות — בלי מפתח API ═══════════
+// לקוח שאינו רוצה לשלם על מפתח עדיין צריך סוכן שימושי. כל שאלה שאפשר
+// לענות עליה מהנתונים שכבר במערכת נענית כאן: בלי רשת, בלי עלות, ובלי
+// ניחוש — המספרים מחושבים ולא נאמדים.
+function _agActive() {
+  return (VEHICLES || []).filter(v => { const n = cleanName(v.driverName); return n && n !== 'נגרר' && n !== 'ללא נהג'; });
+}
+function _agName(v) { return (cleanName(v.driverName) || '—') + ' · ' + (v.plate || ''); }
+function _agDue(field, label) {
+  const rows = [];
+  (VEHICLES || []).forEach(v => {
+    const d = daysUntil(v[field]);
+    if (d === null) return;
+    if (d < 0) rows.push({ v, d, txt: 'פג לפני ' + Math.abs(d) + ' ימים' });
+    else if (d <= 30) rows.push({ v, d, txt: 'בעוד ' + d + ' ימים' });
+  });
+  rows.sort((a, b) => a.d - b.d);
+  if (!rows.length) return '✅ ' + label + ': הכול בתוקף ל-30 הימים הקרובים.';
+  const over = rows.filter(r => r.d < 0).length;
+  return '📋 ' + label + ' — ' + rows.length + ' רכבים' + (over ? ' (' + over + ' כבר פגו)' : '') + ':\n' +
+    rows.slice(0, 25).map(r => (r.d < 0 ? '🔴 ' : '🟡 ') + _agName(r.v) + ' — ' + (r.v[field] || '') + ' · ' + r.txt).join('\n') +
+    (rows.length > 25 ? '\n…ועוד ' + (rows.length - 25) : '');
+}
+function _agMissing() {
+  const fields = [['registrationExpiry', 'תוקף רישוי'], ['insuranceExpiry', 'תוקף ביטוח'],
+                  ['licenseExpiry', 'רישיון נהיגה'], ['procedures', 'נהלים']];
+  const out = [];
+  fields.forEach(([f, lbl]) => {
+    const n = _agActive().filter(v => !String(v[f] || '').trim()).length;
+    if (n) out.push('• ' + lbl + ': חסר ב-' + n + ' רכבים');
+  });
+  return out.length ? '⚠️ מסמכים חסרים:\n' + out.join('\n') : '✅ אין שדות מסמך ריקים.';
+}
+function _agMoney() {
+  const months = (typeof costMonths === 'function') ? costMonths() : [];
+  if (!months.length) return 'עדיין אין נתוני עלות במערכת. אפשר לייבא חשבוניות מהדשבורד.';
+  const last = months[months.length - 1];
+  const per = {};
+  let total = 0;
+  new Set((VEHICLES || []).map(v => _cpk(v.plate))).forEach(pk => {
+    const r = vehicleMonthCost(pk, last);
+    if (r.total > 0) { per[pk] = r.total; total += r.total; }
+  });
+  const top = Object.entries(per).sort((a, b) => b[1] - a[1]).slice(0, 5);
+  const nm = pk => { const v = (VEHICLES || []).find(x => _cpk(x.plate) === pk); return v ? _agName(v) : pk; };
+  return '💰 חודש ' + last + ' — סה״כ ₪' + Math.round(total).toLocaleString() +
+    ' על פני ' + Object.keys(per).length + ' רכבים.\n' +
+    (top.length ? 'היקרים ביותר:\n' + top.map((t, i) => (i + 1) + '. ' + nm(t[0]) + ' — ₪' + Math.round(t[1]).toLocaleString()).join('\n') : '') +
+    '\n\nיש נתונים ל-' + months.length + ' חודשים: ' + months[0] + ' עד ' + last + '.';
+}
+function _agHelp() {
+  return 'אני עונה מהנתונים שבמערכת, בלי צורך בחיבור חיצוני. אפשר לשאול אותי:\n\n' +
+    '• כמה רכבים יש בצי\n' +
+    '• מה פג תוקף / מה יפוג החודש\n' +
+    '• איזה ביטוח / רישוי / רישיון נהיגה עומד לפוג\n' +
+    '• אילו מסמכים חסרים\n' +
+    '• איזה רכב חורג מטיפול\n' +
+    '• כמה דוחות תנועה פתוחים\n' +
+    '• כמה תאונות היו\n' +
+    '• מה העלויות של החודש\n' +
+    '• מה ממתין לאישור שלי\n' +
+    '• פרטים על רכב או נהג — פשוט תכתוב מספר רישוי או שם';
+}
+function agentLocalAnswer(raw) {
+  const t = String(raw || '').trim();
+  if (!t) return null;
+  const has = (...w) => w.some(x => t.includes(x));
+
+  if (has('מה אתה יודע', 'מה אפשר לשאול', 'עזרה', 'מה אתה עושה', 'יכולות')) return _agHelp();
+
+  if (has('כמה רכב', 'גודל הצי', 'כמה יש בצי', 'מספר רכבים')) {
+    const act = _agActive(), all = (VEHICLES || []).length;
+    const byCo = {};
+    act.forEach(v => { const c = (v.company || 'ללא חברה').trim(); byCo[c] = (byCo[c] || 0) + 1; });
+    const co = Object.entries(byCo).sort((a, b) => b[1] - a[1])
+      .map(([c, n]) => '• ' + c + ': ' + n).join('\n');
+    return '🚗 ' + act.length + ' רכבים עם נהג פעיל, מתוך ' + all + ' רשומות בצי.\n\nלפי חברה:\n' + co;
+  }
+
+  // "עומד לפוג", "יפוג", "פג" — כולם נגזרות של אותו שורש, וכל אחד מהם
+  // נשאל בפועל. שורש אחד מכסה את כולם.
+  const EXP = ['פג', 'פוג', 'תוקף', 'חידוש', 'להתחדש', 'נגמר'];
+  if (has('ביטוח') && has(...EXP)) return _agDue('insuranceExpiry', 'תוקף ביטוח חובה');
+  if (has('רישוי', 'טסט') && has(...EXP)) return _agDue('registrationExpiry', 'תוקף רישוי (טסט)');
+  if (has('רישיון נהיגה', 'רישיון נהג')) return _agDue('licenseExpiry', 'רישיון נהיגה');
+  if (has('חסר', 'חסרים', 'לא מולא')) return _agMissing();
+
+  if (has('פג תוקף', 'מה פג', 'פוג', 'התראות', 'מה דחוף', 'מה צריך לטפל')) {
+    return [_agDue('registrationExpiry', 'תוקף רישוי (טסט)'),
+            _agDue('insuranceExpiry', 'תוקף ביטוח חובה'),
+            _agDue('licenseExpiry', 'רישיון נהיגה')].join('\n\n');
+  }
+
+  if (has('טיפול', 'חריגת טיפול', 'ק״מ', 'קילומטר')) {
+    const rows = _agActive().map(v => ({ v, c: parseKm(v.currentKm), n: parseKm(v.nextServiceKm) }))
+      .filter(o => o.c > 0 && o.n > 0 && o.c >= o.n)
+      .sort((a, b) => (b.c - b.n) - (a.c - a.n));
+    if (!rows.length) return '✅ אין רכב בחריגת טיפול לפי הק״מ הרשום.';
+    return '🔧 ' + rows.length + ' רכבים בחריגת טיפול:\n' +
+      rows.slice(0, 20).map(o => '• ' + _agName(o.v) + ' — ' + (o.c - o.n).toLocaleString() + ' ק״מ מעבר ליעד').join('\n');
+  }
+
+  if (has('דוח', 'דוחות', 'קנס', 'תנועה')) {
+    const list = (typeof VIOLATIONS !== 'undefined' ? VIOLATIONS : []);
+    const open = list.filter(x => !String(x.status || '').includes('שולם') && !String(x.status || '').includes('סגור'));
+    const byDrv = {};
+    open.forEach(x => { const d = cleanName(x.driver) || 'לא ידוע'; byDrv[d] = (byDrv[d] || 0) + 1; });
+    const top = Object.entries(byDrv).sort((a, b) => b[1] - a[1]).slice(0, 5);
+    return '📄 ' + list.length + ' דוחות תנועה במערכת, ' + open.length + ' לא סגורים.' +
+      (top.length ? '\n\nהכי הרבה דוחות פתוחים:\n' + top.map(x => '• ' + x[0] + ': ' + x[1]).join('\n') : '');
+  }
+
+  if (has('תאונ', 'אירוע', 'נזק')) {
+    const list = (typeof INCIDENTS !== 'undefined' ? INCIDENTS : []);
+    const ded = list.reduce((n, i) => n + (parseMoney(i.deductible) || 0), 0);
+    return '💥 ' + list.length + ' אירועים רשומים' +
+      (ded ? '\nסה״כ השתתפות עצמית: ₪' + Math.round(ded).toLocaleString() : '') +
+      (list.length ? '\n\nהאחרונים:\n' + list.slice(-5).reverse()
+        .map(i => '• ' + (i.date || '') + ' · ' + (cleanName(i.driver) || '') + ' · ' + (i.plate || '')).join('\n') : '');
+  }
+
+  if (has('עלות', 'עלויות', 'הוצאה', 'הוצאות', 'כמה עלה', 'דלק', 'תקציב')) return _agMoney();
+
+  if (has('ממתין', 'לאישור', 'קריאות', 'מסמכים שהתקבלו')) {
+    const list = (typeof PENDING_REQS !== 'undefined' ? PENDING_REQS : []);
+    if (!list.length) return '✅ אין קריאות שממתינות לאישור.';
+    return '📥 ' + list.length + ' קריאות ממתינות לאישור:\n' +
+      list.slice(0, 15).map(r => '• ' + (r.plate || '') + ' · ' + (cleanName(r.driver) || '') + ' — ' + (r.reqLabel || 'מסמך') + ' (' + (r.dateStr || '') + ')').join('\n');
+  }
+
+  if (has('ביקורת', 'קצין בטיחות')) {
+    const rows = _agActive().map(v => ({ v, d: (typeof daysUntilNextInsp === 'function') ? daysUntilNextInsp(v) : null }))
+      .filter(o => o.d !== null && o.d <= 30).sort((a, b) => a.d - b.d);
+    if (!rows.length) return '✅ אין ביקורת שמועדה בתוך 30 יום.';
+    return '🛡️ ' + rows.length + ' רכבים לביקורת בתוך 30 יום:\n' +
+      rows.slice(0, 20).map(o => (o.d < 0 ? '🔴 ' : '🟡 ') + _agName(o.v) + ' — ' + (o.d < 0 ? 'באיחור ' + Math.abs(o.d) + ' ימים' : 'בעוד ' + o.d + ' ימים')).join('\n');
+  }
+
+  // חיפוש רכב או נהג — מנוע שכבר קיים ולא היה מחובר לשום דבר
+  if (typeof findAnswerLocal === 'function') {
+    try { const r = findAnswerLocal(t); if (r) return r; } catch(e) {}
+  }
+  return null;
+}
+
 function isActionRequest(text) {
   const actionWords = [
     'הוסף','הוספ','עדכן','עדכ','מחק','מחיק','שנה','שינ','סנכרן','ייצא','ייצו',
@@ -9374,9 +9518,19 @@ async function agentSend() {
   const msg = input.value.trim();
   if (!msg && !agentPendingImage) return;
 
+  // בלי מפתח API הסוכן לא נעצר: כל שאלה שאפשר לחשב מהנתונים נענית
+  // מקומית. רק מה שדורש הבנה חופשית או ניתוח תמונה מצריך מפתח.
   if (!agentApiKey) {
-    document.getElementById('agent-key-wrap').style.display = 'block';
-    toast('הכנס מפתח API תחילה', true);
+    input.value = '';
+    agentMessages.push({ role: 'user', content: msg || '📷 קובץ' });
+    const local = (!agentPendingImage && msg) ? agentLocalAnswer(msg) : null;
+    agentMessages.push({ role: 'assistant', content: local || (
+      agentPendingImage
+        ? 'ניתוח תמונות ומסמכים דורש מפתח API. בלעדיו אני עדיין עונה על שאלות מהנתונים שבמערכת — נסה לשאול "מה פג תוקף" או "כמה רכבים יש".'
+        : 'לשאלה הזו אני צריך מפתח API.\n\n' + _agHelp()) });
+    agentPendingImage = null;
+    const _pv = document.getElementById('agent-img-preview'); if (_pv) _pv.style.display = 'none';
+    renderAgentMsgs();
     return;
   }
 
