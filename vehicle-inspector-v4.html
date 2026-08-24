@@ -1029,15 +1029,30 @@ async function analyzePhoto() {
 }
 
 // ── Save / Sync ──
-function saveRecord() {
+// קודם היו שני כפתורי סיום — "שמור אומדן" ו"הוסף לחוות דעת" — ורק
+// הראשון כתב לטבלת התיעוד. מי שסיים תיק ישר דרך "הוסף לחוות דעת",
+// כמו שקורה בפועל בשלושה תיקים, מעולם לא נכנס לטבלה. שני הכפתורים
+// עוברים כעת דרך אותה בנייה ואותה שמירה, כדי שכל תיק שמוכן — בכל
+// דרך שמסיימים אותו — יופיע בטבלה על פי הנתונים האמיתיים של הטופס.
+function buildRecordFromForm() {
   const items = getRows();
   const w = getWorkTotals();
   // include extra ("+ עבודה נוספת") works in the saved/exported total — matches calcTotal()
   const total = items.reduce((s, r) => s + r.parts, 0) + w.paint + w.body + w.electric + (w.extra || 0);
-  const record = {
-    id:     editingId || Date.now(),
+  const plate = document.getElementById('f-plate').value.trim();
+  // editingId נשאר מוצמד לטופס גם אחרי "הוסף לחוות דעת", שלא מאפס
+  // אותו כמו saveRecord(). אם בינתיים הוחלף הרישוי בטופס בלי ללחוץ
+  // "אומדן חדש" — זה תיק אחר לגמרי, ואסור לדרוס בו את התיק הקודם.
+  let id = editingId;
+  if (id) {
+    const prev = records.find(r => r.id === id);
+    if (prev && prev.plate && plate && prev.plate !== plate) id = null;
+  }
+  id = id || Date.now();
+  return {
+    id,
     date:   document.getElementById('f-date').value,
-    plate:  document.getElementById('f-plate').value.trim(),
+    plate,
     make:   document.getElementById('f-make').value.trim(),
     model:  document.getElementById('f-model').value.trim(),
     year:   document.getElementById('f-year').value.trim(),
@@ -1060,7 +1075,13 @@ function saveRecord() {
     items, total,
     savedAt: new Date().toLocaleString('he-IL')
   };
-
+}
+// כותב את הרשומה לטבלת התיעוד ומסנכרן לגיליון. id זהה מעדכן את אותה
+// שורה במקום לשכפל אותה — ולכן קודם ממלאים editingId, כדי שאם התיק
+// יישמר שוב אחר כך (למשל לחיצה על "שמור אומדן" אחרי "הוסף לחוות
+// דעת") הוא יעדכן את השורה הקיימת ולא ייצור עותק נוסף.
+function persistRecord(record) {
+  editingId = record.id;
   const idx = records.findIndex(r => r.id === record.id);
   if (idx >= 0) records[idx] = record; else records.unshift(record);
   try {
@@ -1069,18 +1090,21 @@ function saveRecord() {
     // Quota exceeded — retry without photos
     const slim = records.map(r => ({...r, photo: null}));
     try { localStorage.setItem('shamay_records', JSON.stringify(slim)); } catch(e2) {}
-    toast('⚠️ אומדן נשמר ללא תמונה (אחסון מלא)');
-    updatePriceMemory(items);
+    updatePriceMemory(record.items);
     renderRecords();
     syncToSheets(record);
-    newInspection();
-    return;
+    return false; // נשמר בלי תמונה — הקורא מחליט אם להתריע
   }
-  updatePriceMemory(items); // ← learn prices
+  updatePriceMemory(record.items); // ← learn prices
   renderRecords();
   syncToSheets(record);
+  return true;
+}
+function saveRecord() {
+  const record = buildRecordFromForm();
+  const full = persistRecord(record);
   newInspection();
-  toast('✅ אומדן נשמר! המחירים נלמדו 🧠');
+  toast(full ? '✅ אומדן נשמר! המחירים נלמדו 🧠' : '⚠️ אומדן נשמר ללא תמונה (אחסון מלא)');
 }
 
 async function syncToSheets(record) {
@@ -1628,6 +1652,11 @@ function toast(msg, err=false) {
 // נכתב למפתח ייעודי, ומנהל הצי מציע לייבא אותו כשנפתחת לשונית חוות
 // הדעת. בלי לחיצה על הכפתור — שום דבר לא עובר.
 function sendToOpinion() {
+  // התיק נכנס לטבלת התיעוד באותה נקודה שבה הוא נשלח לחוות דעת —
+  // הפעולה הזו היא "סיימתי את התיק" בפועל, גם בלי לחיצה נפרדת על
+  // "שמור אומדן". הטופס לא מתאפס, כדי שאפשר יהיה עוד להמשיך לערוך
+  // לפני שעוברים ללשונית חוות דעת.
+  persistRecord(buildRecordFromForm());
   const val = id => { const e = document.getElementById(id); return e ? e.value.trim() : ''; };
   const items = getRows();
   const w = getWorkTotals();
