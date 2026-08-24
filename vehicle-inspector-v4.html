@@ -89,11 +89,18 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue)}
 .url-save-btn{background:var(--green);color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:0.78rem;font-weight:700;cursor:pointer;font-family:'Heebo',sans-serif;white-space:nowrap}
 .status-line{font-size:0.72rem;margin-top:4px}
 /* Records */
-.record-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:flex-start}
-.record-info{flex:1}
-.record-plate{font-weight:900;color:var(--accent);direction:ltr;font-size:0.95rem}
-.record-meta{font-size:0.75rem;color:var(--muted);margin-top:2px}
-.record-total{font-weight:900;color:var(--green);font-size:0.95rem;margin-top:4px}
+.records-table{width:100%;border-collapse:collapse}
+.records-table th{text-align:right;font-size:0.7rem;color:var(--muted);font-weight:600;padding:6px 5px;border-bottom:1px solid var(--border);white-space:nowrap}
+.records-table td{padding:7px 5px;border-bottom:1px solid var(--border);font-size:0.82rem;vertical-align:middle}
+.records-table tr:last-child td{border-bottom:none}
+.record-plate{font-weight:900;color:var(--accent);direction:ltr;font-size:0.9rem}
+.record-meta{font-size:0.72rem;color:var(--muted);margin-top:1px}
+.record-total{font-weight:900;color:var(--green);white-space:nowrap}
+.rec-actions{display:flex;gap:3px;justify-content:flex-end;flex-wrap:wrap}
+.rec-move-down{background:none;border:1px solid var(--border);border-radius:6px;width:26px;height:26px;
+  font-size:0.85rem;cursor:pointer;color:var(--muted);line-height:1;padding:0}
+.rec-move-down:hover{background:var(--surface);color:var(--accent)}
+.rec-move-down:disabled{opacity:.3;cursor:default}
 .rec-del{background:none;border:none;color:var(--muted);cursor:pointer;font-size:1rem;padding:4px}
 .rec-del:hover{color:var(--red)}
 .empty{text-align:center;padding:24px;color:var(--muted);font-size:0.85rem}
@@ -366,8 +373,8 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue)}
 
 <!-- RECORDS -->
 <div class="card">
-  <div class="card-title">📋 אומדנים שמורים <span id="rec-count" style="background:var(--accent);color:#000;font-size:0.7rem;border-radius:99px;padding:2px 8px;font-weight:700">0</span></div>
-  <div id="records-list"><div class="empty">עוד אין אומדנים שמורים</div></div>
+  <div class="card-title">📋 טבלת תיעוד נבדקים <span id="rec-count" style="background:var(--accent);color:#000;font-size:0.7rem;border-radius:99px;padding:2px 8px;font-weight:700">0</span></div>
+  <div id="records-list"><div class="empty">עוד אין רכבים בטבלה — כל אומדן שנשמר יופיע כאן אוטומטית</div></div>
 </div>
 
 </main>
@@ -1101,24 +1108,44 @@ async function syncToSheets(record) {
 }
 
 // ── Records list ──
+// כל רכב שנשמר עם saveRecord() מגיע לכאן דרך אותה קריאת renderRecords()
+// שכבר קיימת בסוף השמירה — הטבלה מתעדכנת ממילא בלי צעד נוסף. השורות
+// מוצגות בסדר המערך records עצמו, ולכן הזזה למטה משנה את המיקום שלהן
+// שם, ונשארת אחרי רענון.
 function renderRecords() {
   const list = document.getElementById('records-list');
   document.getElementById('rec-count').textContent = records.length;
-  if (!records.length) { list.innerHTML = '<div class="empty">עוד אין אומדנים שמורים</div>'; return; }
-  list.innerHTML = records.map(r => `
-    <div class="record-card">
-      <div class="record-info">
+  if (!records.length) { list.innerHTML = '<div class="empty">עוד אין רכבים בטבלה — כל אומדן שנשמר יופיע כאן אוטומטית</div>'; return; }
+  const rows = records.map((r, i) => `
+    <tr>
+      <td>
         <div class="record-plate">${r.plate || '—'}</div>
-        <div class="record-meta">${[r.make, r.model, r.year].filter(Boolean).join(' · ')}${r.client ? ' | ' + r.client : ''} | ${r.date}</div>
-        <div class="record-total">₪${(r.total||0).toLocaleString('he-IL')} • ${(r.items||[]).length} פריטי נזק</div>
-      </div>
-      <div style="display:flex;flex-direction:column;gap:4px;align-items:flex-end">
-        <button class="rec-del" onclick="deleteRecord(${r.id})" title="מחק">✕</button>
-        <button class="btn-sm btn-gray" style="font-size:0.7rem;padding:4px 8px" onclick="loadRecord(${r.id})">ערוך</button>
-        <button class="btn-sm btn-gray" style="font-size:0.7rem;padding:4px 8px;color:var(--accent)" onclick="exportSinglePDF(${r.id})">⬇ PDF</button>
-        <button class="btn-sm btn-gray" style="font-size:0.7rem;padding:4px 8px;color:#3b82f6" onclick="exportSingleImage(${r.id})">🖼️</button>
-      </div>
-    </div>`).join('');
+        <div class="record-meta">${[r.make, r.model, r.year].filter(Boolean).join(' · ')}${r.client ? ' | ' + r.client : ''}</div>
+      </td>
+      <td style="white-space:nowrap">${r.date || '—'}</td>
+      <td class="record-total">₪${(r.total||0).toLocaleString('he-IL')}<div class="record-meta">${(r.items||[]).length} פריטי נזק</div></td>
+      <td>
+        <div class="rec-actions">
+          <button class="rec-move-down" title="הזז שורה למטה" onclick="moveRecordDown(${r.id})" ${i === records.length - 1 ? 'disabled' : ''}>⬇</button>
+          <button class="btn-sm btn-gray" style="font-size:0.7rem;padding:4px 8px" onclick="loadRecord(${r.id})">ערוך</button>
+          <button class="btn-sm btn-gray" style="font-size:0.7rem;padding:4px 8px;color:var(--accent)" onclick="exportSinglePDF(${r.id})">⬇ PDF</button>
+          <button class="btn-sm btn-gray" style="font-size:0.7rem;padding:4px 8px;color:#3b82f6" onclick="exportSingleImage(${r.id})">🖼️</button>
+          <button class="rec-del" onclick="deleteRecord(${r.id})" title="מחק">✕</button>
+        </div>
+      </td>
+    </tr>`).join('');
+  list.innerHTML = `<div style="overflow-x:auto"><table class="records-table">
+    <thead><tr><th>רכב</th><th>תאריך</th><th>סה״כ</th><th></th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table></div>`;
+}
+// מחליף מקום בין הרשומה לזו שאחריה במערך, ושומר את הסדר החדש
+function moveRecordDown(id) {
+  const i = records.findIndex(r => r.id === id);
+  if (i < 0 || i >= records.length - 1) return;
+  [records[i], records[i + 1]] = [records[i + 1], records[i]];
+  localStorage.setItem('shamay_records', JSON.stringify(records));
+  renderRecords();
 }
 
 function deleteRecord(id) {
