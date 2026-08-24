@@ -362,8 +362,8 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
   </div>
   <button class="sys-out" onclick="doLogout()" title="התנתקות" aria-label="התנתקות">🚪</button>
   <div class="sys-bar" id="sys-bar" role="tablist" aria-label="מערכות">
-  <button class="sys-btn active" data-sys="fleet"  type="button" role="tab" aria-selected="true"  onclick="showSystem('fleet')"><span class="sys-ico" aria-hidden="true">🚗</span>ניהול צי רכב</button>
-  <button class="sys-btn"        data-sys="shamai" type="button" role="tab" aria-selected="false" onclick="showSystem('shamai')"><span class="sys-ico" aria-hidden="true">🔍</span>שמAI</button>
+  <button class="sys-btn active" data-sys="fleet"  type="button" role="tab" aria-selected="true"  onclick="showSystem('fleet')"><span class="sys-ico" aria-hidden="true">🚗</span>ניהול צי רכב<span class="sys-lock" aria-hidden="true" style="display:none">🔒</span></button>
+  <button class="sys-btn"        data-sys="shamai" type="button" role="tab" aria-selected="false" onclick="showSystem('shamai')"><span class="sys-ico" aria-hidden="true">🔍</span>שמAI<span class="sys-lock" aria-hidden="true" style="display:none">🔒</span></button>
   <button class="sys-btn"        data-sys="garage" type="button" role="tab" aria-selected="false" onclick="showSystem('garage')"><span class="sys-ico" aria-hidden="true">🔧</span>ניהול מוסך</button>
 </div>
 </div>
@@ -875,6 +875,9 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
 }
 .sys-btn:hover{color:rgba(255,255,255,.85);background:rgba(255,255,255,.05)}
 .sys-btn.active{color:#fff;border-bottom-color:#6ee7b7;background:rgba(255,255,255,.08)}
+.sys-btn:disabled,.sys-btn.locked{opacity:.4;cursor:not-allowed}
+.sys-btn:disabled:hover,.sys-btn.locked:hover{background:none;color:rgba(255,255,255,.62)}
+.sys-lock{font-size:0.74rem;margin-inline-start:2px}
 .sys-ico{font-size:1.05rem;line-height:1}
 @media(max-width:768px){
   .sys-btn{font-size:0.72rem;padding:9px 6px;gap:4px;min-width:0}
@@ -2709,9 +2712,13 @@ function showTab(name, btn) {
   const _nb = (btn && btn.classList && btn.classList.contains('nav-btn'))
             ? btn : document.querySelector('.nav-btn[data-tab="'+name+'"]');
   if (_nb) { _nb.classList.add('active'); _nb.setAttribute('aria-selected','true'); }
-  // מעבר ללשונית של מערכת אחרת מחליף גם את המערכת הפעילה
+  // מעבר ללשונית של מערכת אחרת מחליף גם את המערכת הפעילה — אלא אם היא
+  // נעולה, ואז נשארים איפה שהיינו במקום לקרוס למחצה למערכת חסומה.
   const _sys = sysOf(name);
-  if (_sys !== CURRENT_SYS) showSystem(_sys, true);
+  if (_sys !== CURRENT_SYS) {
+    if (!sysAllowed(_sys)) return;
+    showSystem(_sys, true);
+  }
   syncMoreBtn(name);
   const _sc = document.getElementById('app-scroll');
   if (_sc && _sc.scrollTop) _sc.scrollTop = 0;
@@ -8537,6 +8544,11 @@ let COMPANY_NAME = 'נופר אנרגיה';
 // or when validUntil (ISO date) has passed. Nofar (the owner) is always active.
 let SUB_ACTIVE = true;
 let SUB_VALID_UNTIL = '';
+// מודולים בתשלום נוסף: שמAI וניהול צי רכב אינם כלולים אוטומטית בכל חשבון
+// שמנוי פעיל בו. הבעלים (נופר) תמיד פתוח לגמרי; ניהול מוסך נשאר פתוח
+// תמיד — הוא ריק וכרגע לא חושף שום נתון.
+let SYS_ENABLED = { fleet: true, shamai: true, garage: true };
+function sysAllowed(name) { return SYS_ENABLED[name] !== false; }
 const TENANT_DATA = () => db.collection('tenants').doc(TENANT).collection('data');
 // Stage-2 cutover switch. OFF = legacy fleet/* . ON = per-tenant isolation (tenants/{tid}/data).
 let USE_TENANT = true;
@@ -8555,19 +8567,35 @@ async function resolveTenant(user) {
       if (d.companyName) COMPANY_NAME = d.companyName;
       SUB_ACTIVE = (d.active !== false);       // blocked only if explicitly set false
       SUB_VALID_UNTIL = d.validUntil || '';    // optional expiry date (ISO)
+      // שדה systems נעדר = חשבון שנוצר לפני המנגנון הזה — נשאר פתוח כרגיל,
+      // כדי לא לנעול בשוגג לקוח פעיל וקיים. שדה שקיים = מפורש: כל מה
+      // שלא סומן true במפורש נעול, בדיוק כמו שביקשת — אתה קובע בעת
+      // יצירת המשתמש, ופותח אחר כך רק את מה שהלקוח מנוי עליו.
+      if (d.systems && typeof d.systems === 'object') {
+        SYS_ENABLED = { fleet: !!d.systems.fleet, shamai: !!d.systems.shamai, garage: true };
+      } else {
+        SYS_ENABLED = { fleet: true, shamai: true, garage: true };
+      }
       return;
     }
     // No mapping doc: only the known owner maps to Nofar; anyone else gets an isolated
     // (empty) tenant keyed by their own uid — closes the "unmapped → sees Nofar" hole.
     if (user.uid === NOFAR_OWNER_UID) {
       TENANT = 'nofar'; ROLE = 'manager'; COMPANY_NAME = 'נופר אנרגיה';
+      SYS_ENABLED = { fleet: true, shamai: true, garage: true };
     } else {
+      // אין עדיין רשומת users/{uid} — כלומר עוד לא הוקם ללקוח הזה חשבון
+      // דרכך. זה בדיוק המצב הכי "לקוח חדש" שיש, ולכן המודולים נעולים
+      // עד שתפתח אותם בעצמך.
       TENANT = user.uid; COMPANY_NAME = ''; SUB_ACTIVE = true; SUB_VALID_UNTIL = '';
+      SYS_ENABLED = { fleet: false, shamai: false, garage: true };
     }
   } catch(e) {
     // On a read failure, preserve isolation — never default a stranger onto Nofar.
     console.log('tenant resolve error', e);
     TENANT = (user.uid === NOFAR_OWNER_UID) ? 'nofar' : user.uid;
+    SYS_ENABLED = (TENANT === 'nofar') ? { fleet: true, shamai: true, garage: true }
+                                        : { fleet: false, shamai: false, garage: true };
   }
 }
 // Is this company's subscription currently valid? The owner (nofar) is never blocked.
@@ -8700,7 +8728,12 @@ function bootApp() {
   if (_appBooted) return;
   _appBooted = true;
   guardTenantCache();
-  try { showSystem(localStorage.getItem('fleet_sys') || 'fleet'); } catch(e) { showSystem('fleet'); }
+  applySysLocks();
+  // אם המערכת השמורה ננעלה מאז הביקור הקודם, נבחרת הראשונה הפתוחה —
+  // וניהול מוסך תמיד פתוח, כך שאף לקוח לא נשאר בלי שום מסך.
+  let _startSys = localStorage.getItem('fleet_sys') || 'fleet';
+  if (!sysAllowed(_startSys)) _startSys = ['fleet', 'shamai', 'garage'].find(sysAllowed) || 'garage';
+  try { showSystem(_startSys); } catch(e) { showSystem('garage'); }
   // שחזור הלשונית האחרונה, רק אם היא שייכת למערכת שנפתחה ויש לה כפתור
   try {
     const t = localStorage.getItem('fleet_tab');
@@ -11590,8 +11623,25 @@ function sysOf(tabName) {
   return (b && b.dataset.sys) || 'fleet';
 }
 
+// מציג/מסתיר את המנעול על כפתורי המערכת לפי SYS_ENABLED. disabled אמיתי,
+// לא רק עיצוב — כפתור חסום לא יורה click בכלל, וזה מה שביקשת: "בלתי לחיץ".
+function applySysLocks() {
+  document.querySelectorAll('.sys-btn').forEach(b => {
+    const name = b.dataset.sys;
+    const ok = sysAllowed(name);
+    b.disabled = !ok;
+    b.classList.toggle('locked', !ok);
+    b.title = ok ? '' : 'המודול הזה אינו כלול במנוי הנוכחי — פנה למחלקת הרכב להפעלה';
+    const lockEl = b.querySelector('.sys-lock');
+    if (lockEl) lockEl.style.display = ok ? 'none' : 'inline';
+  });
+}
+
 function showSystem(name, keepTab) {
   if (!SYS_FIRST_TAB[name]) return;
+  // הגנה כפולה: גם הכפתור מנוטרל, וגם כאן — למקרה שהמעבר הגיע ממקור
+  // אחר (למשל שחזור הלשונית האחרונה אחרי שמודול ננעל בין סשן לסשן).
+  if (!sysAllowed(name)) return;
   CURRENT_SYS = name;
   document.querySelectorAll('.sys-btn').forEach(b => {
     const on = b.dataset.sys === name;
