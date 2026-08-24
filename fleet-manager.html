@@ -1385,7 +1385,7 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
             <div style="font-size:0.76rem;color:#94a3b8;margin-bottom:10px">מוצג רק אצלך. הדבק UID של לקוח (מ-Firebase Console → Authentication) כדי לטעון או לשמור את ההגדרות שלו — בלי לגעת ב-JSON.</div>
             <div class="modal-row" style="margin-bottom:8px">
               <label style="color:#cbd5e1">UID של הלקוח</label>
-              <input id="adm-uid" type="text" style="direction:ltr;background:#1e293b;color:#e2e8f0;border-color:#334155" placeholder="לדוגמה: aBcD1234efGH...">
+              <input id="adm-uid" type="text" style="direction:ltr;background:#1e293b;color:#e2e8f0;border-color:#334155" placeholder="לדוגמה: aBcD1234efGH..." oninput="_admLoadedUid=''">
             </div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
               <div class="modal-row"><label style="color:#cbd5e1">שם החברה</label><input id="adm-company" type="text" style="background:#1e293b;color:#e2e8f0;border-color:#334155"></div>
@@ -8827,10 +8827,14 @@ async function doSignup() {
     try {
       // Created by the owner AFTER payment → active. validUntil gives a one-month runway
       // that auto-blocks if not renewed; the owner extends it each paid month in the console.
+      // מודולים: לקוח שנרשם דרך הטופס הזה מקבל systems נעול מפורשות —
+      // בלי זה, resolveTenant מתייחס לשדה החסר כאילו הוא לקוח ותיק
+      // ופותח הכל אוטומטית, בדיוק מה שהיה אמור להישאר בהחלטה שלך.
       const _vu = new Date(); _vu.setDate(_vu.getDate() + 31);
       await db.collection('users').doc(cred.user.uid).set({
         tenantId: cred.user.uid, companyName: company, role: 'manager', createdAt: new Date().toISOString(),
-        active: true, validUntil: _vu.toISOString().slice(0,10)
+        active: true, validUntil: _vu.toISOString().slice(0,10),
+        systems: { fleet: false, shamai: false }
       });
     } catch(mapErr) {
       // couldn't record the company→tenant mapping — roll back so the account can't
@@ -11673,6 +11677,9 @@ function applySysLocks() {
 // פאנל זה מוצג רק אצלך (TENANT === 'nofar'), אבל הבדיקה חוזרת גם כאן
 // בתוך שתי הפונקציות עצמן — הגנה כפולה, כמו בשאר המערכת: גם אם ה-DOM
 // נחשף בטעות, אי אפשר לכתוב דרכו למסמך של לקוח אחר.
+// UID שנשמר בהצלחה נחשב "נטען" גם כן, כדי שאפשר יהיה לשמור שוב מיד
+// בלי להיתקע על ההגנה הבאה.
+let _admLoadedUid = '';
 function _admPermErr(e) {
   if (e && (e.code === 'permission-denied' || /permission/i.test(e.message || ''))) {
     return 'אין הרשאה לכתוב למשתמש הזה. צריך להוסיף כלל בפיירסטור שמרשה לך לגשת ל-users/* — תגיד לי ואשלח לך את הכלל להדבקה.';
@@ -11695,6 +11702,7 @@ async function adminLoadClient() {
     const sys = d.systems || {};
     document.getElementById('adm-fleet').checked = !!sys.fleet;
     document.getElementById('adm-shamai').checked = !!sys.shamai;
+    _admLoadedUid = uid;
     st.textContent = '✓ נטען'; st.style.color = '#86efac';
   } catch(e) { st.textContent = _admPermErr(e); st.style.color = '#fca5a5'; console.log('adminLoadClient', e); }
 }
@@ -11703,6 +11711,18 @@ async function adminSaveClient() {
   const uid = (document.getElementById('adm-uid').value || '').trim();
   const st = document.getElementById('adm-status');
   if (!uid) { st.textContent = 'הזן UID לפני שמירה'; st.style.color = '#fca5a5'; return; }
+  // מניעת דריסה בשוגג: UID שלא נטען קודם עלול להיות לקוח קיים עם
+  // תוקף מנוי או שם חברה שהטופס לא ראה, ושמירה ישירה הייתה מוחקת אותם.
+  if (uid !== _admLoadedUid) {
+    try {
+      const chk = await db.collection('users').doc(uid).get();
+      if (chk.exists) {
+        st.textContent = 'הלקוח הזה כבר קיים — לחץ קודם "📂 טען לקוח קיים" כדי לא לדרוס לו נתונים (למשל תוקף מנוי) בטעות.';
+        st.style.color = '#fbbf24';
+        return;
+      }
+    } catch(e) { console.log('adminSaveClient precheck', e); }
+  }
   const data = {
     companyName: (document.getElementById('adm-company').value || '').trim(),
     active: !!document.getElementById('adm-active').checked,
@@ -11715,6 +11735,7 @@ async function adminSaveClient() {
   st.textContent = 'שומר…'; st.style.color = '#94a3b8';
   try {
     await db.collection('users').doc(uid).set(data, { merge: true });
+    _admLoadedUid = uid;
     st.textContent = '✓ נשמר — הלקוח יראה את השינוי בכניסה/רענון הבאה שלו'; st.style.color = '#86efac';
   } catch(e) { st.textContent = _admPermErr(e); st.style.color = '#fca5a5'; console.log('adminSaveClient', e); }
 }
