@@ -280,25 +280,29 @@ canvas.sig{width:100%;height:130px;border:1.5px dashed #94a3b8;border-radius:10p
 </div>
 
 <script>
-firebase.initializeApp({
+// אפליקציית פיירבייס שנייה, בשם משלה — לא ברירת המחדל. Persistence.NONE כאן
+// לא הספיק בפועל: fleet-manager.html טוען את הדף הזה ב-iframe נסתר כדי לבנות
+// PDF (ר' _renderDeclPdf שם), וההתחברות האנונימית עדיין הדליפה ל-auth() של
+// ברירת המחדל באותו טאב — מה שהוציא את המנהל מהחשבון שלו באמצע העבודה.
+// אפליקציה נפרדת (שם שונה) מקבלת מופע Auth נפרד לגמרי, בלי שום שיתוף אחסון
+// עם auth() של ברירת המחדל שבו משתמש fleet-manager.html — גם כשהדף הזה
+// רץ בתוך iframe של אותו טאב.
+const driverFormsApp = firebase.initializeApp({
   apiKey: "AIzaSyDW6mzShTVBgHH-c5f0hb7FvIRophpgp78",
   authDomain: "niholrechev.firebaseapp.com",
   projectId: "niholrechev",
   storageBucket: "niholrechev.firebasestorage.app",
   messagingSenderId: "347809967171",
   appId: "1:347809967171:web:af3eb5cdeefc827b41f8f6"
-});
-const db = firebase.firestore();
+}, 'driverForms');
+const db = driverFormsApp.firestore();
 // Sign this browser in anonymously — invisible to the driver (no login screen, no
 // extra tap) but it gives the database an identity to check. Failure is non-fatal:
 // the form keeps working exactly as before.
 async function ensureAnonAuth() {
   try {
-    if (firebase.auth().currentUser) return;
-    // in-memory only, so the driver's anonymous session never overwrites the
-    // manager's email/password session stored on the same site
-    try { await firebase.auth().setPersistence(firebase.auth.Auth.Persistence.NONE); } catch(e) {}
-    await firebase.auth().signInAnonymously();
+    if (driverFormsApp.auth().currentUser) return;
+    await driverFormsApp.auth().signInAnonymously();
   } catch(e) { console.log('anon auth unavailable, continuing', e.code || e.message); }
 }
 const params = new URLSearchParams(location.search);
