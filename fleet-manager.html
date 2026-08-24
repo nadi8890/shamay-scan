@@ -4886,7 +4886,7 @@ async function maybeSendKmReminder() {
     mirrorToTenant('main', { kmRemind: rem });
     if (MAIL_SETTINGS.gasUrl) {
       await fetch(MAIL_SETTINGS.gasUrl, { method:'POST', mode:'no-cors', headers:{'Content-Type':'text/plain'},
-        body: JSON.stringify({ subject: '🛣️ תזכורת: סבב עדכון ק"מ חודשי', body: 'תחילת חודש!\nשלח לקבוצת הנהגים את הודעת עדכון הק"מ.\nההודעה המוכנה: לשונית טפסים ← סבב עדכון ק"מ ← "העתק הודעה לקבוצה".\n\nקישור הנהגים: ' + KM_UPDATE_LINK + tParam('?'), files: [] }) });
+        body: JSON.stringify({ token: MAIL_SETTINGS.gasToken, subject: '🛣️ תזכורת: סבב עדכון ק"מ חודשי', body: 'תחילת חודש!\nשלח לקבוצת הנהגים את הודעת עדכון הק"מ.\nההודעה המוכנה: לשונית טפסים ← סבב עדכון ק"מ ← "העתק הודעה לקבוצה".\n\nקישור הנהגים: ' + KM_UPDATE_LINK + tParam('?'), files: [] }) });
     }
   } catch(e) {}
 }
@@ -5374,7 +5374,7 @@ async function notifyNewDeclarations() {
         const title = (r.formType && DECL_FORM_META[r.formType]) ? DECL_FORM_META[r.formType].label : 'טפסי קבלת רכב';
         try {
           await fetch(MAIL_SETTINGS.gasUrl, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain' },
-            body: JSON.stringify({ subject: `📋 טופס נהג התקבל — ${r.name || ''} (${r.plate || ''}) · ${title}`,
+            body: JSON.stringify({ token: MAIL_SETTINGS.gasToken, subject: `📋 טופס נהג התקבל — ${r.name || ''} (${r.plate || ''}) · ${title}`,
               body: buildDeclText(r) + '\n\n(התראה אוטומטית ממערכת ר.מזור — הטופס המלא זמין בלשונית "טפסים")', files: [] }) });
         } catch(e) {}
       }
@@ -5401,6 +5401,7 @@ async function loadDeclarations() {
         ${r.photosCount ? `<span class="badge badge-orange">📷 ${r.photosCount}</span>` : ''}
         ${r.docsCount ? `<span class="badge badge-orange" title="ביטוח חובה / רישיון רכב">🚗 ${r.docsCount}</span>` : ''}
         <span class="badge badge-green">✓ נחתם</span>
+        <button class="btn btn-secondary" style="padding:3px 8px;font-size:0.72rem" title="שלח שוב במייל" onclick="event.stopPropagation();resendDeclarationMail(${i})">🔁</button>
         <button class="btn btn-secondary" style="padding:3px 8px;font-size:0.72rem" onclick="event.stopPropagation();deleteDeclaration(${i})">🗑️</button>
       </div>`).join('');
   } catch(e) { wrap.innerHTML = '<div style="color:#dc2626;font-size:0.8rem;padding:8px">שגיאה בטעינה</div>'; }
@@ -5446,6 +5447,35 @@ function buildDeclText(r) {
   }
   return L.join('\n');
 }
+// שליחה חוזרת של טופס שכבר התקבל — לשחזור הודעות שהטוקן החדש חסם
+// בשקט לפני התיקון. מצרפת את החתימה, ואם נשמרו גם צילומי המסמכים
+// (vdocs_/licdocs_ עם אותו created — נכתבים תמיד יחד עם ההצהרה),
+// גם אותם.
+async function resendDeclarationMail(i) {
+  const r = (window._DECLS||[])[i]; if (!r) return;
+  if (!MAIL_SETTINGS.gasUrl) { toast('לא הוגדרה כתובת Apps Script בהגדרות המייל', true); return; }
+  toast('שולח…');
+  const files = [];
+  if (r.signature) files.push({ base64: String(r.signature).split(',')[1], mimeType:'image/png', filename:`חתימה ${r.name||''}.png` });
+  try {
+    const [vd, ld] = await Promise.all([
+      fcol().doc('vdocs_' + r.created).get().catch(() => null),
+      fcol().doc('licdocs_' + r.created).get().catch(() => null)
+    ]);
+    const addImgs = (snap, label) => { if (snap && snap.exists) (snap.data().images || []).forEach((b64, idx) =>
+      files.push({ base64: b64, mimeType: 'image/jpeg', filename: `${label} ${idx + 1}.jpg` })); };
+    addImgs(vd, 'מסמכי רכב'); addImgs(ld, 'רישיון נהיגה');
+  } catch(e) {}
+  const title = (r.formType && DECL_FORM_META[r.formType]) ? DECL_FORM_META[r.formType].label : 'טפסי קבלת רכב';
+  try {
+    await fetch(MAIL_SETTINGS.gasUrl, { method:'POST', mode:'no-cors', headers:{'Content-Type':'text/plain'},
+      body: JSON.stringify({ token: MAIL_SETTINGS.gasToken,
+        subject: `📋 טופס נהג (נשלח שוב) — ${r.name || ''} (${r.plate || ''}) · ${title}`,
+        body: buildDeclText(r), files }) });
+    toast('✓ נשלח שוב במייל');
+  } catch(e) { toast('שגיאה בשליחה', true); console.log('resendDeclarationMail', e); }
+}
+
 function viewDeclaration(i) {
   const r = (window._DECLS||[])[i];
   if (!r) return;
@@ -5741,7 +5771,7 @@ async function submitInspection() {
         await fetch(MAIL_SETTINGS.gasUrl, {
           method: 'POST', mode: 'no-cors',
           headers: { 'Content-Type': 'text/plain' },
-          body: JSON.stringify({ subject, body: bodyText, files })
+          body: JSON.stringify({ token: MAIL_SETTINGS.gasToken, subject, body: bodyText, files })
         });
         mailOk = true; mailWithPdf = true;
       } catch(e) {}
