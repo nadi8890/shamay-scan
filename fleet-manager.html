@@ -1379,6 +1379,36 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
       <div style="font-size:0.75rem;color:#cbd5e1">רואים כמה מלא כל גיבוי ובוחרים מאיזה בדיוק לשחזר</div></div>
     </div>
         </div>
+        <div id="admin-clients-panel" style="display:none">
+          <div class="settings-grp">🔑 ניהול לקוחות — מודולים ומנוי</div>
+          <div style="background:#0f172a;border-radius:14px;padding:14px;color:#e2e8f0">
+            <div style="font-size:0.76rem;color:#94a3b8;margin-bottom:10px">מוצג רק אצלך. הדבק UID של לקוח (מ-Firebase Console → Authentication) כדי לטעון או לשמור את ההגדרות שלו — בלי לגעת ב-JSON.</div>
+            <div class="modal-row" style="margin-bottom:8px">
+              <label style="color:#cbd5e1">UID של הלקוח</label>
+              <input id="adm-uid" type="text" style="direction:ltr;background:#1e293b;color:#e2e8f0;border-color:#334155" placeholder="לדוגמה: aBcD1234efGH...">
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+              <div class="modal-row"><label style="color:#cbd5e1">שם החברה</label><input id="adm-company" type="text" style="background:#1e293b;color:#e2e8f0;border-color:#334155"></div>
+              <div class="modal-row"><label style="color:#cbd5e1">בתוקף עד (אופציונלי)</label><input id="adm-until" type="date" style="background:#1e293b;color:#e2e8f0;border-color:#334155"></div>
+            </div>
+            <label style="display:flex;align-items:center;gap:6px;margin-bottom:10px;cursor:pointer">
+              <input id="adm-active" type="checkbox" checked style="width:16px;height:16px"><span>מנוי פעיל</span>
+            </label>
+            <div style="display:flex;gap:18px;margin-bottom:12px;flex-wrap:wrap">
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+                <input id="adm-fleet" type="checkbox" style="width:16px;height:16px"><span>🚗 ניהול צי רכב</span>
+              </label>
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+                <input id="adm-shamai" type="checkbox" style="width:16px;height:16px"><span>🔍 שמAI</span>
+              </label>
+            </div>
+            <div class="btn-row">
+              <button class="btn btn-secondary" onclick="adminLoadClient()">📂 טען לקוח קיים</button>
+              <button class="btn btn-green" onclick="adminSaveClient()">💾 שמור</button>
+            </div>
+            <div id="adm-status" style="font-size:0.76rem;color:#94a3b8;margin-top:8px"></div>
+          </div>
+        </div>
         <div class="settings-grp">📧 מייל, טוקנים וחתימה קבועה</div>
     <div class="insp-section" style="max-width:420px;margin-top:18px">
       <div class="insp-section-hdr">⚙️ לאן נשלחות הביקורות במייל</div>
@@ -8729,6 +8759,8 @@ function bootApp() {
   _appBooted = true;
   guardTenantCache();
   applySysLocks();
+  const _adm = document.getElementById('admin-clients-panel');
+  if (_adm) _adm.style.display = (TENANT === 'nofar') ? 'block' : 'none';
   // אם המערכת השמורה ננעלה מאז הביקור הקודם, נבחרת הראשונה הפתוחה —
   // וניהול מוסך תמיד פתוח, כך שאף לקוח לא נשאר בלי שום מסך.
   let _startSys = localStorage.getItem('fleet_sys') || 'fleet';
@@ -11635,6 +11667,56 @@ function applySysLocks() {
     const lockEl = b.querySelector('.sys-lock');
     if (lockEl) lockEl.style.display = ok ? 'none' : 'inline';
   });
+}
+
+// ═══ ניהול לקוחות — הפעלת מודולים בלחיצה ═══
+// פאנל זה מוצג רק אצלך (TENANT === 'nofar'), אבל הבדיקה חוזרת גם כאן
+// בתוך שתי הפונקציות עצמן — הגנה כפולה, כמו בשאר המערכת: גם אם ה-DOM
+// נחשף בטעות, אי אפשר לכתוב דרכו למסמך של לקוח אחר.
+function _admPermErr(e) {
+  if (e && (e.code === 'permission-denied' || /permission/i.test(e.message || ''))) {
+    return 'אין הרשאה לכתוב למשתמש הזה. צריך להוסיף כלל בפיירסטור שמרשה לך לגשת ל-users/* — תגיד לי ואשלח לך את הכלל להדבקה.';
+  }
+  return 'שגיאה: ' + (e && (e.code || e.message) || e);
+}
+async function adminLoadClient() {
+  if (TENANT !== 'nofar') return;
+  const uid = (document.getElementById('adm-uid').value || '').trim();
+  const st = document.getElementById('adm-status');
+  if (!uid) { st.textContent = 'הזן UID לטעינה'; st.style.color = '#fca5a5'; return; }
+  st.textContent = 'טוען…'; st.style.color = '#94a3b8';
+  try {
+    const snap = await db.collection('users').doc(uid).get();
+    if (!snap.exists) { st.textContent = 'אין עדיין משתמש עם ה-UID הזה — אפשר למלא ולשמור כדי ליצור אותו.'; st.style.color = '#fbbf24'; return; }
+    const d = snap.data() || {};
+    document.getElementById('adm-company').value = d.companyName || '';
+    document.getElementById('adm-active').checked = d.active !== false;
+    document.getElementById('adm-until').value = d.validUntil || '';
+    const sys = d.systems || {};
+    document.getElementById('adm-fleet').checked = !!sys.fleet;
+    document.getElementById('adm-shamai').checked = !!sys.shamai;
+    st.textContent = '✓ נטען'; st.style.color = '#86efac';
+  } catch(e) { st.textContent = _admPermErr(e); st.style.color = '#fca5a5'; console.log('adminLoadClient', e); }
+}
+async function adminSaveClient() {
+  if (TENANT !== 'nofar') return;
+  const uid = (document.getElementById('adm-uid').value || '').trim();
+  const st = document.getElementById('adm-status');
+  if (!uid) { st.textContent = 'הזן UID לפני שמירה'; st.style.color = '#fca5a5'; return; }
+  const data = {
+    companyName: (document.getElementById('adm-company').value || '').trim(),
+    active: !!document.getElementById('adm-active').checked,
+    validUntil: document.getElementById('adm-until').value || '',
+    systems: {
+      fleet: !!document.getElementById('adm-fleet').checked,
+      shamai: !!document.getElementById('adm-shamai').checked
+    }
+  };
+  st.textContent = 'שומר…'; st.style.color = '#94a3b8';
+  try {
+    await db.collection('users').doc(uid).set(data, { merge: true });
+    st.textContent = '✓ נשמר — הלקוח יראה את השינוי בכניסה/רענון הבאה שלו'; st.style.color = '#86efac';
+  } catch(e) { st.textContent = _admPermErr(e); st.style.color = '#fca5a5'; console.log('adminSaveClient', e); }
 }
 
 function showSystem(name, keepTab) {
