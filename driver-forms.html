@@ -802,8 +802,11 @@ async function submitForm() {
         if (F.photos) _attachImgs(licPhotos, 'רישיון נהיגה');
         _attachImgs(docPhotos, 'מסמכי רכב');
         if (!files.length) files.push({ base64: rec.signature.split(',')[1], mimeType: 'image/png', filename: `חתימה ${rec.name}.png` });
+        // הנהג אינו מחובר, ולכן הקריאה עוברת בטוקן הציבורי כמו כל שאר
+        // הפעולות מהצד הזה — לא בטוקן הראשי, שלעולם לא מגיע לדפדפן שלו.
         await fetch(MAIL.gasUrl, { method:'POST', mode:'no-cors', headers:{'Content-Type':'text/plain'},
-          body: JSON.stringify({ subject: `${F.title} — ${rec.name} (${rec.plate})`, body: buildSummaryText(rec), files }) });
+          body: JSON.stringify({ action:'formSubmit', publicToken: MAIL.publicToken || '',
+                                 subject: `${F.title} — ${rec.name} (${rec.plate})`, body: buildSummaryText(rec), files }) });
       } catch(e) {}
     }
     const di = document.getElementById('done-' + CURRENT); if (di) di.style.display = '';
