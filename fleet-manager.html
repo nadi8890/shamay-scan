@@ -4833,26 +4833,6 @@ async function loadKmRound() {
     const missing = active.filter(v => !reportedPlates.has(String(v.plate||'').replace(/\D/g,'')));
     window._kmMissing = missing;
     document.getElementById('kmround-count').textContent = `${active.length - missing.length}/${active.length}`;
-    const doneRows = reports.sort((a,b)=>(b.created||0)-(a.created||0)).map(r => {
-      // סטטוס הטיפול מחושב לפי מצב הרכב הנוכחי (ק"מ נוכחי מול טיפול הבא) — כך שאם
-      // ביצעת/עדכנת טיפול והחריגה נעלמה מההתראות, גם השורה כאן מתעדכנת אוטומטית.
-      const _pk = String(r.plate||'').replace(/\D/g,'');
-      const _veh = VEHICLES.find(v => String(v.plate||'').replace(/\D/g,'') === _pk);
-      let _due, _soon;
-      if (_veh) {
-        const _cur = parseKm(_veh.currentKm), _nxt = parseKm(_veh.nextServiceKm);
-        _due  = _cur > 0 && _nxt > 0 && _cur >= _nxt;
-        _soon = !_due && _cur > 0 && _nxt > 0 && (_nxt - _cur) <= 500;
-      } else { _due = r.serviceDue; _soon = r.serviceSoon; }   // גיבוי לדגל השמור אם הרכב לא נמצא
-      const flag = _due ? '<span class="badge badge-red">🔧 נדרש טיפול</span>' : _soon ? '<span class="badge badge-orange">טיפול מתקרב</span>' : '<span class="badge badge-green">✓ תקין</span>';
-      return `<div class="insp-hist-row" style="cursor:default">
-        <span style="font-weight:700">${esc(r.driver||'')}</span>
-        <span style="color:var(--accent);direction:ltr;font-weight:700">${esc(r.plate||'')}</span>
-        <span>${parseInt(r.km||0).toLocaleString()} ק"מ</span>
-        <span style="color:var(--muted);font-size:0.72rem">${esc(r.dateStr||'')}</span>
-        ${flag}
-      </div>`;
-    }).join('');
     const missRows = missing.map((v,i) => {
       const nm = (v.driverName||'').split('-')[0].trim();
       return `<div class="insp-hist-row" style="cursor:default;background:#fffbeb">
@@ -4863,12 +4843,14 @@ async function loadKmRound() {
         ${v.driverPhone ? `<button class="btn btn-green" style="padding:3px 10px;font-size:0.72rem" onclick="remindKmDriver(${i})">💬 תזכר בוואטסאפ</button>` : '<span style="font-size:0.68rem;color:var(--muted)">אין נייד שמור</span>'}
       </div>`;
     }).join('');
-    wrap.innerHTML =
-      (missing.length ? `<div style="font-weight:800;font-size:0.8rem;margin:6px 0 4px;color:#b45309">⏳ טרם עדכנו (${missing.length})</div>` + missRows : '') +
-      (reports.length ? `<div style="font-weight:800;font-size:0.8rem;margin:10px 0 4px;color:#047857">✓ עדכנו החודש (${reports.length})</div>` + doneRows :
-        (!missing.length ? '' : '')) +
-      (!missing.length && !reports.length ? '<div style="color:var(--muted);font-size:0.8rem;padding:8px">אין נתונים לחודש זה</div>' : '') +
-      (!missing.length && reports.length ? '<div style="color:#047857;font-size:0.82rem;font-weight:800;padding:8px">🎉 כל הנהגים עדכנו החודש!</div>' : '');
+    // מוצגים רק מי שטרם עדכן — מי שכן עדכן לא מעניין כאן. הרשימה מתאפסת
+    // אוטומטית בתחילת כל חודש כי reportedPlates נגזר מדיווחי החודש הנוכחי
+    // בלבד (kmMonthKey), כך שבתחילת חודש חדש כל הרכבים "טרם עדכנו" מחדש.
+    wrap.innerHTML = missing.length
+      ? `<div style="font-weight:800;font-size:0.8rem;margin:6px 0 4px;color:#b45309">⏳ טרם עדכנו (${missing.length})</div>` + missRows
+      : (active.length
+          ? '<div style="color:#047857;font-size:0.82rem;font-weight:800;padding:8px">🎉 כל הנהגים עדכנו החודש!</div>'
+          : '<div style="color:var(--muted);font-size:0.8rem;padding:8px">אין נתונים לחודש זה</div>');
   } catch(e) { wrap.innerHTML = '<div style="color:#dc2626;font-size:0.8rem;padding:8px">שגיאה בטעינה</div>'; }
 }
 let _kmRemindChecked = false;
