@@ -8644,6 +8644,17 @@ function fcol() { return USE_TENANT ? TENANT_DATA() : db.collection('fleet'); }
 // other unmapped account must get its own isolated tenant, never Nofar's data.
 const NOFAR_OWNER_UID = 'HOv8iAHOEhYy5C4jgGR3PCnME012';
 async function resolveTenant(user) {
+  // הבעלים תמיד פתוח לגמרי, בלי שום תלות במה שיש (או אין) לו במסמך
+  // users/{uid} משלו — נבדק ראשון ומחזיר מיד. לפני התיקון הזה, אם למשתמש
+  // הבעלים היה מסמך users קיים עם systems חלקי/ישן (למשל שארית מבדיקה),
+  // הוא היה נכנס לענף הרגיל ונועל לעצמו מודולים בדיוק כמו לקוח רגיל —
+  // זה מה שקרה בפועל ("הכל נעול אצלי").
+  if (user.uid === NOFAR_OWNER_UID) {
+    TENANT = 'nofar'; ROLE = 'manager'; COMPANY_NAME = 'נופר אנרגיה';
+    SUB_ACTIVE = true; SUB_VALID_UNTIL = '';
+    SYS_ENABLED = { fleet: true, shamai: true, garage: true };
+    return;
+  }
   try {
     const snap = await db.collection('users').doc(user.uid).get();
     if (snap.exists) {
@@ -8664,24 +8675,18 @@ async function resolveTenant(user) {
       }
       return;
     }
-    // No mapping doc: only the known owner maps to Nofar; anyone else gets an isolated
-    // (empty) tenant keyed by their own uid — closes the "unmapped → sees Nofar" hole.
-    if (user.uid === NOFAR_OWNER_UID) {
-      TENANT = 'nofar'; ROLE = 'manager'; COMPANY_NAME = 'נופר אנרגיה';
-      SYS_ENABLED = { fleet: true, shamai: true, garage: true };
-    } else {
-      // אין עדיין רשומת users/{uid} — כלומר עוד לא הוקם ללקוח הזה חשבון
-      // דרכך. זה בדיוק המצב הכי "לקוח חדש" שיש, ולכן כל המודולים נעולים —
-      // כולל ניהול מוסך — עד שתפתח אותם בעצמך בפאנל הניהול.
-      TENANT = user.uid; COMPANY_NAME = ''; SUB_ACTIVE = true; SUB_VALID_UNTIL = '';
-      SYS_ENABLED = { fleet: false, shamai: false, garage: false };
-    }
+    // אין עדיין רשומת users/{uid} — כלומר עוד לא הוקם ללקוח הזה חשבון
+    // דרכך (הבעלים כבר טופל למעלה, אז זה תמיד לקוח אמיתי מכאן). זה בדיוק
+    // המצב הכי "לקוח חדש" שיש, ולכן כל המודולים נעולים — כולל ניהול
+    // מוסך — עד שתפתח אותם בעצמך בפאנל הניהול.
+    TENANT = user.uid; COMPANY_NAME = ''; SUB_ACTIVE = true; SUB_VALID_UNTIL = '';
+    SYS_ENABLED = { fleet: false, shamai: false, garage: false };
   } catch(e) {
     // On a read failure, preserve isolation — never default a stranger onto Nofar.
+    // (הבעלים כבר טופל למעלה ואינו מגיע לכאן.)
     console.log('tenant resolve error', e);
-    TENANT = (user.uid === NOFAR_OWNER_UID) ? 'nofar' : user.uid;
-    SYS_ENABLED = (TENANT === 'nofar') ? { fleet: true, shamai: true, garage: true }
-                                        : { fleet: false, shamai: false, garage: false };
+    TENANT = user.uid;
+    SYS_ENABLED = { fleet: false, shamai: false, garage: false };
   }
 }
 // Is this company's subscription currently valid? The owner (nofar) is never blocked.
