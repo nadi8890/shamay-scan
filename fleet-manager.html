@@ -501,15 +501,20 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
     <div id="fleet-count" style="font-size:0.75rem;color:var(--muted)"></div>
     <div style="display:flex;gap:6px;align-items:center">
       <button class="btn btn-primary" style="padding:6px 14px;font-size:0.78rem" onclick="openAddVehicle()">+ רכב חדש</button>
+      <button class="btn-export" title="משלים קוד תוצר, קוד דגם, משקל כולל ותוקף רישוי לרכבים שחסרים — רק שדות ריקים" onclick="syncFleetFromGov()">🏛️ סנכרן צי</button>
       <button class="btn-export" onclick="exportSection('fleet')">📥 ייצוא Excel</button>
     </div>
   </div>
+  <div id="fleet-gov-sync" style="display:none;margin-bottom:8px;padding:8px 12px;border:1px solid #bfdbfe;background:#eff6ff;color:#1e40af;border-radius:9px;font-size:0.78rem;font-weight:700;align-items:center;gap:10px;justify-content:space-between"></div>
   <div class="tbl-wrap">
     <table>
       <thead id="fleet-thead">
         <tr>
           <th><div class="th-sort" onclick="sortFleetCol('plate')">מס׳ רישוי<span class="sort-arrow" id="sarr-plate">⇅</span></div></th>
           <th><div class="th-sort" onclick="sortFleetCol('make')">יצרן / דגם<span class="sort-arrow" id="sarr-make">⇅</span></div></th>
+          <th><div class="th-sort" onclick="sortFleetCol('tozeretCd')">קוד תוצר<span class="sort-arrow" id="sarr-tozeretCd">⇅</span></div></th>
+          <th><div class="th-sort" onclick="sortFleetCol('degemCd')">קוד דגם<span class="sort-arrow" id="sarr-degemCd">⇅</span></div></th>
+          <th class="col-weight"><div class="th-sort" onclick="sortFleetCol('weight')">משקל כולל<span class="sort-arrow" id="sarr-weight">⇅</span></div></th>
           <th><div class="th-sort" onclick="sortFleetCol('driver')">נהג<span class="sort-arrow" id="sarr-driver">⇅</span></div></th>
           <th><div class="th-sort" onclick="sortFleetCol('company')">חברה<span class="sort-arrow" id="sarr-company">⇅</span></div></th>
           <th><div class="th-sort" onclick="sortFleetCol('reg')">תוקף רישוי<span class="sort-arrow" id="sarr-reg">⇅</span></div></th>
@@ -859,6 +864,7 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
 .op-row:last-child{border-bottom:none}
 </style>
 
+<style>body.feat-no-weight .col-weight{display:none}</style>
 <style id="systems-ux">
 /* סרגל המערכות — רצועה מתחת לכותרת. כל מערכת היא עולם עצמאי עם
    לשוניות משלה בסרגל התחתון. */
@@ -1419,6 +1425,11 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
                 <input id="adm-garage" type="checkbox" style="width:16px;height:16px"><span>🔧 ניהול מוסך</span>
               </label>
             </div>
+            <div style="display:flex;gap:18px;margin-bottom:12px;flex-wrap:wrap;border-top:1px solid #334155;padding-top:10px">
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer" title="עמודת משקל כולל בטבלת הצי, בכרטיס הרכב ובייצוא — ממולאת מהסנכרון מול משרד התחבורה">
+                <input id="adm-weight" type="checkbox" style="width:16px;height:16px"><span>⚖️ עמודת משקל כולל</span>
+              </label>
+            </div>
             <div class="btn-row">
               <button class="btn btn-secondary" onclick="adminLoadClient()">📂 טען לקוח קיים</button>
               <button class="btn btn-green" onclick="adminSaveClient()">💾 שמור</button>
@@ -1682,6 +1693,9 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
       <div class="modal-row"><label>יצרן</label><input id="m-make" type="text" placeholder="מיצובישי"></div>
       <div class="modal-row"><label>דגם</label><input id="m-model" type="text" placeholder="אאוטלנדר"></div>
       <div class="modal-row"><label>שנתון</label><input id="m-year" type="text" placeholder="2024"></div>
+      <div class="modal-row"><label>קוד תוצר <span style="font-weight:400;color:#94a3b8;font-size:0.7rem">(ממשרד התחבורה)</span></label><input id="m-tozeretCd" type="text" placeholder="305" inputmode="numeric" style="direction:ltr"></div>
+      <div class="modal-row"><label>קוד דגם</label><input id="m-degemCd" type="text" placeholder="1" style="direction:ltr"></div>
+      <div class="modal-row" id="m-weight-row"><label>משקל כולל (ק״ג)</label><input id="m-weight" type="text" placeholder="1610" inputmode="numeric" style="direction:ltr"></div>
       <div class="modal-row"><label>שם נהג</label><input id="m-driver" type="text" placeholder="ישראל ישראלי" onchange="autoFillDriverFields()"></div>
       <div class="modal-row"><label>נייד נהג</label><input id="m-phone" type="tel" placeholder="050-0000000" style="direction:ltr"></div>
       <div class="modal-row"><label>מייל נהג<span style="font-weight:400;color:#94a3b8;font-size:0.7rem"> — לצפייה במסמכים שלו</span></label><input id="m-email" type="email" placeholder="name@example.com" style="direction:ltr"></div>
@@ -3604,7 +3618,7 @@ function renderDashboard() {
 
 // ── FLEET SORT/FILTER ──
 let fleetSort = { col: null, dir: 1 };
-let fleetColFilters = { plate:'', make:'', driver:'', company:'', reg:'', ins:'', lic:'', km:'', insp:'', traffic:'', proc:'', from:'' };
+let fleetColFilters = { plate:'', make:'', tozeretCd:'', degemCd:'', weight:'', driver:'', company:'', reg:'', ins:'', lic:'', km:'', insp:'', traffic:'', proc:'', from:'' };
 let incColFilters  = { plate:'', driver:'', date:'', insurance:'', reportNum:'', damage:'', notes:'' };
 let replColFilters = { employee:'', plate:'', typeCompany:'', fromDate:'', toDate:'', notes:'' };
 let retColFilters  = { employee:'', plate:'', make:'', fromDate:'', toDate:'', reason:'', notes:'' };
@@ -3625,12 +3639,12 @@ function buildColFilterRow(vehicles) {
   if (!row) return;
   // Build only once — rebuilding on every keystroke destroys focus
   if (row.querySelector('.col-filter-inp')) return;
-  const placeholders = { plate:'רישוי...', make:'יצרן/דגם...', driver:'נהג...', company:'חברה...', reg:'תאריך...', ins:'תאריך...', lic:'תאריך...', km:'ק"מ...', insp:'תאריך...', traffic:'תאריך...', proc:'תאריך...', from:'תאריך...' };
-  const inp = col => `<th><input class="col-filter-inp" type="text" placeholder="${placeholders[col]||'חפש...'}" value="${esc(fleetColFilters[col]||'')}" oninput="setColFilter('${col}',this.value)"></th>`;
-  row.innerHTML = inp('plate')+inp('make')+inp('driver')+inp('company')+inp('reg')+inp('ins')+inp('lic')+inp('km')+inp('insp')+inp('traffic')+inp('proc')+inp('from')+'<th></th>';
+  const placeholders = { plate:'רישוי...', make:'יצרן/דגם...', tozeretCd:'קוד...', degemCd:'קוד...', weight:'ק"ג...', driver:'נהג...', company:'חברה...', reg:'תאריך...', ins:'תאריך...', lic:'תאריך...', km:'ק"מ...', insp:'תאריך...', traffic:'תאריך...', proc:'תאריך...', from:'תאריך...' };
+  const inp = col => `<th class="col-${col}"><input class="col-filter-inp" type="text" placeholder="${placeholders[col]||'חפש...'}" value="${esc(fleetColFilters[col]||'')}" oninput="setColFilter('${col}',this.value)"></th>`;
+  row.innerHTML = inp('plate')+inp('make')+inp('tozeretCd')+inp('degemCd')+inp('weight')+inp('driver')+inp('company')+inp('reg')+inp('ins')+inp('lic')+inp('km')+inp('insp')+inp('traffic')+inp('proc')+inp('from')+'<th></th>';
 }
 function updateSortArrows() {
-  ['plate','make','driver','company','reg','ins','lic','km','insp','traffic','proc','from'].forEach(c => {
+  ['plate','make','tozeretCd','degemCd','weight','driver','company','reg','ins','lic','km','insp','traffic','proc','from'].forEach(c => {
     const el = document.getElementById('sarr-'+c);
     if (!el) return;
     el.textContent = fleetSort.col===c ? (fleetSort.dir===1 ? '↑' : '↓') : '⇅';
@@ -3690,6 +3704,7 @@ function buildCompanyFilter() {
 }
 
 function renderFleet() {
+  applyFeatureFlags();
   const q = (document.getElementById('fleet-search').value||'').toLowerCase();
   const co = document.getElementById('fleet-company').value;
   const st = document.getElementById('fleet-status').value;
@@ -3713,6 +3728,9 @@ function renderFleet() {
     const fMatch = (val, f) => !f || String(val||'').toLowerCase().includes(f.toLowerCase());
     if (!fMatch(v.plate, fleetColFilters.plate)) return false;
     if (!fMatch((v.make||'')+' '+(v.model||''), fleetColFilters.make)) return false;
+    if (!fMatch(v.tozeretCd, fleetColFilters.tozeretCd)) return false;
+    if (!fMatch(v.degemCd, fleetColFilters.degemCd)) return false;
+    if (!fMatch(v.weight, fleetColFilters.weight)) return false;
     if (!fMatch(v.driverName, fleetColFilters.driver)) return false;
     if (!fMatch(v.company, fleetColFilters.company)) return false;
     if (!fMatch(v.registrationExpiry, fleetColFilters.reg)) return false;
@@ -3727,12 +3745,18 @@ function renderFleet() {
   });
 
   // Sort
+  // שדות ממשרד התחבורה: מספר כשאפשר, ורכב בלי נתון יורד לסוף המיון בשני הכיוונים
+  const _govNum = x => { const k = parseInt(String(x == null ? '' : x).replace(/\D/g,''), 10); return isNaN(k) ? 9e9 : k; };
+  const _govStr = x => String(x || '').trim() || '\uffff';
   if (fleetSort.col) {
     filtered.sort((a,b) => {
       let va, vb;
       switch(fleetSort.col) {
         case 'plate': va=a.plate||''; vb=b.plate||''; break;
         case 'make': va=(a.make||'')+(a.model||''); vb=(b.make||'')+(b.model||''); break;
+        case 'tozeretCd': va=_govNum(a.tozeretCd); vb=_govNum(b.tozeretCd); break;
+        case 'degemCd': va=_govStr(a.degemCd); vb=_govStr(b.degemCd); break;   // במסחרי הקוד טקסטואלי
+        case 'weight': va=_govNum(a.weight); vb=_govNum(b.weight); break;
         case 'driver': va=a.driverName||''; vb=b.driverName||''; break;
         case 'company': va=a.company||''; vb=b.company||''; break;
         case 'reg': va=daysUntil(a.registrationExpiry)??9999; vb=daysUntil(b.registrationExpiry)??9999; break;
@@ -3759,7 +3783,7 @@ function renderFleet() {
 
   const tbody = document.getElementById('fleet-body');
   renderFleetCards(filtered);          // תצוגת הנייד — מוסתרת ב-CSS בדסקטופ
-  if (!filtered.length) { tbody.innerHTML = '<tr><td colspan="13" style="text-align:center;padding:24px;color:var(--muted);font-size:0.85rem">אין רכבים להצגה</td></tr>'; return; }
+  if (!filtered.length) { tbody.innerHTML = '<tr><td colspan="16" style="text-align:center;padding:24px;color:var(--muted);font-size:0.85rem">אין רכבים להצגה</td></tr>'; return; }
   tbody.innerHTML = filtered.map(v => {
     const regDays = daysUntil(v.registrationExpiry);
     const insDays = daysUntil(v.insuranceExpiry);
@@ -3785,6 +3809,9 @@ function renderFleet() {
     return `<tr class="${rowCls}" style="cursor:pointer" title="לחץ לעריכה" onclick="editVehicle('${esc(v.plate)}')">
       <td class="${noVeh?'':yc(v.plate)}" style="font-weight:700;color:var(--accent);direction:ltr;font-size:0.78rem;white-space:nowrap">${noVeh ? '<span style="color:#7c3aed">👤 ללא רכב</span>' : (esc(v.plate)||'—')}</td>
       <td class="${yc((v.make||'')+(v.model||''))}" style="font-size:0.73rem">${esc(v.make)} ${esc(v.model)}<br><span style="color:var(--muted);font-size:0.65rem">${esc(v.year)}</span></td>
+      <td style="font-size:0.73rem;direction:ltr;text-align:center">${esc(v.tozeretCd)||'—'}</td>
+      <td style="font-size:0.73rem;direction:ltr;text-align:center">${esc(v.degemCd)||'—'}</td>
+      <td class="col-weight" style="font-size:0.73rem;white-space:nowrap">${v.weight ? esc(v.weight)+' ק"ג' : '—'}</td>
       <td class="${isTrailer?'':yc(drvNm)}" style="font-size:0.73rem">${esc((v.driverName||'').split('-')[0])||'—'}</td>
       <td class="${yc(v.company)}">${companyBadge(v.company)}</td>
       <td class="${yc(v.registrationExpiry, cellCls(regDays))}">${statusBadge(regDays)}<br><span style="color:var(--muted);font-size:0.63rem">${esc(v.registrationExpiry)||'—'}</span></td>
@@ -4347,6 +4374,10 @@ const GOV_RESOURCES = [
   'cd3acc5c-03c3-4c89-9c54-d40f93c0d790', // רכב מסחרי
   'bf9df4e2-d90d-4c0a-a400-19e15af8e95f'  // אוטובוסים
 ];
+// מאגר הדגמים. רשומת הרישוי של רכב פרטי אינה כוללת משקל כולל — הוא קיים
+// רק כאן, לפי קוד תוצר + קוד דגם + שנתון. במסחרי ובאוטובוסים המשקל כבר
+// ברשומת הרישוי, ולכן שם לא נדרשת השאילתה השנייה.
+const GOV_MODELS_RESOURCE = '142afde2-6228-49f9-8a29-9b6c3a0cbe40';
 let _govSeq = 0;
 
 function govJsonp(rid, query, timeoutMs) {
@@ -4416,6 +4447,64 @@ function govNormalize(r) {
     lastTest:  s(r.mivchan_acharon_dt),
     raw: r
   };
+}
+
+// התשובה נשמרת לפי דגם ולא לפי רכב — צי שלם מאותו דגם נשלף פעם אחת בלבד.
+// גם "לא נמצא" נשמר, כדי שדגם שאינו במאגר לא ייחקר שוב בכל רכב.
+const _govModelCache = {};
+
+// משלים את מה שחסר ברשומת הרישוי (משקל כולל בעיקר) ממאגר הדגמים.
+// מחזיר null כשאין התאמה או כשהמאגר לא ענה.
+async function govModelRecord(n) {
+  if (!n || !n.licCode) return null;
+  const num = v => { const x = parseInt(String(v == null ? '' : v).replace(/\D/g, ''), 10); return isNaN(x) ? null : x; };
+  const toz = num(n.licCode);
+  if (toz === null) return null;
+  const dcRaw = String(n.modelCode || '').trim();
+  // במאגר הפרטי קוד הדגם מספרי; במסחרי/אוטובוס יש רק את הקוד הטקסטואלי של היצרן
+  const byModel = /^\d+$/.test(dcRaw) ? { degem_cd: num(dcRaw) } : (dcRaw ? { degem_nm: dcRaw } : null);
+  if (!byModel) return null;
+  const key = toz + '|' + dcRaw + '|' + (n.year || '');
+  if (key in _govModelCache) return _govModelCache[key];
+  const yr = num(n.year);
+  // קודם עם השנתון; דגם שיוצר בכמה שנתונים לא תמיד רשום בשנתון של הרכב
+  const tries = yr ? [{ tozeret_cd: toz, ...byModel, shnat_yitzur: yr }, { tozeret_cd: toz, ...byModel }]
+                   : [{ tozeret_cd: toz, ...byModel }];
+  for (const f of tries) {
+    let data;
+    try {
+      data = await govJsonp(GOV_MODELS_RESOURCE, 'filters=' + encodeURIComponent(JSON.stringify(f)));
+    } catch(e) {
+      console.log('gov model lookup failed:', e && e.message);
+      return null;   // כישלון רשת אינו "אין דגם" — לא נכנס ל-cache
+    }
+    if (data && data.success === false) return null;
+    const recs = (data && data.result && data.result.records) || [];
+    if (recs.length) { _govModelCache[key] = recs[0]; return recs[0]; }
+  }
+  _govModelCache[key] = null;
+  return null;
+}
+
+// האם בכלל שווה לפנות למאגר הדגמים — רק כשחסר משקל או קוד דגם מספרי
+function govNeedsModel(n) {
+  if (!n) return false;
+  // אצל לקוח שהמשקל כבוי אצלו אין טעם בשאילתה השנייה על רכב פרטי —
+  // קוד הדגם שם כבר מספרי, ורק המשקל היה חסר
+  if (featureOn('weight') && (!n.weight || n.weight === '0')) return true;
+  return !/^\d+$/.test(String(n.modelCode || '').trim());
+}
+
+// n = רשומת הרישוי המנורמלת, m = רשומת הדגם (או null)
+function govMerge(n, m) {
+  const out = { ...(n || {}) };
+  if (!m) return out;
+  const s = v => (v === null || v === undefined) ? '' : String(v).trim();
+  if (!out.weight || out.weight === '0') out.weight = s(m.mishkal_kolel);
+  if (!/^\d+$/.test(String(out.modelCode || '').trim()) && s(m.degem_cd)) out.modelCode = s(m.degem_cd);
+  if (!out.trim) out.trim = s(m.ramat_gimur);
+  if (!out.model) out.model = s(m.kinuy_mishari) || s(m.degem_nm);
+  return out;
 }
 
 // המאגר הממשלתי נופל מדי פעם: שאילתת filters מחזירה Internal Server
@@ -7041,8 +7130,10 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) refr
 function exportSection(section) {
   let headers = [], rows = [];
   if (section === 'fleet') {
-    headers = ['מס׳ רישוי','יצרן','דגם','שנה','נהג','חברה','קוד רכב','תוקף רישוי','תוקף ביטוח','רישיון נהג','ק"מ נוכחי','ק"מ טיפול הבא','תאריך טיפול אחרון','ביקורת בטיחות','ילדים','רכב מתאריך','רישום תנועה','נהלים'];
-    rows = VEHICLES.map(v => [v.plate,v.make,v.model,v.year,v.driverName,v.company,v.code||'',v.registrationExpiry,v.insuranceExpiry,v.licenseExpiry,v.currentKm,v.nextServiceKm,v.serviceDate||'',v.inspection,v.children||'',v.vehicleFrom||'',v.trafficRecord||'',v.procedures||'']);
+    headers = ['מס׳ רישוי','יצרן','דגם','שנה','קוד תוצר','קוד דגם','משקל כולל','נהג','חברה','קוד רכב','תוקף רישוי','תוקף ביטוח','רישיון נהג','ק"מ נוכחי','ק"מ טיפול הבא','תאריך טיפול אחרון','ביקורת בטיחות','ילדים','רכב מתאריך','רישום תנועה','נהלים'];
+    rows = VEHICLES.map(v => [v.plate,v.make,v.model,v.year,v.tozeretCd||'',v.degemCd||'',v.weight||'',v.driverName,v.company,v.code||'',v.registrationExpiry,v.insuranceExpiry,v.licenseExpiry,v.currentKm,v.nextServiceKm,v.serviceDate||'',v.inspection,v.children||'',v.vehicleFrom||'',v.trafficRecord||'',v.procedures||'']);
+    // עמודת המשקל יורדת מהקובץ אצל לקוח שהתכונה כבויה אצלו
+    if (!featureOn('weight')) { headers.splice(6,1); rows.forEach(r => r.splice(6,1)); }
   } else if (section === 'incidents') {
     headers = ['#','מס׳ רישוי','נהג','תאריך','ביטוח/בעלות','מס׳ ארוע','סכום נזק','השתתפות עצמית','הערות'];
     rows = INCIDENTS.map(i => [i.id,i.plate,i.driver,i.date,i.insurance,i.reportNum,i.damage,i.deductible,i.notes]);
@@ -7178,7 +7269,7 @@ let editingPlate = null;
 function openAddVehicle() {
   editingPlate = null;
   _modalDriverKey = ''; _modalDriverEmail = '';
-  _lastGovRec = null;
+  _lastGovRec = null; _lastGovModel = null;
   const _gs = document.getElementById('m-gov-status'); if (_gs) _gs.textContent = '';
   buildCompanyDatalist();
   document.getElementById('m-company').value = '';
@@ -7186,7 +7277,7 @@ function openAddVehicle() {
   const _er0 = document.getElementById('m-entity-row');
   if (_er0) _er0.style.display = ENTITIES.length ? '' : 'none';
   document.getElementById('modal-title').textContent = 'הוסף רכב חדש';
-  ['m-plate','m-make','m-model','m-year','m-driver','m-phone','m-email','m-regExpiry','m-insExpiry','m-licExpiry','m-inspection','m-from','m-km','m-nextKm','m-serviceDate','m-traffic','m-procedures','m-notes'].forEach(id => {
+  ['m-plate','m-make','m-model','m-year','m-tozeretCd','m-degemCd','m-weight','m-driver','m-phone','m-email','m-regExpiry','m-insExpiry','m-licExpiry','m-inspection','m-from','m-km','m-nextKm','m-serviceDate','m-traffic','m-procedures','m-notes'].forEach(id => {
     document.getElementById(id).value = '';
   });
   const govSt = document.getElementById('m-gov-status');
@@ -7203,6 +7294,9 @@ function editVehicle(plate) {
   document.getElementById('m-make').value = v.make||'';
   document.getElementById('m-model').value = v.model||'';
   document.getElementById('m-year').value = v.year||'';
+  document.getElementById('m-tozeretCd').value = v.tozeretCd||'';
+  document.getElementById('m-degemCd').value = v.degemCd||'';
+  document.getElementById('m-weight').value = v.weight||'';
   document.getElementById('m-driver').value = v.driverName||'';
   document.getElementById('m-phone').value = v.driverPhone||'';
   document.getElementById('m-email').value = v.driverEmail||'';
@@ -7218,7 +7312,7 @@ function editVehicle(plate) {
   document.getElementById('m-traffic').value = v.trafficRecord||'';
   document.getElementById('m-procedures').value = v.procedures||'';
   document.getElementById('m-notes').value = v.notes||'';
-  _lastGovRec = null;
+  _lastGovRec = null; _lastGovModel = null;
   const _gs2 = document.getElementById('m-gov-status'); if (_gs2) _gs2.textContent = '';
   buildCompanyDatalist();
   document.getElementById('m-company').value = v.company || '';
@@ -7311,6 +7405,9 @@ function saveVehicle() {
     plate, make: document.getElementById('m-make').value.trim(),
     model: document.getElementById('m-model').value.trim(),
     year: document.getElementById('m-year').value.trim(),
+    tozeretCd: document.getElementById('m-tozeretCd').value.trim(),
+    degemCd: document.getElementById('m-degemCd').value.trim(),
+    weight: document.getElementById('m-weight').value.trim(),
     company: document.getElementById('m-company').value,
     entity: (document.getElementById('m-entity')||{}).value || '',
     driverName: document.getElementById('m-driver').value.trim(),
@@ -8788,6 +8885,18 @@ let SUB_VALID_UNTIL = '';
 // לפי מה שהלקוח קונה בפועל. הבעלים (נופר) תמיד פתוח לגמרי.
 let SYS_ENABLED = { fleet: true, shamai: true, garage: true };
 function sysAllowed(name) { return SYS_ENABLED[name] !== false; }
+// תוספות פר-לקוח — בניגוד למודולים, אלה שדות בתוך מסך קיים ולא מערכת
+// שלמה. ברירת המחדל כבויה: לקוח שלא ביקש לא רואה עמודה שלא רלוונטית לו.
+// נקבע ב-users/{uid}.features מפאנל ניהול הלקוחות.
+let FEATURES = { weight: false };
+function featureOn(name) { return FEATURES[name] === true; }
+// עמודת הטבלה מוסתרת ב-CSS ולא נמחקת מה-DOM, כדי שמספר התאים בכותרת,
+// בשורת הסינון ובשורות יישאר זהה — טבלה שיוצאת מיישור היא באג שקט.
+function applyFeatureFlags() {
+  document.body.classList.toggle('feat-no-weight', !featureOn('weight'));
+  const row = document.getElementById('m-weight-row');
+  if (row) row.style.display = featureOn('weight') ? '' : 'none';
+}
 const TENANT_DATA = () => db.collection('tenants').doc(TENANT).collection('data');
 // Stage-2 cutover switch. OFF = legacy fleet/* . ON = per-tenant isolation (tenants/{tid}/data).
 let USE_TENANT = true;
@@ -8806,6 +8915,7 @@ async function resolveTenant(user) {
     TENANT = 'nofar'; ROLE = 'manager'; COMPANY_NAME = 'נופר אנרגיה';
     SUB_ACTIVE = true; SUB_VALID_UNTIL = '';
     SYS_ENABLED = { fleet: true, shamai: true, garage: true };
+    FEATURES = { weight: false };
     return;
   }
   try {
@@ -8826,6 +8936,8 @@ async function resolveTenant(user) {
       } else {
         SYS_ENABLED = { fleet: true, shamai: true, garage: true };
       }
+      // תוספת = הצטרפות מפורשת. שדה חסר פירושו כבוי, לא "פתוח כמו פעם"
+      FEATURES = { weight: !!(d.features && d.features.weight) };
       return;
     }
     // אין עדיין רשומת users/{uid} — כלומר עוד לא הוקם ללקוח הזה חשבון
@@ -8834,12 +8946,14 @@ async function resolveTenant(user) {
     // מוסך — עד שתפתח אותם בעצמך בפאנל הניהול.
     TENANT = user.uid; COMPANY_NAME = ''; SUB_ACTIVE = true; SUB_VALID_UNTIL = '';
     SYS_ENABLED = { fleet: false, shamai: false, garage: false };
+    FEATURES = { weight: false };
   } catch(e) {
     // On a read failure, preserve isolation — never default a stranger onto Nofar.
     // (הבעלים כבר טופל למעלה ואינו מגיע לכאן.)
     console.log('tenant resolve error', e);
     TENANT = user.uid;
     SYS_ENABLED = { fleet: false, shamai: false, garage: false };
+    FEATURES = { weight: false };
   }
 }
 // Is this company's subscription currently valid? The owner (nofar) is never blocked.
@@ -8997,6 +9111,7 @@ function bootApp() {
   _appBooted = true;
   guardTenantCache();
   applySysLocks();
+  applyFeatureFlags();
   const _adm = document.getElementById('admin-clients-panel');
   if (_adm) _adm.style.display = (TENANT === 'nofar') ? 'block' : 'none';
   // אם המערכת השמורה ננעלה מאז הביקור הקודם, נבחרת הראשונה הפתוחה מבין
@@ -9299,12 +9414,12 @@ ${VEHICLES.map(v=>`• ${v.plate} | ${v.make} ${v.model} ${v.year||''} | נהג:
 
 כלל חשוב: יש לך יכולות ביצוע מלאות דרך הפעולות שלמעלה — לעולם אל תגיד למשתמש "אין לי יכולת". אם המשתמש מבקש משהו שאין לו פעולה מתאימה ברשימה, אמור בדיוק מה כן אפשרי והצע את הדרך הקרובה ביותר.
 
-הוספת רכב עם מספר רישוי בלבד — מולא אוטומטית ממאגר ממשלתי (יצרן/דגם/שנה/תוקף רישוי):
+הוספת רכב עם מספר רישוי בלבד — מולא אוטומטית ממאגר ממשלתי (יצרן/דגם/שנה/קוד תוצר/קוד דגם/משקל כולל/תוקף רישוי):
 [[ACTION:addVehicle:מספר_רישוי]]
 דוגמה: [[ACTION:addVehicle:83945203]]
 (ניתן גם לספק פרטים נוספים: [[ACTION:addVehicle:83945203|Toyota|Corolla|2022|ישראל כהן|נופר אנרגי]])
 
-סנכרון רכב קיים עם מאגר ממשלתי (מעדכן יצרן/דגם/שנה/תוקף רישוי):
+סנכרון רכב קיים עם מאגר ממשלתי (מעדכן יצרן/דגם/שנה/קוד תוצר/קוד דגם/משקל כולל/תוקף רישוי):
 [[ACTION:syncVehicle:מספר_רישוי]]
 דוגמה: [[ACTION:syncVehicle:83945203]]
 
@@ -9317,6 +9432,7 @@ ${VEHICLES.map(v=>`• ${v.plate} | ${v.make} ${v.model} ${v.year||''} | נהג:
 דוגמה: [[ACTION:exportVehicleCard:83945203]]
 
 כלל: כשמשתמש מבקש להוסיף רכב — השתמש תמיד ב-[[ACTION:addVehicle:מספר_רישוי]] בלבד. המערכת תמלא את הפרטים אוטומטית מהממשלה.
+כשנשאל על קוד תוצר / קוד דגם / משקל כולל של רכב — הרץ [[ACTION:lookupVehicle:מספר_רישוי]] או [[ACTION:syncVehicle:מספר_רישוי]]; הנתונים מגיעים ממשרד התחבורה.
 
 הוספת עובד/ת לצי ללא רכב (כשעדיין אין לו/לה רכב — מתועד לצורך מעקב רישיון/עבר תעבורתי/טלפון):
 [[ACTION:addEmployee:שם_עובד|חברה|תוקף_רישיון_נהיגה|עבר_תעבורתי|טלפון]]
@@ -10340,10 +10456,13 @@ async function addVehicleWithLookup(param) {
   if (!plate) return null;
   if (VEHICLES.find(v => v.plate === plate)) return { type:'vehicle', action:'כבר קיים', plate };
 
-  let govMake='', govModel='', govYear='', govReg='';
+  let govMake='', govModel='', govYear='', govReg='', govToz='', govDegem='', govWeight='';
   if (parts.length <= 3) {
     const lookup = await lookupVehicleGov(plate);
     if (!lookup.error) {
+      govToz    = (lookup.tozeretCd && lookup.tozeretCd!=='—') ? String(lookup.tozeretCd) : '';
+      govDegem  = (lookup.degemCd   && lookup.degemCd!=='—')   ? String(lookup.degemCd)   : '';
+      govWeight = (lookup.weight    && lookup.weight!=='—')    ? String(lookup.weight)    : '';
       govMake = (lookup.make && lookup.make!=='—') ? lookup.make : '';
       govModel = (lookup.model && lookup.model!=='—') ? lookup.model : '';
       govYear  = (lookup.year  && String(lookup.year)!=='—') ? String(lookup.year) : '';
@@ -10359,6 +10478,9 @@ async function addVehicleWithLookup(param) {
     make: make||govMake||'',
     model: model||govModel||'',
     year: year||govYear||'',
+    tozeretCd: govToz,
+    degemCd: govDegem,
+    weight: govWeight,
     driverName: driverName||'',
     company: company||'נופר אנרגי',
     registrationExpiry: registrationExpiry||govReg||'',
@@ -10390,6 +10512,9 @@ async function syncVehicleFromGov(plate) {
   if (lookup.make && lookup.make!=='—') v.make = lookup.make;
   if (lookup.model && lookup.model!=='—') v.model = lookup.model;
   if (lookup.year && String(lookup.year)!=='—') v.year = String(lookup.year);
+  if (lookup.tozeretCd && lookup.tozeretCd!=='—') v.tozeretCd = String(lookup.tozeretCd);
+  if (lookup.degemCd && lookup.degemCd!=='—') v.degemCd = String(lookup.degemCd);
+  if (lookup.weight && lookup.weight!=='—') v.weight = String(lookup.weight);
   if (lookup.regExpiry && lookup.regExpiry!=='—') v.registrationExpiry = lookup.regExpiry;
 
   localStorage.setItem('fleet_vehicles', JSON.stringify(VEHICLES));
@@ -10398,6 +10523,82 @@ async function syncVehicleFromGov(plate) {
   renderFleet(); renderDashboard();
   toast(`✓ ${v.plate} סונכרן עם מאגר הממשלה`);
   return { ...lookup, action:'סונכרן', synced:true };
+}
+
+// ═══ השלמת נתוני משרד התחבורה לצי כולו ═══
+// ממלא רק שדות ריקים. סנכרון שדורס נתון שהוזן ידנית הוא סנכרון שאי אפשר
+// לסמוך עליו, ולכן מה שכבר רשום נשאר — גם אם המאגר חולק עליו.
+let _fleetSyncStop = false;
+function stopFleetGovSync() { _fleetSyncStop = true; }
+
+function _govSyncBanner(html) {
+  const el = document.getElementById('fleet-gov-sync');
+  if (!el) return;
+  if (html === null) { el.style.display = 'none'; el.innerHTML = ''; return; }
+  el.style.display = 'flex';
+  el.innerHTML = html;
+}
+
+async function syncFleetFromGov() {
+  const targets = VEHICLES.filter(v => !v.noVehicle
+    && String(v.plate || '').replace(/\D/g, '').length >= 6
+    && (!v.tozeretCd || !v.degemCd || (featureOn('weight') && !v.weight)
+        || !v.make || !v.model || !v.year || !v.registrationExpiry));
+  if (!targets.length) { toast('כל הרכבים כבר מסונכרנים ✓'); return; }
+  if (!confirm(`להשלים נתונים ממשרד התחבורה ל-${targets.length} רכבים?\n\n` +
+               `ימולאו רק שדות ריקים — מה שהזנת ידנית לא יידרס.\n` +
+               `משך משוער: כדקה לכל 60 רכבים. אפשר לעצור באמצע.`)) return;
+
+  _fleetSyncStop = false;
+  let done = 0, filled = 0, missing = 0, errStreak = 0, aborted = '';
+  const flush = () => {
+    try {
+      localStorage.setItem('fleet_vehicles', JSON.stringify(VEHICLES));
+      localStorage.setItem('fleet_vehicles_version', VEHICLES_VERSION);
+    } catch(e) {}
+    saveToFirestore('vehicles', VEHICLES);
+  };
+
+  for (const v of targets) {
+    if (_fleetSyncStop) { aborted = ' · נעצר'; break; }
+    done++;
+    _govSyncBanner(`<span>🏛️ מסנכרן מול משרד התחבורה — ${done}/${targets.length} · הושלמו ${filled}</span>` +
+      `<button class="btn btn-gray" style="padding:3px 10px;font-size:0.72rem" onclick="stopFleetGovSync()">עצור</button>`);
+
+    let rec = null;
+    try { rec = await govVehicleRecord(v.plate); } catch(e) { rec = null; }
+    if (!rec) {
+      if (GOV_LAST_ERROR) {
+        // מאגר שנפל מחזיר שגיאה על כל רכב — אין טעם להמשיך לרוץ עליו
+        if (++errStreak >= 8) { aborted = ' · המאגר לא מגיב'; break; }
+      } else { missing++; }
+      continue;
+    }
+    errStreak = 0;
+
+    const n0 = govNormalize(rec) || {};
+    const nn = govMerge(n0, govNeedsModel(n0) ? await govModelRecord(n0) : null);
+    let touched = false;
+    const set = (k, val) => {
+      if (!val || String(v[k] || '').trim()) return;
+      v[k] = String(val); touched = true;
+    };
+    set('tozeretCd', nn.licCode);
+    set('degemCd', nn.modelCode);
+    if (featureOn('weight') && nn.weight && nn.weight !== '0') set('weight', nn.weight);
+    set('make', nn.make); set('model', nn.model); set('year', nn.year);
+    set('registrationExpiry', _govDateStr(nn.regExpiry));
+    if (touched) filled++;
+
+    // שמירת ביניים — ריצה ארוכה שנקטעת לא מאבדת את מה שכבר הושלם
+    if (done % 25 === 0) { flush(); renderFleet(); }
+  }
+
+  flush();
+  renderFleet(); renderDashboard();
+  _govSyncBanner(null);
+  toast(`✓ הושלמו ${filled} רכבים${missing ? ` · ${missing} לא נמצא${missing > 1 ? 'ו' : ''} במאגר` : ''}${aborted}`,
+        !!aborted && aborted.indexOf('לא מגיב') > -1);
 }
 
 // הרשומה האחרונה שנשלפה, כדי שאפשר יהיה להחיל אותה בלחיצה
@@ -10409,13 +10610,19 @@ function _govDateStr(s) {
   return isNaN(d) ? '' : ('0'+d.getDate()).slice(-2)+'/'+('0'+(d.getMonth()+1)).slice(-2)+'/'+d.getFullYear();
 }
 
+// רשומת הדגם שהושלמה לרשומה האחרונה — משקל כולל וקוד דגם מגיעים ממנה
+let _lastGovModel = null;
+
 // השדות שהמאגר יודע למלא, עם התווית שלהם
 function _govFields(rec) {
-  const n = govNormalize(rec) || {};
+  const n = govMerge(govNormalize(rec) || {}, _lastGovModel);
   return [
     ['m-make',      'יצרן',        n.make],
     ['m-model',     'דגם',         n.model],
     ['m-year',      'שנתון',       n.year],
+    ['m-tozeretCd', 'קוד תוצר',    n.licCode],
+    ['m-degemCd',   'קוד דגם',     n.modelCode],
+    ['m-weight',    'משקל כולל',   (featureOn('weight') && n.weight && n.weight !== '0') ? n.weight : ''],
     ['m-regExpiry', 'תוקף רישוי',  _govDateStr(n.regExpiry)]
   ].filter(f => f[2]);
 }
@@ -10472,9 +10679,17 @@ async function autoFillFromGov(rawPlate) {
         : '❌ לא נמצא במשרד הרישוי';
       return;
     }
-    _lastGovRec = rec;
+    _lastGovRec = rec; _lastGovModel = null;
     // ממלא מאליו רק שדות ריקים; מה שכבר רשום נשאר, ומוצע לעדכון בכפתור
-    applyGovRecord(false);
+    const _c1 = applyGovRecord(false);
+    // משקל כולל אינו קיים ברשומת הרישוי של רכב פרטי — נדרשת שאילתה שנייה
+    // למאגר הדגמים. רצה אחרי המילוי הראשון כדי שלא תעכב את שאר השדות.
+    const _n0 = govNormalize(rec) || {};
+    if (govNeedsModel(_n0)) {
+      const _m = await govModelRecord(_n0);
+      // המונה מסכם את שני המעברים, אחרת ייכתב "מולאו 1" גם כשמולאו שבעה שדות
+      if (_m && _lastGovRec === rec) { _lastGovModel = _m; _govRenderStatus((_c1 || 0) + (applyGovRecord(false) || 0)); }
+    }
   } catch(e) {
     _lastGovRec = null;
     if (statusEl) statusEl.textContent = '⚠ המאגר לא הגיב — נסה שוב או מלא ידנית';
@@ -10503,11 +10718,15 @@ async function lookupVehicleGov(rawPlate) {
       }
     }
 
+    // משקל כולל / קוד דגם מספרי חסרים בחלק מהמאגרים — מושלמים ממאגר הדגמים
+    const gn0 = govNormalize(rec) || {};
+    const gn  = govMerge(gn0, govNeedsModel(gn0) ? await govModelRecord(gn0) : null);
     const fmtDate = s => { if(!s) return '—'; const d=new Date(s); return isNaN(d)?s:('0'+d.getDate()).slice(-2)+'/'+('0'+(d.getMonth()+1)).slice(-2)+'/'+d.getFullYear(); };
     return {
       type:'govLookup', plate,
       make: rec.tozeret_nm||'—',
-      model: rec.degem_nm||rec.kinuy_mishari||'—',
+      // השם המסחרי לפני הקוד הטכני — הקוד יושב ממילא בשדה 'קוד דגם'
+      model: rec.kinuy_mishari||rec.degem_nm||'—',
       year: rec.shnat_yitzur||'—',
       color: rec.tzeva_rechev||'—',
       regExpiry: fmtDate(rec.tokef_dt),
@@ -10516,7 +10735,9 @@ async function lookupVehicleGov(rawPlate) {
       onRoadSince: fmtDate(rec.moed_aliya_lakvish),
       engineCC: rec.engine_cc||'—',
       doors: rec.num_doors||'—',
-      weight: rec.mishkal_kolel||'—'
+      tozeretCd: gn.licCode||'—',
+      degemCd: gn.modelCode||'—',
+      weight: (gn.weight && gn.weight!=='0') ? gn.weight : '—'
     };
   } catch(e) {
     return { type:'govLookup', plate, error: e.message };
@@ -10542,6 +10763,8 @@ function exportVehicleCard(rawPlate) {
     <tr><th>חברה</th><td>${v.company||'—'}</td></tr>
     <tr><th>יצרן / דגם</th><td>${v.make||''} ${v.model||''}</td></tr>
     <tr><th>שנת ייצור</th><td>${v.year||'—'}</td></tr>
+    <tr><th>קוד תוצר / קוד דגם</th><td>${v.tozeretCd||'—'} / ${v.degemCd||'—'}</td></tr>
+    ${featureOn('weight') ? `<tr><th>משקל כולל</th><td>${v.weight ? v.weight+' ק"ג' : '—'}</td></tr>` : ''}
     <tr><th>תוקף רישוי</th><td>${v.registrationExpiry||'—'}</td></tr>
     <tr><th>תוקף ביטוח</th><td>${v.insuranceExpiry||'—'}</td></tr>
     <tr><th>רישיון נהג</th><td>${v.licenseExpiry||'—'}</td></tr>
@@ -10766,7 +10989,7 @@ function renderAgentMsgs(showTyping = false) {
         if (u.type === 'task') return `<div class="update-card"><strong>✅ משימה ${esc(u.action)}</strong><span>${esc(u.text)}</span></div>`;
         if (u.type === 'incident') return `<div class="update-card"><strong>✅ אירוע נזק נוסף — רכב ${esc(u.plate)}</strong><span>תאריך: ${esc(u.date||'—')}</span></div>`;
         if (u.type === 'govLookup' && u.error) return `<div class="update-card"><strong>⚠️ רישוי ${esc(u.plate)}: ${esc(u.error)}</strong></div>`;
-        if (u.type === 'govLookup') return `<div class="update-card"><strong>🏛️ נתוני ממשלה — ${esc(u.plate)}</strong><span>${esc(u.make)} ${esc(u.model)} | שנה: ${esc(String(u.year))} | צבע: ${esc(u.color)}</span><span>תוקף רישוי: ${esc(u.regExpiry)} | על הכביש מ: ${esc(u.onRoadSince)}</span><span>סוג: ${esc(u.vehicleType)} | בעלות: ${esc(u.ownership)}</span></div>`;
+        if (u.type === 'govLookup') return `<div class="update-card"><strong>🏛️ נתוני ממשלה — ${esc(u.plate)}</strong><span>${esc(u.make)} ${esc(u.model)} | שנה: ${esc(String(u.year))} | צבע: ${esc(u.color)}</span><span>תוקף רישוי: ${esc(u.regExpiry)} | על הכביש מ: ${esc(u.onRoadSince)}</span><span>סוג: ${esc(u.vehicleType)} | בעלות: ${esc(u.ownership)}</span><span>קוד תוצר: ${esc(String(u.tozeretCd||'—'))} | קוד דגם: ${esc(String(u.degemCd||'—'))} | משקל כולל: ${esc(String(u.weight||'—'))} ק"ג</span></div>`;
         if (u.type === 'vehicleCard') return `<div class="update-card"><strong>🖨️ כרטיס רכב נפתח — ${esc(u.plate)}</strong></div>`;
         if (u.type === 'replacement' && u.action === 'נוסף') return `<div class="update-card"><strong>🔄 רכב חליפי נוסף — ${esc(u.plate)}</strong><span>עובד: ${esc(u.employee)}</span></div>`;
         if (u.type === 'replacement' && u.action === 'הוסר') return `<div class="update-card"><strong>✅ רכב חליפי הוסר — ${esc(u.plate)}</strong><span>עובד: ${esc(u.employee)}</span></div>`;
@@ -11963,6 +12186,7 @@ async function adminLoadClient() {
     document.getElementById('adm-fleet').checked = !!sys.fleet;
     document.getElementById('adm-shamai').checked = !!sys.shamai;
     document.getElementById('adm-garage').checked = !!sys.garage;
+    document.getElementById('adm-weight').checked = !!((d.features || {}).weight);
     _admLoadedUid = uid;
     st.textContent = '✓ נטען'; st.style.color = '#86efac';
   } catch(e) { st.textContent = _admPermErr(e); st.style.color = '#fca5a5'; console.log('adminLoadClient', e); }
@@ -11992,6 +12216,9 @@ async function adminSaveClient() {
       fleet: !!document.getElementById('adm-fleet').checked,
       shamai: !!document.getElementById('adm-shamai').checked,
       garage: !!document.getElementById('adm-garage').checked
+    },
+    features: {
+      weight: !!document.getElementById('adm-weight').checked
     }
   };
   st.textContent = 'שומר…'; st.style.color = '#94a3b8';
@@ -12176,6 +12403,11 @@ function renderFleetCards(list) {
     const driverNm  = esc(drv.split('-')[0]) || '---';
     const kmLeft    = parseKm(v.nextServiceKm) - parseKm(v.currentKm);
     const entName   = esc(entityName(vehicleEntity(v)));
+    // נתוני משרד התחבורה — שורה נפרדת, ורק כשיש מה להציג
+    const govLine   = [
+      (v.tozeretCd || v.degemCd) ? 'קוד ' + esc(v.tozeretCd || '?') + '·' + esc(v.degemCd || '?') : '',
+      (featureOn('weight') && v.weight) ? esc(v.weight) + ' ק"ג' : ''
+    ].filter(Boolean).join(' | ');
 
     const chips = [
       _fchip('רישוי', regD),
@@ -12203,6 +12435,7 @@ function renderFleetCards(list) {
       (entName ? '<div class="fcard-entity">' + entName + '</div>' : '') +
       '<div class="fcard-sub">' + (esc(v.make) + ' ' + esc(v.model)).trim() +
         (v.year ? ' | ' + esc(v.year) : '') + ' | ' + driverNm + '</div>' +
+      (govLine ? '<div class="fcard-sub">' + govLine + '</div>' : '') +
       '<div class="fcard-chips">' + chips + '</div>' +
       '<div class="fcard-acts">' +
         act('&#9999;&#65039;', 'editVehicle', 'ערוך רכב') +
