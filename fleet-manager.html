@@ -801,6 +801,17 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
       <button class="btn-export" onclick="exportSection('alerts')">📥 ייצוא Excel</button>
     </div>
   </div>
+  <!-- בחירת סוגי ההתראות. הבחירה נשמרת בענן ונשארת קבועה בין כניסות. -->
+  <details id="alert-filter-box" style="border:1.5px solid var(--border);border-radius:12px;background:var(--card);margin-bottom:12px;overflow:hidden">
+    <summary style="list-style:none;cursor:pointer;padding:9px 13px;font-weight:800;font-size:0.82rem;display:flex;align-items:center;gap:8px;user-select:none">
+      🎛️ סינון סוגי התראות
+      <span id="alert-filter-note" style="font-weight:600;font-size:0.72rem;color:var(--muted);margin-inline-start:auto"></span>
+    </summary>
+    <div style="padding:11px 13px;border-top:1px solid var(--border)">
+      <div style="font-size:0.72rem;color:var(--muted);margin-bottom:9px">לחץ על סוג כדי להציג או להסתיר אותו. הבחירה נשמרת — היא תישאר כך גם בכניסה הבאה, בכל מכשיר, עד שתשנה אותה.</div>
+      <div id="alert-filter-chips" style="display:flex;gap:7px;flex-wrap:wrap"></div>
+    </div>
+  </details>
   <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
     <span style="display:flex;align-items:center;gap:4px;font-size:0.72rem;color:#991b1b"><span style="width:10px;height:10px;background:#fef2f2;border:2px solid #ef4444;border-radius:2px;display:inline-block"></span>באיחור</span>
     <span style="display:flex;align-items:center;gap:4px;font-size:0.72rem;color:#9a3412"><span style="width:10px;height:10px;background:#fff7ed;border:2px solid #f97316;border-radius:2px;display:inline-block"></span>דחוף (עד 3 ימים)</span>
@@ -1437,16 +1448,6 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
         <button class="btn btn-primary" onclick="saveMailSettings()">💾 שמור הגדרות</button>
       </div>
     </div>
-    <div class="settings-grp">🔔 מה לעקוב אחריו</div>
-    <div style="background:var(--card);border:1.5px solid var(--border);border-radius:12px;padding:14px;margin-bottom:6px">
-      <label style="display:flex;align-items:flex-start;gap:9px;cursor:pointer">
-        <input id="set-track-license" type="checkbox" style="width:17px;height:17px;margin-top:2px" onchange="saveTrackLicense(this.checked)">
-        <span>
-          <span style="font-weight:800;font-size:0.86rem">🪪 מעקב תוקף רישיונות נהיגה</span>
-          <span style="display:block;font-size:0.74rem;color:var(--muted);margin-top:3px">כשמכובה — לא יופיעו התראות על רישיון נהיגה שפג או חסר, בשום מקום במערכת. שאר ההתראות (רישוי, ביטוח, ביקורות, טיפולים) ממשיכות כרגיל. הנתון עצמו נשמר ולא נמחק.</span>
-        </span>
-      </label>
-    </div>
     <div class="section-hdr" style="margin-top:18px"><span class="section-title">🛡️ החתימה הקבועה שלך (קצין בטיחות)</span></div>
     <div style="background:var(--card);border:1.5px solid var(--border);border-radius:12px;padding:14px;margin-bottom:6px">
       <div style="font-size:0.78rem;color:var(--muted);margin-bottom:8px">חתום/חתמי כאן פעם אחת — החתימה תיחתם אוטומטית על כל טופס "מבחן נהיגה מעשי" שעובד ממלא.</div>
@@ -2019,7 +2020,13 @@ async function loadFromFirestore() {
       await loadArchiveDoc('replacements', a => { REPLACEMENTS = a; localStorage.setItem('fleet_replacements', JSON.stringify(a)); });
       await loadArchiveDoc('returns',      a => { RETURNS = a;      localStorage.setItem('fleet_returns', JSON.stringify(a)); });
       if (d.mailSettings) { MAIL_SETTINGS = d.mailSettings; localStorage.setItem('fleet_mailSettings', JSON.stringify(MAIL_SETTINGS)); }
-      if (typeof d.trackLicense === 'boolean') { TRACK_LICENSE = d.trackLicense; }
+      if (Array.isArray(d.alertCatsOff)) {
+        ALERT_CATS_OFF = d.alertCatsOff;
+        try { localStorage.setItem('fleet_alertCatsOff', JSON.stringify(ALERT_CATS_OFF)); } catch(e) {}
+      } else if (d.trackLicense === false) {
+        // תאימות לאחור למתג הישן שהיה ייעודי לרישיונות בלבד
+        if (ALERT_CATS_OFF.indexOf('license') === -1) ALERT_CATS_OFF.push('license');
+      }
       if (d.kmRound && typeof KMROUND !== 'undefined') { KMROUND = d.kmRound; }
       if (d.costs && typeof COSTS !== 'undefined') { COSTS = d.costs; }
       if (d.serviceNotified) { SERVICE_NOTIFIED = d.serviceNotified; }
@@ -3337,7 +3344,10 @@ function renderManagerDashboard() {
   // documents expiring within the next 30 days (proactive renewal planning)
   let soonRenew = 0;
   active.forEach(v => {
-    [v.registrationExpiry, v.insuranceExpiry, ...(TRACK_LICENSE ? [v.licenseExpiry] : []), nextInspectionStr(v)].forEach(d => {
+    [...(alertCatOn('registration') ? [v.registrationExpiry] : []),
+     ...(alertCatOn('insurance')    ? [v.insuranceExpiry]    : []),
+     ...(alertCatOn('license')      ? [v.licenseExpiry]      : []),
+     ...(alertCatOn('inspection')   ? [nextInspectionStr(v)] : [])].forEach(d => {
       const days = daysUntil(d);
       if (days !== null && days >= 0 && days <= 30) soonRenew++;
     });
@@ -4779,19 +4789,54 @@ function saveViolationForm() {
 const INSPECTION_EMAIL = 'nadavmarciano90@gmail.com';
 let MAIL_SETTINGS = {};
 try { MAIL_SETTINGS = JSON.parse(localStorage.getItem('fleet_mailSettings')) || {}; } catch(e) {}
-// מעקב תוקף רישיונות נהיגה — לא כל לקוח רוצה אותו. עיריית רמלה, למשל,
-// לא עוקבת אחרי רישיונות כרגע. ההגדרה שמורה פר-דייר במסמך main, כך
-// שכיבוי אצל לקוח אחד אינו נוגע באחרים. ברירת המחדל דלוקה, כדי שלקוח
-// קיים לא יאבד התראות בשקט.
-let TRACK_LICENSE = true;
-try { const _tl = localStorage.getItem('fleet_trackLicense'); if (_tl !== null) TRACK_LICENSE = _tl === '1'; } catch(e) {}
-function saveTrackLicense(on) {
-  TRACK_LICENSE = !!on;
-  try { localStorage.setItem('fleet_trackLicense', TRACK_LICENSE ? '1' : '0'); } catch(e) {}
-  saveToFirestore('trackLicense', TRACK_LICENSE);
-  try { buildAlerts && buildAlerts(); } catch(e) {}
-  try { renderFleet && renderFleet(); } catch(e) {}
-  toast(TRACK_LICENSE ? 'מעקב רישיונות נהיגה הופעל ✓' : 'מעקב רישיונות נהיגה כובה — ההתראות הוסרו');
+// סוגי ההתראות שאפשר לכבות. לא כל לקוח עוקב אחרי הכל — עיריית רמלה,
+// למשל, לא עוקבת אחרי רישיונות נהיגה כרגע. הבחירה נשמרת בענן במסמך
+// main של הדייר, ולכן היא קבועה: נשארת בין כניסות ובין מכשירים, עד
+// שמשנים אותה. כיבוי אצל לקוח אחד אינו נוגע באחרים.
+const ALERT_CATS = [
+  { key:'registration', icon:'🚗', label:'תוקף רישוי (טסט)' },
+  { key:'insurance',    icon:'🛡️', label:'תוקף ביטוח חובה' },
+  { key:'license',      icon:'🪪', label:'תוקף רישיון נהיגה' },
+  { key:'inspection',   icon:'🔍', label:'ביקורות בטיחות וליקויים' },
+  { key:'service',      icon:'🔩', label:'טיפולים' },
+  { key:'traffic',      icon:'📋', label:'עבר תעבורתי' },
+  { key:'procedures',   icon:'📄', label:'נהלים' }
+];
+// מוחזק כרשימת הכבויים בלבד: סוג חדש שייווסף בעתיד יידלק אצל כולם
+// אוטומטית, במקום להיעלם בשקט אצל לקוחות קיימים.
+let ALERT_CATS_OFF = [];
+try { ALERT_CATS_OFF = JSON.parse(localStorage.getItem('fleet_alertCatsOff')) || []; } catch(e) {}
+function alertCatOn(cat) { return !cat || ALERT_CATS_OFF.indexOf(cat) === -1; }
+function setAlertCat(cat, on) {
+  const i = ALERT_CATS_OFF.indexOf(cat);
+  if (on && i > -1) ALERT_CATS_OFF.splice(i, 1);
+  else if (!on && i === -1) ALERT_CATS_OFF.push(cat);
+  try { localStorage.setItem('fleet_alertCatsOff', JSON.stringify(ALERT_CATS_OFF)); } catch(e) {}
+  saveToFirestore('alertCatsOff', ALERT_CATS_OFF);   // ← כאן נשמר לצמיתות
+  const meta = ALERT_CATS.find(c => c.key === cat);
+  toast(on ? `${meta ? meta.label : ''} — יוצג בהתראות ✓`
+           : `${meta ? meta.label : ''} — הוסתר מההתראות`);
+  renderAlertFilter();
+  try { renderAlerts(); } catch(e) {}
+  try { renderFleet(); } catch(e) {}
+  try { renderDashboard(); } catch(e) {}
+}
+function renderAlertFilter() {
+  const wrap = document.getElementById('alert-filter-chips');
+  if (!wrap) return;
+  wrap.innerHTML = ALERT_CATS.map(c => {
+    const on = alertCatOn(c.key);
+    return `<button type="button" onclick="setAlertCat('${c.key}',${!on})"
+      title="${on ? 'לחץ כדי להסתיר' : 'לחץ כדי להציג'}"
+      style="border:1.5px solid ${on ? '#2563eb' : '#e2e8f0'};background:${on ? '#eff6ff' : '#f8fafc'};
+             color:${on ? '#1e3a8a' : '#94a3b8'};border-radius:999px;padding:5px 11px;font-size:0.75rem;
+             font-weight:700;font-family:Heebo,sans-serif;cursor:pointer;${on ? '' : 'text-decoration:line-through'}">
+      ${on ? '✓' : '✕'} ${c.icon} ${esc(c.label)}</button>`;
+  }).join('');
+  const off = ALERT_CATS_OFF.length;
+  const note = document.getElementById('alert-filter-note');
+  if (note) note.textContent = !off ? 'מוצגים כל סוגי ההתראות'
+    : off === 1 ? 'סוג התראות אחד מוסתר' : `${off} סוגי התראות מוסתרים`;
 }
 function saveMailSettings() {
   MAIL_SETTINGS = {
@@ -4830,7 +4875,6 @@ function renderFormsTab() {
   document.getElementById('ms-gas').value = MAIL_SETTINGS.gasUrl || '';
   document.getElementById('ms-token').value = MAIL_SETTINGS.gasToken || '';
   document.getElementById('ms-ptoken').value = MAIL_SETTINGS.gasPublicToken || '';
-  const _tl = document.getElementById('set-track-license'); if (_tl) _tl.checked = TRACK_LICENSE;
   loadInspectionHistory();
   loadDeclarations();
   loadVehicleDocs();
@@ -6034,29 +6078,29 @@ function buildDynamicAlerts() {
   const today = new Date();
   const alerts = [];
   for (const v of VEHICLES) {
-    const addDate = (type, dateStr) => {
+    const addDate = (cat, type, dateStr) => {
       const days = daysUntil(dateStr);
       if (days !== null && days <= 7)
-        alerts.push({ plate:v.plate, driver:v.driverName, type, dueDate:dateStr||'—', daysLeft:days, prevKm:null, kmAlert:null, currentKm:null, kmDiff:null });
+        alerts.push({ cat, plate:v.plate, driver:v.driverName, type, dueDate:dateStr||'—', daysLeft:days, prevKm:null, kmAlert:null, currentKm:null, kmDiff:null });
     };
-    addDate('תוקף רישוי', v.registrationExpiry);
-    addDate('תוקף ביטוח חובה', v.insuranceExpiry);
-    if (TRACK_LICENSE) addDate('רישיון נהג', v.licenseExpiry);
-    addDate('עבר תעבורתי', dateAddYears(v.trafficRecord, 3));
-    addDate('נהלים', dateAddYears(v.procedures, 5));
+    addDate('registration', 'תוקף רישוי', v.registrationExpiry);
+    addDate('insurance', 'תוקף ביטוח חובה', v.insuranceExpiry);
+    addDate('license', 'רישיון נהג', v.licenseExpiry);
+    addDate('traffic', 'עבר תעבורתי', dateAddYears(v.trafficRecord, 3));
+    addDate('procedures', 'נהלים', dateAddYears(v.procedures, 5));
     // MISSING DOCUMENTS — a blank document field (not an expiry) is its own alert type,
     // so the officer can chase it. Skipped for employees with no vehicle; license is
     // skipped for trailers (no driver).
     if (!v.noVehicle) {
       const _d = (v.driverName || '').trim();
       const _trailer = !_d || _d.includes('נגרר') || _d.includes('ללא נהג');
-      const missDoc = (type, val) => {
+      const missDoc = (cat, type, val) => {
         if (!String(val || '').trim())
-          alerts.push({ plate:v.plate, driver:v.driverName, type, missing:true, dueDate:'—', daysLeft:null, prevKm:null, kmAlert:null, currentKm:null, kmDiff:null });
+          alerts.push({ cat, plate:v.plate, driver:v.driverName, type, missing:true, dueDate:'—', daysLeft:null, prevKm:null, kmAlert:null, currentKm:null, kmDiff:null });
       };
-      missDoc('חסר: תוקף רישוי (טסט)', v.registrationExpiry);
-      missDoc('חסר: תוקף ביטוח חובה', v.insuranceExpiry);
-      if (!_trailer && TRACK_LICENSE) missDoc('חסר: רישיון נהיגה', v.licenseExpiry);
+      missDoc('registration', 'חסר: תוקף רישוי (טסט)', v.registrationExpiry);
+      missDoc('insurance', 'חסר: תוקף ביטוח חובה', v.insuranceExpiry);
+      if (!_trailer) missDoc('license', 'חסר: רישיון נהיגה', v.licenseExpiry);
     }
     // Safety inspection — dynamic: last inspection date + 3 months (>3yr vehicle) or 6 months
     const inspDays = daysUntilNextInsp(v);
@@ -6064,11 +6108,11 @@ function buildDynamicAlerts() {
       const vs = parseVehicleYear(v.year);
       const ageYrs = vs ? (today - vs) / (365.25*24*3600*1000) : 99;
       const label = ageYrs <= 3 ? 'ביקורת בטיחות חציונית' : 'ביקורת בטיחות רבעונית';
-      alerts.push({ plate:v.plate, driver:v.driverName, type:label, dueDate:nextInspectionStr(v), daysLeft:inspDays, prevKm:null, kmAlert:null, currentKm:null, kmDiff:null });
+      alerts.push({ cat:'inspection', plate:v.plate, driver:v.driverName, type:label, dueDate:nextInspectionStr(v), daysLeft:inspDays, prevKm:null, kmAlert:null, currentKm:null, kmDiff:null });
     }
     // ליקויי ביקורת בטיחות — נשמרו על הרכב אחרי ביקורת עם פריטים 'לא תקין'
     if (parseInt(v.inspectionFindings) > 0) {
-      alerts.push({ plate:v.plate, driver:v.driverName, type:'ביקורת בטיחות — ליקויים', inspFinding:true, findings:parseInt(v.inspectionFindings), findingsItems:v.inspectionFindingsItems||'', dueDate:v.inspectionFindingsDate||'—', daysLeft:null, prevKm:null, kmAlert:null, currentKm:null, kmDiff:null });
+      alerts.push({ cat:'inspection', plate:v.plate, driver:v.driverName, type:'ביקורת בטיחות — ליקויים', inspFinding:true, findings:parseInt(v.inspectionFindings), findingsItems:v.inspectionFindingsItems||'', dueDate:v.inspectionFindingsDate||'—', daysLeft:null, prevKm:null, kmAlert:null, currentKm:null, kmDiff:null });
     }
     // Service due at 15,000 km OR 1 year from the last service — whichever comes first
     // (per manufacturer). Trailers aren't serviced.
@@ -6079,7 +6123,7 @@ function buildDynamicAlerts() {
     // KM side — alert within 2000 km of next service or overdue
     const kmOverdue = cur > 0 && nxt > 0 && cur >= nxt;
     if (!_isTrailer && cur > 0 && nxt > 0 && cur >= nxt - 500)
-      alerts.push({ plate:v.plate, driver:v.driverName, type:'טיפול הבא (ק"מ)', dueDate:'—', daysLeft:null, prevKm:null, kmAlert:500, currentKm:cur, kmDiff: cur - nxt + 500 });
+      alerts.push({ cat:'service', plate:v.plate, driver:v.driverName, type:'טיפול הבא (ק"מ)', dueDate:'—', daysLeft:null, prevKm:null, kmAlert:500, currentKm:cur, kmDiff: cur - nxt + 500 });
     // TIME side — 1 year (SERVICE_INTERVAL_MONTHS) after the last service date.
     // Only when a last-service date exists; suppressed if the km-service is already overdue
     // (so the earlier-of-the-two shows a single alert, not two).
@@ -6090,7 +6134,7 @@ function buildDynamicAlerts() {
         const svcDays = Math.ceil((due - new Date()) / 86400000);
         if (svcDays <= 14) {
           const dd = ('0'+due.getDate()).slice(-2)+'/'+('0'+(due.getMonth()+1)).slice(-2)+'/'+due.getFullYear();
-          alerts.push({ plate:v.plate, driver:v.driverName, type:'טיפול שנתי', dueDate:dd, daysLeft:svcDays, prevKm:null, kmAlert:null, currentKm:null, kmDiff:null });
+          alerts.push({ cat:'service', plate:v.plate, driver:v.driverName, type:'טיפול שנתי', dueDate:dd, daysLeft:svcDays, prevKm:null, kmAlert:null, currentKm:null, kmDiff:null });
         }
       }
     }
@@ -6099,10 +6143,13 @@ function buildDynamicAlerts() {
     const score = x => x.daysLeft !== null ? x.daysLeft : (x.kmDiff >= x.kmAlert ? -((x.kmDiff - x.kmAlert) * 30) : (x.kmAlert - x.kmDiff));
     return score(a) - score(b);
   });
-  return alerts;
+  // סינון לפי בחירת הלקוח. נעשה כאן, בנקודה אחת, כדי שכל מי שקורא
+  // התראות — המסך, הפעמון, המייל והדשבורד — יראה את אותה תמונה.
+  return alerts.filter(a => alertCatOn(a.cat));
 }
 function renderAlerts() {
   _syncMissingBtn();
+  renderAlertFilter();
   const active = buildDynamicAlerts();
   document.getElementById('alerts-tab-count').textContent = active.length;
 
@@ -6673,9 +6720,9 @@ function vehicleDocIssues(v) {
     const d = daysUntil(val);
     if (d !== null && d <= 7) lines.push(d < 0 ? `${name} — פג באיחור ${Math.abs(d)} ימים (${s})` : `${name} — פג בעוד ${d} ימים (${s})`);
   };
-  check('תוקף רישוי (טסט)', v.registrationExpiry);
-  check('תוקף ביטוח חובה', v.insuranceExpiry);
-  if (!trailer && TRACK_LICENSE) check('רישיון נהיגה', v.licenseExpiry);
+  if (alertCatOn('registration')) check('תוקף רישוי (טסט)', v.registrationExpiry);
+  if (alertCatOn('insurance'))    check('תוקף ביטוח חובה', v.insuranceExpiry);
+  if (!trailer && alertCatOn('license')) check('רישיון נהיגה', v.licenseExpiry);
   return lines;
 }
 let _docMailPlate = null;
@@ -8910,8 +8957,8 @@ function wipeSeedData() {
   if (typeof AGENT_RULES !== 'undefined') AGENT_RULES = '';
   if (typeof KMROUND !== 'undefined') KMROUND = {};
   if (typeof SERVICE_NOTIFIED !== 'undefined') SERVICE_NOTIFIED = {};
-  // חוזר לברירת המחדל (דלוק); הערך האמיתי נטען מהמסמך של הדייר הנכנס
-  if (typeof TRACK_LICENSE !== 'undefined') TRACK_LICENSE = true;
+  // חוזר לברירת המחדל (הכל מוצג); הבחירה האמיתית נטענת מהמסמך של הדייר הנכנס
+  if (typeof ALERT_CATS_OFF !== 'undefined') ALERT_CATS_OFF = [];
   // אלה נשארו מחוץ לניקוי וזלגו בין לקוחות על אותו מכשיר. החמור מכולם
   // הוא חתימת קצין הבטיחות: דוח של לקוח אחד יכול היה לצאת חתום בחתימה
   // של לקוח אחר. COSTS מכיל נתוני תדלוק, CONTACTS את ספר הטלפונים.
@@ -8929,7 +8976,7 @@ function wipeSeedData() {
   ['fleet_vehicles','fleet_incidents','fleet_violations','fleet_replacements','fleet_returns',
    'fleet_tasks','fleet_mailSettings','fleet_invoices',
    'fleet_contacts','fleet_officerInfo','fleet_reminders_shown','fleet_vehicles_version',
-   'fleet_show_missing','fleet_rem_notif','fleet_trackLicense'].forEach(k => localStorage.removeItem(k));
+   'fleet_show_missing','fleet_rem_notif','fleet_alertCatsOff'].forEach(k => localStorage.removeItem(k));
 }
 function guardTenantCache() {
   // For ANY tenant other than the primary (nofar), clear the seed literals on EVERY load —
