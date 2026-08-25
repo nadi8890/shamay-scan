@@ -25,6 +25,14 @@ input{width:100%;border:1.5px solid #dde3ed;border-radius:10px;padding:12px;font
 .sec-title{font-weight:800;font-size:0.95rem;margin:2px 0 10px;display:flex;align-items:center;gap:7px}
 .tag-driver{background:#ede9fe;color:#6d28d9;border-radius:999px;padding:2px 9px;font-size:0.66rem;font-weight:800}
 .tag-vehicle{background:#cffafe;color:#0e7490;border-radius:999px;padding:2px 9px;font-size:0.66rem;font-weight:800}
+/* הפרדה בעין בין מסמכי נהג לרכב: פס צד צבעוני ורקע, כדי שההבחנה תהיה
+   מיידית ולא תלויה בקריאת התווית. הטפסים בצבע נפרד ובולט משניהם. */
+.card-driver{border-inline-start:5px solid #7c3aed;background:#faf5ff}
+.card-driver .sec-title{color:#5b21b6}
+.card-vehicle{border-inline-start:5px solid #0891b2;background:#ecfeff}
+.card-vehicle .sec-title{color:#155e75}
+.card-forms{border:1.5px solid #d97706;border-inline-start:5px solid #d97706;background:#fffbeb}
+.card-forms .sec-title{color:#92400e;font-size:1.02rem}
 .drow{display:flex;justify-content:space-between;padding:8px 2px;border-bottom:1px solid #f1f5f9;font-size:0.88rem}
 .drow b{font-weight:700}
 .badge{border-radius:999px;padding:2px 10px;font-size:0.72rem;font-weight:800}
@@ -80,16 +88,16 @@ input{width:100%;border:1.5px solid #dde3ed;border-radius:10px;padding:12px;font
     <div class="sec-title">📅 תוקפים וסטטוס</div>
     <div id="dates"></div>
   </div>
-  <div class="card">
-    <div class="sec-title">✍️ טפסים שחתמתי <span class="tag-driver">עוברים איתי</span></div>
+  <div class="card card-forms">
+    <div class="sec-title">✍️ כל הטפסים שחתמתי <span class="tag-driver">עוברים איתי</span></div>
     <div id="signed-forms"></div>
   </div>
-  <div class="card">
-    <div class="sec-title">🪪 מסמכי נהג <span class="tag-driver">עוברים איתי</span></div>
+  <div class="card card-driver">
+    <div class="sec-title">👤 מסמכי נהג <span class="tag-driver">עוברים איתי</span></div>
     <div id="driver-docs"></div>
   </div>
-  <div class="card">
-    <div class="sec-title">🚗 מסמכי הרכב <span class="tag-vehicle">של הרכב הנוכחי</span></div>
+  <div class="card card-vehicle">
+    <div class="sec-title">🚗 מסמכי רכב <span class="tag-vehicle">של הרכב הנוכחי</span></div>
     <div id="vehicle-docs"></div>
   </div>
   <div class="signout"><a onclick="doSignOut()">התנתקות</a></div>

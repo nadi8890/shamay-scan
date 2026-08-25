@@ -8408,7 +8408,32 @@ async function openEmployeeDocs(plate){
       ldocs:byDriver(_m.ldocs), reqs:reqSel, insps:byPlate(insps) };
     // כפתור ההוספה יושב בכותרת הרובריקה שאליה הוא שייך, ולא בשורה
     // נפרדת מעליהן — פחות מקום, ובלי לבחור סוג פעמיים.
-    const sec = (icon,title,count,html,add) => `<div style="margin-bottom:14px"><div style="font-weight:800;color:#1e3a8a;font-size:0.88rem;margin-bottom:6px;display:flex;align-items:center;gap:6px"><span>${icon} ${title}</span><span class="badge badge-gray">${count}</span>${add || ''}</div>${count ? html : '<div style="color:#94a3b8;font-size:0.76rem">— אין —</div>'}</div>`;
+    // הפרדה ויזואלית בין מסמכי נהג למסמכי רכב: לא עוד תווית טקסט קטנה
+    // בסוף הכותרת, אלא שתי קבוצות צבועות עם פס צד — כדי שההבחנה תהיה
+    // מיידית בעין, גם למי שלא קורא כל מילה.
+    const TONE = {
+      driver:  { bar:'#7c3aed', bg:'#faf5ff', head:'#5b21b6', label:'מסמכי נהג' },
+      vehicle: { bar:'#0891b2', bg:'#ecfeff', head:'#155e75', label:'מסמכי רכב' },
+      forms:   { bar:'#d97706', bg:'#fffbeb', head:'#92400e', label:'טפסים' }
+    };
+    // רובריקה בתוך קבוצה. tone קובע את הצבע; highlight מדגיש (לטפסים).
+    const sec = (icon,title,count,html,add,tone,highlight) => {
+      const t = TONE[tone || 'vehicle'];
+      const box = highlight
+        ? `background:${t.bg};border:1.5px solid ${t.bar};border-radius:10px;padding:10px 12px`
+        : 'padding:0 2px';
+      return `<div style="margin-bottom:14px;${box}">
+        <div style="font-weight:800;color:${t.head};font-size:${highlight?'0.95rem':'0.88rem'};margin-bottom:6px;display:flex;align-items:center;gap:6px">
+          <span>${icon} ${title}</span><span class="badge badge-gray">${count}</span>${add || ''}
+        </div>${count ? html : '<div style="color:#94a3b8;font-size:0.76rem">— אין —</div>'}</div>`;
+    };
+    // כותרת קבוצה: פס צד צבעוני ורקע, שעוטף את כל הרובריקות שתחתיה.
+    const grp = (tone, icon, inner) => {
+      const t = TONE[tone];
+      return `<div style="border-inline-start:5px solid ${t.bar};background:${t.bg};border-radius:10px;padding:11px 13px;margin-bottom:16px">
+        <div style="font-weight:900;color:${t.head};font-size:1rem;margin-bottom:10px;letter-spacing:.2px">${icon} ${t.label}</div>
+        ${inner}</div>`;
+    };
     const addBtn = (onclick, title) => `<button class="btn btn-secondary" style="margin-inline-start:auto;padding:2px 9px;font-size:0.7rem;font-weight:700" title="${title}" onclick="${onclick}">➕</button>`;
     const dates = `<div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:9px 11px;font-size:0.8rem;line-height:1.95;margin-bottom:12px">
       <div>📋 נהלים: <b>${esc(v.procedures||'—')}</b></div>
@@ -8444,18 +8469,23 @@ async function openEmployeeDocs(plate){
     };
     const reqHtml = D.reqs.map((r,di)=>`<div style="margin-bottom:5px;font-size:0.74rem"><b>${esc(r.reqLabel||'קריאה')}</b> <span style="color:#64748b">${esc(r.dateStr||'')}</span> <span class="badge ${r.status==='approved'?'badge-green':r.status==='rejected'?'badge-red':'badge-orange'}" style="font-size:0.56rem">${esc(r.status||'ממתין')}</span> ${(r.files||[]).map((f,fi)=>`<button class="btn btn-gray" style="padding:3px 9px;font-size:0.68rem;margin:2px" onclick="_empView('reqs',${di},${fi})">${f.kind==='pdf'?'📄':'🖼️'} ${fi+1}</button><button class="btn btn-gray" style="padding:3px 7px;font-size:0.68rem;margin:2px 0" title="הורד למחשב" onclick="_empDownload('reqs',${di},${fi})">⬇️</button>${kindSel(r,f,fi)}`).join('')}<button class="btn" style="padding:3px 8px;font-size:0.68rem;margin:2px;background:#fee2e2;color:#b91c1c" title="מחק קריאה" onclick="deleteReqRecord('${esc(r._docId)}')">🗑️</button></div>`).join('');
     body.innerHTML = dates
-      + `<div style="font-size:0.72rem;color:#94a3b8;margin-bottom:8px">מסמכי הנהג עוברים עם העובד · מסמכי הרכב נשארים עם הרכב</div>`
-      + sec('📋','נהלים ואחריות · <span style="color:#7c3aed">עם הנהג</span>', D.decls.length, declHtml)
-      + sec('🪪','רישיון נהיגה · <span style="color:#7c3aed">עם הנהג</span>', D.ldocs.length, imgRow(D.ldocs,'ldocs'),
-            addBtn("openManualDoc('license')", 'העלה רישיון נהיגה'))
-      + sec('🚗','רישיון רכב (טסט) · <span style="color:#0891b2">עם הרכב</span>', D.vreg.length, imgRow(D.vreg,'vreg'),
-            addBtn("openManualDoc('registration')", 'העלה רישיון רכב'))
-      + sec('🛡️','תעודת ביטוח חובה · <span style="color:#0891b2">עם הרכב</span>', D.vins.length, imgRow(D.vins,'vins'),
-            addBtn("openManualDoc('insurance')", 'העלה תעודת ביטוח'))
-      + (D.vun.length ? sec('📄','מסמכי רכב שטרם סווגו', D.vun.length, unRow(D.vun)) : '')
-      + sec('🛡️','ביקורות בטיחות · <span style="color:#0891b2">עם הרכב</span>', D.insps.length, inspHtml,
-            addBtn(`startInspectionFor('${esc(v.plate)}')`, 'ביקורת קצין בטיחות חדשה'))
-      + sec('📎','קריאות / מסמכים שהתבקשו · <span style="color:#0891b2">עם הרכב</span>', D.reqs.length, reqHtml);
+      // כל הטפסים החתומים יחד, בצבע נפרד ובמסגרת — הרובריקה שהכי מסתכלים
+      // עליה, ולכן היא ראשונה ובולטת ולא מתערבבת עם שאר המסמכים.
+      + sec('📋','כל הטפסים החתומים', D.decls.length, declHtml, '', 'forms', true)
+      + grp('driver', '👤',
+            sec('🪪','רישיון נהיגה', D.ldocs.length, imgRow(D.ldocs,'ldocs'),
+                addBtn("openManualDoc('license')", 'העלה רישיון נהיגה'), 'driver')
+          + `<div style="font-size:0.7rem;color:#7c3aed;opacity:.75">עוברים עם העובד — גם אם יחליף רכב</div>`)
+      + grp('vehicle', '🚗',
+            sec('🚗','רישיון רכב (טסט)', D.vreg.length, imgRow(D.vreg,'vreg'),
+                addBtn("openManualDoc('registration')", 'העלה רישיון רכב'), 'vehicle')
+          + sec('🛡️','תעודת ביטוח חובה', D.vins.length, imgRow(D.vins,'vins'),
+                addBtn("openManualDoc('insurance')", 'העלה תעודת ביטוח'), 'vehicle')
+          + (D.vun.length ? sec('📄','מסמכים שטרם סווגו', D.vun.length, unRow(D.vun), '', 'vehicle') : '')
+          + sec('🛡️','ביקורות בטיחות', D.insps.length, inspHtml,
+                addBtn(`startInspectionFor('${esc(v.plate)}')`, 'ביקורת קצין בטיחות חדשה'), 'vehicle')
+          + sec('📎','קריאות / מסמכים שהתבקשו', D.reqs.length, reqHtml, '', 'vehicle')
+          + `<div style="font-size:0.7rem;color:#0891b2;opacity:.75">נשארים עם הרכב — גם אם יוחלף הנהג</div>`);
   } catch(e){ body.innerHTML = '<div style="color:#dc2626;padding:12px">שגיאה בטעינת המסמכים</div>'; console.log('empdocs', e); }
 }
 function openImportWizard() {
