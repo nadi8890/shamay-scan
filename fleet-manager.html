@@ -8723,6 +8723,28 @@ function showPaywall() {
   const c = document.getElementById('pw-company'); if (c) c.textContent = COMPANY_NAME || 'חברה זו';
   el.style.display = 'flex';
 }
+// אין ללקוח שום מודול פתוח. עד כה זה השאיר אותו במסך חצי-שבור שבו דווקא
+// כן נראו כל הלשוניות של כל המערכות; עכשיו מוצג מסך ברור במקום.
+function showNoModulesGate() {
+  document.getElementById('login-gate').style.display = 'none';
+  let el = document.getElementById('nomods-gate');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'nomods-gate';
+    el.style.cssText = 'position:fixed;inset:0;z-index:10000;background:linear-gradient(135deg,#1e3a8a,#0f172a);display:flex;align-items:center;justify-content:center;padding:20px;font-family:\'Heebo\',sans-serif';
+    el.innerHTML = `<div style="background:#fff;border-radius:18px;max-width:400px;width:100%;padding:30px 26px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.4)">
+      <img src="icon-192.png" alt="" style="width:64px;height:64px;border-radius:14px;margin-bottom:14px">
+      <h2 style="color:#1e293b;font-size:1.25rem;margin-bottom:8px">אין מודולים פעילים</h2>
+      <p style="color:#64748b;font-size:0.9rem;line-height:1.6;margin-bottom:20px">לחשבון של <b id="nm-company"></b> עדיין לא הופעל אף מודול.<br>להפעלה — צור קשר:</p>
+      <a href="tel:0542840258" style="display:block;background:linear-gradient(135deg,#2563eb,#4f46e5);color:#fff;text-decoration:none;border-radius:11px;padding:13px;font-weight:800;font-size:1rem;margin-bottom:10px">📞 054-2840258</a>
+      <a href="https://wa.me/972542840258" target="_blank" style="display:block;background:#25d366;color:#fff;text-decoration:none;border-radius:11px;padding:13px;font-weight:800;font-size:1rem;margin-bottom:16px">💬 וואטסאפ</a>
+      <button onclick="doLogout()" style="background:none;border:none;color:#94a3b8;text-decoration:underline;font-family:'Heebo',sans-serif;font-size:0.82rem;cursor:pointer">התנתקות</button>
+    </div>`;
+    document.body.appendChild(el);
+  }
+  const c = document.getElementById('nm-company'); if (c) c.textContent = COMPANY_NAME || 'חברה זו';
+  el.style.display = 'flex';
+}
 // Non-destructive FULL copy of every legacy fleet doc into the tenant namespace
 // (main, archives, declarations, inspections, km reports, bookings, backups, trash…),
 // so after the cutover nothing is missing. Reads legacy, writes tenant; never deletes.
@@ -8827,9 +8849,15 @@ function bootApp() {
   if (_adm) _adm.style.display = (TENANT === 'nofar') ? 'block' : 'none';
   // אם המערכת השמורה ננעלה מאז הביקור הקודם, נבחרת הראשונה הפתוחה מבין
   // השלוש (גם ניהול מוסך ניתן לנעילה כעת — ר' SYS_ENABLED/resolveTenant).
+  // אם *כל* המודולים נעולים — showSystem היה יוצא מיד בגלל שומר הנעילה,
+  // ולכן לעולם לא הספיק להסתיר את לשוניות המערכות האחרות: הלקוח ראה את
+  // כל הלשוניות של כולן (מעקב/חוות דעת/מוסך) למרות שאין לו שום מודול.
+  // לכן מסך ייעודי במקום מצב חצי-שבור.
+  const _firstOpen = ['fleet', 'shamai', 'garage'].find(sysAllowed);
+  if (!_firstOpen) { showNoModulesGate(); return; }
   let _startSys = localStorage.getItem('fleet_sys') || 'fleet';
-  if (!sysAllowed(_startSys)) _startSys = ['fleet', 'shamai', 'garage'].find(sysAllowed) || 'garage';
-  try { showSystem(_startSys); } catch(e) { showSystem('garage'); }
+  if (!sysAllowed(_startSys)) _startSys = _firstOpen;
+  try { showSystem(_startSys); } catch(e) { showSystem(_firstOpen); }
   // שחזור הלשונית האחרונה, רק אם היא שייכת למערכת שנפתחה ויש לה כפתור
   try {
     const t = localStorage.getItem('fleet_tab');
