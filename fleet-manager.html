@@ -502,6 +502,7 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
     <div style="display:flex;gap:6px;align-items:center">
       <button class="btn btn-primary" style="padding:6px 14px;font-size:0.78rem" onclick="openAddVehicle()">+ רכב חדש</button>
       <button class="btn-export" title="משלים קוד תוצר, קוד דגם, משקל כולל ותוקף רישוי לרכבים שחסרים — רק שדות ריקים" onclick="syncFleetFromGov()">🏛️ סנכרן צי</button>
+      <button class="btn-export" title="עובר על כל הרכבים ומושך מחדש קוד תוצר, קוד דגם ומשקל ממשרד התחבורה — גם אם כבר יש בהם ערך. שאר השדות לא נדרסים." onclick="syncFleetFromGov(true)">♻️ סנכרן מחדש</button>
       <button class="btn-export" onclick="exportSection('fleet')">📥 ייצוא Excel</button>
     </div>
   </div>
@@ -10578,17 +10579,28 @@ function _govSyncBanner(html) {
   el.innerHTML = html;
 }
 
-async function syncFleetFromGov() {
-  const targets = VEHICLES.filter(v => !v.noVehicle
-    && String(v.plate || '').replace(/\D/g, '').length >= 6
-    && (!v.tozeretCd || !v.degemCd || (featureOn('weight') && !v.weight)
-        || !v.make || !v.model || !v.year || !v.registrationExpiry));
+// force=true: עובר על כל הרכבים, גם כאלה שכבר יש בהם ערך, ודורס את
+// שדות משרד התחבורה בלבד. בלי זה רכב שסונכרן פעם אחת נדלג לנצח — גם
+// אם הערך שנשמר בו ישן או שגוי — כי הפילטר דורש שדה ריק.
+async function syncFleetFromGov(force) {
+  const hasPlate = v => !v.noVehicle && String(v.plate || '').replace(/\D/g, '').length >= 6;
+  const targets = force
+    ? VEHICLES.filter(hasPlate)
+    : VEHICLES.filter(v => hasPlate(v)
+        && (!v.tozeretCd || !v.degemCd || (featureOn('weight') && !v.weight)
+            || !v.make || !v.model || !v.year || !v.registrationExpiry));
   if (!targets.length) { toast('כל הרכבים כבר מסונכרנים ✓'); return; }
-  if (!confirm(`להשלים נתונים ממשרד התחבורה ל-${targets.length} רכבים?\n\n` +
-               `ימולאו רק שדות ריקים — מה שהזנת ידנית לא יידרס.\n` +
-               `משך משוער: כדקה לכל 60 רכבים. אפשר לעצור באמצע.`)) return;
+  if (!confirm(force
+        ? `לסנכרן מחדש ${targets.length} רכבים ולדרוס את נתוני משרד התחבורה?\n\n` +
+          `יידרסו: קוד תוצר, קוד דגם ומשקל כולל.\n` +
+          `לא ייגעו: נהג, חברה, תאריכים, ק"מ וכל מה שהזנת ידנית.\n` +
+          `משך משוער: כדקה לכל 60 רכבים. אפשר לעצור באמצע.`
+        : `להשלים נתונים ממשרד התחבורה ל-${targets.length} רכבים?\n\n` +
+          `ימולאו רק שדות ריקים — מה שהזנת ידנית לא יידרס.\n` +
+          `משך משוער: כדקה לכל 60 רכבים. אפשר לעצור באמצע.`)) return;
 
   _fleetSyncStop = false;
+  const notFound = [], errored = [];
   let done = 0, filled = 0, missing = 0, errStreak = 0, aborted = '';
   const flush = () => {
     try {
@@ -10608,9 +10620,10 @@ async function syncFleetFromGov() {
     try { rec = await govVehicleRecord(v.plate); } catch(e) { rec = null; }
     if (!rec) {
       if (GOV_LAST_ERROR) {
+        errored.push(v.plate);
         // מאגר שנפל מחזיר שגיאה על כל רכב — אין טעם להמשיך לרוץ עליו
         if (++errStreak >= 8) { aborted = ' · המאגר לא מגיב'; break; }
-      } else { missing++; }
+      } else { missing++; notFound.push(v.plate); }
       continue;
     }
     errStreak = 0;
@@ -10622,10 +10635,18 @@ async function syncFleetFromGov() {
       if (!val || String(v[k] || '').trim()) return;
       v[k] = String(val); touched = true;
     };
+    // בדריסה: שדות משרד התחבורה בלבד נכתבים מחדש גם כשיש בהם ערך.
+    // שאר השדות נשארים fill-only בשתי הדרכים, כדי לא לדרוס עריכה ידנית.
+    const put = (k, val) => {
+      if (!val) return;
+      if (String(v[k] || '').trim() === String(val)) return;
+      v[k] = String(val); touched = true;
+    };
+    const setCode = force ? put : set;
     // נשמרים מרופדים לארבע ספרות, בדיוק כפי שהם מודפסים ברישיון הרכב
-    set('tozeretCd', govPad4(nn.licCode));
-    set('degemCd', govPad4(nn.modelCode));
-    if (featureOn('weight') && nn.weight && nn.weight !== '0') set('weight', nn.weight);
+    setCode('tozeretCd', govPad4(nn.licCode));
+    setCode('degemCd', govPad4(nn.modelCode));
+    if (featureOn('weight') && nn.weight && nn.weight !== '0') setCode('weight', nn.weight);
     set('make', nn.make); set('model', nn.model || nn.modelName); set('year', nn.year);
     set('registrationExpiry', _govDateStr(nn.regExpiry));
     if (touched) filled++;
@@ -10639,6 +10660,35 @@ async function syncFleetFromGov() {
   _govSyncBanner(null);
   toast(`✓ הושלמו ${filled} רכבים${missing ? ` · ${missing} לא נמצא${missing > 1 ? 'ו' : ''} במאגר` : ''}${aborted}`,
         !!aborted && aborted.indexOf('לא מגיב') > -1);
+  // "לא סנכרן לי הרבה רכבים" היה חסר כל פירוט — לא ידעת אילו רכבים ולמה.
+  // כאן מוצגת הרשימה בפועל, מופרדת בין "לא במאגר" (אין מה לעשות) לבין
+  // "המאגר לא ענה" (שווה לנסות שוב).
+  _govSyncReport({ total: targets.length, filled, notFound, errored, aborted, force: !!force });
+}
+
+// דוח סיום. מוצג רק כשמשהו לא הושלם, כדי לא להטריד אחרי ריצה נקייה.
+function _govSyncReport(r) {
+  const el = document.getElementById('fleet-gov-sync');
+  if (!el) return;
+  if (!r.notFound.length && !r.errored.length) return;
+  const list = (arr, max) => arr.slice(0, max).join(', ') + (arr.length > max ? ` ועוד ${arr.length - max}` : '');
+  const parts = [];
+  if (r.errored.length)
+    parts.push(`<div style="margin-top:5px"><b>⚠ המאגר לא ענה (${r.errored.length})</b> — שווה להריץ שוב בעוד כמה דקות:<br>
+      <span style="direction:ltr;display:inline-block;font-size:0.72rem">${esc(list(r.errored, 15))}</span></div>`);
+  if (r.notFound.length)
+    parts.push(`<div style="margin-top:5px"><b>🔎 לא קיימים במאגר משרד התחבורה (${r.notFound.length})</b> — בדרך כלל טרקטורים, צמ"ה ונגררים שאינם מפורסמים שם. יש להזין ידנית:<br>
+      <span style="direction:ltr;display:inline-block;font-size:0.72rem">${esc(list(r.notFound, 15))}</span></div>`);
+  el.style.display = 'block';
+  el.innerHTML = `<div style="background:#fffbeb;border:1.5px solid #fbbf24;border-radius:10px;padding:10px 12px;font-size:0.78rem;line-height:1.6;color:#78350f">
+      <div><b>סיכום סנכרון:</b> הושלמו ${r.filled} מתוך ${r.total}${r.aborted ? esc(r.aborted) : ''}</div>
+      ${parts.join('')}
+      <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">
+        ${r.errored.length ? `<button class="btn btn-gray" style="padding:3px 10px;font-size:0.72rem" onclick="syncFleetFromGov()">🔄 נסה שוב</button>` : ''}
+        ${!r.force ? `<button class="btn btn-gray" style="padding:3px 10px;font-size:0.72rem" onclick="syncFleetFromGov(true)">♻️ סנכרן מחדש הכל (דריסה)</button>` : ''}
+        <button class="btn btn-gray" style="padding:3px 10px;font-size:0.72rem" onclick="_govSyncBanner(null)">סגור</button>
+      </div>
+    </div>`;
 }
 
 // הרשומה האחרונה שנשלפה, כדי שאפשר יהיה להחיל אותה בלחיצה
