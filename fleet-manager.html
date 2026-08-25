@@ -3824,8 +3824,8 @@ function renderFleet() {
     return `<tr class="${rowCls}" style="cursor:pointer" title="לחץ לעריכה" onclick="editVehicle('${esc(v.plate)}')">
       <td class="${noVeh?'':yc(v.plate)}" style="font-weight:700;color:var(--accent);direction:ltr;font-size:0.78rem;white-space:nowrap">${noVeh ? '<span style="color:#7c3aed">👤 ללא רכב</span>' : (esc(v.plate)||'—')}</td>
       <td class="${yc((v.make||'')+(v.model||''))}" style="font-size:0.73rem">${esc(v.make)} ${esc(v.model)}<br><span style="color:var(--muted);font-size:0.65rem">${esc(v.year)}</span></td>
-      <td style="font-size:0.73rem;direction:ltr;text-align:center">${esc(v.tozeretCd)||'—'}</td>
-      <td style="font-size:0.73rem;direction:ltr;text-align:center">${esc(v.degemCd)||'—'}</td>
+      <td style="font-size:0.73rem;direction:ltr;text-align:center">${esc(govPad4(v.tozeretCd))||'—'}</td>
+      <td style="font-size:0.73rem;direction:ltr;text-align:center">${esc(govPad4(v.degemCd))||'—'}</td>
       <td class="col-weight" style="font-size:0.73rem;white-space:nowrap">${v.weight ? esc(v.weight)+' ק"ג' : '—'}</td>
       <td class="${isTrailer?'':yc(drvNm)}" style="font-size:0.73rem">${esc((v.driverName||'').split('-')[0])||'—'}</td>
       <td class="${yc(v.company)}">${companyBadge(v.company)}</td>
@@ -4436,6 +4436,16 @@ function govJsonp(rid, query, timeoutMs) {
 // אוטובוס או משאית מחזירים רשומה אך שום שדה לא מתמלא.
 const _SUG_DEGEM = { P: 'פרטי', M: 'מסחרי', N: 'משא', O: 'נגרר', B: 'אוטובוס', T: 'טרקטור' };
 
+// ברישיון הרכב הקודים מודפסים מרופדים באפסים — "קוד 00771-0264" הוא
+// קוד תוצר 771 וקוד דגם 264. המאגר הממשלתי מחזיר אותם בלי הריפוד, ולכן
+// הטבלה הציגה "771" במקום "0771" ולא הסתדר מול הרישיון. מרפדים לארבע
+// ספרות בתצוגה בלבד; ערך שאינו מספרי (שם דגם טקסטואלי במאגר המסחרי)
+// מוחזר כמו שהוא.
+function govPad4(v) {
+  const s = String(v == null ? '' : v).trim();
+  if (!s || !/^\d+$/.test(s)) return s;
+  return s.padStart(4, '0');
+}
 function govNormalize(r) {
   if (!r) return null;
   const s = v => (v === null || v === undefined) ? '' : String(v).trim();
@@ -4445,7 +4455,12 @@ function govNormalize(r) {
     plate:     s(r.mispar_rechev),
     make:      s(r.tozeret_nm),
     model:     s(r.kinuy_mishari) || s(r.degem_nm),
-    modelCode: s(r.degem_cd) || s(r.degem_nm),
+    // קוד הדגם הוא מספרי בלבד. מאגרי הרכב המסחרי והזעיר אינם כוללים
+    // degem_cd כלל — רק שם דגם טקסטואלי — וקודם הוא נדחף לעמודת "קוד
+    // דגם" והופיע שם כטקסט (למשל "א בי 75 אלקלעי א") במקום קוד.
+    // השם נשמר בנפרד ומשמש גם לחיפוש במאגר הדגמים וגם כשם הדגם עצמו.
+    modelCode: s(r.degem_cd),
+    modelName: s(r.degem_nm),
     trim:      s(r.ramat_gimur),
     year:      s(r.shnat_yitzur),
     type:      type,
@@ -4476,10 +4491,12 @@ async function govModelRecord(n) {
   const toz = num(n.licCode);
   if (toz === null) return null;
   const dcRaw = String(n.modelCode || '').trim();
-  // במאגר הפרטי קוד הדגם מספרי; במסחרי/אוטובוס יש רק את הקוד הטקסטואלי של היצרן
-  const byModel = /^\d+$/.test(dcRaw) ? { degem_cd: num(dcRaw) } : (dcRaw ? { degem_nm: dcRaw } : null);
+  const dnRaw = String(n.modelName || '').trim();
+  // במאגר הפרטי קוד הדגם מספרי; במסחרי/אוטובוס אין קוד כלל, ולכן
+  // מחפשים לפי שם הדגם בתקווה שמאגר הדגמים יחזיק אותו.
+  const byModel = /^\d+$/.test(dcRaw) ? { degem_cd: num(dcRaw) } : (dnRaw ? { degem_nm: dnRaw } : null);
   if (!byModel) return null;
-  const key = toz + '|' + dcRaw + '|' + (n.year || '');
+  const key = toz + '|' + (dcRaw || dnRaw) + '|' + (n.year || '');
   if (key in _govModelCache) return _govModelCache[key];
   const yr = num(n.year);
   // קודם עם השנתון; דגם שיוצר בכמה שנתונים לא תמיד רשום בשנתון של הרכב
@@ -4519,6 +4536,9 @@ function govMerge(n, m) {
   if (!/^\d+$/.test(String(out.modelCode || '').trim()) && s(m.degem_cd)) out.modelCode = s(m.degem_cd);
   if (!out.trim) out.trim = s(m.ramat_gimur);
   if (!out.model) out.model = s(m.kinuy_mishari) || s(m.degem_nm);
+  // שם הדגם לא הולך לאיבוד כשאין קוד מספרי — הוא מה שמופיע ברישיון
+  // תחת "דגם", ולכן אם אין שם מסחרי הוא משמש כשם הדגם.
+  if (!out.model) out.model = s(out.modelName);
   return out;
 }
 
@@ -10479,8 +10499,8 @@ async function addVehicleWithLookup(param) {
   if (parts.length <= 3) {
     const lookup = await lookupVehicleGov(plate);
     if (!lookup.error) {
-      govToz    = (lookup.tozeretCd && lookup.tozeretCd!=='—') ? String(lookup.tozeretCd) : '';
-      govDegem  = (lookup.degemCd   && lookup.degemCd!=='—')   ? String(lookup.degemCd)   : '';
+      govToz    = (lookup.tozeretCd && lookup.tozeretCd!=='—') ? govPad4(lookup.tozeretCd) : '';
+      govDegem  = (lookup.degemCd   && lookup.degemCd!=='—')   ? govPad4(lookup.degemCd)   : '';
       govWeight = (lookup.weight    && lookup.weight!=='—')    ? String(lookup.weight)    : '';
       govMake = (lookup.make && lookup.make!=='—') ? lookup.make : '';
       govModel = (lookup.model && lookup.model!=='—') ? lookup.model : '';
@@ -10531,8 +10551,8 @@ async function syncVehicleFromGov(plate) {
   if (lookup.make && lookup.make!=='—') v.make = lookup.make;
   if (lookup.model && lookup.model!=='—') v.model = lookup.model;
   if (lookup.year && String(lookup.year)!=='—') v.year = String(lookup.year);
-  if (lookup.tozeretCd && lookup.tozeretCd!=='—') v.tozeretCd = String(lookup.tozeretCd);
-  if (lookup.degemCd && lookup.degemCd!=='—') v.degemCd = String(lookup.degemCd);
+  if (lookup.tozeretCd && lookup.tozeretCd!=='—') v.tozeretCd = govPad4(lookup.tozeretCd);
+  if (lookup.degemCd && lookup.degemCd!=='—') v.degemCd = govPad4(lookup.degemCd);
   if (lookup.weight && lookup.weight!=='—') v.weight = String(lookup.weight);
   if (lookup.regExpiry && lookup.regExpiry!=='—') v.registrationExpiry = lookup.regExpiry;
 
@@ -10602,10 +10622,11 @@ async function syncFleetFromGov() {
       if (!val || String(v[k] || '').trim()) return;
       v[k] = String(val); touched = true;
     };
-    set('tozeretCd', nn.licCode);
-    set('degemCd', nn.modelCode);
+    // נשמרים מרופדים לארבע ספרות, בדיוק כפי שהם מודפסים ברישיון הרכב
+    set('tozeretCd', govPad4(nn.licCode));
+    set('degemCd', govPad4(nn.modelCode));
     if (featureOn('weight') && nn.weight && nn.weight !== '0') set('weight', nn.weight);
-    set('make', nn.make); set('model', nn.model); set('year', nn.year);
+    set('make', nn.make); set('model', nn.model || nn.modelName); set('year', nn.year);
     set('registrationExpiry', _govDateStr(nn.regExpiry));
     if (touched) filled++;
 
@@ -10782,7 +10803,7 @@ function exportVehicleCard(rawPlate) {
     <tr><th>חברה</th><td>${v.company||'—'}</td></tr>
     <tr><th>יצרן / דגם</th><td>${v.make||''} ${v.model||''}</td></tr>
     <tr><th>שנת ייצור</th><td>${v.year||'—'}</td></tr>
-    <tr><th>קוד תוצר / קוד דגם</th><td>${v.tozeretCd||'—'} / ${v.degemCd||'—'}</td></tr>
+    <tr><th>קוד תוצר / קוד דגם</th><td>${govPad4(v.tozeretCd)||'—'} / ${govPad4(v.degemCd)||'—'}</td></tr>
     ${featureOn('weight') ? `<tr><th>משקל כולל</th><td>${v.weight ? v.weight+' ק"ג' : '—'}</td></tr>` : ''}
     <tr><th>תוקף רישוי</th><td>${v.registrationExpiry||'—'}</td></tr>
     <tr><th>תוקף ביטוח</th><td>${v.insuranceExpiry||'—'}</td></tr>
@@ -12424,7 +12445,7 @@ function renderFleetCards(list) {
     const entName   = esc(entityName(vehicleEntity(v)));
     // נתוני משרד התחבורה — שורה נפרדת, ורק כשיש מה להציג
     const govLine   = [
-      (v.tozeretCd || v.degemCd) ? 'קוד ' + esc(v.tozeretCd || '?') + '·' + esc(v.degemCd || '?') : '',
+      (v.tozeretCd || v.degemCd) ? 'קוד ' + esc(govPad4(v.tozeretCd) || '?') + '·' + esc(govPad4(v.degemCd) || '?') : '',
       (featureOn('weight') && v.weight) ? esc(v.weight) + ' ק"ג' : ''
     ].filter(Boolean).join(' | ');
 
