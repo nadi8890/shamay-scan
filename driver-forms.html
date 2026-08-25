@@ -73,6 +73,15 @@ canvas.sig{width:100%;height:130px;border:1.5px dashed #94a3b8;border-radius:10p
 
 <!-- ═════ menu ═════ -->
 <div id="menu">
+  <!-- הנהג ראה ארבעה כרטיסים זהים בלי שום רמז שצריך למלא את כולם, ולכן
+       חלק מילאו רק את הראשון. הכותרת מבהירה את זה ומראה כמה נשארו. -->
+  <div id="menu-intro" style="background:linear-gradient(135deg,#4f46e5,#7c3aed);color:#fff;border-radius:14px;
+       padding:14px 16px;margin-bottom:14px;box-shadow:0 6px 18px rgba(79,70,229,.3)">
+    <div style="font-weight:900;font-size:1rem">📋 טפסי קבלת רכב</div>
+    <div style="font-size:0.8rem;opacity:.95;margin-top:4px;line-height:1.5">נא למלא ולחתום על <b>כל</b> הטפסים שברשימה. אפשר לעצור ולחזור — כל טופס נשמר בנפרד.</div>
+    <div id="menu-progress" style="margin-top:10px;font-size:0.78rem;font-weight:800;
+         background:rgba(255,255,255,.18);border-radius:999px;padding:5px 12px;display:inline-block"></div>
+  </div>
   <div class="menu-card" onclick="openForm('procedures')">
     <span class="ic">📄</span>
     <div><div class="tt">נהלים ואחריות אישית</div><div class="dd">הצהרת מחזיק רכב + אחריות בגין עבירות + צירוף רישיון נהיגה</div></div>
@@ -343,8 +352,15 @@ const FORMS = {
       box.innerHTML = PLATE ? `🚗 מספר רכב: <b dir="ltr">${PLATE}</b>` : '🚗 טפסי נהג';
     }
   } catch(e) { document.getElementById('veh-box').textContent = '🚗 טפסי נהג'; }
+  updateMenuProgress();
   const f = params.get('form');
-  if (f && FORMS[f]) openForm(f);
+  // קישור לטופס בודד: הנהג התבקש לטופס אחד, ולכן "יש למלא את כל
+  // הטפסים" היה מטעה. מסתירים את הכותרת הזו ומשאירים את התפריט כרשות.
+  if (f && FORMS[f]) {
+    const intro = document.getElementById('menu-intro');
+    if (intro) intro.style.display = 'none';
+    openForm(f);
+  }
 })();
 
 function openForm(key) {
@@ -400,7 +416,25 @@ function backToMenu() {
   document.getElementById('form-wrap').style.display = 'none';
   document.getElementById('done').style.display = 'none';
   document.getElementById('menu').style.display = 'block';
+  updateMenuProgress();
   window.scrollTo(0, 0);
+}
+// כמה מהטפסים נחתמו בביקור הזה. נגזר מתגי "✓ נשלח" הקיימים, כדי שלא
+// יהיה מקור אמת שני שיכול להיפרד מהם. התגים אינם נטענים מהשרת, ולכן
+// אחרי רענון הספירה מתאפסת — לכן כשעוד לא נחתם כלום בביקור הזה מוצגת
+// הנחיה ולא "0 מתוך 4", שהיה טענה שקרית למי שכבר מילא קודם.
+function updateMenuProgress() {
+  const el = document.getElementById('menu-progress');
+  if (!el) return;
+  const total = document.querySelectorAll('#menu .menu-card').length;
+  let done = 0;
+  // getComputedStyle ולא style.display: התג מוסתר דרך מחלקת CSS, ולכן
+  // הסגנון המוטבע ריק כל עוד לא נחתם — ובדיקה שלו הייתה סופרת הכל כנחתם.
+  document.querySelectorAll('#menu .menu-card .done')
+    .forEach(b => { if (getComputedStyle(b).display !== 'none') done++; });
+  el.textContent = !done      ? `יש למלא ${total} טפסים`
+                 : done >= total ? `✓ הושלמו כל ${total} הטפסים — תודה!`
+                                 : `נחתמו ${done} · נותרו ${total - done}`;
 }
 
 /* signature pads — #sig is the employee, #sig2 the safety officer (test drive only) */
@@ -813,7 +847,10 @@ async function submitForm() {
                                  subject: `${F.title} — ${rec.name} (${rec.plate})`, body: buildSummaryText(rec), files }) });
       } catch(e) {}
     }
-    const di = document.getElementById('done-' + CURRENT); if (di) di.style.display = '';
+    // 'inline-block' ולא '': המחלקה .done מגדירה display:none, ולכן
+    // איפוס הסגנון המוטבע החזיר אותו למוסתר והתג לא הופיע אף פעם.
+    const di = document.getElementById('done-' + CURRENT); if (di) di.style.display = 'inline-block';
+    updateMenuProgress();
     document.getElementById('form-wrap').style.display = 'none';
     document.getElementById('done').style.display = 'block';
     celebrate(rec.name, F.title);
