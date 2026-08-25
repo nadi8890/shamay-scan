@@ -364,7 +364,7 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
   <div class="sys-bar" id="sys-bar" role="tablist" aria-label="מערכות">
   <button class="sys-btn active" data-sys="fleet"  type="button" role="tab" aria-selected="true"  onclick="showSystem('fleet')"><span class="sys-ico" aria-hidden="true">🚗</span>ניהול צי רכב<span class="sys-lock" aria-hidden="true" style="display:none">🔒</span></button>
   <button class="sys-btn"        data-sys="shamai" type="button" role="tab" aria-selected="false" onclick="showSystem('shamai')"><span class="sys-ico" aria-hidden="true">🔍</span>שמAI<span class="sys-lock" aria-hidden="true" style="display:none">🔒</span></button>
-  <button class="sys-btn"        data-sys="garage" type="button" role="tab" aria-selected="false" onclick="showSystem('garage')"><span class="sys-ico" aria-hidden="true">🔧</span>ניהול מוסך</button>
+  <button class="sys-btn"        data-sys="garage" type="button" role="tab" aria-selected="false" onclick="showSystem('garage')"><span class="sys-ico" aria-hidden="true">🔧</span>ניהול מוסך<span class="sys-lock" aria-hidden="true" style="display:none">🔒</span></button>
 </div>
 </div>
 
@@ -1400,6 +1400,9 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
               </label>
               <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
                 <input id="adm-shamai" type="checkbox" style="width:16px;height:16px"><span>🔍 שמAI</span>
+              </label>
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+                <input id="adm-garage" type="checkbox" style="width:16px;height:16px"><span>🔧 ניהול מוסך</span>
               </label>
             </div>
             <div class="btn-row">
@@ -8627,9 +8630,9 @@ let COMPANY_NAME = 'נופר אנרגיה';
 // or when validUntil (ISO date) has passed. Nofar (the owner) is always active.
 let SUB_ACTIVE = true;
 let SUB_VALID_UNTIL = '';
-// מודולים בתשלום נוסף: שמAI וניהול צי רכב אינם כלולים אוטומטית בכל חשבון
-// שמנוי פעיל בו. הבעלים (נופר) תמיד פתוח לגמרי; ניהול מוסך נשאר פתוח
-// תמיד — הוא ריק וכרגע לא חושף שום נתון.
+// מודולים בתשלום נוסף: שלושתם (צי רכב, שמAI, ניהול מוסך) אינם כלולים
+// אוטומטית בכל חשבון שמנוי פעיל בו — כל אחד נפתח בנפרד בפאנל הניהול,
+// לפי מה שהלקוח קונה בפועל. הבעלים (נופר) תמיד פתוח לגמרי.
 let SYS_ENABLED = { fleet: true, shamai: true, garage: true };
 function sysAllowed(name) { return SYS_ENABLED[name] !== false; }
 const TENANT_DATA = () => db.collection('tenants').doc(TENANT).collection('data');
@@ -8655,7 +8658,7 @@ async function resolveTenant(user) {
       // שלא סומן true במפורש נעול, בדיוק כמו שביקשת — אתה קובע בעת
       // יצירת המשתמש, ופותח אחר כך רק את מה שהלקוח מנוי עליו.
       if (d.systems && typeof d.systems === 'object') {
-        SYS_ENABLED = { fleet: !!d.systems.fleet, shamai: !!d.systems.shamai, garage: true };
+        SYS_ENABLED = { fleet: !!d.systems.fleet, shamai: !!d.systems.shamai, garage: !!d.systems.garage };
       } else {
         SYS_ENABLED = { fleet: true, shamai: true, garage: true };
       }
@@ -8668,17 +8671,17 @@ async function resolveTenant(user) {
       SYS_ENABLED = { fleet: true, shamai: true, garage: true };
     } else {
       // אין עדיין רשומת users/{uid} — כלומר עוד לא הוקם ללקוח הזה חשבון
-      // דרכך. זה בדיוק המצב הכי "לקוח חדש" שיש, ולכן המודולים נעולים
-      // עד שתפתח אותם בעצמך.
+      // דרכך. זה בדיוק המצב הכי "לקוח חדש" שיש, ולכן כל המודולים נעולים —
+      // כולל ניהול מוסך — עד שתפתח אותם בעצמך בפאנל הניהול.
       TENANT = user.uid; COMPANY_NAME = ''; SUB_ACTIVE = true; SUB_VALID_UNTIL = '';
-      SYS_ENABLED = { fleet: false, shamai: false, garage: true };
+      SYS_ENABLED = { fleet: false, shamai: false, garage: false };
     }
   } catch(e) {
     // On a read failure, preserve isolation — never default a stranger onto Nofar.
     console.log('tenant resolve error', e);
     TENANT = (user.uid === NOFAR_OWNER_UID) ? 'nofar' : user.uid;
     SYS_ENABLED = (TENANT === 'nofar') ? { fleet: true, shamai: true, garage: true }
-                                        : { fleet: false, shamai: false, garage: true };
+                                        : { fleet: false, shamai: false, garage: false };
   }
 }
 // Is this company's subscription currently valid? The owner (nofar) is never blocked.
@@ -8814,8 +8817,8 @@ function bootApp() {
   applySysLocks();
   const _adm = document.getElementById('admin-clients-panel');
   if (_adm) _adm.style.display = (TENANT === 'nofar') ? 'block' : 'none';
-  // אם המערכת השמורה ננעלה מאז הביקור הקודם, נבחרת הראשונה הפתוחה —
-  // וניהול מוסך תמיד פתוח, כך שאף לקוח לא נשאר בלי שום מסך.
+  // אם המערכת השמורה ננעלה מאז הביקור הקודם, נבחרת הראשונה הפתוחה מבין
+  // השלוש (גם ניהול מוסך ניתן לנעילה כעת — ר' SYS_ENABLED/resolveTenant).
   let _startSys = localStorage.getItem('fleet_sys') || 'fleet';
   if (!sysAllowed(_startSys)) _startSys = ['fleet', 'shamai', 'garage'].find(sysAllowed) || 'garage';
   try { showSystem(_startSys); } catch(e) { showSystem('garage'); }
@@ -8887,7 +8890,7 @@ async function doSignup() {
       await db.collection('users').doc(cred.user.uid).set({
         tenantId: cred.user.uid, companyName: company, role: 'manager', createdAt: new Date().toISOString(),
         active: true, validUntil: _vu.toISOString().slice(0,10),
-        systems: { fleet: false, shamai: false }
+        systems: { fleet: false, shamai: false, garage: false }
       });
     } catch(mapErr) {
       // couldn't record the company→tenant mapping — roll back so the account can't
@@ -11765,6 +11768,7 @@ async function adminLoadClient() {
     const sys = d.systems || {};
     document.getElementById('adm-fleet').checked = !!sys.fleet;
     document.getElementById('adm-shamai').checked = !!sys.shamai;
+    document.getElementById('adm-garage').checked = !!sys.garage;
     _admLoadedUid = uid;
     st.textContent = '✓ נטען'; st.style.color = '#86efac';
   } catch(e) { st.textContent = _admPermErr(e); st.style.color = '#fca5a5'; console.log('adminLoadClient', e); }
@@ -11792,7 +11796,8 @@ async function adminSaveClient() {
     validUntil: document.getElementById('adm-until').value || '',
     systems: {
       fleet: !!document.getElementById('adm-fleet').checked,
-      shamai: !!document.getElementById('adm-shamai').checked
+      shamai: !!document.getElementById('adm-shamai').checked,
+      garage: !!document.getElementById('adm-garage').checked
     }
   };
   st.textContent = 'שומר…'; st.style.color = '#94a3b8';
