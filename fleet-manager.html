@@ -344,7 +344,10 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
     <div id="lg-subtitle" style="font-size:0.8rem;color:#64748b;margin-bottom:20px">מערכת ניהול צי רכב · כניסת מנהל</div>
     <input id="lg-company" type="text" placeholder="שם החברה" style="display:none;width:100%;border:1.5px solid #dde3ed;border-radius:10px;padding:12px;font-family:'Heebo',sans-serif;font-size:0.95rem;margin-bottom:9px;text-align:right">
     <input id="lg-email" type="email" placeholder="אימייל" autocomplete="username" style="width:100%;border:1.5px solid #dde3ed;border-radius:10px;padding:12px;font-family:'Heebo',sans-serif;font-size:0.95rem;margin-bottom:9px;direction:ltr;text-align:right">
-    <input id="lg-pass" type="password" placeholder="סיסמה" autocomplete="current-password" style="width:100%;border:1.5px solid #dde3ed;border-radius:10px;padding:12px;font-family:'Heebo',sans-serif;font-size:0.95rem;margin-bottom:9px;direction:ltr;text-align:right" onkeydown="if(event.key==='Enter'){ _authMode==='signup' ? doSignup() : doLogin(); }">
+    <div style="position:relative;margin-bottom:9px">
+      <input id="lg-pass" type="password" placeholder="סיסמה" autocomplete="current-password" style="width:100%;border:1.5px solid #dde3ed;border-radius:10px;padding:12px 12px 12px 40px;font-family:'Heebo',sans-serif;font-size:0.95rem;direction:ltr;text-align:right;box-sizing:border-box" onkeydown="if(event.key==='Enter'){ _authMode==='signup' ? doSignup() : doLogin(); }">
+      <button type="button" onclick="_toggleLgPass(this)" title="הצג/הסתר סיסמה" style="position:absolute;left:8px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:1.15rem;color:#64748b;padding:4px;line-height:1">👁️</button>
+    </div>
     <div id="lg-err" style="color:#dc2626;font-size:0.8rem;font-weight:700;min-height:18px;margin-bottom:6px"></div>
     <button id="lg-btn" onclick="doLogin()" style="width:100%;background:linear-gradient(135deg,#2563eb,#4f46e5);color:#fff;border:none;border-radius:11px;padding:13px;font-family:'Heebo',sans-serif;font-size:1rem;font-weight:800;cursor:pointer">התחברות</button>
     <div style="margin-top:12px;display:flex;justify-content:space-between;font-size:0.75rem">
@@ -8909,6 +8912,12 @@ async function doSignup() {
     const m = { 'auth/email-already-in-use':'המייל כבר רשום — התחבר במקום', 'auth/weak-password':'סיסמה חלשה מדי (6+ תווים)', 'auth/invalid-email':'אימייל לא תקין', 'permission-denied':'אין הרשאה ליצור חשבון — צור קשר עם התמיכה' };
     err.textContent = m[e.code] || ('שגיאה: ' + (e.code || e.message));
   }
+}
+function _toggleLgPass(btn) {
+  const inp = document.getElementById('lg-pass');
+  const show = inp.type === 'password';
+  inp.type = show ? 'text' : 'password';
+  btn.textContent = show ? '🙈' : '👁️';
 }
 function doLogin() {
   const email = document.getElementById('lg-email').value.trim();
