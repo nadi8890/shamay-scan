@@ -2840,13 +2840,58 @@ function _curMonth() { const n = new Date(); return `${n.getFullYear()}-${String
 function _csvRows(text) { return text.split(/\r?\n/).filter(l => l.trim()).map(l => l.split(/[,;\t]/).map(c => c.trim().replace(/^"|"$/g, ''))); }
 function _rowsToCsv(rows) { return rows.map(r => r.join(',')).join('\n'); }
 function _xlsxRows(buf) { return (_xlsxSheets(buf)[0] || { rows: [] }).rows; }
+// באקסל תאריך אינו טקסט אלא מספר סידורי (למשל 46509), והתצוגה נקבעת
+// לפי פורמט התא. בקבצים רבים — כולל יצוא ממערכות ניהול צי — הפורמט
+// הוא האמריקאי m/d/yy, ולכן 2 במאי 2027 מוצג "5/2/27". קריאה כטקסט
+// גררה פענוח כיום/חודש והתאריך התהפך ל-5 בפברואר.
+//
+// לא משתמשים כאן ב-cellDates של הספרייה: היא מחזירה אובייקט Date עם
+// סטיית עיגול (למשל 20:59:20 ביום הקודם), וכל קריאה שלו — מקומית או
+// UTC — נותנת יום אחד אחורה. במקום זה קוראים את המספר הסידורי הגולמי
+// וממירים בעצמנו בחשבון ימים שלם, בלי תלות באזור זמן.
+function _serialToDMY(n) {
+  const days = Math.round(Number(n));
+  if (!isFinite(days) || days < 1) return null;
+  const p2 = x => String(x).padStart(2, '0');
+  // אקסל סופר מ-1899-12-30 (כולל באג שנת 1900 המעוברת, שנכון לכל תאריך מ-1900-03-01)
+  const d = new Date(Date.UTC(1899, 11, 30) + days * 86400000);
+  return `${p2(d.getUTCDate())}/${p2(d.getUTCMonth() + 1)}/${d.getUTCFullYear()}`;
+}
+function _normXlsxDates(ws) {
+  if (!ws) return ws;
+  const isDateFmt = f => {
+    if (!f) return false;
+    if (typeof XLSX !== 'undefined' && XLSX.SSF && typeof XLSX.SSF.is_date === 'function') {
+      try { return XLSX.SSF.is_date(f); } catch (e) {}
+    }
+    // גיבוי: תבנית שמכילה סימני יום/חודש/שנה ואינה מחרוזת טקסט בלבד
+    return /[dmyhs]/i.test(String(f).replace(/\[[^\]]*\]|"[^"]*"/g, ''));
+  };
+  Object.keys(ws).forEach(ref => {
+    if (ref[0] === '!') return;
+    const cell = ws[ref];
+    if (!cell) return;
+    let out = null;
+    if (cell.t === 'n' && isDateFmt(cell.z)) out = _serialToDMY(cell.v);
+    else if (cell.t === 'd' && cell.v instanceof Date && !isNaN(cell.v)) {
+      // אם בכל זאת הגיע Date, מתקנים את סטיית העיגול לפני הקריאה
+      const t = cell.v.getTime() - cell.v.getTimezoneOffset() * 60000;
+      const d = new Date(Math.round(t / 86400000) * 86400000);
+      const p2 = x => String(x).padStart(2, '0');
+      out = `${p2(d.getUTCDate())}/${p2(d.getUTCMonth() + 1)}/${d.getUTCFullYear()}`;
+    }
+    if (out) { cell.t = 's'; cell.v = cell.w = out; delete cell.z; }
+  });
+  return ws;
+}
 // חוברת עבודה יכולה לפתוח בגיליון הסבר או תפריט, והנתונים יושבים
 // בגיליון הבא. קוראים את כולם ונותנים למנתח לבחור.
 function _xlsxSheets(buf) {
-  const wb = XLSX.read(buf, { type: 'array', cellDates: false });
+  // cellNF שומר את תבנית התא, וכך _normXlsxDates יודע אילו מספרים הם תאריכים
+  const wb = XLSX.read(buf, { type: 'array', cellDates: false, cellNF: true });
   return wb.SheetNames.map(n => ({
     name: n,
-    rows: XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, defval: '', raw: false, blankrows: false })
+    rows: XLSX.utils.sheet_to_json(_normXlsxDates(wb.Sheets[n]), { header: 1, defval: '', raw: false, blankrows: false })
   }));
 }
 // דוח תדלוקים של חברת דלק אינו חשבונית בודדת אלא טבלה אחת רחבה,
@@ -8520,8 +8565,10 @@ function handleImportFile(input) {
   const reader = new FileReader();
   reader.onload = e => {
     try {
-      const wb = XLSX.read(e.target.result, { type: 'array', cellDates: false });
-      const ws = wb.Sheets[wb.SheetNames[0]];
+      // cellNF + _normXlsxDates: תאריכי אקסל מגיעים כמספר סידורי עם
+      // פורמט תצוגה אמריקאי, ובלי זה יום וחודש התחלפו בייבוא.
+      const wb = XLSX.read(e.target.result, { type: 'array', cellDates: false, cellNF: true });
+      const ws = _normXlsxDates(wb.Sheets[wb.SheetNames[0]]);
       const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: false, blankrows: false });
       if (!aoa.length) throw new Error('הקובץ ריק');
       // first non-empty row = headers
