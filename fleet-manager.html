@@ -1437,6 +1437,16 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
         <button class="btn btn-primary" onclick="saveMailSettings()">💾 שמור הגדרות</button>
       </div>
     </div>
+    <div class="settings-grp">🔔 מה לעקוב אחריו</div>
+    <div style="background:var(--card);border:1.5px solid var(--border);border-radius:12px;padding:14px;margin-bottom:6px">
+      <label style="display:flex;align-items:flex-start;gap:9px;cursor:pointer">
+        <input id="set-track-license" type="checkbox" style="width:17px;height:17px;margin-top:2px" onchange="saveTrackLicense(this.checked)">
+        <span>
+          <span style="font-weight:800;font-size:0.86rem">🪪 מעקב תוקף רישיונות נהיגה</span>
+          <span style="display:block;font-size:0.74rem;color:var(--muted);margin-top:3px">כשמכובה — לא יופיעו התראות על רישיון נהיגה שפג או חסר, בשום מקום במערכת. שאר ההתראות (רישוי, ביטוח, ביקורות, טיפולים) ממשיכות כרגיל. הנתון עצמו נשמר ולא נמחק.</span>
+        </span>
+      </label>
+    </div>
     <div class="section-hdr" style="margin-top:18px"><span class="section-title">🛡️ החתימה הקבועה שלך (קצין בטיחות)</span></div>
     <div style="background:var(--card);border:1.5px solid var(--border);border-radius:12px;padding:14px;margin-bottom:6px">
       <div style="font-size:0.78rem;color:var(--muted);margin-bottom:8px">חתום/חתמי כאן פעם אחת — החתימה תיחתם אוטומטית על כל טופס "מבחן נהיגה מעשי" שעובד ממלא.</div>
@@ -2009,6 +2019,7 @@ async function loadFromFirestore() {
       await loadArchiveDoc('replacements', a => { REPLACEMENTS = a; localStorage.setItem('fleet_replacements', JSON.stringify(a)); });
       await loadArchiveDoc('returns',      a => { RETURNS = a;      localStorage.setItem('fleet_returns', JSON.stringify(a)); });
       if (d.mailSettings) { MAIL_SETTINGS = d.mailSettings; localStorage.setItem('fleet_mailSettings', JSON.stringify(MAIL_SETTINGS)); }
+      if (typeof d.trackLicense === 'boolean') { TRACK_LICENSE = d.trackLicense; }
       if (d.kmRound && typeof KMROUND !== 'undefined') { KMROUND = d.kmRound; }
       if (d.costs && typeof COSTS !== 'undefined') { COSTS = d.costs; }
       if (d.serviceNotified) { SERVICE_NOTIFIED = d.serviceNotified; }
@@ -3326,7 +3337,7 @@ function renderManagerDashboard() {
   // documents expiring within the next 30 days (proactive renewal planning)
   let soonRenew = 0;
   active.forEach(v => {
-    [v.registrationExpiry, v.insuranceExpiry, v.licenseExpiry, nextInspectionStr(v)].forEach(d => {
+    [v.registrationExpiry, v.insuranceExpiry, ...(TRACK_LICENSE ? [v.licenseExpiry] : []), nextInspectionStr(v)].forEach(d => {
       const days = daysUntil(d);
       if (days !== null && days >= 0 && days <= 30) soonRenew++;
     });
@@ -4768,6 +4779,20 @@ function saveViolationForm() {
 const INSPECTION_EMAIL = 'nadavmarciano90@gmail.com';
 let MAIL_SETTINGS = {};
 try { MAIL_SETTINGS = JSON.parse(localStorage.getItem('fleet_mailSettings')) || {}; } catch(e) {}
+// מעקב תוקף רישיונות נהיגה — לא כל לקוח רוצה אותו. עיריית רמלה, למשל,
+// לא עוקבת אחרי רישיונות כרגע. ההגדרה שמורה פר-דייר במסמך main, כך
+// שכיבוי אצל לקוח אחד אינו נוגע באחרים. ברירת המחדל דלוקה, כדי שלקוח
+// קיים לא יאבד התראות בשקט.
+let TRACK_LICENSE = true;
+try { const _tl = localStorage.getItem('fleet_trackLicense'); if (_tl !== null) TRACK_LICENSE = _tl === '1'; } catch(e) {}
+function saveTrackLicense(on) {
+  TRACK_LICENSE = !!on;
+  try { localStorage.setItem('fleet_trackLicense', TRACK_LICENSE ? '1' : '0'); } catch(e) {}
+  saveToFirestore('trackLicense', TRACK_LICENSE);
+  try { buildAlerts && buildAlerts(); } catch(e) {}
+  try { renderFleet && renderFleet(); } catch(e) {}
+  toast(TRACK_LICENSE ? 'מעקב רישיונות נהיגה הופעל ✓' : 'מעקב רישיונות נהיגה כובה — ההתראות הוסרו');
+}
 function saveMailSettings() {
   MAIL_SETTINGS = {
     recipient: document.getElementById('ms-recipient').value.trim(),
@@ -4805,6 +4830,7 @@ function renderFormsTab() {
   document.getElementById('ms-gas').value = MAIL_SETTINGS.gasUrl || '';
   document.getElementById('ms-token').value = MAIL_SETTINGS.gasToken || '';
   document.getElementById('ms-ptoken').value = MAIL_SETTINGS.gasPublicToken || '';
+  const _tl = document.getElementById('set-track-license'); if (_tl) _tl.checked = TRACK_LICENSE;
   loadInspectionHistory();
   loadDeclarations();
   loadVehicleDocs();
@@ -6015,7 +6041,7 @@ function buildDynamicAlerts() {
     };
     addDate('תוקף רישוי', v.registrationExpiry);
     addDate('תוקף ביטוח חובה', v.insuranceExpiry);
-    addDate('רישיון נהג', v.licenseExpiry);
+    if (TRACK_LICENSE) addDate('רישיון נהג', v.licenseExpiry);
     addDate('עבר תעבורתי', dateAddYears(v.trafficRecord, 3));
     addDate('נהלים', dateAddYears(v.procedures, 5));
     // MISSING DOCUMENTS — a blank document field (not an expiry) is its own alert type,
@@ -6030,7 +6056,7 @@ function buildDynamicAlerts() {
       };
       missDoc('חסר: תוקף רישוי (טסט)', v.registrationExpiry);
       missDoc('חסר: תוקף ביטוח חובה', v.insuranceExpiry);
-      if (!_trailer) missDoc('חסר: רישיון נהיגה', v.licenseExpiry);
+      if (!_trailer && TRACK_LICENSE) missDoc('חסר: רישיון נהיגה', v.licenseExpiry);
     }
     // Safety inspection — dynamic: last inspection date + 3 months (>3yr vehicle) or 6 months
     const inspDays = daysUntilNextInsp(v);
@@ -6649,7 +6675,7 @@ function vehicleDocIssues(v) {
   };
   check('תוקף רישוי (טסט)', v.registrationExpiry);
   check('תוקף ביטוח חובה', v.insuranceExpiry);
-  if (!trailer) check('רישיון נהיגה', v.licenseExpiry);
+  if (!trailer && TRACK_LICENSE) check('רישיון נהיגה', v.licenseExpiry);
   return lines;
 }
 let _docMailPlate = null;
@@ -8884,6 +8910,8 @@ function wipeSeedData() {
   if (typeof AGENT_RULES !== 'undefined') AGENT_RULES = '';
   if (typeof KMROUND !== 'undefined') KMROUND = {};
   if (typeof SERVICE_NOTIFIED !== 'undefined') SERVICE_NOTIFIED = {};
+  // חוזר לברירת המחדל (דלוק); הערך האמיתי נטען מהמסמך של הדייר הנכנס
+  if (typeof TRACK_LICENSE !== 'undefined') TRACK_LICENSE = true;
   // אלה נשארו מחוץ לניקוי וזלגו בין לקוחות על אותו מכשיר. החמור מכולם
   // הוא חתימת קצין הבטיחות: דוח של לקוח אחד יכול היה לצאת חתום בחתימה
   // של לקוח אחר. COSTS מכיל נתוני תדלוק, CONTACTS את ספר הטלפונים.
@@ -8901,7 +8929,7 @@ function wipeSeedData() {
   ['fleet_vehicles','fleet_incidents','fleet_violations','fleet_replacements','fleet_returns',
    'fleet_tasks','fleet_mailSettings','fleet_invoices',
    'fleet_contacts','fleet_officerInfo','fleet_reminders_shown','fleet_vehicles_version',
-   'fleet_show_missing','fleet_rem_notif'].forEach(k => localStorage.removeItem(k));
+   'fleet_show_missing','fleet_rem_notif','fleet_trackLicense'].forEach(k => localStorage.removeItem(k));
 }
 function guardTenantCache() {
   // For ANY tenant other than the primary (nofar), clear the seed literals on EVERY load —
