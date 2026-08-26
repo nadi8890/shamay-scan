@@ -5962,8 +5962,12 @@ async function inspPdfBlob(r) {
   holder.innerHTML = buildInspectionPdfHtml(r);
   document.body.appendChild(holder);
   try {
-    return await (document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve());
-    await html2pdf().set({
+    // ההמתנה לגופנים היא צעד הכנה בלבד — היה כאן return לפניה, ולכן
+    // הפונקציה החזירה את FontFaceSet וכל בניית ה-PDF שמתחתיה מעולם לא
+    // רצה. הקורא קיבל "לא Blob", readAsDataURL זרק, ה-catch הריק בלע
+    // את השגיאה, והמייל נשלח במסלול הגיבוי — טקסט בלבד בלי קבצים.
+    await (document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve());
+    return await html2pdf().set({
       margin: 8,
       image: { type: 'jpeg', quality: 0.92 },
       html2canvas: { scale: 2 },
@@ -6056,7 +6060,13 @@ async function submitInspection() {
     let mailWithPdf = false;
     if (MAIL_SETTINGS.gasUrl) {
       try {
-        const toB64 = blob => new Promise(res => { const fr = new FileReader(); fr.onload = () => res(String(fr.result).split(',')[1]); fr.readAsDataURL(blob); });
+        const toB64 = blob => new Promise((res, rej) => {
+          if (!(blob instanceof Blob)) { rej(new Error('not a blob')); return; }
+          const fr = new FileReader();
+          fr.onload = () => res(String(fr.result).split(',')[1]);
+          fr.onerror = rej;
+          fr.readAsDataURL(blob);
+        });
         const [imgBlob, pdfBlob] = await Promise.all([inspImgBlob(rec), inspPdfBlob(rec)]);
         const files = [
           { base64: await toB64(pdfBlob), mimeType: 'application/pdf', filename: `ביקורת בטיחות ${plate}.pdf` },
@@ -6068,7 +6078,11 @@ async function submitInspection() {
           body: JSON.stringify({ token: MAIL_SETTINGS.gasToken, subject, body: bodyText, files })
         });
         mailOk = true; mailWithPdf = true;
-      } catch(e) {}
+      } catch(e) {
+        // בלע שגיאה בשקט וירד למסלול הטקסט בלי לומר דבר — ככה באג
+        // בבניית ה-PDF הסתתר. עכשיו לפחות נרשם ביומן.
+        console.log('inspection pdf mail failed, falling back to text', e);
+      }
     }
     if (!mailOk && MAIL_SETTINGS.web3formsKey) {
       try {
