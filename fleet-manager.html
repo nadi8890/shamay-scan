@@ -164,7 +164,11 @@ header{background:#1e40af;padding:9px 16px;display:flex;align-items:center;justi
 .alert-icon{font-size:1.1rem;flex-shrink:0;margin-top:1px}
 .alert-text strong{display:block;font-size:0.82rem;font-weight:700}
 /* Table */
-.tbl-wrap{overflow:auto;-webkit-overflow-scrolling:touch;border-radius:12px;border:1.5px solid #cbd5e1;box-shadow:0 2px 10px rgba(0,0,0,.07);max-height:calc(100vh - 200px)}
+.tbl-wrap{overflow:auto;-webkit-overflow-scrolling:touch;border-radius:12px;border:1.5px solid #cbd5e1;box-shadow:0 2px 10px rgba(0,0,0,.07);max-height:calc(100vh - 200px);padding-bottom:58px}
+/* הריפוד למטה שומר שטח גלילה ריק בסוף הטבלה, כך שכפתור הסוכן
+   שצף בפינה השמאלית התחתונה יושב מעל שטח ריק ולעולם לא מעל
+   כפתורי השורה האחרונה. ההתעמעמות לבדה לא הספיקה: ברגע שהעכבר
+   מעל העיגול הוא כבר לא מעל הטבלה, ולכן החסימה חזרה. */
 thead{position:sticky;top:0;z-index:10}
 thead th{background:#f8fafc}
 .col-filter-row th{background:#f1f5f9}
@@ -264,7 +268,6 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
    אין מספיק מקום להוריד אותו (הסרגל התחתון 65px), ולכן בזמן שהעכבר
    על הטבלה הוא מתעמעם ומפסיק לתפוס לחיצות. מספיק להזיז את העכבר
    מחוץ לטבלה כדי שיחזור. */
-body.tbl-busy .agent-fab,body.tbl-busy #mascot{opacity:.18;pointer-events:none;transition:opacity .18s}
 .agent-fab{transition:transform .2s,box-shadow .2s,opacity .18s}
 .agent-fab .agent-badge{position:absolute;top:-3px;right:-3px;width:14px;height:14px;background:#ef4444;border-radius:50%;border:2px solid #fff}
 .agent-panel{position:fixed;left:0;bottom:0;width:100%;max-width:420px;height:72vh;background:#fff;border-radius:20px 20px 0 0;box-shadow:0 -8px 40px rgba(0,0,0,.18);z-index:300;display:flex;flex-direction:column;transform:translateY(100%);transition:transform .35s cubic-bezier(.4,0,.2,1)}
@@ -2245,7 +2248,7 @@ async function loadFromFirestore() {
       if (d.mailSettings) { MAIL_SETTINGS = d.mailSettings; localStorage.setItem('fleet_mailSettings', JSON.stringify(MAIL_SETTINGS)); }
       if (Array.isArray(d.alertCatsOff)) {
         ALERT_CATS_OFF = d.alertCatsOff;
-        try { localStorage.setItem('fleet_alertCatsOff', JSON.stringify(ALERT_CATS_OFF)); } catch(e) {}
+        _prefSet('alertCatsOff', ALERT_CATS_OFF);
       } else if (d.trackLicense === false) {
         // תאימות לאחור למתג הישן שהיה ייעודי לרישיונות בלבד
         if (ALERT_CATS_OFF.indexOf('license') === -1) ALERT_CATS_OFF.push('license');
@@ -4082,7 +4085,7 @@ try {
   if (_sf) Object.keys(fleetColFilters).forEach(k => { if (typeof _sf[k] === 'string') fleetColFilters[k] = _sf[k]; });
 } catch(e) {}
 function _saveColFilters() {
-  try { localStorage.setItem('fleet_colFilters', JSON.stringify(fleetColFilters)); } catch(e) {}
+  _prefSet('colFilters', fleetColFilters);
 }
 function fleetFilterCount() { return Object.values(fleetColFilters).filter(v => String(v || '').trim()).length; }
 function clearFleetColFilters() {
@@ -4103,7 +4106,7 @@ try {
   if (_sd) Object.keys(drvColFilters).forEach(k => { if (typeof _sd[k] === 'string') drvColFilters[k] = _sd[k]; });
 } catch(e) {}
 function _saveDrvColFilters() {
-  try { localStorage.setItem('fleet_drvColFilters', JSON.stringify(drvColFilters)); } catch(e) {}
+  _prefSet('drvColFilters', drvColFilters);
 }
 function drvFilterCount() { return Object.values(drvColFilters).filter(v => String(v || '').trim()).length; }
 let drvSort = { col:'name', dir:1 };
@@ -4150,7 +4153,7 @@ function renderDrvColPicker() {
   }).join('');
 }
 function _saveDrvCols() {
-  try { localStorage.setItem('fleet_drvHiddenCols', JSON.stringify(DRV_HIDDEN_COLS)); } catch(e) {}
+  _prefSet('drvHiddenCols', DRV_HIDDEN_COLS);
   applyDrvColVisibility(); renderDrvColPicker();
 }
 function toggleDrvCol(i) {
@@ -4183,32 +4186,6 @@ function setColFilter(col, val) {
   _saveColFilters();
   renderFleet();
 }
-// כשהעכבר נכנס לטבלה, כפתור הסוכן והבובה מתעמעמים ומפסיקים לתפוס
-// לחיצות — אחרת הם יושבים מעל עמודת הפעולות ומונעים מחיקה של שורה.
-// נרשם פעם אחת על המסמך, כך שהוא תופס גם טבלאות שנבנות אחר כך.
-(function () {
-  // העמעום נקבע כאן ולא ב-CSS בלבד: הכלל המחלקתי לא תפס על שני
-  // האלמנטים האלה, וסגנון מוטבע הוא ודאי. pointer-events נשאר ב-CSS.
-  const set = busy => {
-    document.body.classList.toggle('tbl-busy', busy);
-    ['agent-fab', 'mascot'].forEach(id => {
-      const el = document.getElementById(id);
-      if (!el) return;
-      // setProperty עם important: סגנון רגיל לא תפס על האלמנטים האלה
-      if (busy) el.style.setProperty('opacity', '0.18', 'important');
-      else el.style.removeProperty('opacity');
-    });
-  };
-  const on = e => { if (e.target.closest && e.target.closest('.tbl-wrap')) set(true); };
-  const off = e => { if (!e.relatedTarget || !(e.relatedTarget.closest && e.relatedTarget.closest('.tbl-wrap'))) set(false); };
-  document.addEventListener('mouseover', on, true);
-  document.addEventListener('mouseout', off, true);
-  // במגע אין ריחוף: נגיעה בטבלה מעמעמת, נגיעה מחוצה לה מחזירה
-  document.addEventListener('touchstart', e => {
-    set(!!(e.target.closest && e.target.closest('.tbl-wrap')));
-  }, { passive: true, capture: true });
-})();
-
 // גובה הטבלה חושב עד כה כ-calc(100vh - 200px) — הקצאה קבועה לכל מה
 // שמעליה. משהוספו פסים (סינון פעיל, בורר עמודות, באנר סנכרון) התוכן
 // שמעל גדל, 200px הפך לקטן מדי, והעמוד עצמו התחיל להיגלל — ואז שורת
@@ -4232,6 +4209,28 @@ function scheduleFit() {
 }
 window.addEventListener('resize', scheduleFit);
 window.addEventListener('orientationchange', scheduleFit);
+
+// מפתח העדפה משויך ללקוח: אותה העדפה של שני לקוחות על אותו מכשיר לא
+// מתערבבת, ואין צורך למחוק אותה בכל טעינה.
+function _prefKey(name) { return name + '::' + (TENANT || '?'); }
+function _prefGet(name, fallback) {
+  try { const r = localStorage.getItem(_prefKey(name)); return r ? JSON.parse(r) : fallback; }
+  catch(e) { return fallback; }
+}
+function _prefSet(name, val) {
+  try { localStorage.setItem(_prefKey(name), JSON.stringify(val)); } catch(e) {}
+}
+// נקרא אחרי שהלקוח נפתר — לפני כן TENANT עדיין לא ידוע
+function loadUiPrefs() {
+  HIDDEN_COLS     = _prefGet('hiddenCols', []);
+  DRV_HIDDEN_COLS = _prefGet('drvHiddenCols', []);
+  ALERT_CATS_OFF  = _prefGet('alertCatsOff', []);
+  const cf = _prefGet('colFilters', null);
+  if (cf) Object.keys(fleetColFilters).forEach(k => { if (typeof cf[k] === 'string') fleetColFilters[k] = cf[k]; });
+  const df = _prefGet('drvColFilters', null);
+  if (df) Object.keys(drvColFilters).forEach(k => { if (typeof df[k] === 'string') drvColFilters[k] = df[k]; });
+  applyColVisibility(); applyDrvColVisibility();
+}
 
 // ═══ בורר עמודות לטבלת הצי ═══
 // ההסתרה נעשית לפי מיקום העמודה ולא לפי מחלקה על כל תא, כדי שלא יהיה
@@ -4284,7 +4283,7 @@ function renderColPicker() {
   }).join('');
 }
 function _saveCols() {
-  try { localStorage.setItem('fleet_hiddenCols', JSON.stringify(HIDDEN_COLS)); } catch(e) {}
+  _prefSet('hiddenCols', HIDDEN_COLS);
   applyColVisibility(); renderColPicker();
 }
 function toggleCol(i) {
@@ -5605,7 +5604,7 @@ function setAlertCat(cat, on) {
   const i = ALERT_CATS_OFF.indexOf(cat);
   if (on && i > -1) ALERT_CATS_OFF.splice(i, 1);
   else if (!on && i === -1) ALERT_CATS_OFF.push(cat);
-  try { localStorage.setItem('fleet_alertCatsOff', JSON.stringify(ALERT_CATS_OFF)); } catch(e) {}
+  _prefSet('alertCatsOff', ALERT_CATS_OFF);
   saveToFirestore('alertCatsOff', ALERT_CATS_OFF);   // ← כאן נשמר לצמיתות
   const meta = ALERT_CATS.find(c => c.key === cat);
   toast(on ? `${meta ? meta.label : ''} — יוצג בהתראות ✓`
@@ -5620,7 +5619,7 @@ function setAlertCat(cat, on) {
 function toggleAllAlertCats() {
   const anyOn = ALERT_CATS.some(c => alertCatOn(c.key));
   ALERT_CATS_OFF = anyOn ? ALERT_CATS.map(c => c.key) : [];
-  try { localStorage.setItem('fleet_alertCatsOff', JSON.stringify(ALERT_CATS_OFF)); } catch(e) {}
+  _prefSet('alertCatsOff', ALERT_CATS_OFF);
   saveToFirestore('alertCatsOff', ALERT_CATS_OFF);
   toast(anyOn ? 'כל סוגי ההתראות הוסתרו' : 'כל סוגי ההתראות מוצגים ✓');
   renderAlertFilter();
@@ -9895,8 +9894,10 @@ function showReadOnlyBar(cur) {
     b.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9998;background:linear-gradient(135deg,#b45309,#d97706);color:#fff;padding:8px 14px;font-family:Heebo,sans-serif;font-size:0.8rem;font-weight:700;display:flex;align-items:center;gap:10px;justify-content:center;flex-wrap:wrap;box-shadow:0 2px 10px rgba(0,0,0,.25)';
     document.body.appendChild(b);
   }
-  b.innerHTML = `<span>👁️ מצב צפייה בלבד — החשבון פתוח כעת ב${esc((cur && cur.device) || 'מכשיר אחר')}. אי אפשר לערוך.</span>
-    <button onclick="takeoverSession()" style="background:#fff;color:#b45309;border:none;border-radius:8px;padding:4px 12px;font-family:Heebo,sans-serif;font-size:0.76rem;font-weight:800;cursor:pointer">קח שליטה כאן</button>`;
+  // אין כאן כפתור השתלטות: מי שנכנס שני לא אמור להוציא את מי שכבר
+  // עובד. השחרור קורה מעצמו כשהראשון סוגר, או ידנית על ידי הבעלים.
+  b.innerHTML = `<span>👁️ מצב צפייה בלבד — החשבון פתוח כעת ב${esc((cur && cur.device) || 'מכשיר אחר')}. אפשר לצפות, לא לערוך.</span>
+    <span style="opacity:.85;font-weight:600">העריכה תשתחרר כשהמכשיר השני ייסגר</span>`;
 }
 // המכשיר הראשי השתחרר (נסגר או פקע) — עוברים לעריכה בלי לרענן.
 // בדיקה תקופתית ולא onSnapshot: הרשומה משתנה כל 45 שניות בגלל הפעימה,
@@ -9930,7 +9931,11 @@ function startSessionBeat() {
   try {
     _sessionUnsub = _sessionDoc(_sessionUid).onSnapshot(s => {
       const d = s.exists ? (s.data() || {}) : null;
-      if (d && d.sessionId && d.sessionId !== SESSION_ID) { stopSessionBeat(); setPresence(false, d); showSessionTakenOver(d); }
+      // אם מסיבה כלשהי הנעילה עברה למכשיר אחר (למשל הבעלים שחרר
+      // ידנית), יורדים לצפייה בלבד — בלי מסך חוסם ובלי להעיף מהמערכת.
+      if (d && d.sessionId && d.sessionId !== SESSION_ID) {
+        stopSessionBeat(); setPresence(false, d); enterReadOnly(d); watchForRelease();
+      }
     }, () => {});
   } catch(e) {}
 }
@@ -9974,7 +9979,6 @@ function showSessionBusy(cur) {
     <p style="color:#94a3b8;font-size:0.76rem;line-height:1.6;margin-bottom:16px">
       אם זה אתה — סגור את המערכת במכשיר השני, או המשך כאן והמכשיר השני ינותק.
     </p>
-    <button onclick="takeoverSession()" style="width:100%;background:linear-gradient(135deg,#2563eb,#4f46e5);color:#fff;border:none;border-radius:11px;padding:12px;font-family:'Heebo',sans-serif;font-size:0.95rem;font-weight:800;cursor:pointer;margin-bottom:9px">המשך כאן ונתק את המכשיר השני</button>
     <button onclick="doLogout()" style="background:none;border:none;color:#94a3b8;text-decoration:underline;font-family:'Heebo',sans-serif;font-size:0.82rem;cursor:pointer">התנתקות</button>
     <p style="color:#94a3b8;font-size:0.72rem;margin-top:14px">צריך יותר ממכשיר אחד במקביל? נשמח להוסיף משתמש — 054-2840258</p>`);
 }
@@ -10133,7 +10137,11 @@ function wipeSeedData() {
   ['fleet_vehicles','fleet_incidents','fleet_violations','fleet_replacements','fleet_returns',
    'fleet_tasks','fleet_mailSettings','fleet_invoices',
    'fleet_contacts','fleet_officerInfo','fleet_reminders_shown','fleet_vehicles_version',
-   'fleet_show_missing','fleet_rem_notif','fleet_alertCatsOff','fleet_hiddenCols','fleet_drvHiddenCols','fleet_colFilters','fleet_drvColFilters'].forEach(k => localStorage.removeItem(k));
+   'fleet_show_missing','fleet_rem_notif'].forEach(k => localStorage.removeItem(k));
+  // העדפות תצוגה (עמודות מוסתרות, סינון, סוגי התראות) אינן נמחקות כאן.
+  // guardTenantCache קוראת לפונקציה הזו בכל טעינה אצל לקוח, ולכן מחיקה
+  // כאן אִפסה למשתמש את הבחירות שלו בכל רענון. במקום זה הן נשמרות
+  // תחת מפתח שכולל את מזהה הלקוח, כך שאין גם דליפה בין לקוחות.
 }
 function guardTenantCache() {
   // For ANY tenant other than the primary (nofar), clear the seed literals on EVERY load —
@@ -10150,6 +10158,7 @@ function guardTenantCache() {
   localStorage.setItem('fleet_cache_tenant', TENANT);
 }
 function bootApp() {
+  loadUiPrefs();   // ההעדפות שייכות ללקוח, ולכן נטענות רק אחרי שהוא נפתר
   if (_appBooted) return;
   _appBooted = true;
   guardTenantCache();
