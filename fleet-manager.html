@@ -527,6 +527,9 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
     <div id="fleet-count" style="font-size:0.75rem;color:var(--muted)"></div>
     <div style="display:flex;gap:6px;align-items:center">
       <button class="btn btn-primary" style="padding:6px 14px;font-size:0.78rem" onclick="openAddVehicle()">+ רכב חדש</button>
+      <!-- אותה פעולה כמו בלשונית הנהגים, נגישה מהמקום שבו באמת עומדים
+           כשמקימים צי — ליד "רכב חדש". מוצג רק אצל לקוח שהתכונה דלוקה. -->
+      <button class="btn btn-primary feat-drivers-only" style="padding:6px 14px;font-size:0.78rem;background:linear-gradient(135deg,#7c3aed,#4f46e5)" onclick="openDriverModal()">+ נהג חדש</button>
       <button class="btn-export" title="משלים קוד תוצר, קוד דגם, משקל כולל ותוקף רישוי לרכבים שחסרים — רק שדות ריקים" onclick="syncFleetFromGov()">🏛️ סנכרן צי</button>
       <button class="btn-export" onclick="exportSection('fleet')">📥 ייצוא Excel</button>
     </div>
