@@ -257,8 +257,15 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
 #save-indicator{font-size:0.68rem;color:rgba(255,255,255,0.7);transition:color .3s;white-space:nowrap}
 #save-indicator.saved{color:#86efac}
 /* AI Agent */
-.agent-fab{position:fixed;left:16px;bottom:80px;width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#6366f1,#2563eb);color:#fff;font-size:1.5rem;border:none;cursor:pointer;box-shadow:0 4px 18px rgba(99,102,241,.45);z-index:200;display:flex;align-items:center;justify-content:center;transition:transform .2s,box-shadow .2s}
+.agent-fab{position:fixed;left:14px;bottom:70px;width:46px;height:46px;border-radius:50%;background:linear-gradient(135deg,#6366f1,#2563eb);color:#fff;font-size:1.5rem;border:none;cursor:pointer;box-shadow:0 4px 18px rgba(99,102,241,.45);z-index:200;display:flex;align-items:center;justify-content:center;transition:transform .2s,box-shadow .2s}
 .agent-fab:hover{transform:scale(1.08);box-shadow:0 6px 24px rgba(99,102,241,.55)}
+/* הכפתור יושב בפינה השמאלית התחתונה, ובעברית שם בדיוק נמצאת עמודת
+   הפעולות של הטבלה — ולכן הוא כיסה את כפתורי המחיקה של השורה שמתחתיו.
+   אין מספיק מקום להוריד אותו (הסרגל התחתון 65px), ולכן בזמן שהעכבר
+   על הטבלה הוא מתעמעם ומפסיק לתפוס לחיצות. מספיק להזיז את העכבר
+   מחוץ לטבלה כדי שיחזור. */
+body.tbl-busy .agent-fab,body.tbl-busy #mascot{opacity:.18;pointer-events:none;transition:opacity .18s}
+.agent-fab{transition:transform .2s,box-shadow .2s,opacity .18s}
 .agent-fab .agent-badge{position:absolute;top:-3px;right:-3px;width:14px;height:14px;background:#ef4444;border-radius:50%;border:2px solid #fff}
 .agent-panel{position:fixed;left:0;bottom:0;width:100%;max-width:420px;height:72vh;background:#fff;border-radius:20px 20px 0 0;box-shadow:0 -8px 40px rgba(0,0,0,.18);z-index:300;display:flex;flex-direction:column;transform:translateY(100%);transition:transform .35s cubic-bezier(.4,0,.2,1)}
 .agent-panel.open{transform:translateY(0)}
@@ -420,7 +427,7 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
 <style>
 /* הבובה ישבה באותה פינה של .agent-fab (left:16px) והסתירה אותו.
    עברה לפינה הנגדית; הבועה והזנב עוברים איתה. */
-#mascot{display:none;position:fixed;right:14px;bottom:86px;z-index:600;flex-direction:column;align-items:flex-end;gap:7px;cursor:pointer;pointer-events:none}
+#mascot{display:none;position:fixed;right:14px;bottom:76px;z-index:600;flex-direction:column;align-items:flex-end;gap:7px;cursor:pointer;pointer-events:none}
 .mascot-bubble{max-width:240px;background:#fff;color:#0f172a;border:2.5px solid #1e3a8a;border-radius:15px;padding:9px 13px;font-size:0.82rem;font-weight:800;box-shadow:0 8px 22px rgba(0,0,0,.2);opacity:0;transform:translateY(10px) scale(.85);transform-origin:bottom right;transition:opacity .3s cubic-bezier(.17,.67,.3,1.4),transform .3s cubic-bezier(.17,.67,.3,1.4);position:relative;line-height:1.45}
 .mascot-bubble.show{opacity:1;transform:translateY(0) scale(1)}
 .mascot-bubble::after{content:'';position:absolute;right:22px;bottom:-11px;width:0;height:0;border:10px solid transparent;border-top-color:#1e3a8a;border-bottom:0}
@@ -4171,6 +4178,32 @@ function setColFilter(col, val) {
   _saveColFilters();
   renderFleet();
 }
+// כשהעכבר נכנס לטבלה, כפתור הסוכן והבובה מתעמעמים ומפסיקים לתפוס
+// לחיצות — אחרת הם יושבים מעל עמודת הפעולות ומונעים מחיקה של שורה.
+// נרשם פעם אחת על המסמך, כך שהוא תופס גם טבלאות שנבנות אחר כך.
+(function () {
+  // העמעום נקבע כאן ולא ב-CSS בלבד: הכלל המחלקתי לא תפס על שני
+  // האלמנטים האלה, וסגנון מוטבע הוא ודאי. pointer-events נשאר ב-CSS.
+  const set = busy => {
+    document.body.classList.toggle('tbl-busy', busy);
+    ['agent-fab', 'mascot'].forEach(id => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      // setProperty עם important: סגנון רגיל לא תפס על האלמנטים האלה
+      if (busy) el.style.setProperty('opacity', '0.18', 'important');
+      else el.style.removeProperty('opacity');
+    });
+  };
+  const on = e => { if (e.target.closest && e.target.closest('.tbl-wrap')) set(true); };
+  const off = e => { if (!e.relatedTarget || !(e.relatedTarget.closest && e.relatedTarget.closest('.tbl-wrap'))) set(false); };
+  document.addEventListener('mouseover', on, true);
+  document.addEventListener('mouseout', off, true);
+  // במגע אין ריחוף: נגיעה בטבלה מעמעמת, נגיעה מחוצה לה מחזירה
+  document.addEventListener('touchstart', e => {
+    set(!!(e.target.closest && e.target.closest('.tbl-wrap')));
+  }, { passive: true, capture: true });
+})();
+
 // ═══ בורר עמודות לטבלת הצי ═══
 // ההסתרה נעשית לפי מיקום העמודה ולא לפי מחלקה על כל תא, כדי שלא יהיה
 // צריך לתייג עשרים תאים בכל שורה — ובעיקר כדי ששורת הכותרת, שורת
