@@ -840,6 +840,9 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
     </summary>
     <div style="padding:11px 13px;border-top:1px solid var(--border)">
       <div style="font-size:0.72rem;color:var(--muted);margin-bottom:9px">לחץ על סוג כדי להציג או להסתיר אותו. הבחירה נשמרת — היא תישאר כך גם בכניסה הבאה, בכל מכשיר, עד שתשנה אותה.</div>
+      <button type="button" id="alert-filter-all" onclick="toggleAllAlertCats()"
+        style="border:1.5px solid #94a3b8;background:#f8fafc;color:#334155;border-radius:8px;padding:5px 12px;
+               font-size:0.74rem;font-weight:800;font-family:Heebo,sans-serif;cursor:pointer;margin-bottom:9px"></button>
       <div id="alert-filter-chips" style="display:flex;gap:7px;flex-wrap:wrap"></div>
     </div>
   </details>
@@ -4971,6 +4974,19 @@ function setAlertCat(cat, on) {
   try { renderFleet(); } catch(e) {}
   try { renderDashboard(); } catch(e) {}
 }
+// בחר/הסר הכל. כשמשהו מוצג — הלחיצה מסתירה את כולם; כשהכל מוסתר —
+// היא מחזירה את כולם. כתיבה אחת לענן במקום שבע לחיצות נפרדות.
+function toggleAllAlertCats() {
+  const anyOn = ALERT_CATS.some(c => alertCatOn(c.key));
+  ALERT_CATS_OFF = anyOn ? ALERT_CATS.map(c => c.key) : [];
+  try { localStorage.setItem('fleet_alertCatsOff', JSON.stringify(ALERT_CATS_OFF)); } catch(e) {}
+  saveToFirestore('alertCatsOff', ALERT_CATS_OFF);
+  toast(anyOn ? 'כל סוגי ההתראות הוסתרו' : 'כל סוגי ההתראות מוצגים ✓');
+  renderAlertFilter();
+  try { renderAlerts(); } catch(e) {}
+  try { renderFleet(); } catch(e) {}
+  try { renderDashboard(); } catch(e) {}
+}
 function renderAlertFilter() {
   const wrap = document.getElementById('alert-filter-chips');
   if (!wrap) return;
@@ -4987,6 +5003,13 @@ function renderAlertFilter() {
   const note = document.getElementById('alert-filter-note');
   if (note) note.textContent = !off ? 'מוצגים כל סוגי ההתראות'
     : off === 1 ? 'סוג התראות אחד מוסתר' : `${off} סוגי התראות מוסתרים`;
+  // הכפתור מציג את הפעולה שתתבצע, לא את המצב הנוכחי
+  const allBtn = document.getElementById('alert-filter-all');
+  if (allBtn) {
+    const anyOn = ALERT_CATS.some(c => alertCatOn(c.key));
+    allBtn.textContent = anyOn ? '✕ הסר הכל' : '✓ בחר הכל';
+    allBtn.title = anyOn ? 'הסתרת כל סוגי ההתראות' : 'הצגת כל סוגי ההתראות';
+  }
 }
 function saveMailSettings() {
   MAIL_SETTINGS = {
