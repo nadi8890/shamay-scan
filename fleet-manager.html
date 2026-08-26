@@ -965,6 +965,10 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
 </style>
 
 <style>body.feat-no-weight .col-weight{display:none}
+/* מצב צפייה בלבד: הכפתורים היוצרים/מוחקים מעומעמים ואינם לחיצים.
+   זו שכבת בהירות בלבד — החסימה האמיתית היא במעטפת הכתיבה. */
+body.read-only .btn-primary,body.read-only .btn-green,body.read-only .rec-del{opacity:.45;pointer-events:none}
+body.read-only{padding-top:38px}
 body:not(.feat-certs) .col-cert{display:none}
 /* לשונית הנהגים מוצגת רק ללקוח שהופעלה אצלו */
 body:not(.feat-drivers) .feat-drivers-only{display:none!important}</style>
@@ -2814,6 +2818,7 @@ function mirrorToTenant(id, data, merge = true) {
   } catch(e) { console.log('tenant mirror error:', id, e); }
 }
 async function saveToFirestore(key, value) {
+  if (READ_ONLY) return _roBlock();
   try {
     value = stripUndef(value);
     if (ARCHIVE_DOCS[key]) {
@@ -9538,7 +9543,35 @@ function applyFeatureFlags() {
 const TENANT_DATA = () => db.collection('tenants').doc(TENANT).collection('data');
 // Stage-2 cutover switch. OFF = legacy fleet/* . ON = per-tenant isolation (tenants/{tid}/data).
 let USE_TENANT = true;
-function fcol() { return USE_TENANT ? TENANT_DATA() : db.collection('fleet'); }
+// במצב צפייה בלבד כל הכתיבות נחסמות במקום אחד — במעטפת של האוסף —
+// במקום לפזר בדיקה בעשרות פונקציות שמירה, ששכחה באחת מהן הייתה מחזירה
+// את היכולת לערוך בלי שאיש ישים לב. הקריאות עוברות כרגיל.
+function _roDoc(d) {
+  return {
+    id: d.id,
+    get: (...a) => d.get(...a),
+    onSnapshot: (...a) => d.onSnapshot(...a),
+    collection: n => _roCol(d.collection(n)),
+    set:    () => { _roBlock(); return Promise.resolve(); },
+    update: () => { _roBlock(); return Promise.resolve(); },
+    delete: () => { _roBlock(); return Promise.resolve(); }
+  };
+}
+function _roCol(c) {
+  return {
+    doc: id => _roDoc(c.doc(id)),
+    get: (...a) => c.get(...a),
+    where: (...a) => c.where(...a),
+    orderBy: (...a) => c.orderBy(...a),
+    limit: (...a) => c.limit(...a),
+    onSnapshot: (...a) => c.onSnapshot(...a),
+    add: () => { _roBlock(); return Promise.resolve(); }
+  };
+}
+function fcol() {
+  const c = USE_TENANT ? TENANT_DATA() : db.collection('fleet');
+  return READ_ONLY ? _roCol(c) : c;
+}
 // The legacy Nofar owner account has no users/{uid} mapping (it predates the multi-tenant
 // structure). This is the ONLY account allowed to fall back to the 'nofar' tenant; every
 // other unmapped account must get its own isolated tenant, never Nofar's data.
@@ -9639,7 +9672,8 @@ async function _writeSession(uid) {
     company: COMPANY_NAME || '', tenantId: TENANT || '', email: (auth.currentUser || {}).email || ''
   });
 }
-// נקרא אחרי שהדייר נפתר. מחזיר false כשאסור להיכנס.
+// נקרא אחרי שהדייר נפתר. תמיד מחזיר true — הכניסה אף פעם לא נחסמת.
+// מכשיר שני נכנס במצב צפייה בלבד: רואה הכל, לא משנה כלום.
 async function claimSession(user) {
   if (TENANT === 'nofar') return true;          // הבעלים אינו מוגבל
   if (!featureOn('singleSession')) return true; // נדלק פר-לקוח
@@ -9647,18 +9681,74 @@ async function claimSession(user) {
   try {
     const snap = await _sessionDoc(user.uid).get();
     const cur = snap.exists ? (snap.data() || {}) : null;
-    const fresh = cur && cur.sessionId && cur.sessionId !== SESSION_ID
-                  && (Date.now() - (cur.at || 0)) < SESSION_STALE_MS;
-    if (fresh) { showSessionBusy(cur); return false; }
+    const held = cur && cur.sessionId && cur.sessionId !== SESSION_ID
+                 && (Date.now() - (cur.at || 0)) < SESSION_STALE_MS;
+    if (held) { enterReadOnly(cur); watchForRelease(); return true; }
     await _writeSession(user.uid);
   } catch(e) {
-    // כשל קריאה/כתיבה לא ינעל אף אחד בחוץ — עדיף לפספס אכיפה מלחסום
-    // לקוח משלם בגלל תקלת רשת או כלל הרשאות חסר.
+    // כשל קריאה/כתיבה לא יוריד אף אחד למצב צפייה — עדיף לפספס אכיפה
+    // מאשר לשתק לקוח משלם בגלל תקלת רשת או כלל הרשאות חסר.
     console.log('claimSession', e);
     return true;
   }
   startSessionBeat();
   return true;
+}
+// ── מצב צפייה בלבד ──
+let READ_ONLY = false;
+let _roToastAt = 0;
+function canEdit() { return !READ_ONLY; }
+// חוסם כתיבה ומסביר פעם אחת בכמה שניות, כדי שלחיצה על טופס עם כמה
+// שמירות לא תציף עשר הודעות זהות
+function _roBlock() {
+  if (Date.now() - _roToastAt > 4000) {
+    _roToastAt = Date.now();
+    toast('מצב צפייה בלבד — החשבון פתוח במכשיר אחר', true);
+  }
+  return false;
+}
+function enterReadOnly(cur) {
+  READ_ONLY = true;
+  document.body.classList.add('read-only');
+  showReadOnlyBar(cur);
+}
+function exitReadOnly() {
+  READ_ONLY = false;
+  document.body.classList.remove('read-only');
+  const b = document.getElementById('ro-bar'); if (b) b.remove();
+}
+function showReadOnlyBar(cur) {
+  let b = document.getElementById('ro-bar');
+  if (!b) {
+    b = document.createElement('div');
+    b.id = 'ro-bar';
+    b.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9998;background:linear-gradient(135deg,#b45309,#d97706);color:#fff;padding:8px 14px;font-family:Heebo,sans-serif;font-size:0.8rem;font-weight:700;display:flex;align-items:center;gap:10px;justify-content:center;flex-wrap:wrap;box-shadow:0 2px 10px rgba(0,0,0,.25)';
+    document.body.appendChild(b);
+  }
+  b.innerHTML = `<span>👁️ מצב צפייה בלבד — החשבון פתוח כעת ב${esc((cur && cur.device) || 'מכשיר אחר')}. אי אפשר לערוך.</span>
+    <button onclick="takeoverSession()" style="background:#fff;color:#b45309;border:none;border-radius:8px;padding:4px 12px;font-family:Heebo,sans-serif;font-size:0.76rem;font-weight:800;cursor:pointer">קח שליטה כאן</button>`;
+}
+// המכשיר הראשי השתחרר (נסגר או פקע) — עוברים לעריכה בלי לרענן.
+// בדיקה תקופתית ולא onSnapshot: הרשומה משתנה כל 45 שניות בגלל הפעימה,
+// ומאזין היה מתעורר על כל פעימה בלי צורך.
+let _roWatch = null;
+function watchForRelease() {
+  stopSessionBeat();
+  if (_roWatch) clearInterval(_roWatch);
+  _roWatch = setInterval(async () => {
+    if (!_sessionUid || !READ_ONLY) return;
+    try {
+      const snap = await _sessionDoc(_sessionUid).get();
+      const cur = snap.exists ? (snap.data() || {}) : null;
+      const held = cur && cur.sessionId && cur.sessionId !== SESSION_ID
+                   && (Date.now() - (cur.at || 0)) < SESSION_STALE_MS;
+      if (held) return;
+      clearInterval(_roWatch); _roWatch = null;
+      await _writeSession(_sessionUid);
+      exitReadOnly(); startSessionBeat();
+      toast('המכשיר השני נסגר — אפשר לערוך שוב ✓');
+    } catch(e) {}
+  }, 20000);
 }
 function startSessionBeat() {
   stopSessionBeat();
@@ -9733,8 +9823,9 @@ async function takeoverSession() {
   _sessionUid = u.uid;
   try { await _writeSession(u.uid); } catch(e) { console.log('takeover', e); }
   const el = document.getElementById('session-gate'); if (el) el.style.display = 'none';
+  if (_roWatch) { clearInterval(_roWatch); _roWatch = null; }
+  exitReadOnly();
   startSessionBeat();
-  bootApp();
 }
 
 // Is this company's subscription currently valid? The owner (nofar) is never blocked.
