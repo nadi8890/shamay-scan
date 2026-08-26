@@ -527,9 +527,6 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
     <div id="fleet-count" style="font-size:0.75rem;color:var(--muted)"></div>
     <div style="display:flex;gap:6px;align-items:center">
       <button class="btn btn-primary" style="padding:6px 14px;font-size:0.78rem" onclick="openAddVehicle()">+ רכב חדש</button>
-      <!-- אותה פעולה כמו בלשונית הנהגים, נגישה מהמקום שבו באמת עומדים
-           כשמקימים צי — ליד "רכב חדש". מוצג רק אצל לקוח שהתכונה דלוקה. -->
-      <button class="btn btn-primary feat-drivers-only" style="padding:6px 14px;font-size:0.78rem;background:linear-gradient(135deg,#7c3aed,#4f46e5)" onclick="openDriverModal()">+ נהג חדש</button>
       <button class="btn-export" title="משלים קוד תוצר, קוד דגם, משקל כולל ותוקף רישוי לרכבים שחסרים — רק שדות ריקים" onclick="syncFleetFromGov()">🏛️ סנכרן צי</button>
       <button class="btn-export" onclick="exportSection('fleet')">📥 ייצוא Excel</button>
     </div>
@@ -2519,17 +2516,38 @@ async function saveDriver() {
   renderDrivers(); renderFleet();
   toast('הנהג נשמר ✓');
 }
-function deleteDriver() {
-  if (!_editingDriverKey) return;
-  const vs = driverVehicles(_editingDriverKey);
-  if (vs.length && !confirm(`ל${_editingDriverKey} משויכים ${vs.length} רכבים (${vs.map(v=>v.plate).join(', ')}).\n\nמחיקת הנהג מספר הנהגים לא תמחק את הרכבים ולא תנתק אותם — השם יישאר עליהם.\n\nלמחוק בכל זאת?`)) return;
-  if (!vs.length && !confirm(`למחוק את ${_editingDriverKey} מספר הנהגים?`)) return;
-  delete DRIVERS[_editingDriverKey];
+function deleteDriver() { deleteDriverRow(_editingDriverKey); }
+// מחיקה ישירה משורת הטבלה, בלי לפתוח את הטופס קודם
+function deleteDriverRow(key) {
+  if (!key || !DRIVERS[key]) return;
+  const vs = driverVehicles(key);
+  const msg = vs.length
+    ? `ל${key} משויכים ${vs.length} רכבים (${vs.map(v => v.plate).join(', ')}).\n\nמחיקה מספר הנהגים לא תמחק את הרכבים ולא תנתק אותם — השם יישאר עליהם, והנהג יחזור לרשימה בטעינה הבאה.\n\nלמחוק בכל זאת?`
+    : `למחוק את ${key} מספר הנהגים?`;
+  if (!confirm(msg)) return;
+  delete DRIVERS[key];
   saveToFirestore('drivers', DRIVERS);
   document.getElementById('driver-modal').classList.remove('open');
-  _editingDriverKey = null;
+  if (_editingDriverKey === key) _editingDriverKey = null;
   renderDrivers();
   toast('הנהג נמחק');
+}
+// שתי הפעולות האלה בנויות סביב רכב (טפסי קבלת רכב, ומגירת מסמכים לפי
+// רישוי), ולכן מהנהג מתרגמים לרכב שלו. כשיש כמה — נפתח הראשון ונאמר
+// לאיזה, במקום לבחור בשקט.
+function _drvPickVehicle(key, what) {
+  const vs = driverVehicles(key);
+  if (!vs.length) { toast(`ל${key} אין רכב משויך — אי אפשר ${what}`, true); return null; }
+  if (vs.length > 1) toast(`ל${key} ${vs.length} רכבים — נפתח עבור ${vs[0].plate}`);
+  return vs[0];
+}
+function drvSendForms(key) {
+  const v = _drvPickVehicle(key, 'לשלוח טפסים');
+  if (v) openDeclShare(v.plate);
+}
+function drvOpenDocs(key) {
+  const v = _drvPickVehicle(key, 'לפתוח תיק מסמכים');
+  if (v) openEmployeeDocs(v.plate);
 }
 function renderDrivers() {
   const body = document.getElementById('drivers-body');
@@ -2593,7 +2611,9 @@ function renderDrivers() {
     const d = DRIVERS[k] || {};
     const vs = driverVehicles(k);
     const licDays = daysUntil(d.licenseExpiry);
-    return `<tr style="cursor:pointer" onclick="openDriverModal('${esc(k).replace(/'/g,"\\'")}')">
+    // שם הנהג נכנס לתוך מרכאות ב-onclick, ולכן חייב בריחה גם ל-HTML וגם לגרש
+    const kq = esc(k).replace(/'/g, "\\'");
+    return `<tr style="cursor:pointer" onclick="openDriverModal('${kq}')">
       <td style="font-weight:700">${esc(k)}${d.affiliation ? `<br><span style="color:var(--muted);font-size:0.66rem">${esc(d.affiliation)}</span>` : ''}</td>
       <td style="direction:ltr;font-size:0.73rem">${esc(d.driverId) || '—'}</td>
       <td style="direction:ltr;font-size:0.73rem">${esc(d.driverPhone) || '—'}</td>
@@ -2603,7 +2623,14 @@ function renderDrivers() {
       <td style="font-size:0.73rem">${esc(d.trafficRecord) || '—'}</td>
       <td style="font-size:0.72rem">${esc(d.address) || '—'}</td>
       <td style="font-size:0.72rem;direction:ltr">${vs.length ? vs.map(v => esc(v.plate)).join('<br>') : '—'}</td>
-      <td><button class="btn btn-gray" style="padding:3px 9px;font-size:0.7rem" onclick="event.stopPropagation();openDriverModal('${esc(k).replace(/'/g,"\\'")}')">✏️</button></td>
+      <td>
+        <div style="display:flex;gap:3px;justify-content:flex-end;flex-wrap:wrap">
+          <button class="btn btn-gray" style="padding:3px 8px;font-size:0.7rem" title="ערוך נהג" onclick="event.stopPropagation();openDriverModal('${kq}')">✏️</button>
+          <button class="btn btn-gray" style="padding:3px 8px;font-size:0.7rem" title="שלח טפסי קבלת רכב לנהג" onclick="event.stopPropagation();drvSendForms('${kq}')">📨</button>
+          <button class="btn btn-gray" style="padding:3px 8px;font-size:0.7rem" title="כל המסמכים של העובד" onclick="event.stopPropagation();drvOpenDocs('${kq}')">📁</button>
+          <button class="btn" style="padding:3px 8px;font-size:0.7rem;background:#fee2e2;color:#b91c1c" title="מחק נהג" onclick="event.stopPropagation();deleteDriverRow('${kq}')">🗑️</button>
+        </div>
+      </td>
     </tr>`;
   }).join('');
   if (totalDrivers && !keys.length) {
