@@ -527,9 +527,20 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
     <div id="fleet-count" style="font-size:0.75rem;color:var(--muted)"></div>
     <div style="display:flex;gap:6px;align-items:center">
       <button class="btn btn-primary" style="padding:6px 14px;font-size:0.78rem" onclick="openAddVehicle()">+ רכב חדש</button>
+      <button class="btn-export" title="בחר אילו עמודות יוצגו בטבלה" onclick="toggleColPicker()">🧩 עמודות</button>
       <button class="btn-export" title="משלים קוד תוצר, קוד דגם, משקל כולל ותוקף רישוי לרכבים שחסרים — רק שדות ריקים" onclick="syncFleetFromGov()">🏛️ סנכרן צי</button>
       <button class="btn-export" onclick="exportSection('fleet')">📥 ייצוא Excel</button>
     </div>
+  </div>
+  <!-- בורר עמודות. הבחירה נשמרת מקומית למכשיר — זו העדפת תצוגה, לא נתון. -->
+  <div id="col-picker" style="display:none;margin-bottom:8px;padding:11px 13px;border:1.5px solid var(--border);background:var(--card);border-radius:12px">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:9px;flex-wrap:wrap">
+      <span style="font-weight:800;font-size:0.82rem">🧩 עמודות להצגה</span>
+      <button class="btn btn-gray" style="padding:3px 10px;font-size:0.72rem" onclick="setAllCols(true)">בחר הכל</button>
+      <button class="btn btn-gray" style="padding:3px 10px;font-size:0.72rem" onclick="setAllCols(false)">הסר הכל</button>
+      <button class="btn btn-gray" style="padding:3px 10px;font-size:0.72rem;margin-inline-start:auto" onclick="toggleColPicker()">סגור</button>
+    </div>
+    <div id="col-picker-chips" style="display:flex;gap:7px;flex-wrap:wrap"></div>
   </div>
   <div id="fleet-gov-sync" style="display:none;margin-bottom:8px;padding:8px 12px;border:1px solid #bfdbfe;background:#eff6ff;color:#1e40af;border-radius:9px;font-size:0.78rem;font-weight:700;align-items:center;gap:10px;justify-content:space-between"></div>
   <div class="tbl-wrap">
@@ -551,6 +562,11 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
           <th><div class="th-sort" onclick="sortFleetCol('traffic')">עבר תעבורתי<span class="sort-arrow" id="sarr-traffic">⇅</span></div></th>
           <th><div class="th-sort" onclick="sortFleetCol('proc')">נהלים<span class="sort-arrow" id="sarr-proc">⇅</span></div></th>
           <th><div class="th-sort" onclick="sortFleetCol('from')">קבלת רכב<span class="sort-arrow" id="sarr-from">⇅</span></div></th>
+          <th class="col-cert col-winterCheck">❄️ בדיקת חורף</th>
+          <th class="col-cert col-pneumaticChk">💨 בדיקה פניאומטית</th>
+          <th class="col-cert col-brakesCert">🛑 אישור בלמים</th>
+          <th class="col-cert col-childAlertCert">👶 שכחת ילדים</th>
+          <th class="col-cert col-fireExtCert">🧯 כיבוי אש</th>
           <th></th>
         </tr>
         <tr class="col-filter-row" id="col-filter-row"></tr>
@@ -939,6 +955,7 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
 </style>
 
 <style>body.feat-no-weight .col-weight{display:none}
+body:not(.feat-certs) .col-cert{display:none}
 /* לשונית הנהגים מוצגת רק ללקוח שהופעלה אצלו */
 body:not(.feat-drivers) .feat-drivers-only{display:none!important}</style>
 <style id="systems-ux">
@@ -1513,6 +1530,9 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
               <label style="display:flex;align-items:center;gap:6px;cursor:pointer" title="בדיקת חורף, בדיקה פניאומטית, אישור בלמים, אישור שכחת ילדים ואישור כיבוי אש — בטופס הרכב ובהתראות">
                 <input id="adm-certs" type="checkbox" style="width:16px;height:16px"><span>📜 אישורים נוספים <span style="color:#94a3b8;font-weight:400">(רכב כבד/הסעות)</span></span>
               </label>
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer" title="חשבון אחד — מכשיר אחד. כניסה ממכשיר נוסף חוסמת, עם אפשרות השתלטות מפורשת. הבעלים פטור.">
+                <input id="adm-single" type="checkbox" style="width:16px;height:16px"><span>🔒 מכשיר אחד בלבד <span style="color:#94a3b8;font-weight:400">(מונע שיתוף חשבון)</span></span>
+              </label>
             </div>
             <div style="display:flex;gap:12px;margin-bottom:12px;flex-wrap:wrap;align-items:flex-end">
               <div class="modal-row" style="margin:0">
@@ -1528,6 +1548,13 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
             <div class="btn-row">
               <button class="btn btn-secondary" onclick="adminLoadClient()">📂 טען לקוח קיים</button>
               <button class="btn btn-green" onclick="adminSaveClient()">💾 שמור</button>
+            </div>
+            <div style="border-top:1px solid #334155;margin-top:12px;padding-top:10px">
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap">
+                <span style="font-weight:800;font-size:0.82rem">🖥️ מי מחובר עכשיו</span>
+                <button class="btn btn-secondary" style="padding:3px 10px;font-size:0.72rem" onclick="adminLoadSessions()">🔄 רענן</button>
+              </div>
+              <div id="adm-sessions" style="font-size:0.76rem;color:#cbd5e1">לחץ "רענן" כדי לראות חיבורים פעילים</div>
             </div>
             <div id="adm-status" style="font-size:0.76rem;color:#94a3b8;margin-top:8px"></div>
           </div>
@@ -4014,6 +4041,69 @@ function setColFilter(col, val) {
   fleetColFilters[col] = val;
   renderFleet();
 }
+// ═══ בורר עמודות לטבלת הצי ═══
+// ההסתרה נעשית לפי מיקום העמודה ולא לפי מחלקה על כל תא, כדי שלא יהיה
+// צריך לתייג עשרים תאים בכל שורה — ובעיקר כדי ששורת הכותרת, שורת
+// הסינון והשורות עצמן יישארו תמיד מיושרות זו לזו.
+const FLEET_COLS = [
+  { i:1,  label:'מס׳ רישוי' },   { i:2,  label:'יצרן / דגם' },
+  { i:3,  label:'קוד תוצר' },    { i:4,  label:'קוד דגם' },
+  { i:5,  label:'משקל כולל', feat:'weight' },
+  { i:6,  label:'נהג' },         { i:7,  label:'חברה' },
+  { i:8,  label:'תוקף רישוי' },  { i:9,  label:'תוקף ביטוח' },
+  { i:10, label:'רישיון נהג' },  { i:11, label:'טיפול הבא' },
+  { i:12, label:'ביקורת' },      { i:13, label:'עבר תעבורתי' },
+  { i:14, label:'נהלים' },       { i:15, label:'קבלת רכב' },
+  { i:16, label:'❄️ בדיקת חורף',      feat:'extraCerts' },
+  { i:17, label:'💨 בדיקה פניאומטית', feat:'extraCerts' },
+  { i:18, label:'🛑 אישור בלמים',     feat:'extraCerts' },
+  { i:19, label:'👶 שכחת ילדים',      feat:'extraCerts' },
+  { i:20, label:'🧯 כיבוי אש',        feat:'extraCerts' }
+];
+let HIDDEN_COLS = [];
+try { HIDDEN_COLS = JSON.parse(localStorage.getItem('fleet_hiddenCols')) || []; } catch(e) {}
+function applyColVisibility() {
+  let st = document.getElementById('col-vis-style');
+  if (!st) { st = document.createElement('style'); st.id = 'col-vis-style'; document.head.appendChild(st); }
+  const sel = HIDDEN_COLS.map(i =>
+    `#tab-fleet #fleet-thead tr>th:nth-child(${i}),#tab-fleet #col-filter-row>th:nth-child(${i}),#tab-fleet #fleet-body tr>td:nth-child(${i})`
+  ).join(',');
+  st.textContent = sel ? sel + '{display:none!important}' : '';
+}
+function toggleColPicker() {
+  const box = document.getElementById('col-picker');
+  if (!box) return;
+  const show = box.style.display === 'none';
+  box.style.display = show ? '' : 'none';
+  if (show) renderColPicker();
+}
+function renderColPicker() {
+  const wrap = document.getElementById('col-picker-chips');
+  if (!wrap) return;
+  // עמודה ששייכת לתכונה כבויה כלל לא מוצגת בבורר — אין טעם להציע להציג
+  // עמודה שממילא אינה קיימת אצל הלקוח הזה.
+  wrap.innerHTML = FLEET_COLS.filter(c => !c.feat || featureOn(c.feat)).map(c => {
+    const on = HIDDEN_COLS.indexOf(c.i) === -1;
+    return `<button type="button" onclick="toggleCol(${c.i})"
+      style="border:1.5px solid ${on?'#2563eb':'#e2e8f0'};background:${on?'#eff6ff':'#f8fafc'};
+             color:${on?'#1e3a8a':'#94a3b8'};border-radius:999px;padding:5px 11px;font-size:0.74rem;
+             font-weight:700;font-family:Heebo,sans-serif;cursor:pointer;${on?'':'text-decoration:line-through'}">
+      ${on?'✓':'✕'} ${esc(c.label)}</button>`;
+  }).join('');
+}
+function _saveCols() {
+  try { localStorage.setItem('fleet_hiddenCols', JSON.stringify(HIDDEN_COLS)); } catch(e) {}
+  applyColVisibility(); renderColPicker();
+}
+function toggleCol(i) {
+  const k = HIDDEN_COLS.indexOf(i);
+  if (k > -1) HIDDEN_COLS.splice(k, 1); else HIDDEN_COLS.push(i);
+  _saveCols();
+}
+function setAllCols(on) {
+  HIDDEN_COLS = on ? [] : FLEET_COLS.filter(c => !c.feat || featureOn(c.feat)).map(c => c.i);
+  _saveCols();
+}
 function buildColFilterRow(vehicles) {
   const row = document.getElementById('col-filter-row');
   if (!row) return;
@@ -4021,7 +4111,8 @@ function buildColFilterRow(vehicles) {
   if (row.querySelector('.col-filter-inp')) return;
   const placeholders = { plate:'רישוי...', make:'יצרן/דגם...', tozeretCd:'קוד...', degemCd:'קוד...', weight:'ק"ג...', driver:'נהג...', company:'חברה...', reg:'תאריך...', ins:'תאריך...', lic:'תאריך...', km:'ק"מ...', insp:'תאריך...', traffic:'תאריך...', proc:'תאריך...', from:'תאריך...' };
   const inp = col => `<th class="col-${col}"><input class="col-filter-inp" type="text" placeholder="${placeholders[col]||'חפש...'}" value="${esc(fleetColFilters[col]||'')}" oninput="setColFilter('${col}',this.value)"></th>`;
-  row.innerHTML = inp('plate')+inp('make')+inp('tozeretCd')+inp('degemCd')+inp('weight')+inp('driver')+inp('company')+inp('reg')+inp('ins')+inp('lic')+inp('km')+inp('insp')+inp('traffic')+inp('proc')+inp('from')+'<th></th>';
+  row.innerHTML = inp('plate')+inp('make')+inp('tozeretCd')+inp('degemCd')+inp('weight')+inp('driver')+inp('company')+inp('reg')+inp('ins')+inp('lic')+inp('km')+inp('insp')+inp('traffic')+inp('proc')+inp('from')
+    + EXTRA_CERTS.map(c => `<th class="col-cert col-${c.key}"></th>`).join('') + '<th></th>';
 }
 function updateSortArrows() {
   ['plate','make','tozeretCd','degemCd','weight','driver','company','reg','ins','lic','km','insp','traffic','proc','from'].forEach(c => {
@@ -4085,6 +4176,7 @@ function buildCompanyFilter() {
 
 function renderFleet() {
   applyFeatureFlags();
+  applyColVisibility();
   const q = (document.getElementById('fleet-search').value||'').toLowerCase();
   const co = document.getElementById('fleet-company').value;
   const st = document.getElementById('fleet-status').value;
@@ -4219,6 +4311,9 @@ function renderFleet() {
         return `<td class="cell-yellow"><span class="badge badge-yellow" style="background:#fefce8;color:#713f12;border:1px solid #fde68a">📝 למילוי</span><br><span style="color:#b45309;font-size:0.58rem">הנהג צריך לחתום</span></td>`;
       })()}
       <td class="${yc(v.vehicleFrom)}" style="font-size:0.73rem;white-space:nowrap">${esc(v.vehicleFrom)||'—'}</td>
+      ${EXTRA_CERTS.map(c => { const _dd = daysUntil(certDueStr(v, c));
+        return `<td class="col-cert col-${c.key} ${isTrailer ? '' : yc(v[c.key], cellCls(_dd))}">${statusBadge(_dd)}<br><span style="color:var(--muted);font-size:0.6rem">${esc(v[c.key]) || '—'}</span></td>`;
+      }).join('')}
       <td>
         <!-- ארבעה כפתורים בשורה אחת הרחיבו את העמודה. רשת 2×2 חוסכת
              כמחצית מהרוחב בלי לוותר על אף פעולה. -->
@@ -9358,7 +9453,7 @@ function sysAllowed(name) { return SYS_ENABLED[name] !== false; }
 // העמודה, ובצי של נופר היא מיותרת. הנתון נשלף בסנכרון ממילא, ולכן
 // עדיף שלקוח יראה אותו בלי להיות תלוי בסימון ידני שלי. כיבוי ללקוח
 // מסוים נעשה בפאנל ונשמר שם כ-false מפורש.
-let FEATURES = { weight: true, drivers: false, extraCerts: false, trafficMonths: 36, inspectionMonths: 0 };
+let FEATURES = { weight: true, drivers: false, extraCerts: false, trafficMonths: 36, inspectionMonths: 0, singleSession: false };
 function featureOn(name) { return FEATURES[name] === true; }
 // עמודת הטבלה מוסתרת ב-CSS ולא נמחקת מה-DOM, כדי שמספר התאים בכותרת,
 // בשורת הסינון ובשורות יישאר זהה — טבלה שיוצאת מיישור היא באג שקט.
@@ -9398,7 +9493,7 @@ async function resolveTenant(user) {
     TENANT = 'nofar'; ROLE = 'manager'; COMPANY_NAME = 'נופר אנרגיה';
     SUB_ACTIVE = true; SUB_VALID_UNTIL = '';
     SYS_ENABLED = { fleet: true, shamai: true, garage: true };
-    FEATURES = { weight: false, drivers: false, extraCerts: false, trafficMonths: 36, inspectionMonths: 0 };   // נופר: בלי משקל, בלי נהגים, בלי אישורים נוספים
+    FEATURES = { weight: false, drivers: false, extraCerts: false, trafficMonths: 36, inspectionMonths: 0, singleSession: false };   // נופר: בלי משקל, בלי נהגים, בלי אישורים נוספים
     return;
   }
   try {
@@ -9429,7 +9524,8 @@ async function resolveTenant(user) {
                    drivers: _f.drivers === true,
                    extraCerts: _f.extraCerts === true,
                    trafficMonths: parseInt(_f.trafficMonths) || 36,
-                   inspectionMonths: parseInt(_f.inspectionMonths) || 0 };
+                   inspectionMonths: parseInt(_f.inspectionMonths) || 0,
+                   singleSession: _f.singleSession === true };
       return;
     }
     // אין עדיין רשומת users/{uid} — כלומר עוד לא הוקם ללקוח הזה חשבון
@@ -9438,16 +9534,149 @@ async function resolveTenant(user) {
     // מוסך — עד שתפתח אותם בעצמך בפאנל הניהול.
     TENANT = user.uid; COMPANY_NAME = ''; SUB_ACTIVE = true; SUB_VALID_UNTIL = '';
     SYS_ENABLED = { fleet: false, shamai: false, garage: false };
-    FEATURES = { weight: true, drivers: false, extraCerts: false, trafficMonths: 36, inspectionMonths: 0 };
+    FEATURES = { weight: true, drivers: false, extraCerts: false, trafficMonths: 36, inspectionMonths: 0, singleSession: false };
   } catch(e) {
     // On a read failure, preserve isolation — never default a stranger onto Nofar.
     // (הבעלים כבר טופל למעלה ואינו מגיע לכאן.)
     console.log('tenant resolve error', e);
     TENANT = user.uid;
     SYS_ENABLED = { fleet: false, shamai: false, garage: false };
-    FEATURES = { weight: true, drivers: false, extraCerts: false, trafficMonths: 36, inspectionMonths: 0 };
+    FEATURES = { weight: true, drivers: false, extraCerts: false, trafficMonths: 36, inspectionMonths: 0, singleSession: false };
   }
 }
+// ═══ נעילת סשן: חשבון אחד — מכשיר אחד ═══
+// המטרה מסחרית: חשבון משותף בין כמה עובדים מחליף רכישת מושבים. לכן
+// חשבון שכבר פתוח במכשיר אחד נחסם באחר.
+//
+// שתי סכנות שהמנגנון חייב לטפל בהן, אחרת הוא נועל לקוח משלם בחוץ:
+//   1. דפדפן שנסגר בלי להתנתק — לכן זו אינה נעילה נצחית אלא "פעימת
+//      חיים": סשן שלא פעם יותר מ-SESSION_STALE_MS נחשב מת ואפשר לתפוס.
+//   2. המשתמש באמת רוצה לעבור מכשיר — לכן מוצע כפתור השתלטות מפורש.
+//
+// הבעלים פטור: אתה עובד גם מהמחשב וגם מהטלפון, ואין סיבה לחסום את זה.
+const SESSION_ID = (() => {
+  try { return crypto.randomUUID(); }
+  catch(e) { return 'sid-' + Date.now() + '-' + Math.floor(Math.random() * 1e9); }
+})();
+const SESSION_BEAT_MS  = 45 * 1000;        // כל כמה זמן מסמנים "אני חי"
+const SESSION_STALE_MS = 3 * 60 * 1000;    // אחרי כמה שקט הסשן נחשב מת
+let _sessionTimer = null, _sessionUnsub = null, _sessionUid = null;
+
+function _sessionDoc(uid) { return db.collection('sessions').doc(uid); }
+// תיאור קריא של המכשיר, כדי שתדע מאיפה מישהו מחובר
+function _deviceLabel() {
+  const ua = navigator.userAgent || '';
+  const os = /Windows/i.test(ua) ? 'Windows' : /Android/i.test(ua) ? 'Android'
+           : /iPhone|iPad|iPod/i.test(ua) ? 'iOS' : /Mac/i.test(ua) ? 'Mac'
+           : /Linux/i.test(ua) ? 'Linux' : 'מכשיר';
+  const br = /Edg\//i.test(ua) ? 'Edge' : /Chrome\//i.test(ua) ? 'Chrome'
+           : /Firefox\//i.test(ua) ? 'Firefox' : /Safari\//i.test(ua) ? 'Safari' : '';
+  return [os, br].filter(Boolean).join(' · ');
+}
+async function _writeSession(uid) {
+  await _sessionDoc(uid).set({
+    sessionId: SESSION_ID, at: Date.now(), device: _deviceLabel(),
+    company: COMPANY_NAME || '', tenantId: TENANT || '', email: (auth.currentUser || {}).email || ''
+  });
+}
+// נקרא אחרי שהדייר נפתר. מחזיר false כשאסור להיכנס.
+async function claimSession(user) {
+  if (TENANT === 'nofar') return true;          // הבעלים אינו מוגבל
+  if (!featureOn('singleSession')) return true; // נדלק פר-לקוח
+  _sessionUid = user.uid;
+  try {
+    const snap = await _sessionDoc(user.uid).get();
+    const cur = snap.exists ? (snap.data() || {}) : null;
+    const fresh = cur && cur.sessionId && cur.sessionId !== SESSION_ID
+                  && (Date.now() - (cur.at || 0)) < SESSION_STALE_MS;
+    if (fresh) { showSessionBusy(cur); return false; }
+    await _writeSession(user.uid);
+  } catch(e) {
+    // כשל קריאה/כתיבה לא ינעל אף אחד בחוץ — עדיף לפספס אכיפה מלחסום
+    // לקוח משלם בגלל תקלת רשת או כלל הרשאות חסר.
+    console.log('claimSession', e);
+    return true;
+  }
+  startSessionBeat();
+  return true;
+}
+function startSessionBeat() {
+  stopSessionBeat();
+  _sessionTimer = setInterval(() => {
+    if (!_sessionUid) return;
+    _sessionDoc(_sessionUid).set({ at: Date.now() }, { merge: true }).catch(() => {});
+  }, SESSION_BEAT_MS);
+  // מכשיר אחר שהשתלט — הטאב הזה נסגר מיד, אחרת שניהם היו כותבים במקביל
+  try {
+    _sessionUnsub = _sessionDoc(_sessionUid).onSnapshot(s => {
+      const d = s.exists ? (s.data() || {}) : null;
+      if (d && d.sessionId && d.sessionId !== SESSION_ID) { stopSessionBeat(); showSessionTakenOver(d); }
+    }, () => {});
+  } catch(e) {}
+}
+function stopSessionBeat() {
+  if (_sessionTimer) { clearInterval(_sessionTimer); _sessionTimer = null; }
+  if (_sessionUnsub) { try { _sessionUnsub(); } catch(e) {} _sessionUnsub = null; }
+}
+// שחרור מסודר ביציאה, כדי שהמכשיר הבא לא ימתין לפקיעת הפעימה
+function releaseSession() {
+  stopSessionBeat();
+  if (!_sessionUid) return;
+  try { _sessionDoc(_sessionUid).delete(); } catch(e) {}
+  _sessionUid = null;
+}
+window.addEventListener('pagehide', () => {
+  if (!_sessionUid) return;
+  try { _sessionDoc(_sessionUid).delete(); } catch(e) {}
+});
+function _sessionGate(html) {
+  const g = document.getElementById('login-gate'); if (g) g.style.display = 'none';
+  let el = document.getElementById('session-gate');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'session-gate';
+    el.style.cssText = 'position:fixed;inset:0;z-index:10001;background:linear-gradient(135deg,#0f172a,#1e3a8a);display:flex;align-items:center;justify-content:center;padding:20px;font-family:\'Heebo\',sans-serif';
+    document.body.appendChild(el);
+  }
+  el.innerHTML = `<div style="background:#fff;border-radius:18px;max-width:430px;width:100%;padding:28px 24px;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.45)">${html}</div>`;
+  el.style.display = 'flex';
+}
+function showSessionBusy(cur) {
+  const when = cur && cur.at ? new Date(cur.at).toLocaleString('he-IL') : '';
+  _sessionGate(`
+    <div style="font-size:2.4rem;margin-bottom:8px">🔒</div>
+    <h2 style="color:#1e293b;font-size:1.18rem;margin-bottom:8px">החשבון פתוח במכשיר אחר</h2>
+    <p style="color:#64748b;font-size:0.88rem;line-height:1.65;margin-bottom:8px">
+      אפשר לעבוד עם החשבון במכשיר אחד בלבד.<br>
+      ${cur && cur.device ? `פתוח כעת ב: <b>${esc(cur.device)}</b><br>` : ''}
+      ${when ? `<span style="font-size:0.78rem">פעילות אחרונה: ${esc(when)}</span>` : ''}
+    </p>
+    <p style="color:#94a3b8;font-size:0.76rem;line-height:1.6;margin-bottom:16px">
+      אם זה אתה — סגור את המערכת במכשיר השני, או המשך כאן והמכשיר השני ינותק.
+    </p>
+    <button onclick="takeoverSession()" style="width:100%;background:linear-gradient(135deg,#2563eb,#4f46e5);color:#fff;border:none;border-radius:11px;padding:12px;font-family:'Heebo',sans-serif;font-size:0.95rem;font-weight:800;cursor:pointer;margin-bottom:9px">המשך כאן ונתק את המכשיר השני</button>
+    <button onclick="doLogout()" style="background:none;border:none;color:#94a3b8;text-decoration:underline;font-family:'Heebo',sans-serif;font-size:0.82rem;cursor:pointer">התנתקות</button>
+    <p style="color:#94a3b8;font-size:0.72rem;margin-top:14px">צריך יותר ממכשיר אחד במקביל? נשמח להוסיף משתמש — 054-2840258</p>`);
+}
+function showSessionTakenOver(d) {
+  _sessionGate(`
+    <div style="font-size:2.4rem;margin-bottom:8px">👋</div>
+    <h2 style="color:#1e293b;font-size:1.18rem;margin-bottom:8px">החשבון נפתח במכשיר אחר</h2>
+    <p style="color:#64748b;font-size:0.88rem;line-height:1.65;margin-bottom:16px">
+      הופעלה כניסה ${d && d.device ? `מ<b>${esc(d.device)}</b>` : 'ממכשיר אחר'}, ולכן החיבור כאן נסגר.<br>
+      אפשר לעבוד עם החשבון במכשיר אחד בלבד.
+    </p>
+    <button onclick="location.reload()" style="width:100%;background:linear-gradient(135deg,#2563eb,#4f46e5);color:#fff;border:none;border-radius:11px;padding:12px;font-family:'Heebo',sans-serif;font-size:0.95rem;font-weight:800;cursor:pointer">התחבר מחדש כאן</button>`);
+}
+async function takeoverSession() {
+  const u = auth.currentUser; if (!u) { location.reload(); return; }
+  _sessionUid = u.uid;
+  try { await _writeSession(u.uid); } catch(e) { console.log('takeover', e); }
+  const el = document.getElementById('session-gate'); if (el) el.style.display = 'none';
+  startSessionBeat();
+  bootApp();
+}
+
 // Is this company's subscription currently valid? The owner (nofar) is never blocked.
 function subscriptionOK() {
   if (TENANT === 'nofar') return true;
@@ -9582,7 +9811,7 @@ function wipeSeedData() {
   ['fleet_vehicles','fleet_incidents','fleet_violations','fleet_replacements','fleet_returns',
    'fleet_tasks','fleet_mailSettings','fleet_invoices',
    'fleet_contacts','fleet_officerInfo','fleet_reminders_shown','fleet_vehicles_version',
-   'fleet_show_missing','fleet_rem_notif','fleet_alertCatsOff'].forEach(k => localStorage.removeItem(k));
+   'fleet_show_missing','fleet_rem_notif','fleet_alertCatsOff','fleet_hiddenCols'].forEach(k => localStorage.removeItem(k));
 }
 function guardTenantCache() {
   // For ANY tenant other than the primary (nofar), clear the seed literals on EVERY load —
@@ -9731,7 +9960,7 @@ function doReset() {
     .catch(() => { err.textContent = 'לא ניתן לשלוח — בדוק את האימייל'; });
 }
 function doLogout() {
-  if (confirm('להתנתק מהמערכת?')) auth.signOut().then(() => location.reload());
+  if (confirm('להתנתק מהמערכת?')) { releaseSession(); auth.signOut().then(() => location.reload()); }
 }
 auth.onAuthStateChanged(async user => {
   // An anonymous session (left over from a driver page on the same site) must NOT
@@ -9745,6 +9974,7 @@ auth.onAuthStateChanged(async user => {
   if (user) {
     await resolveTenant(user); // which company this account belongs to (defaults to nofar)
     if (!subscriptionOK()) { showPaywall(); return; } // block companies with an inactive/expired subscription
+    if (!(await claimSession(user))) return;          // החשבון כבר פתוח במכשיר אחר
     bootApp();
   } else {
     document.getElementById('login-gate').style.display = 'flex';
@@ -12765,10 +12995,48 @@ async function adminLoadClient() {
     document.getElementById('adm-certs').checked = _af.extraCerts === true;
     document.getElementById('adm-trafficmonths').value = _af.trafficMonths || '';
     document.getElementById('adm-inspmonths').value = _af.inspectionMonths || '';
+    document.getElementById('adm-single').checked = _af.singleSession === true;
     _admLoadedUid = uid;
     st.textContent = '✓ נטען'; st.style.color = '#86efac';
   } catch(e) { st.textContent = _admPermErr(e); st.style.color = '#fca5a5'; console.log('adminLoadClient', e); }
 }
+// מי מחובר כרגע, לכל הלקוחות. "פעיל" נקבע לפי אותה פקיעה שמשמשת
+// לנעילה עצמה, כדי שהתצוגה תשקף בדיוק את מה שהמערכת אוכפת.
+async function adminLoadSessions() {
+  if (TENANT !== 'nofar') return;
+  const box = document.getElementById('adm-sessions');
+  box.textContent = 'טוען…';
+  try {
+    const snap = await db.collection('sessions').get();
+    const rows = snap.docs.map(d => Object.assign({ uid: d.id }, d.data() || {}))
+      .sort((a, b) => (b.at || 0) - (a.at || 0));
+    if (!rows.length) { box.textContent = 'אין חיבורים רשומים'; return; }
+    box.innerHTML = rows.map(r => {
+      const age = Date.now() - (r.at || 0);
+      const live = age < SESSION_STALE_MS;
+      const mins = Math.max(0, Math.round(age / 60000));
+      return `<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid #1e293b;flex-wrap:wrap">
+        <span style="width:9px;height:9px;border-radius:50%;background:${live ? '#22c55e' : '#64748b'};flex:0 0 auto"></span>
+        <b style="color:#e2e8f0">${esc(r.company || r.email || r.uid)}</b>
+        <span style="color:#94a3b8">${esc(r.device || '')}</span>
+        <span style="color:${live ? '#86efac' : '#64748b'};margin-inline-start:auto">${live ? 'פעיל עכשיו' : `לפני ${mins} דק׳`}</span>
+        <button class="btn btn-secondary" style="padding:2px 8px;font-size:0.68rem" title="שחרור הנעילה — הלקוח יוכל להיכנס ממכשיר אחר מיד" onclick="adminFreeSession('${esc(r.uid)}')">שחרר</button>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    box.textContent = /permission/i.test(e.code || e.message || '')
+      ? 'אין הרשאת קריאה ל-sessions — צריך להוסיף כלל בפיירסטור.'
+      : 'שגיאה: ' + (e.code || e.message);
+    console.log('adminLoadSessions', e);
+  }
+}
+async function adminFreeSession(uid) {
+  if (TENANT !== 'nofar') return;
+  try { await db.collection('sessions').doc(uid).delete(); toast('הנעילה שוחררה ✓'); }
+  catch(e) { toast('שחרור נכשל: ' + (e.code || e.message), true); }
+  adminLoadSessions();
+}
+
 async function adminSaveClient() {
   if (TENANT !== 'nofar') return;
   const uid = (document.getElementById('adm-uid').value || '').trim();
@@ -12801,7 +13069,8 @@ async function adminSaveClient() {
       extraCerts: !!document.getElementById('adm-certs').checked,
       // 0 נשמר כמשמעו "ברירת מחדל", ולכן ערך ריק או לא תקין הופך ל-0
       trafficMonths: parseInt(document.getElementById('adm-trafficmonths').value) || 0,
-      inspectionMonths: parseInt(document.getElementById('adm-inspmonths').value) || 0
+      inspectionMonths: parseInt(document.getElementById('adm-inspmonths').value) || 0,
+      singleSession: !!document.getElementById('adm-single').checked
     }
   };
   st.textContent = 'שומר…'; st.style.color = '#94a3b8';
