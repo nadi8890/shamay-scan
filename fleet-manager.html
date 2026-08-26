@@ -678,17 +678,18 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
     <table>
       <thead id="drivers-thead">
         <tr>
-          <th>שם הנהג</th>
-          <th>ת.ז</th>
-          <th>טלפון</th>
-          <th>מייל</th>
-          <th>מס׳ רישיון</th>
-          <th>תוקף רישיון</th>
-          <th>עבר תעבורתי</th>
-          <th>כתובת</th>
-          <th>רכבים</th>
+          <th><div class="th-sort" onclick="sortDrvCol('name')">שם הנהג<span class="sort-arrow" id="dsarr-name">⇅</span></div></th>
+          <th><div class="th-sort" onclick="sortDrvCol('id')">ת.ז<span class="sort-arrow" id="dsarr-id">⇅</span></div></th>
+          <th><div class="th-sort" onclick="sortDrvCol('phone')">טלפון<span class="sort-arrow" id="dsarr-phone">⇅</span></div></th>
+          <th><div class="th-sort" onclick="sortDrvCol('email')">מייל<span class="sort-arrow" id="dsarr-email">⇅</span></div></th>
+          <th><div class="th-sort" onclick="sortDrvCol('licNum')">מס׳ רישיון<span class="sort-arrow" id="dsarr-licNum">⇅</span></div></th>
+          <th><div class="th-sort" onclick="sortDrvCol('licExp')">תוקף רישיון<span class="sort-arrow" id="dsarr-licExp">⇅</span></div></th>
+          <th><div class="th-sort" onclick="sortDrvCol('traffic')">עבר תעבורתי<span class="sort-arrow" id="dsarr-traffic">⇅</span></div></th>
+          <th><div class="th-sort" onclick="sortDrvCol('address')">כתובת<span class="sort-arrow" id="dsarr-address">⇅</span></div></th>
+          <th><div class="th-sort" onclick="sortDrvCol('plates')">רכבים<span class="sort-arrow" id="dsarr-plates">⇅</span></div></th>
           <th></th>
         </tr>
+        <tr class="col-filter-row" id="drv-filter-row"></tr>
       </thead>
       <tbody id="drivers-body"></tbody>
     </table>
@@ -1325,6 +1326,8 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
 <!-- Bottom Nav -->
 <nav class="bottom-nav" role="tablist" aria-label="ניווט ראשי">
   <button class="nav-btn active" data-tab="fleet" data-sys="fleet" type="button" role="tab" aria-selected="true" aria-controls="tab-fleet" onclick="showTab('fleet',this)"><span class="icon" aria-hidden="true">🚗</span>ציי רכב</button>
+  <!-- ליד צי הרכב ולא בתפריט "עוד" — נהגים הוא מסך יומיומי, לא משני -->
+  <button class="nav-btn feat-drivers-only" data-tab="drivers" data-sys="fleet" type="button" role="tab" aria-selected="false" aria-controls="tab-drivers" onclick="showTab('drivers',this)"><span class="icon" aria-hidden="true">🧑‍✈️</span>נהגים</button>
   <button class="nav-btn" data-tab="alerts" data-sys="fleet" type="button" role="tab" aria-selected="false" aria-controls="tab-alerts" style="position:relative" onclick="showTab('alerts',this)"><span class="icon" aria-hidden="true">🔔</span>התראות</button>
   <button class="nav-btn" data-tab="incidents" data-sys="fleet" type="button" role="tab" aria-selected="false" aria-controls="tab-incidents" onclick="showTab('incidents',this)"><span class="icon" aria-hidden="true">💥</span>אירועים</button>
   <button class="nav-btn" data-tab="tasks" data-sys="fleet" type="button" role="tab" aria-selected="false" aria-controls="tab-tasks" onclick="showTab('tasks',this)"><span class="icon" aria-hidden="true">✅</span>משימות</button>
@@ -1333,7 +1336,6 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
   <button class="nav-btn nav-secondary" data-tab="returns" data-sys="fleet" type="button" role="tab" aria-selected="false" aria-controls="tab-returns" onclick="showTab('returns',this)"><span class="icon" aria-hidden="true">🔄</span>החזרות</button>
   <button class="nav-btn" data-tab="damage" data-sys="shamai" type="button" role="tab" aria-selected="false" aria-controls="tab-damage" onclick="showTab('damage',this)"><span class="icon" aria-hidden="true">📋</span>אומדן</button>
   <button class="nav-btn nav-secondary" data-tab="forms" data-sys="fleet" type="button" role="tab" aria-selected="false" aria-controls="tab-forms" onclick="showTab('forms',this)"><span class="icon" aria-hidden="true">📝</span>טפסים</button>
-  <button class="nav-btn nav-secondary feat-drivers-only" data-tab="drivers" data-sys="fleet" type="button" role="tab" aria-selected="false" aria-controls="tab-drivers" onclick="showTab('drivers',this)"><span class="icon" aria-hidden="true">🧑‍✈️</span>נהגים</button>
   <button class="nav-btn nav-secondary" data-tab="dashboard" data-sys="fleet" type="button" role="tab" aria-selected="false" aria-controls="tab-dashboard" onclick="showTab('dashboard',this)"><span class="icon" aria-hidden="true">📊</span>דשבורד</button>
   <button class="nav-btn" data-tab="opinion" data-sys="shamai" type="button" role="tab" aria-selected="false" aria-controls="tab-opinion" onclick="showTab('opinion',this)"><span class="icon" aria-hidden="true">📝</span>חוות דעת</button>
   <button class="nav-btn" data-tab="cases" data-sys="shamai" type="button" role="tab" aria-selected="false" aria-controls="tab-cases" style="position:relative" onclick="showTab('cases',this)"><span class="icon" aria-hidden="true">📊</span>מעקב<span id="cases-nav-badge" style="display:none;position:absolute;top:1px;left:5px;min-width:17px;height:17px;background:#dc2626;color:#fff;border-radius:999px;font-size:0.62rem;font-weight:800;line-height:17px;text-align:center;padding:0 4px;box-shadow:0 1px 4px rgba(0,0,0,.25)">0</span></button>
@@ -2531,20 +2533,60 @@ function renderDrivers() {
   const body = document.getElementById('drivers-body');
   if (!body) return;
   rebuildDriversDirectory();           // נהגים שקיימים בצי אך לא בספר
+  buildDrvColFilterRow();
   const q = (document.getElementById('drivers-search') || {}).value || '';
   const term = q.trim().toLowerCase();
-  let keys = Object.keys(DRIVERS).sort((a, b) => a.localeCompare(b, 'he'));
+  // ערך כל עמודה במקום אחד — משמש גם לסינון, גם למיון וגם לחיפוש החופשי
+  const cell = (k, col) => {
+    const d = DRIVERS[k] || {};
+    switch (col) {
+      case 'name':    return k + ' ' + (d.affiliation || '');
+      case 'id':      return d.driverId || '';
+      case 'phone':   return d.driverPhone || '';
+      case 'email':   return d.driverEmail || '';
+      case 'licNum':  return d.licNum || '';
+      case 'licExp':  return d.licenseExpiry || '';
+      case 'traffic': return d.trafficRecord || '';
+      case 'address': return d.address || '';
+      case 'plates':  return driverVehicles(k).map(v => v.plate).join(' ');
+      default:        return '';
+    }
+  };
+  const COLS = ['name','id','phone','email','licNum','licExp','traffic','address','plates'];
+  let keys = Object.keys(DRIVERS);
+  // סינון פר-עמודה
+  const _match = (val, f) => !f || String(val || '').toLowerCase().includes(String(f).toLowerCase());
+  const totalDrivers = keys.length;
+  keys = keys.filter(k => COLS.every(c => _match(cell(k, c), drvColFilters[c])));
   if (term) {
     keys = keys.filter(k => {
       const d = DRIVERS[k] || {};
-      const hay = [k, d.driverId, d.driverPhone, d.driverEmail, d.licNum, d.address, d.affiliation,
+      const hay = [k, d.driverId, d.driverPhone, d.driverEmail, d.licNum, d.address, d.affiliation, d.notes,
                    ...driverVehicles(k).map(v => v.plate)].join(' ').toLowerCase();
       return hay.includes(term);
     });
   }
+  // מיון. תאריכים ממוינים כתאריך ולא כטקסט, אחרת "01.01.28" היה קודם ל-"09.09.26"
+  const dateCols = { licExp:1, traffic:1 };
+  keys.sort((a, b) => {
+    let va = cell(a, drvSort.col), vb = cell(b, drvSort.col);
+    if (dateCols[drvSort.col]) {
+      const da = parseDate(va), db = parseDate(vb);
+      return ((da ? da.getTime() : Infinity) - (db ? db.getTime() : Infinity)) * drvSort.dir;
+    }
+    return String(va).localeCompare(String(vb), 'he', { numeric: true }) * drvSort.dir;
+  });
+  COLS.forEach(c => {
+    const el = document.getElementById('dsarr-' + c);
+    if (!el) return;
+    el.textContent = drvSort.col === c ? (drvSort.dir === 1 ? '↑' : '↓') : '⇅';
+    el.style.color = drvSort.col === c ? '#2563eb' : '#94a3b8';
+  });
   document.getElementById('drivers-count').textContent = keys.length;
-  document.getElementById('drivers-empty').style.display = keys.length ? 'none' : '';
-  document.querySelector('#tab-drivers .tbl-wrap').style.display = keys.length ? '' : 'none';
+  // מסך "אין נהגים" רק כשבאמת אין אף נהג. כשסינון צמצם לאפס הטבלה
+  // נשארת — אחרת שורת הסינון הייתה נעלמת יחד איתה ואי אפשר היה לנקות.
+  document.getElementById('drivers-empty').style.display = totalDrivers ? 'none' : '';
+  document.querySelector('#tab-drivers .tbl-wrap').style.display = totalDrivers ? '' : 'none';
   body.innerHTML = keys.map(k => {
     const d = DRIVERS[k] || {};
     const vs = driverVehicles(k);
@@ -2562,6 +2604,20 @@ function renderDrivers() {
       <td><button class="btn btn-gray" style="padding:3px 9px;font-size:0.7rem" onclick="event.stopPropagation();openDriverModal('${esc(k).replace(/'/g,"\\'")}')">✏️</button></td>
     </tr>`;
   }).join('');
+  if (totalDrivers && !keys.length) {
+    body.innerHTML = `<tr><td colspan="10" style="text-align:center;color:var(--muted);padding:18px">
+      אין נהג שתואם את הסינון
+      <button class="btn btn-gray" style="padding:3px 10px;font-size:0.72rem;margin-inline-start:8px" onclick="clearDrvFilters()">נקה סינון</button>
+    </td></tr>`;
+  }
+}
+// ניקוי כל שדות הסינון והחיפוש בבת אחת
+function clearDrvFilters() {
+  Object.keys(drvColFilters).forEach(k => drvColFilters[k] = '');
+  const row = document.getElementById('drv-filter-row');
+  if (row) row.querySelectorAll('.col-filter-inp').forEach(i => i.value = '');
+  const s = document.getElementById('drivers-search'); if (s) s.value = '';
+  renderDrivers();
 }
 // push a driver's known values onto every vehicle that driver holds
 function syncDriverToVehicles(n) {
@@ -3854,6 +3910,24 @@ let replColFilters = { employee:'', plate:'', typeCompany:'', fromDate:'', toDat
 let retColFilters  = { employee:'', plate:'', make:'', fromDate:'', toDate:'', reason:'', notes:'' };
 let violColFilters = { reportNum:'', date:'', offense:'', driver:'', plate:'', points:'', fine:'', status:'' };
 let invColFilters  = { plate:'', garage:'', date:'', workType:'', driver:'' };
+let drvColFilters  = { name:'', id:'', phone:'', email:'', licNum:'', licExp:'', traffic:'', address:'', plates:'' };
+let drvSort = { col:'name', dir:1 };
+function setDrvColFilter(col, val) { drvColFilters[col] = val; renderDrivers(); }
+function sortDrvCol(col) {
+  if (drvSort.col === col) drvSort.dir *= -1;
+  else { drvSort.col = col; drvSort.dir = 1; }
+  renderDrivers();
+}
+function buildDrvColFilterRow() {
+  const row = document.getElementById('drv-filter-row');
+  if (!row) return;
+  // נבנה פעם אחת בלבד — בנייה מחדש בכל הקלדה הורסת את הפוקוס
+  if (row.querySelector('.col-filter-inp')) return;
+  const ph = { name:'שם...', id:'ת.ז...', phone:'טלפון...', email:'מייל...', licNum:'רישיון...',
+               licExp:'תאריך...', traffic:'תאריך...', address:'כתובת...', plates:'רישוי...' };
+  const inp = c => `<th><input class="col-filter-inp" type="text" placeholder="${ph[c]}" value="${esc(drvColFilters[c]||'')}" oninput="setDrvColFilter('${c}',this.value)"></th>`;
+  row.innerHTML = ['name','id','phone','email','licNum','licExp','traffic','address','plates'].map(inp).join('') + '<th></th>';
+}
 
 function sortFleetCol(col) {
   if (fleetSort.col === col) fleetSort.dir *= -1;
