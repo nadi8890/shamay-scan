@@ -682,11 +682,21 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
     </div>
     <div style="display:flex;gap:6px;flex-wrap:wrap">
       <button class="btn btn-primary" style="padding:6px 14px;font-size:0.8rem" onclick="openDriverModal()">+ נהג חדש</button>
+      <button class="btn-export" title="בחר אילו עמודות יוצגו" onclick="toggleDrvColPicker()">🧩 עמודות</button>
       <button class="btn-export" onclick="exportSection('drivers')">📥 ייצוא Excel</button>
     </div>
   </div>
   <input id="drivers-search" type="text" placeholder="🔍 חפש לפי שם, טלפון, מייל או רכב..." oninput="renderDrivers()"
          style="width:100%;border:1.5px solid var(--border);border-radius:10px;padding:9px 12px;font-family:'Heebo',sans-serif;font-size:0.85rem;margin-bottom:10px;box-sizing:border-box">
+  <div id="drv-col-picker" style="display:none;margin-bottom:8px;padding:11px 13px;border:1.5px solid var(--border);background:var(--card);border-radius:12px">
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:9px;flex-wrap:wrap">
+      <span style="font-weight:800;font-size:0.82rem">🧩 עמודות להצגה</span>
+      <button class="btn btn-gray" style="padding:3px 10px;font-size:0.72rem" onclick="setAllDrvCols(true)">בחר הכל</button>
+      <button class="btn btn-gray" style="padding:3px 10px;font-size:0.72rem" onclick="setAllDrvCols(false)">הסר הכל</button>
+      <button class="btn btn-gray" style="padding:3px 10px;font-size:0.72rem;margin-inline-start:auto" onclick="toggleDrvColPicker()">סגור</button>
+    </div>
+    <div id="drv-col-picker-chips" style="display:flex;gap:7px;flex-wrap:wrap"></div>
+  </div>
   <div class="tbl-wrap">
     <table>
       <thead id="drivers-thead">
@@ -2600,6 +2610,7 @@ function renderDrivers() {
   if (!body) return;
   rebuildDriversDirectory();           // נהגים שקיימים בצי אך לא בספר
   buildDrvColFilterRow();
+  applyDrvColVisibility();
   const q = (document.getElementById('drivers-search') || {}).value || '';
   const term = q.trim().toLowerCase();
   // ערך כל עמודה במקום אחד — משמש גם לסינון, גם למיון וגם לחיפוש החופשי
@@ -4020,6 +4031,55 @@ function sortDrvCol(col) {
   if (drvSort.col === col) drvSort.dir *= -1;
   else { drvSort.col = col; drvSort.dir = 1; }
   renderDrivers();
+}
+// בורר עמודות לטבלת הנהגים — אותה גישה כמו בטבלת הצי: הסתרה לפי
+// מיקום העמודה, כדי שכותרת, שורת סינון ושורות יישארו מיושרות.
+const DRV_COLS = [
+  { i:1, label:'שם הנהג' },     { i:2, label:'ת.ז' },        { i:3, label:'טלפון' },
+  { i:4, label:'מייל' },        { i:5, label:'מס׳ רישיון' }, { i:6, label:'תוקף רישיון' },
+  { i:7, label:'עבר תעבורתי' }, { i:8, label:'כתובת' },      { i:9, label:'רכבים' }
+];
+let DRV_HIDDEN_COLS = [];
+try { DRV_HIDDEN_COLS = JSON.parse(localStorage.getItem('fleet_drvHiddenCols')) || []; } catch(e) {}
+function applyDrvColVisibility() {
+  let st = document.getElementById('drv-col-vis-style');
+  if (!st) { st = document.createElement('style'); st.id = 'drv-col-vis-style'; document.head.appendChild(st); }
+  const sel = DRV_HIDDEN_COLS.map(i =>
+    `#tab-drivers #drivers-thead tr>th:nth-child(${i}),#tab-drivers #drv-filter-row>th:nth-child(${i}),#tab-drivers #drivers-body tr>td:nth-child(${i})`
+  ).join(',');
+  st.textContent = sel ? sel + '{display:none!important}' : '';
+}
+function toggleDrvColPicker() {
+  const box = document.getElementById('drv-col-picker');
+  if (!box) return;
+  const show = box.style.display === 'none';
+  box.style.display = show ? '' : 'none';
+  if (show) renderDrvColPicker();
+}
+function renderDrvColPicker() {
+  const wrap = document.getElementById('drv-col-picker-chips');
+  if (!wrap) return;
+  wrap.innerHTML = DRV_COLS.map(c => {
+    const on = DRV_HIDDEN_COLS.indexOf(c.i) === -1;
+    return `<button type="button" onclick="toggleDrvCol(${c.i})"
+      style="border:1.5px solid ${on?'#2563eb':'#e2e8f0'};background:${on?'#eff6ff':'#f8fafc'};
+             color:${on?'#1e3a8a':'#94a3b8'};border-radius:999px;padding:5px 11px;font-size:0.74rem;
+             font-weight:700;font-family:Heebo,sans-serif;cursor:pointer;${on?'':'text-decoration:line-through'}">
+      ${on?'✓':'✕'} ${esc(c.label)}</button>`;
+  }).join('');
+}
+function _saveDrvCols() {
+  try { localStorage.setItem('fleet_drvHiddenCols', JSON.stringify(DRV_HIDDEN_COLS)); } catch(e) {}
+  applyDrvColVisibility(); renderDrvColPicker();
+}
+function toggleDrvCol(i) {
+  const k = DRV_HIDDEN_COLS.indexOf(i);
+  if (k > -1) DRV_HIDDEN_COLS.splice(k, 1); else DRV_HIDDEN_COLS.push(i);
+  _saveDrvCols();
+}
+function setAllDrvCols(on) {
+  DRV_HIDDEN_COLS = on ? [] : DRV_COLS.map(c => c.i);
+  _saveDrvCols();
 }
 function buildDrvColFilterRow() {
   const row = document.getElementById('drv-filter-row');
@@ -9811,7 +9871,7 @@ function wipeSeedData() {
   ['fleet_vehicles','fleet_incidents','fleet_violations','fleet_replacements','fleet_returns',
    'fleet_tasks','fleet_mailSettings','fleet_invoices',
    'fleet_contacts','fleet_officerInfo','fleet_reminders_shown','fleet_vehicles_version',
-   'fleet_show_missing','fleet_rem_notif','fleet_alertCatsOff','fleet_hiddenCols'].forEach(k => localStorage.removeItem(k));
+   'fleet_show_missing','fleet_rem_notif','fleet_alertCatsOff','fleet_hiddenCols','fleet_drvHiddenCols'].forEach(k => localStorage.removeItem(k));
 }
 function guardTenantCache() {
   // For ANY tenant other than the primary (nofar), clear the seed literals on EVERY load —
