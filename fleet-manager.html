@@ -12244,12 +12244,39 @@ function _opHandoff() {
   try { const r = localStorage.getItem('op_handoff'); return r ? JSON.parse(r) : null; }
   catch(e) { return null; }
 }
+// אומדן שנבנה בטלפון נכתב ל-localStorage של הטלפון בלבד, ולכן במחשב לא
+// היה מה לייבא — והתיק לא הגיע ל"מעקב". כלי האומדן כותב עכשיו גם
+// לפיירסטור, וכאן מושכים אותו משם ומעתיקים ל-localStorage כדי שכל שאר
+// הזרימה (ייבוא, ביטול) תישאר בדיוק כפי שהייתה.
+async function _opPullCloudHandoff() {
+  try {
+    const snap = await fcol().doc('ophandoff').get();
+    if (!snap.exists) return null;
+    const cloud = snap.data() || {};
+    const local = _opHandoff();
+    // המאוחר מבין השניים מנצח, כדי שאומדן ישן בענן לא ידרוס חדש מקומי
+    if (local && (local.at || 0) >= (cloud.at || 0)) return local;
+    localStorage.setItem('op_handoff', JSON.stringify(cloud));
+    return cloud;
+  } catch(e) { console.log('pull cloud handoff', e); return null; }
+}
+// מוחק את ההעברה מהענן אחרי ייבוא או ביטול, אחרת היא הייתה חוזרת ומוצעת
+async function _opClearCloudHandoff() {
+  try { await fcol().doc('ophandoff').delete(); } catch(e) {}
+}
 
 function opCheckHandoff() {
   const box = document.getElementById('op-handoff');
   if (!box) return;
+  // בדיקה מיידית ממה שיש מקומית, ואז רענון מהענן כשהתשובה מגיעה
+  _opPullCloudHandoff().then(h => { if (h) _opRenderHandoff(h); });
   const h = _opHandoff();
   if (!h) { box.style.display = 'none'; return; }
+  _opRenderHandoff(h);
+}
+function _opRenderHandoff(h) {
+  const box = document.getElementById('op-handoff');
+  if (!box || !h) return;
   const info = document.getElementById('op-handoff-info');
   const sum = (h.items || []).reduce((a, x) => a + (parseFloat(x.cost) || 0), 0) + (h.paint || 0) + (h.panel || 0);
   if (info) info.textContent = [h.plate, [h.make, h.model].filter(Boolean).join(' '),
@@ -12259,7 +12286,9 @@ function opCheckHandoff() {
 
 function opDismissHandoff() {
   try { localStorage.removeItem('op_handoff'); } catch(e) {}
-  opCheckHandoff();
+  _opClearCloudHandoff();          // אחרת ההצעה הייתה חוזרת מהענן
+  const box = document.getElementById('op-handoff');
+  if (box) box.style.display = 'none';
   toast('האומדן נותר שמור בכלי האומדן בלבד');
 }
 
@@ -12294,7 +12323,9 @@ async function opImportHandoff() {
   if (h.panel) set('panel', h.panel);
   opCalc();
   try { localStorage.removeItem('op_handoff'); } catch(e) {}
-  opCheckHandoff();
+  await _opClearCloudHandoff();    // אחרת אותו אומדן היה מוצע שוב בכל מכשיר
+  const _hb = document.getElementById('op-handoff');
+  if (_hb) _hb.style.display = 'none';
   document.getElementById('op-list').style.display = 'none';
   document.getElementById('op-form').style.display = '';
   // נשמר מיד — התיק מופיע ב"מעקב" כ"פתוח" בלי לחיצה נוספת על שמור.
