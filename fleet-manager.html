@@ -1510,6 +1510,20 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
               <label style="display:flex;align-items:center;gap:6px;cursor:pointer" title="לשונית נהגים נפרדת עם הוספה, עריכה וייצוא של ספר הנהגים">
                 <input id="adm-drivers" type="checkbox" style="width:16px;height:16px"><span>🧑‍✈️ לשונית נהגים <span style="color:#94a3b8;font-weight:400">(כבוי כברירת מחדל)</span></span>
               </label>
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer" title="בדיקת חורף, בדיקה פניאומטית, אישור בלמים, אישור שכחת ילדים ואישור כיבוי אש — בטופס הרכב ובהתראות">
+                <input id="adm-certs" type="checkbox" style="width:16px;height:16px"><span>📜 אישורים נוספים <span style="color:#94a3b8;font-weight:400">(רכב כבד/הסעות)</span></span>
+              </label>
+            </div>
+            <div style="display:flex;gap:12px;margin-bottom:12px;flex-wrap:wrap;align-items:flex-end">
+              <div class="modal-row" style="margin:0">
+                <label style="color:#cbd5e1">מידע תעבורתי — כל כמה חודשים</label>
+                <input id="adm-trafficmonths" type="number" min="1" max="120" placeholder="36" style="width:130px;background:#1e293b;color:#e2e8f0;border-color:#334155">
+              </div>
+              <div class="modal-row" style="margin:0">
+                <label style="color:#cbd5e1">ביקורת בטיחות — כל כמה חודשים</label>
+                <input id="adm-inspmonths" type="number" min="1" max="60" placeholder="לפי גיל הרכב" style="width:150px;background:#1e293b;color:#e2e8f0;border-color:#334155">
+              </div>
+              <div style="font-size:0.7rem;color:#94a3b8;flex:1;min-width:170px">ריק = ברירת המחדל: תעבורתי כל 36 חודשים, ביקורת לפי גיל הרכב (6 או 3).</div>
             </div>
             <div class="btn-row">
               <button class="btn btn-secondary" onclick="adminLoadClient()">📂 טען לקוח קיים</button>
@@ -1835,6 +1849,11 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
       <div class="modal-row"><label>תאריך טיפול אחרון <span style="font-weight:400;color:#94a3b8;font-size:0.7rem">(טיפול שנתי — כל 15 אלף ק"מ או שנה)</span></label><input id="m-serviceDate" type="text" placeholder="יי.חח.שש" inputmode="numeric" oninput="dateAutoMask(this)"></div>
       <div class="modal-row"><label>עבר תעבורתי (תאריך ביצוע)</label><input id="m-traffic" type="text" placeholder="יי.חח.שש" inputmode="numeric" oninput="dateAutoMask(this)"></div>
       <div class="modal-row"><label>נהלים (תאריך ביצוע)</label><input id="m-procedures" type="text" placeholder="יי.חח.שש" inputmode="numeric" oninput="dateAutoMask(this)"></div>
+    </div>
+    <!-- אישורים נוספים — נבנים מ-EXTRA_CERTS, ומוצגים רק אצל לקוח שהוגדרו לו -->
+    <div id="m-certs-wrap" style="display:none">
+      <div class="settings-grp" style="margin:14px 0 6px">📜 אישורים נוספים <span style="font-weight:400;color:#94a3b8;font-size:0.7rem">— הזן תאריך ביצוע, התוקף מחושב אוטומטית</span></div>
+      <div id="m-certs" style="display:grid;grid-template-columns:1fr 1fr;gap:8px"></div>
     </div>
     <div class="modal-row" style="grid-column:1/-1"><label>הערות</label><textarea id="m-notes" rows="2"></textarea></div>
     <!-- ══ מסמכי רכב (Firebase Storage — מאובטח פר-חברה) ══ -->
@@ -2964,6 +2983,32 @@ function dateAddYears(dateStr, years) {
   d.setFullYear(d.getFullYear() + years);
   return ('0'+d.getDate()).slice(-2)+'.'+('0'+(d.getMonth()+1)).slice(-2)+'.'+String(d.getFullYear()).slice(-2);
 }
+// תוקף לפי חודשים. setMonth מגלגל נכון מעבר לשנה (למשל אוקטובר + 6),
+// ולכן אין צורך בחישוב שנים בנפרד.
+function dateAddMonths(dateStr, months) {
+  const d = parseDate(dateStr);
+  if (!d) return '';
+  d.setMonth(d.getMonth() + months);
+  return ('0'+d.getDate()).slice(-2)+'.'+('0'+(d.getMonth()+1)).slice(-2)+'.'+String(d.getFullYear()).slice(-2);
+}
+// תדירות בדיקת המידע התעבורתי. ברירת המחדל שלוש שנים, אבל אצל לקוח
+// שמעסיק נהגים מקצועיים הבדיקה חוזרת כל חצי שנה. נשמר כמספר חודשים
+// במסמך הלקוח, ולכן אפשר יהיה גם ערכים אחרים בעתיד בלי שינוי קוד.
+function trafficDueStr(v) { return dateAddMonths(v && v.trafficRecord, FEATURES.trafficMonths || 36); }
+
+// ═══ אישורים נוספים (פר-לקוח, FEATURES.extraCerts) ═══
+// לקוח עם רכב כבד או הסעות נדרש לאישורים שאין לשאר הלקוחות. מוגדרים
+// כאן במקום אחד — הטבלה, טופס הרכב, ההתראות והייצוא נגזרים מהרשימה,
+// כדי שהוספת אישור בעתיד לא תדרוש לגעת בארבעה מקומות נפרדים.
+const EXTRA_CERTS = [
+  { key:'winterCheck',    label:'בדיקת חורף',        icon:'❄️', months:12 },
+  { key:'pneumaticChk',   label:'בדיקה פניאומטית',   icon:'💨', months:12 },
+  { key:'brakesCert',     label:'אישור בלמים',       icon:'🛑', months:12 },
+  { key:'childAlertCert', label:'אישור שכחת ילדים',  icon:'👶', months:12 },
+  { key:'fireExtCert',    label:'אישור כיבוי אש',    icon:'🧯', months:12 }
+];
+// התאריך שנשמר הוא תאריך הביצוע; התוקף נגזר ממנו לפי months
+function certDueStr(v, c) { return dateAddMonths(v && v[c.key], c.months); }
 function dateAutoMask(inp) {
   const sel = inp.selectionStart;
   const prev = inp.value;
@@ -3020,7 +3065,9 @@ function nextInspectionDate(v) {
   const vehicleStart = parseVehicleYear(v.year);
   const now = new Date();
   const ageYears = vehicleStart ? (now - vehicleStart) / (365.25 * 24 * 3600 * 1000) : 999;
-  const monthsToAdd = ageYears <= 3 ? 6 : 3;
+  // ברירת המחדל תלוית גיל הרכב (חצי שנה עד 3 שנים, אחרת רבעון). לקוח
+  // שהוגדר לו מרווח קבוע — למשל צי שנבדק כל חודש — גובר עליה.
+  const monthsToAdd = FEATURES.inspectionMonths || (ageYears <= 3 ? 6 : 3);
   const next = new Date(lastInsp);
   next.setMonth(next.getMonth() + monthsToAdd);
   return next;
@@ -4101,7 +4148,7 @@ function renderFleet() {
         case 'lic': va=daysUntil(a.licenseExpiry)??9999; vb=daysUntil(b.licenseExpiry)??9999; break;
         case 'km': va=parseKm(a.nextServiceKm)-parseKm(a.currentKm); vb=parseKm(b.nextServiceKm)-parseKm(b.currentKm); break;
         case 'insp': va=daysUntilNextInsp(a)??9999; vb=daysUntilNextInsp(b)??9999; break;
-        case 'traffic': va=daysUntil(dateAddYears(a.trafficRecord,3))??9999; vb=daysUntil(dateAddYears(b.trafficRecord,3))??9999; break;
+        case 'traffic': va=daysUntil(trafficDueStr(a))??9999; vb=daysUntil(trafficDueStr(b))??9999; break;
         case 'proc': va=daysUntil(dateAddYears(a.procedures,5))??9999; vb=daysUntil(dateAddYears(b.procedures,5))??9999; break;
         case 'from': va=a.vehicleFrom||''; vb=b.vehicleFrom||''; break;
         default: va=''; vb='';
@@ -4161,7 +4208,7 @@ function renderFleet() {
         ? `<td><span class="badge badge-gray">—</span></td>`
         : `<td class="${yc(v.nextServiceKm)}">${kmStatus(v.currentKm, v.nextServiceKm)}<br><span style="color:var(--muted);font-size:0.63rem">${esc(v.nextServiceKm)||'—'} ק"מ</span></td>`}
       <td class="${yc(v.inspection, cellCls(inspDays))}">${statusBadge(inspDays)}<br><span style="color:var(--muted);font-size:0.63rem">הבאה: ${nextInspectionStr(v)||'—'}</span><br><span style="color:var(--muted);font-size:0.58rem">אחרונה: ${esc(v.inspection)||'—'}</span>${v.inspectionScheduled ? `<br><span class="badge" style="background:#dbeafe;color:#1e40af;font-size:0.57rem;padding:1px 5px;cursor:pointer" title="לחץ לביטול המועד" onclick="event.stopPropagation();cancelInspBooking('${esc(v.plate)}')">📅 נקבע: ${esc(v.inspectionScheduled)} ✕</span>` : ''}</td>
-      <td class="${isTrailer?'':yc(v.trafficRecord, cellCls(daysUntil(dateAddYears(v.trafficRecord,3))))}">${statusBadge(daysUntil(dateAddYears(v.trafficRecord,3)))}<br><span style="color:var(--muted);font-size:0.63rem">בוצע: ${esc(v.trafficRecord)||'—'}</span><br><span style="color:var(--muted);font-size:0.58rem">תוקף: ${dateAddYears(v.trafficRecord,3)||'—'}</span></td>
+      <td class="${isTrailer?'':yc(v.trafficRecord, cellCls(daysUntil(trafficDueStr(v))))}">${statusBadge(daysUntil(trafficDueStr(v)))}<br><span style="color:var(--muted);font-size:0.63rem">בוצע: ${esc(v.trafficRecord)||'—'}</span><br><span style="color:var(--muted);font-size:0.58rem">תוקף: ${trafficDueStr(v)||'—'}</span></td>
       ${(() => {
         const drv = (v.driverName||'').trim();
         // trailers / unassigned vehicles are not driven — no procedures needed
@@ -5249,7 +5296,8 @@ const ALERT_CATS = [
   { key:'inspection',   icon:'🔍', label:'ביקורות בטיחות וליקויים' },
   { key:'service',      icon:'🔩', label:'טיפולים' },
   { key:'traffic',      icon:'📋', label:'עבר תעבורתי' },
-  { key:'procedures',   icon:'📄', label:'נהלים' }
+  { key:'procedures',   icon:'📄', label:'נהלים' },
+  { key:'certs',        icon:'📜', label:'אישורים נוספים' }
 ];
 // מוחזק כרשימת הכבויים בלבד: סוג חדש שייווסף בעתיד יידלק אצל כולם
 // אוטומטית, במקום להיעלם בשקט אצל לקוחות קיימים.
@@ -6569,7 +6617,10 @@ function buildDynamicAlerts() {
     addDate('registration', 'תוקף רישוי', v.registrationExpiry);
     addDate('insurance', 'תוקף ביטוח חובה', v.insuranceExpiry);
     addDate('license', 'רישיון נהג', v.licenseExpiry);
-    addDate('traffic', 'עבר תעבורתי', dateAddYears(v.trafficRecord, 3));
+    addDate('traffic', 'עבר תעבורתי', trafficDueStr(v));
+    // אישורים נוספים — רק אצל לקוח שהוגדרו לו, ורק לרכב אמיתי
+    if (featureOn('extraCerts') && !v.noVehicle)
+      EXTRA_CERTS.forEach(c => addDate('certs', c.label, certDueStr(v, c)));
     addDate('procedures', 'נהלים', dateAddYears(v.procedures, 5));
     // MISSING DOCUMENTS — a blank document field (not an expiry) is its own alert type,
     // so the officer can chase it. Skipped for employees with no vehicle; license is
@@ -7528,6 +7579,11 @@ function exportSection(section) {
     rows = VEHICLES.map(v => [v.plate,v.make,v.model,v.year,v.tozeretCd||'',v.degemCd||'',v.weight||'',v.driverName,v.company,v.code||'',v.registrationExpiry,v.insuranceExpiry,v.licenseExpiry,v.currentKm,v.nextServiceKm,v.serviceDate||'',v.inspection,v.children||'',v.vehicleFrom||'',v.trafficRecord||'',v.procedures||'']);
     // עמודת המשקל יורדת מהקובץ אצל לקוח שהתכונה כבויה אצלו
     if (!featureOn('weight')) { headers.splice(6,1); rows.forEach(r => r.splice(6,1)); }
+    // אישורים נוספים מצורפים בסוף, רק אצל לקוח שהוגדרו לו
+    if (featureOn('extraCerts')) {
+      EXTRA_CERTS.forEach(c => headers.push(c.label));
+      rows.forEach((r, i) => EXTRA_CERTS.forEach(c => r.push(VEHICLES[i][c.key] || '')));
+    }
   } else if (section === 'incidents') {
     headers = ['#','מס׳ רישוי','נהג','תאריך','ביטוח/בעלות','מס׳ ארוע','סכום נזק','השתתפות עצמית','הערות'];
     rows = INCIDENTS.map(i => [i.id,i.plate,i.driver,i.date,i.insurance,i.reportNum,i.damage,i.deductible,i.notes]);
@@ -7712,6 +7768,9 @@ function editVehicle(plate) {
   document.getElementById('m-nextKm').value = v.nextServiceKm||'';
   document.getElementById('m-serviceDate').value = v.serviceDate||'';
   document.getElementById('m-traffic').value = v.trafficRecord||'';
+  if (featureOn('extraCerts')) EXTRA_CERTS.forEach(c => {
+    const el = document.getElementById('m-' + c.key); if (el) el.value = v[c.key] || '';
+  });
   document.getElementById('m-procedures').value = v.procedures||'';
   document.getElementById('m-notes').value = v.notes||'';
   _lastGovRec = null; _lastGovModel = null;
@@ -7828,6 +7887,12 @@ function saveVehicle() {
     notes: document.getElementById('m-notes').value.trim(),
     id: (editingPlate ? (VEHICLES.find(x=>x.plate===editingPlate)||{}).id : Date.now()) || Date.now(),
   };
+  // אישורים נוספים נשמרים רק אצל לקוח שהוגדרו לו, אחרת השדות אינם
+  // קיימים בטופס ושמירה הייתה מאפסת ערך קיים לריק
+  if (featureOn('extraCerts')) EXTRA_CERTS.forEach(c => {
+    const el = document.getElementById('m-' + c.key);
+    if (el) v[c.key] = el.value.trim();
+  });
   if (editingPlate) {
     const idx = VEHICLES.findIndex(x=>x.plate===editingPlate);
     if (idx>=0) VEHICLES[idx] = { ...VEHICLES[idx], ...v };
@@ -9293,15 +9358,27 @@ function sysAllowed(name) { return SYS_ENABLED[name] !== false; }
 // העמודה, ובצי של נופר היא מיותרת. הנתון נשלף בסנכרון ממילא, ולכן
 // עדיף שלקוח יראה אותו בלי להיות תלוי בסימון ידני שלי. כיבוי ללקוח
 // מסוים נעשה בפאנל ונשמר שם כ-false מפורש.
-let FEATURES = { weight: true, drivers: false };
+let FEATURES = { weight: true, drivers: false, extraCerts: false, trafficMonths: 36, inspectionMonths: 0 };
 function featureOn(name) { return FEATURES[name] === true; }
 // עמודת הטבלה מוסתרת ב-CSS ולא נמחקת מה-DOM, כדי שמספר התאים בכותרת,
 // בשורת הסינון ובשורות יישאר זהה — טבלה שיוצאת מיישור היא באג שקט.
 function applyFeatureFlags() {
   document.body.classList.toggle('feat-no-weight', !featureOn('weight'));
   document.body.classList.toggle('feat-drivers', featureOn('drivers'));
+  document.body.classList.toggle('feat-certs', featureOn('extraCerts'));
   const row = document.getElementById('m-weight-row');
   if (row) row.style.display = featureOn('weight') ? '' : 'none';
+  // שדות האישורים נבנים פעם אחת מתוך EXTRA_CERTS
+  const cw = document.getElementById('m-certs-wrap');
+  if (cw) {
+    cw.style.display = featureOn('extraCerts') ? '' : 'none';
+    const box = document.getElementById('m-certs');
+    if (box && featureOn('extraCerts') && !box.children.length) {
+      box.innerHTML = EXTRA_CERTS.map(c =>
+        `<div class="modal-row"><label>${c.icon} ${esc(c.label)}</label>
+         <input id="m-${c.key}" type="text" placeholder="יי.חח.שש" inputmode="numeric" oninput="dateAutoMask(this)"></div>`).join('');
+    }
+  }
 }
 const TENANT_DATA = () => db.collection('tenants').doc(TENANT).collection('data');
 // Stage-2 cutover switch. OFF = legacy fleet/* . ON = per-tenant isolation (tenants/{tid}/data).
@@ -9321,7 +9398,7 @@ async function resolveTenant(user) {
     TENANT = 'nofar'; ROLE = 'manager'; COMPANY_NAME = 'נופר אנרגיה';
     SUB_ACTIVE = true; SUB_VALID_UNTIL = '';
     SYS_ENABLED = { fleet: true, shamai: true, garage: true };
-    FEATURES = { weight: false, drivers: false };   // הצי של נופר אינו צריך עמודת משקל ולא לשונית נהגים
+    FEATURES = { weight: false, drivers: false, extraCerts: false, trafficMonths: 36, inspectionMonths: 0 };   // נופר: בלי משקל, בלי נהגים, בלי אישורים נוספים
     return;
   }
   try {
@@ -9346,8 +9423,13 @@ async function resolveTenant(user) {
       // שלקוח לא יהיה תלוי בסימון ידני שלי כדי לראות נתון שכבר נשלף לו
       // drivers היא תוספת שמופעלת במפורש ללקוח שביקש אותה, ולכן ברירת
       // המחדל שלה כבויה — בניגוד ל-weight שכבוי רק בכיבוי מפורש.
-      FEATURES = { weight: (d.features || {}).weight !== false,
-                   drivers: (d.features || {}).drivers === true };
+      // trafficMonths/inspectionMonths: 0 או חסר = ברירת המחדל הרגילה
+      const _f = d.features || {};
+      FEATURES = { weight: _f.weight !== false,
+                   drivers: _f.drivers === true,
+                   extraCerts: _f.extraCerts === true,
+                   trafficMonths: parseInt(_f.trafficMonths) || 36,
+                   inspectionMonths: parseInt(_f.inspectionMonths) || 0 };
       return;
     }
     // אין עדיין רשומת users/{uid} — כלומר עוד לא הוקם ללקוח הזה חשבון
@@ -9356,14 +9438,14 @@ async function resolveTenant(user) {
     // מוסך — עד שתפתח אותם בעצמך בפאנל הניהול.
     TENANT = user.uid; COMPANY_NAME = ''; SUB_ACTIVE = true; SUB_VALID_UNTIL = '';
     SYS_ENABLED = { fleet: false, shamai: false, garage: false };
-    FEATURES = { weight: true, drivers: false };
+    FEATURES = { weight: true, drivers: false, extraCerts: false, trafficMonths: 36, inspectionMonths: 0 };
   } catch(e) {
     // On a read failure, preserve isolation — never default a stranger onto Nofar.
     // (הבעלים כבר טופל למעלה ואינו מגיע לכאן.)
     console.log('tenant resolve error', e);
     TENANT = user.uid;
     SYS_ENABLED = { fleet: false, shamai: false, garage: false };
-    FEATURES = { weight: true, drivers: false };
+    FEATURES = { weight: true, drivers: false, extraCerts: false, trafficMonths: 36, inspectionMonths: 0 };
   }
 }
 // Is this company's subscription currently valid? The owner (nofar) is never blocked.
@@ -11223,6 +11305,7 @@ function exportVehicleCard(rawPlate) {
     <tr><th>יצרן / דגם</th><td>${v.make||''} ${v.model||''}</td></tr>
     <tr><th>שנת ייצור</th><td>${v.year||'—'}</td></tr>
     <tr><th>קוד תוצר / קוד דגם</th><td>${govPad4(v.tozeretCd)||'—'} / ${govPad4(v.degemCd)||'—'}</td></tr>
+    ${featureOn('extraCerts') ? EXTRA_CERTS.map(c => `<tr><th>${c.icon} ${c.label}</th><td>${v[c.key] ? esc(v[c.key]) + ' · תוקף ' + certDueStr(v, c) : '—'}</td></tr>`).join('') : ''}
     ${featureOn('weight') ? `<tr><th>משקל כולל</th><td>${v.weight ? v.weight+' ק"ג' : '—'}</td></tr>` : ''}
     <tr><th>תוקף רישוי</th><td>${v.registrationExpiry||'—'}</td></tr>
     <tr><th>תוקף ביטוח</th><td>${v.insuranceExpiry||'—'}</td></tr>
@@ -12677,7 +12760,11 @@ async function adminLoadClient() {
     document.getElementById('adm-shamai').checked = !!sys.shamai;
     document.getElementById('adm-garage').checked = !!sys.garage;
     document.getElementById('adm-weight').checked = (d.features || {}).weight !== false;
-    document.getElementById('adm-drivers').checked = (d.features || {}).drivers === true;
+    const _af = d.features || {};
+    document.getElementById('adm-drivers').checked = _af.drivers === true;
+    document.getElementById('adm-certs').checked = _af.extraCerts === true;
+    document.getElementById('adm-trafficmonths').value = _af.trafficMonths || '';
+    document.getElementById('adm-inspmonths').value = _af.inspectionMonths || '';
     _admLoadedUid = uid;
     st.textContent = '✓ נטען'; st.style.color = '#86efac';
   } catch(e) { st.textContent = _admPermErr(e); st.style.color = '#fca5a5'; console.log('adminLoadClient', e); }
@@ -12710,7 +12797,11 @@ async function adminSaveClient() {
     },
     features: {
       weight: !!document.getElementById('adm-weight').checked,
-      drivers: !!document.getElementById('adm-drivers').checked
+      drivers: !!document.getElementById('adm-drivers').checked,
+      extraCerts: !!document.getElementById('adm-certs').checked,
+      // 0 נשמר כמשמעו "ברירת מחדל", ולכן ערך ריק או לא תקין הופך ל-0
+      trafficMonths: parseInt(document.getElementById('adm-trafficmonths').value) || 0,
+      inspectionMonths: parseInt(document.getElementById('adm-inspmonths').value) || 0
     }
   };
   st.textContent = 'שומר…'; st.style.color = '#94a3b8';
