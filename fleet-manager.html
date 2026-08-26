@@ -654,6 +654,50 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
   </div>
 </div>
 
+<!-- ══════════════ TAB: DRIVERS ══════════════ -->
+<!-- לשונית פר-לקוח (FEATURES.drivers). ספר הנהגים כבר קיים במערכת
+     כאובייקט DRIVERS שנבנה מהצי; כאן הוא מקבל מסך משלו, ואפשר להוסיף
+     נהג גם לפני שיש לו רכב. -->
+<div class="tab-content" id="tab-drivers">
+  <div class="section-hdr">
+    <div style="display:flex;align-items:center;gap:8px">
+      <span class="section-title">🧑‍✈️ נהגים</span>
+      <span class="count-badge" id="drivers-count">0</span>
+    </div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      <button class="btn btn-primary" style="padding:6px 14px;font-size:0.8rem" onclick="openDriverModal()">+ נהג חדש</button>
+      <button class="btn-export" onclick="exportSection('drivers')">📥 ייצוא Excel</button>
+    </div>
+  </div>
+  <input id="drivers-search" type="text" placeholder="🔍 חפש לפי שם, טלפון, מייל או רכב..." oninput="renderDrivers()"
+         style="width:100%;border:1.5px solid var(--border);border-radius:10px;padding:9px 12px;font-family:'Heebo',sans-serif;font-size:0.85rem;margin-bottom:10px;box-sizing:border-box">
+  <div class="tbl-wrap">
+    <table>
+      <thead id="drivers-thead">
+        <tr>
+          <th>שם הנהג</th>
+          <th>ת.ז</th>
+          <th>טלפון</th>
+          <th>מייל</th>
+          <th>מס׳ רישיון</th>
+          <th>תוקף רישיון</th>
+          <th>עבר תעבורתי</th>
+          <th>כתובת</th>
+          <th>רכבים</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="drivers-body"></tbody>
+    </table>
+  </div>
+  <div id="drivers-empty" style="display:none;text-align:center;padding:26px 18px;color:var(--muted)">
+    <div style="font-size:2.2rem;margin-bottom:8px">🧑‍✈️</div>
+    <div style="font-weight:800;color:var(--text);margin-bottom:4px">אין עדיין נהגים</div>
+    <div style="font-size:0.82rem">נהגים נוספים אוטומטית מהצי, ואפשר להוסיף נהג ידנית גם לפני שהוקצה לו רכב.</div>
+  </div>
+  <div style="height:20px"></div>
+</div>
+
 <!-- ══════════════ TAB: TASKS ══════════════ -->
 <div class="tab-content" id="tab-tasks">
   <div class="section-hdr">
@@ -893,7 +937,9 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
 .op-row:last-child{border-bottom:none}
 </style>
 
-<style>body.feat-no-weight .col-weight{display:none}</style>
+<style>body.feat-no-weight .col-weight{display:none}
+/* לשונית הנהגים מוצגת רק ללקוח שהופעלה אצלו */
+body:not(.feat-drivers) .feat-drivers-only{display:none!important}</style>
 <style id="systems-ux">
 /* סרגל המערכות — רצועה מתחת לכותרת. כל מערכת היא עולם עצמאי עם
    לשוניות משלה בסרגל התחתון. */
@@ -1284,6 +1330,7 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
   <button class="nav-btn nav-secondary" data-tab="returns" data-sys="fleet" type="button" role="tab" aria-selected="false" aria-controls="tab-returns" onclick="showTab('returns',this)"><span class="icon" aria-hidden="true">🔄</span>החזרות</button>
   <button class="nav-btn" data-tab="damage" data-sys="shamai" type="button" role="tab" aria-selected="false" aria-controls="tab-damage" onclick="showTab('damage',this)"><span class="icon" aria-hidden="true">📋</span>אומדן</button>
   <button class="nav-btn nav-secondary" data-tab="forms" data-sys="fleet" type="button" role="tab" aria-selected="false" aria-controls="tab-forms" onclick="showTab('forms',this)"><span class="icon" aria-hidden="true">📝</span>טפסים</button>
+  <button class="nav-btn nav-secondary feat-drivers-only" data-tab="drivers" data-sys="fleet" type="button" role="tab" aria-selected="false" aria-controls="tab-drivers" onclick="showTab('drivers',this)"><span class="icon" aria-hidden="true">🧑‍✈️</span>נהגים</button>
   <button class="nav-btn nav-secondary" data-tab="dashboard" data-sys="fleet" type="button" role="tab" aria-selected="false" aria-controls="tab-dashboard" onclick="showTab('dashboard',this)"><span class="icon" aria-hidden="true">📊</span>דשבורד</button>
   <button class="nav-btn" data-tab="opinion" data-sys="shamai" type="button" role="tab" aria-selected="false" aria-controls="tab-opinion" onclick="showTab('opinion',this)"><span class="icon" aria-hidden="true">📝</span>חוות דעת</button>
   <button class="nav-btn" data-tab="cases" data-sys="shamai" type="button" role="tab" aria-selected="false" aria-controls="tab-cases" style="position:relative" onclick="showTab('cases',this)"><span class="icon" aria-hidden="true">📊</span>מעקב<span id="cases-nav-badge" style="display:none;position:absolute;top:1px;left:5px;min-width:17px;height:17px;background:#dc2626;color:#fff;border-radius:999px;font-size:0.62rem;font-weight:800;line-height:17px;text-align:center;padding:0 4px;box-shadow:0 1px 4px rgba(0,0,0,.25)">0</span></button>
@@ -1457,6 +1504,9 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
             <div style="display:flex;gap:18px;margin-bottom:12px;flex-wrap:wrap;border-top:1px solid #334155;padding-top:10px">
               <label style="display:flex;align-items:center;gap:6px;cursor:pointer" title="עמודת משקל כולל בטבלת הצי, בכרטיס הרכב ובייצוא — ממולאת מהסנכרון מול משרד התחבורה">
                 <input id="adm-weight" type="checkbox" checked style="width:16px;height:16px"><span>⚖️ עמודת משקל כולל <span style="color:#94a3b8;font-weight:400">(דלוק כברירת מחדל)</span></span>
+              </label>
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer" title="לשונית נהגים נפרדת עם הוספה, עריכה וייצוא של ספר הנהגים">
+                <input id="adm-drivers" type="checkbox" style="width:16px;height:16px"><span>🧑‍✈️ לשונית נהגים <span style="color:#94a3b8;font-weight:400">(כבוי כברירת מחדל)</span></span>
               </label>
             </div>
             <div class="btn-row">
@@ -1649,6 +1699,36 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
       <button class="btn btn-green" onclick="applyVehicleDocDates()">✓ אשר ועדכן ברכב</button>
       <button class="btn btn-secondary" onclick="dismissVehicleDoc()">התעלם</button>
       <button class="btn btn-secondary" onclick="document.getElementById('vdoc-modal').classList.remove('open')">סגור</button>
+    </div>
+  </div>
+</div>
+
+<!-- הוספה/עריכה של נהג. רק שדות ששייכים לאדם — לא לרכב. -->
+<div class="modal-overlay" id="driver-modal">
+  <div class="modal">
+    <h3 id="dm-title">+ נהג חדש</h3>
+    <div class="modal-row"><label>שם מלא <span style="color:#dc2626">*</span></label><input id="dm-name" type="text" placeholder="ישראל ישראלי"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <div class="modal-row"><label>תעודת זהות</label><input id="dm-id" type="text" inputmode="numeric" style="direction:ltr" placeholder="000000000"></div>
+      <div class="modal-row"><label>טלפון נייד</label><input id="dm-phone" type="tel" inputmode="tel" style="direction:ltr" placeholder="050-0000000"></div>
+    </div>
+    <div class="modal-row"><label>אימייל <span style="font-weight:400;color:#94a3b8;font-size:0.7rem">— לשליחת מסמכים אישיים</span></label><input id="dm-email" type="email" style="direction:ltr" placeholder="name@company.co.il"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <div class="modal-row"><label>מס׳ רישיון נהיגה</label><input id="dm-licnum" type="text" inputmode="numeric" style="direction:ltr"></div>
+      <div class="modal-row"><label>תוקף רישיון נהיגה</label><input id="dm-licexp" type="text" placeholder="יי.חח.שש" inputmode="numeric" oninput="dateAutoMask(this)"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <div class="modal-row"><label>בדיקת עבר תעבורתי</label><input id="dm-traffic" type="text" placeholder="יי.חח.שש" inputmode="numeric" oninput="dateAutoMask(this)"></div>
+      <div class="modal-row"><label>שיוך <span style="font-weight:400;color:#94a3b8;font-size:0.7rem">— מחלקה/אגף</span></label><input id="dm-aff" type="text" placeholder="גינון / פיקוח / תברואה"></div>
+    </div>
+    <div class="modal-row"><label>כתובת</label><input id="dm-addr" type="text" placeholder="רחוב, מספר, עיר"></div>
+    <div class="modal-row"><label>הערות</label><textarea id="dm-notes" rows="2"></textarea></div>
+    <div id="dm-vehicles" style="font-size:0.76rem;color:var(--muted);margin-top:2px"></div>
+    <div id="dm-err" style="color:#dc2626;font-size:0.78rem;font-weight:700;min-height:16px;margin-top:4px"></div>
+    <div class="btn-row">
+      <button class="btn btn-green" onclick="saveDriver()">💾 שמור</button>
+      <button class="btn btn-secondary" onclick="document.getElementById('driver-modal').classList.remove('open')">ביטול</button>
+      <button class="btn" id="dm-del" style="background:#fee2e2;color:#b91c1c;display:none" onclick="deleteDriver()">🗑️ מחק</button>
     </div>
   </div>
 </div>
@@ -2378,6 +2458,108 @@ function rebuildDriversDirectory() {
     if (aff) DRIVERS[n].affiliation = aff;
   });
 }
+// ═══ לשונית נהגים (פר-לקוח, FEATURES.drivers) ═══
+// הרכבים שהנהג מחזיק כרגע, לפי שם מנורמל
+function driverVehicles(key) {
+  return VEHICLES.filter(v => driverKey(v.driverName) === key);
+}
+let _editingDriverKey = null;
+function openDriverModal(key) {
+  _editingDriverKey = key || null;
+  const d = (key && DRIVERS[key]) || {};
+  const val = (id, v) => { const el = document.getElementById(id); if (el) el.value = v || ''; };
+  document.getElementById('dm-title').textContent = key ? `עריכת נהג — ${key}` : '+ נהג חדש';
+  val('dm-name', key || ''); val('dm-id', d.driverId); val('dm-phone', d.driverPhone);
+  val('dm-email', d.driverEmail); val('dm-licnum', d.licNum); val('dm-licexp', d.licenseExpiry);
+  val('dm-traffic', d.trafficRecord); val('dm-aff', d.affiliation); val('dm-addr', d.address);
+  val('dm-notes', d.notes);
+  document.getElementById('dm-err').textContent = '';
+  document.getElementById('dm-del').style.display = key ? '' : 'none';
+  const vs = key ? driverVehicles(key) : [];
+  document.getElementById('dm-vehicles').textContent = key
+    ? (vs.length ? `רכבים משויכים: ${vs.map(v => v.plate).join(', ')}` : 'אין רכב משויך כרגע')
+    : '';
+  document.getElementById('driver-modal').classList.add('open');
+}
+async function saveDriver() {
+  const g = id => (document.getElementById(id).value || '').trim();
+  const err = document.getElementById('dm-err');
+  const name = driverKey(g('dm-name'));
+  if (!name) { err.textContent = 'נא להזין שם נהג'; return; }
+  // שינוי שם = מפתח חדש: מעבירים את הרשומה ומעדכנים את הרכבים, אחרת
+  // הנהג היה מופיע פעמיים — פעם תחת השם הישן ופעם תחת החדש.
+  if (_editingDriverKey && _editingDriverKey !== name) {
+    if (DRIVERS[name]) { err.textContent = 'כבר קיים נהג בשם הזה'; return; }
+    DRIVERS[name] = DRIVERS[_editingDriverKey] || {};
+    delete DRIVERS[_editingDriverKey];
+    const aff = g('dm-aff');
+    VEHICLES.forEach(v => { if (driverKey(v.driverName) === _editingDriverKey) v.driverName = withAffiliation(name, aff); });
+  } else if (!_editingDriverKey && DRIVERS[name]) {
+    err.textContent = 'כבר קיים נהג בשם הזה — פתח אותו לעריכה';
+    return;
+  }
+  DRIVERS[name] = Object.assign(DRIVERS[name] || {}, {
+    driverId: g('dm-id'), driverPhone: g('dm-phone'), driverEmail: g('dm-email'),
+    licNum: g('dm-licnum'), licenseExpiry: g('dm-licexp'), trafficRecord: g('dm-traffic'),
+    affiliation: g('dm-aff'), address: g('dm-addr'), notes: g('dm-notes')
+  });
+  syncDriverToVehicles(name);          // הערכים יורדים לרכבים שהנהג מחזיק
+  saveToFirestore('drivers', DRIVERS);
+  try { localStorage.setItem('fleet_vehicles', JSON.stringify(VEHICLES)); } catch(e) {}
+  saveToFirestore('vehicles', VEHICLES);
+  document.getElementById('driver-modal').classList.remove('open');
+  _editingDriverKey = null;
+  renderDrivers(); renderFleet();
+  toast('הנהג נשמר ✓');
+}
+function deleteDriver() {
+  if (!_editingDriverKey) return;
+  const vs = driverVehicles(_editingDriverKey);
+  if (vs.length && !confirm(`ל${_editingDriverKey} משויכים ${vs.length} רכבים (${vs.map(v=>v.plate).join(', ')}).\n\nמחיקת הנהג מספר הנהגים לא תמחק את הרכבים ולא תנתק אותם — השם יישאר עליהם.\n\nלמחוק בכל זאת?`)) return;
+  if (!vs.length && !confirm(`למחוק את ${_editingDriverKey} מספר הנהגים?`)) return;
+  delete DRIVERS[_editingDriverKey];
+  saveToFirestore('drivers', DRIVERS);
+  document.getElementById('driver-modal').classList.remove('open');
+  _editingDriverKey = null;
+  renderDrivers();
+  toast('הנהג נמחק');
+}
+function renderDrivers() {
+  const body = document.getElementById('drivers-body');
+  if (!body) return;
+  rebuildDriversDirectory();           // נהגים שקיימים בצי אך לא בספר
+  const q = (document.getElementById('drivers-search') || {}).value || '';
+  const term = q.trim().toLowerCase();
+  let keys = Object.keys(DRIVERS).sort((a, b) => a.localeCompare(b, 'he'));
+  if (term) {
+    keys = keys.filter(k => {
+      const d = DRIVERS[k] || {};
+      const hay = [k, d.driverId, d.driverPhone, d.driverEmail, d.licNum, d.address, d.affiliation,
+                   ...driverVehicles(k).map(v => v.plate)].join(' ').toLowerCase();
+      return hay.includes(term);
+    });
+  }
+  document.getElementById('drivers-count').textContent = keys.length;
+  document.getElementById('drivers-empty').style.display = keys.length ? 'none' : '';
+  document.querySelector('#tab-drivers .tbl-wrap').style.display = keys.length ? '' : 'none';
+  body.innerHTML = keys.map(k => {
+    const d = DRIVERS[k] || {};
+    const vs = driverVehicles(k);
+    const licDays = daysUntil(d.licenseExpiry);
+    return `<tr style="cursor:pointer" onclick="openDriverModal('${esc(k).replace(/'/g,"\\'")}')">
+      <td style="font-weight:700">${esc(k)}${d.affiliation ? `<br><span style="color:var(--muted);font-size:0.66rem">${esc(d.affiliation)}</span>` : ''}</td>
+      <td style="direction:ltr;font-size:0.73rem">${esc(d.driverId) || '—'}</td>
+      <td style="direction:ltr;font-size:0.73rem">${esc(d.driverPhone) || '—'}</td>
+      <td style="direction:ltr;font-size:0.7rem">${esc(d.driverEmail) || '—'}</td>
+      <td style="direction:ltr;font-size:0.73rem">${esc(d.licNum) || '—'}</td>
+      <td>${alertCatOn('license') ? statusBadge(licDays) + '<br>' : ''}<span style="color:var(--muted);font-size:0.66rem">${esc(d.licenseExpiry) || '—'}</span></td>
+      <td style="font-size:0.73rem">${esc(d.trafficRecord) || '—'}</td>
+      <td style="font-size:0.72rem">${esc(d.address) || '—'}</td>
+      <td style="font-size:0.72rem;direction:ltr">${vs.length ? vs.map(v => esc(v.plate)).join('<br>') : '—'}</td>
+      <td><button class="btn btn-gray" style="padding:3px 9px;font-size:0.7rem" onclick="event.stopPropagation();openDriverModal('${esc(k).replace(/'/g,"\\'")}')">✏️</button></td>
+    </tr>`;
+  }).join('');
+}
 // push a driver's known values onto every vehicle that driver holds
 function syncDriverToVehicles(n) {
   const d = DRIVERS[n]; if (!d) return;
@@ -2851,6 +3033,7 @@ function showTab(name, btn) {
   if (name==='returns') renderReturns();
   if (name==='forms') renderFormsTab();
   if (name==='dashboard') renderManagerDashboard();
+  if (name==='drivers') renderDrivers();
   if (typeof updateMascotForTab === 'function') updateMascotForTab(name);
 }
 
@@ -7250,6 +7433,14 @@ function exportSection(section) {
   } else if (section === 'returns') {
     headers = ['עובד','רישוי רכב','יצרן','דגם','מתאריך','עד תאריך','סיבת החזרה','הערות'];
     rows = RETURNS.map(r => [r.employee,r.plate,r.make,r.model,r.fromDate,r.toDate,r.reason,r.notes]);
+  } else if (section === 'drivers') {
+    headers = ['שם הנהג','שיוך','ת.ז','טלפון','מייל','מס׳ רישיון','תוקף רישיון','עבר תעבורתי','כתובת','רכבים','הערות'];
+    rows = Object.keys(DRIVERS).sort((a,b)=>a.localeCompare(b,'he')).map(k => {
+      const d = DRIVERS[k] || {};
+      return [k, d.affiliation||'', d.driverId||'', d.driverPhone||'', d.driverEmail||'',
+              d.licNum||'', d.licenseExpiry||'', d.trafficRecord||'', d.address||'',
+              driverVehicles(k).map(v=>v.plate).join(', '), d.notes||''];
+    });
   }
   // במקום להוריד מיד — פותחים חלון בחירת עמודות
   window._exportCtx = { section, headers, rows };
@@ -8989,12 +9180,13 @@ function sysAllowed(name) { return SYS_ENABLED[name] !== false; }
 // העמודה, ובצי של נופר היא מיותרת. הנתון נשלף בסנכרון ממילא, ולכן
 // עדיף שלקוח יראה אותו בלי להיות תלוי בסימון ידני שלי. כיבוי ללקוח
 // מסוים נעשה בפאנל ונשמר שם כ-false מפורש.
-let FEATURES = { weight: true };
+let FEATURES = { weight: true, drivers: false };
 function featureOn(name) { return FEATURES[name] === true; }
 // עמודת הטבלה מוסתרת ב-CSS ולא נמחקת מה-DOM, כדי שמספר התאים בכותרת,
 // בשורת הסינון ובשורות יישאר זהה — טבלה שיוצאת מיישור היא באג שקט.
 function applyFeatureFlags() {
   document.body.classList.toggle('feat-no-weight', !featureOn('weight'));
+  document.body.classList.toggle('feat-drivers', featureOn('drivers'));
   const row = document.getElementById('m-weight-row');
   if (row) row.style.display = featureOn('weight') ? '' : 'none';
 }
@@ -9016,7 +9208,7 @@ async function resolveTenant(user) {
     TENANT = 'nofar'; ROLE = 'manager'; COMPANY_NAME = 'נופר אנרגיה';
     SUB_ACTIVE = true; SUB_VALID_UNTIL = '';
     SYS_ENABLED = { fleet: true, shamai: true, garage: true };
-    FEATURES = { weight: false };   // הצי של נופר אינו צריך עמודת משקל
+    FEATURES = { weight: false, drivers: false };   // הצי של נופר אינו צריך עמודת משקל ולא לשונית נהגים
     return;
   }
   try {
@@ -9039,7 +9231,10 @@ async function resolveTenant(user) {
       }
       // שדה חסר = דלוק. רק כיבוי מפורש בפאנל מוריד את העמודה, כדי
       // שלקוח לא יהיה תלוי בסימון ידני שלי כדי לראות נתון שכבר נשלף לו
-      FEATURES = { weight: (d.features || {}).weight !== false };
+      // drivers היא תוספת שמופעלת במפורש ללקוח שביקש אותה, ולכן ברירת
+      // המחדל שלה כבויה — בניגוד ל-weight שכבוי רק בכיבוי מפורש.
+      FEATURES = { weight: (d.features || {}).weight !== false,
+                   drivers: (d.features || {}).drivers === true };
       return;
     }
     // אין עדיין רשומת users/{uid} — כלומר עוד לא הוקם ללקוח הזה חשבון
@@ -9048,14 +9243,14 @@ async function resolveTenant(user) {
     // מוסך — עד שתפתח אותם בעצמך בפאנל הניהול.
     TENANT = user.uid; COMPANY_NAME = ''; SUB_ACTIVE = true; SUB_VALID_UNTIL = '';
     SYS_ENABLED = { fleet: false, shamai: false, garage: false };
-    FEATURES = { weight: true };
+    FEATURES = { weight: true, drivers: false };
   } catch(e) {
     // On a read failure, preserve isolation — never default a stranger onto Nofar.
     // (הבעלים כבר טופל למעלה ואינו מגיע לכאן.)
     console.log('tenant resolve error', e);
     TENANT = user.uid;
     SYS_ENABLED = { fleet: false, shamai: false, garage: false };
-    FEATURES = { weight: true };
+    FEATURES = { weight: true, drivers: false };
   }
 }
 // Is this company's subscription currently valid? The owner (nofar) is never blocked.
@@ -12338,6 +12533,7 @@ async function adminLoadClient() {
     document.getElementById('adm-shamai').checked = !!sys.shamai;
     document.getElementById('adm-garage').checked = !!sys.garage;
     document.getElementById('adm-weight').checked = (d.features || {}).weight !== false;
+    document.getElementById('adm-drivers').checked = (d.features || {}).drivers === true;
     _admLoadedUid = uid;
     st.textContent = '✓ נטען'; st.style.color = '#86efac';
   } catch(e) { st.textContent = _admPermErr(e); st.style.color = '#fca5a5'; console.log('adminLoadClient', e); }
@@ -12369,7 +12565,8 @@ async function adminSaveClient() {
       garage: !!document.getElementById('adm-garage').checked
     },
     features: {
-      weight: !!document.getElementById('adm-weight').checked
+      weight: !!document.getElementById('adm-weight').checked,
+      drivers: !!document.getElementById('adm-drivers').checked
     }
   };
   st.textContent = 'שומר…'; st.style.color = '#94a3b8';
