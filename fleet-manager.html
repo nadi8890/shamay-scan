@@ -399,6 +399,10 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
 
 <header>
   <div style="display:flex;align-items:center;gap:10px">
+    <span id="presence-lamp" title="" onclick="presenceInfo()" style="display:none;align-items:center;gap:5px;background:rgba(255,255,255,.16);padding:3px 10px;border-radius:999px;cursor:pointer;white-space:nowrap;font-size:0.72rem;font-weight:800;color:#fff">
+      <span id="presence-dot" style="width:9px;height:9px;border-radius:50%;background:#22c55e;box-shadow:0 0 6px rgba(34,197,94,.9)"></span>
+      <span id="presence-text"></span>
+    </span>
     <span id="company-badge" style="color:#fff;font-size:0.78rem;font-weight:800;white-space:nowrap;background:rgba(255,255,255,.16);padding:3px 10px;border-radius:999px"></span>
     <span id="header-clock" style="color:#fff;font-size:0.8rem;font-weight:600;white-space:nowrap;opacity:.9"></span>
     <span id="tenant-status" style="display:none"></span>
@@ -533,6 +537,10 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
     </div>
   </div>
   <!-- בורר עמודות. הבחירה נשמרת מקומית למכשיר — זו העדפת תצוגה, לא נתון. -->
+  <div id="filter-active-bar" style="display:none;margin-bottom:8px;padding:7px 12px;border:1.5px solid #fbbf24;background:#fffbeb;color:#78350f;border-radius:10px;font-size:0.78rem;font-weight:700;align-items:center;gap:10px;flex-wrap:wrap">
+    <span id="filter-active-text"></span>
+    <button class="btn btn-gray" style="padding:3px 10px;font-size:0.72rem;margin-inline-start:auto" onclick="clearFleetColFilters()">נקה סינון</button>
+  </div>
   <div id="col-picker" style="display:none;margin-bottom:8px;padding:11px 13px;border:1.5px solid var(--border);background:var(--card);border-radius:12px">
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:9px;flex-wrap:wrap">
       <span style="font-weight:800;font-size:0.82rem">🧩 עמודות להצגה</span>
@@ -688,6 +696,10 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
   </div>
   <input id="drivers-search" type="text" placeholder="🔍 חפש לפי שם, טלפון, מייל או רכב..." oninput="renderDrivers()"
          style="width:100%;border:1.5px solid var(--border);border-radius:10px;padding:9px 12px;font-family:'Heebo',sans-serif;font-size:0.85rem;margin-bottom:10px;box-sizing:border-box">
+  <div id="drv-filter-active" style="display:none;margin-bottom:8px;padding:7px 12px;border:1.5px solid #fbbf24;background:#fffbeb;color:#78350f;border-radius:10px;font-size:0.78rem;font-weight:700;align-items:center;gap:10px;flex-wrap:wrap">
+    <span id="drv-filter-active-text"></span>
+    <button class="btn btn-gray" style="padding:3px 10px;font-size:0.72rem;margin-inline-start:auto" onclick="clearDrvFilters()">נקה סינון</button>
+  </div>
   <div id="drv-col-picker" style="display:none;margin-bottom:8px;padding:11px 13px;border:1.5px solid var(--border);background:var(--card);border-radius:12px">
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:9px;flex-wrap:wrap">
       <span style="font-weight:800;font-size:0.82rem">🧩 עמודות להצגה</span>
@@ -2664,6 +2676,13 @@ function renderDrivers() {
     el.style.color = drvSort.col === c ? '#2563eb' : '#94a3b8';
   });
   document.getElementById('drivers-count').textContent = keys.length;
+  const _dc = drvFilterCount();
+  const _db = document.getElementById('drv-filter-active');
+  if (_db) {
+    _db.style.display = _dc ? 'flex' : 'none';
+    const _dt = document.getElementById('drv-filter-active-text');
+    if (_dt) _dt.textContent = `🔎 סינון עמודות פעיל (${_dc}) — מוצגים ${keys.length} מתוך ${totalDrivers} נהגים`;
+  }
   // מסך "אין נהגים" רק כשבאמת אין אף נהג. כשסינון צמצם לאפס הטבלה
   // נשארת — אחרת שורת הסינון הייתה נעלמת יחד איתה ואי אפשר היה לנקות.
   document.getElementById('drivers-empty').style.display = totalDrivers ? 'none' : '';
@@ -2704,6 +2723,7 @@ function renderDrivers() {
 // ניקוי כל שדות הסינון והחיפוש בבת אחת
 function clearDrvFilters() {
   Object.keys(drvColFilters).forEach(k => drvColFilters[k] = '');
+  _saveDrvColFilters();
   const row = document.getElementById('drv-filter-row');
   if (row) row.querySelectorAll('.col-filter-inp').forEach(i => i.value = '');
   const s = document.getElementById('drivers-search'); if (s) s.value = '';
@@ -4024,14 +4044,39 @@ function renderDashboard() {
 // ── FLEET SORT/FILTER ──
 let fleetSort = { col: null, dir: 1 };
 let fleetColFilters = { plate:'', make:'', tozeretCd:'', degemCd:'', weight:'', driver:'', company:'', reg:'', ins:'', lic:'', km:'', insp:'', traffic:'', proc:'', from:'' };
+// הסינון נשמר בין רענונים. מאחר שהוא שורד, חייב להיות חיווי ברור שהוא
+// פעיל — אחרת טבלה מסוננת נראית כמו טבלה שנעלמו ממנה שורות.
+try {
+  const _sf = JSON.parse(localStorage.getItem('fleet_colFilters') || 'null');
+  if (_sf) Object.keys(fleetColFilters).forEach(k => { if (typeof _sf[k] === 'string') fleetColFilters[k] = _sf[k]; });
+} catch(e) {}
+function _saveColFilters() {
+  try { localStorage.setItem('fleet_colFilters', JSON.stringify(fleetColFilters)); } catch(e) {}
+}
+function fleetFilterCount() { return Object.values(fleetColFilters).filter(v => String(v || '').trim()).length; }
+function clearFleetColFilters() {
+  Object.keys(fleetColFilters).forEach(k => fleetColFilters[k] = '');
+  const row = document.getElementById('col-filter-row');
+  if (row) row.querySelectorAll('.col-filter-inp').forEach(i => i.value = '');
+  _saveColFilters();
+  renderFleet();
+}
 let incColFilters  = { plate:'', driver:'', date:'', insurance:'', reportNum:'', damage:'', notes:'' };
 let replColFilters = { employee:'', plate:'', typeCompany:'', fromDate:'', toDate:'', notes:'' };
 let retColFilters  = { employee:'', plate:'', make:'', fromDate:'', toDate:'', reason:'', notes:'' };
 let violColFilters = { reportNum:'', date:'', offense:'', driver:'', plate:'', points:'', fine:'', status:'' };
 let invColFilters  = { plate:'', garage:'', date:'', workType:'', driver:'' };
 let drvColFilters  = { name:'', id:'', phone:'', email:'', licNum:'', licExp:'', traffic:'', address:'', plates:'' };
+try {
+  const _sd = JSON.parse(localStorage.getItem('fleet_drvColFilters') || 'null');
+  if (_sd) Object.keys(drvColFilters).forEach(k => { if (typeof _sd[k] === 'string') drvColFilters[k] = _sd[k]; });
+} catch(e) {}
+function _saveDrvColFilters() {
+  try { localStorage.setItem('fleet_drvColFilters', JSON.stringify(drvColFilters)); } catch(e) {}
+}
+function drvFilterCount() { return Object.values(drvColFilters).filter(v => String(v || '').trim()).length; }
 let drvSort = { col:'name', dir:1 };
-function setDrvColFilter(col, val) { drvColFilters[col] = val; renderDrivers(); }
+function setDrvColFilter(col, val) { drvColFilters[col] = val; _saveDrvColFilters(); renderDrivers(); }
 function sortDrvCol(col) {
   if (drvSort.col === col) drvSort.dir *= -1;
   else { drvSort.col = col; drvSort.dir = 1; }
@@ -4104,6 +4149,7 @@ function sortFleetCol(col) {
 }
 function setColFilter(col, val) {
   fleetColFilters[col] = val;
+  _saveColFilters();
   renderFleet();
 }
 // ═══ בורר עמודות לטבלת הצי ═══
@@ -4324,6 +4370,15 @@ function renderFleet() {
   // שהוסתרו אינן רכבים, ולספור אותן היה נראה כאילו חסרות שורות.
   const _fleetTotal = featureOn('drivers') ? VEHICLES.filter(v => !v.noVehicle).length : VEHICLES.length;
   document.getElementById('fleet-count').textContent = `מציג ${filtered.length} מתוך ${_fleetTotal} רכבים`;
+  // סינון עמודות נשמר בין רענונים, ולכן חייב חיווי — אחרת טבלה מסוננת
+  // נראית כמו טבלה שנעלמו ממנה רכבים.
+  const _fc = fleetFilterCount();
+  const _fb = document.getElementById('filter-active-bar');
+  if (_fb) {
+    _fb.style.display = _fc ? 'flex' : 'none';
+    const _ft = document.getElementById('filter-active-text');
+    if (_ft) _ft.textContent = `🔎 סינון עמודות פעיל (${_fc}) — מוצגים ${filtered.length} מתוך ${_fleetTotal} רכבים`;
+  }
 
   const tbody = document.getElementById('fleet-body');
   renderFleetCards(filtered);          // תצוגת הנייד — מוסתרת ב-CSS בדסקטופ
@@ -9683,8 +9738,9 @@ async function claimSession(user) {
     const cur = snap.exists ? (snap.data() || {}) : null;
     const held = cur && cur.sessionId && cur.sessionId !== SESSION_ID
                  && (Date.now() - (cur.at || 0)) < SESSION_STALE_MS;
-    if (held) { enterReadOnly(cur); watchForRelease(); return true; }
+    if (held) { enterReadOnly(cur); setPresence(false, cur); watchForRelease(); return true; }
     await _writeSession(user.uid);
+    setPresence(true);
   } catch(e) {
     // כשל קריאה/כתיבה לא יוריד אף אחד למצב צפייה — עדיף לפספס אכיפה
     // מאשר לשתק לקוח משלם בגלל תקלת רשת או כלל הרשאות חסר.
@@ -9694,6 +9750,38 @@ async function claimSession(user) {
   startSessionBeat();
   return true;
 }
+// ── נורת נוכחות ──
+// ירוק = הסשן הפעיל הוא שלי. אדום = מישהו אחר מחזיק בעריכה כרגע.
+// מוצגת רק אצל לקוח שנעילת המכשיר דלוקה אצלו; אצל הבעלים ובלי התכונה
+// אין מה להציג, כי אין נעילה בכלל.
+let _presenceOther = null;
+function setPresence(mine, other) {
+  const lamp = document.getElementById('presence-lamp');
+  if (!lamp) return;
+  if (!featureOn('singleSession') || TENANT === 'nofar') { lamp.style.display = 'none'; return; }
+  _presenceOther = mine ? null : (other || {});
+  const dot = document.getElementById('presence-dot');
+  const txt = document.getElementById('presence-text');
+  lamp.style.display = 'inline-flex';
+  if (mine) {
+    dot.style.background = '#22c55e';
+    dot.style.boxShadow = '0 0 6px rgba(34,197,94,.9)';
+    txt.textContent = 'אתה מחובר';
+    lamp.title = 'הסשן הפעיל הוא שלך — אפשר לערוך';
+  } else {
+    dot.style.background = '#ef4444';
+    dot.style.boxShadow = '0 0 6px rgba(239,68,68,.9)';
+    txt.textContent = 'מחובר גם ' + ((other && other.device) || 'מכשיר אחר');
+    lamp.title = 'מישהו אחר מחזיק בעריכה כרגע — לחץ לפרטים';
+  }
+}
+function presenceInfo() {
+  if (!_presenceOther) { toast('אתה המחובר הפעיל — אפשר לערוך ✓'); return; }
+  const o = _presenceOther;
+  const when = o.at ? new Date(o.at).toLocaleTimeString('he-IL') : '';
+  toast(`מחובר כעת: ${o.device || 'מכשיר אחר'}${when ? ' · נראה לאחרונה ' + when : ''}`, true);
+}
+
 // ── מצב צפייה בלבד ──
 let READ_ONLY = false;
 let _roToastAt = 0;
@@ -9745,7 +9833,7 @@ function watchForRelease() {
       if (held) return;
       clearInterval(_roWatch); _roWatch = null;
       await _writeSession(_sessionUid);
-      exitReadOnly(); startSessionBeat();
+      exitReadOnly(); setPresence(true); startSessionBeat();
       toast('המכשיר השני נסגר — אפשר לערוך שוב ✓');
     } catch(e) {}
   }, 20000);
@@ -9760,7 +9848,7 @@ function startSessionBeat() {
   try {
     _sessionUnsub = _sessionDoc(_sessionUid).onSnapshot(s => {
       const d = s.exists ? (s.data() || {}) : null;
-      if (d && d.sessionId && d.sessionId !== SESSION_ID) { stopSessionBeat(); showSessionTakenOver(d); }
+      if (d && d.sessionId && d.sessionId !== SESSION_ID) { stopSessionBeat(); setPresence(false, d); showSessionTakenOver(d); }
     }, () => {});
   } catch(e) {}
 }
@@ -9825,6 +9913,7 @@ async function takeoverSession() {
   const el = document.getElementById('session-gate'); if (el) el.style.display = 'none';
   if (_roWatch) { clearInterval(_roWatch); _roWatch = null; }
   exitReadOnly();
+  setPresence(true);
   startSessionBeat();
 }
 
@@ -9962,7 +10051,7 @@ function wipeSeedData() {
   ['fleet_vehicles','fleet_incidents','fleet_violations','fleet_replacements','fleet_returns',
    'fleet_tasks','fleet_mailSettings','fleet_invoices',
    'fleet_contacts','fleet_officerInfo','fleet_reminders_shown','fleet_vehicles_version',
-   'fleet_show_missing','fleet_rem_notif','fleet_alertCatsOff','fleet_hiddenCols','fleet_drvHiddenCols'].forEach(k => localStorage.removeItem(k));
+   'fleet_show_missing','fleet_rem_notif','fleet_alertCatsOff','fleet_hiddenCols','fleet_drvHiddenCols','fleet_colFilters','fleet_drvColFilters'].forEach(k => localStorage.removeItem(k));
 }
 function guardTenantCache() {
   // For ANY tenant other than the primary (nofar), clear the seed literals on EVERY load —
