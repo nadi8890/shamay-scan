@@ -2945,8 +2945,21 @@ async function saveVehiclesSafely(editedPlate, dk, origPlate) {
 // Remove one vehicle from the fleet. Same read-modify-write as saveVehiclesSafely,
 // so it can only ever drop the requested plate — never other vehicles' data.
 // The daily backup keeps a restore point in case of a mistaken delete.
-async function deleteVehicleRow(plate) {
-  const v = VEHICLES.find(x => x.plate === plate);
+// זיהוי השורה למחיקה. השוואת רישוי מדויקת לבדה נכשלה על שורות שבהן
+// הרישוי בענן שונה במקף/רווח מזה שבזיכרון, או שאין בו ספרות כלל —
+// ואז המחיקה "לא תפסה" והשורה חזרה בכל רענון. לכן: התאמה
+// מדויקת, אחריה לפי ספרות בלבד, ולבסוף לפי id.
+function _sameVehicle(x, plate, id) {
+  if (id !== null && id !== undefined && x.id !== undefined && x.id === id) return true;
+  const a = String(x.plate == null ? '' : x.plate).trim();
+  const b = String(plate == null ? '' : plate).trim();
+  if (a && b && a === b) return true;
+  const da = a.replace(/\D/g, ''), dbb = b.replace(/\D/g, '');
+  return !!(da && dbb && da === dbb);
+}
+async function deleteVehicleRow(plate, id) {
+  if (id === undefined) id = null;
+  const v = VEHICLES.find(x => _sameVehicle(x, plate, id));
   const who = v ? (v.driverName || '').split('-')[0].trim() : '';
   if (!confirm(`למחוק את רכב ${plate}${who ? ' — ' + who : ''} מהצי?\n\nהרכב יוסר מהרשימה. ניתן לשחזר מהגיבוי היומי.`)) return;
   if (!auth.currentUser) { toast('⚠ לא מחובר — התחבר מחדש כדי למחוק', true); return; }
@@ -2954,11 +2967,17 @@ async function deleteVehicleRow(plate) {
     const snap = await fcol().doc('main').get();
     let cloud = (snap.data() || {}).vehicles;
     if (!Array.isArray(cloud)) cloud = VEHICLES.slice();
-    const next = cloud.filter(x => x.plate !== plate);
-    if (next.length === cloud.length) { toast('הרכב לא נמצא בענן', true); return; }
+    let next = cloud.filter(x => !_sameVehicle(x, plate, id));
+    if (next.length === cloud.length) {
+      // לא נמצא בענן אבל כן קיים מקומית — לא נעצרים, אחרת השורה
+      // נשארת תקועה על המסך לנצח. מוחקים מקומית וכותבים את המערך.
+      if (!v) { toast('הרכב לא נמצא', true); return; }
+      next = VEHICLES.filter(x => !_sameVehicle(x, plate, id));
+      if (next.length === VEHICLES.length) { toast('הרכב לא נמצא', true); return; }
+    }
     // Snapshot the vehicle BEFORE removing it. The daily backup only runs once a
     // day, so a vehicle added and deleted the same day would otherwise be lost.
-    const gone = cloud.find(x => x.plate === plate);
+    const gone = cloud.find(x => _sameVehicle(x, plate, id)) || v;
     if (gone) {
       try {
         await fcol().doc('trash_' + Date.now()).set({
@@ -4441,7 +4460,7 @@ function renderFleet() {
           <button class="btn btn-gray" style="padding:3px 8px;font-size:0.7rem" title="שלח טפסי קבלת רכב לנהג" onclick="event.stopPropagation();openDeclShare('${esc(v.plate)}')">📨</button>
           <button class="btn btn-gray" style="padding:3px 8px;font-size:0.7rem" title="כל המסמכים של העובד" onclick="event.stopPropagation();openEmployeeDocs('${esc(v.plate)}')">📁</button>
           <button class="btn btn-gray" style="padding:3px 8px;font-size:0.7rem" title="אישור החזקה ברכב לעירייה — מילוי אוטומטי + עריכה → PDF" onclick="event.stopPropagation();openCityPermit('${esc(v.plate)}')">🏛️</button>
-          <button class="btn btn-gray" style="padding:3px 8px;font-size:0.7rem" title="מחק רכב מהצי" onclick="event.stopPropagation();deleteVehicleRow('${esc(v.plate)}')">🗑️</button>
+          <button class="btn btn-gray" style="padding:3px 8px;font-size:0.7rem" title="מחק רכב מהצי" onclick="event.stopPropagation();deleteVehicleRow('${esc(v.plate)}',${JSON.stringify(v.id === undefined ? null : v.id)})">🗑️</button>
         </div>
       </td>
     </tr>`;
