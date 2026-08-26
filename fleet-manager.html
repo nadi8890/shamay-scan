@@ -2466,7 +2466,9 @@ function rebuildDriversDirectory() {
 // ═══ לשונית נהגים (פר-לקוח, FEATURES.drivers) ═══
 // הרכבים שהנהג מחזיק כרגע, לפי שם מנורמל
 function driverVehicles(key) {
-  return VEHICLES.filter(v => driverKey(v.driverName) === key);
+  // רשומת "ללא רכב" נושאת מפתח פנימי (emp_...) ולא מספר רישוי, ולכן
+  // היא אינה נחשבת רכב משויך — אחרת המפתח היה מוצג כאילו הוא רישוי.
+  return VEHICLES.filter(v => !v.noVehicle && driverKey(v.driverName) === key);
 }
 let _editingDriverKey = null;
 function openDriverModal(key) {
@@ -4015,6 +4017,10 @@ function renderFleet() {
   const ent = (document.getElementById('fleet-entity')||{}).value || '';
 
   let filtered = VEHICLES.filter(v => {
+    // עובד שנרשם בלי רכב ישב עד כה כשורה בטבלת הצי, כי לא היה לו מקום
+    // אחר. אצל לקוח שיש לו לשונית נהגים המקום הזה קיים, ולכן הוא לא
+    // מופיע כאן — טבלת הצי מציגה רכבים בלבד. הרשומה עצמה לא נמחקת.
+    if (featureOn('drivers') && v.noVehicle) return false;
     if (q) {
       const hay = [v.plate,v.make,v.model,v.driverName,v.company].join(' ').toLowerCase();
       if (!hay.includes(q)) return false;
@@ -4083,7 +4089,10 @@ function renderFleet() {
   buildColFilterRow(VEHICLES);
   updateSortArrows();
   updateOnboarding();
-  document.getElementById('fleet-count').textContent = `מציג ${filtered.length} מתוך ${VEHICLES.length} רכבים`;
+  // הסך הכולל סופר רק את מה שהטבלה אמורה להציג — רשומות "ללא רכב"
+  // שהוסתרו אינן רכבים, ולספור אותן היה נראה כאילו חסרות שורות.
+  const _fleetTotal = featureOn('drivers') ? VEHICLES.filter(v => !v.noVehicle).length : VEHICLES.length;
+  document.getElementById('fleet-count').textContent = `מציג ${filtered.length} מתוך ${_fleetTotal} רכבים`;
 
   const tbody = document.getElementById('fleet-body');
   renderFleetCards(filtered);          // תצוגת הנייד — מוסתרת ב-CSS בדסקטופ
