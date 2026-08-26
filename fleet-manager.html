@@ -375,14 +375,18 @@ body.tbl-busy .agent-fab,body.tbl-busy #mascot{opacity:.18;pointer-events:none;t
     <div style="font-size:2.4rem">🚗</div>
     <div style="font-size:1.3rem;font-weight:900;color:#1e3a8a;margin-top:4px"><span style="color:#059669">ר.מ</span>זור</div>
     <div id="lg-subtitle" style="font-size:0.8rem;color:#64748b;margin-bottom:20px">מערכת ניהול צי רכב · כניסת מנהל</div>
-    <input id="lg-company" type="text" placeholder="שם החברה" style="display:none;width:100%;border:1.5px solid #dde3ed;border-radius:10px;padding:12px;font-family:'Heebo',sans-serif;font-size:0.95rem;margin-bottom:9px;text-align:right">
-    <input id="lg-email" type="email" placeholder="אימייל" autocomplete="username" style="width:100%;border:1.5px solid #dde3ed;border-radius:10px;padding:12px;font-family:'Heebo',sans-serif;font-size:0.95rem;margin-bottom:9px;direction:ltr;text-align:right">
+    <!-- שדות ההתחברות עטופים ב-form: בלי זה מנהל הסיסמאות של הדפדפן
+         אינו מציע לשמור, ולכן היה צריך להקליד בכל פעם מחדש. -->
+    <form id="lg-form" onsubmit="event.preventDefault(); _authMode==='signup' ? doSignup() : doLogin(); return false;">
+    <input id="lg-company" type="text" name="organization" autocomplete="organization" placeholder="שם החברה" style="display:none;width:100%;border:1.5px solid #dde3ed;border-radius:10px;padding:12px;font-family:'Heebo',sans-serif;font-size:0.95rem;margin-bottom:9px;text-align:right">
+    <input id="lg-email" type="email" name="username" placeholder="אימייל" autocomplete="username" style="width:100%;border:1.5px solid #dde3ed;border-radius:10px;padding:12px;font-family:'Heebo',sans-serif;font-size:0.95rem;margin-bottom:9px;direction:ltr;text-align:right">
     <div style="position:relative;margin-bottom:9px">
-      <input id="lg-pass" type="password" placeholder="סיסמה" autocomplete="current-password" style="width:100%;border:1.5px solid #dde3ed;border-radius:10px;padding:12px 12px 12px 40px;font-family:'Heebo',sans-serif;font-size:0.95rem;direction:ltr;text-align:right;box-sizing:border-box" onkeydown="if(event.key==='Enter'){ _authMode==='signup' ? doSignup() : doLogin(); }">
+      <input id="lg-pass" type="password" name="password" placeholder="סיסמה" autocomplete="current-password" style="width:100%;border:1.5px solid #dde3ed;border-radius:10px;padding:12px 12px 12px 40px;font-family:'Heebo',sans-serif;font-size:0.95rem;direction:ltr;text-align:right;box-sizing:border-box" onkeydown="if(event.key==='Enter'){ _authMode==='signup' ? doSignup() : doLogin(); }">
       <button type="button" onclick="_toggleLgPass(this)" title="הצג/הסתר סיסמה" style="position:absolute;left:8px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:1.15rem;color:#64748b;padding:4px;line-height:1">👁️</button>
     </div>
     <div id="lg-err" style="color:#dc2626;font-size:0.8rem;font-weight:700;min-height:18px;margin-bottom:6px"></div>
-    <button id="lg-btn" onclick="doLogin()" style="width:100%;background:linear-gradient(135deg,#2563eb,#4f46e5);color:#fff;border:none;border-radius:11px;padding:13px;font-family:'Heebo',sans-serif;font-size:1rem;font-weight:800;cursor:pointer">התחברות</button>
+    <button id="lg-btn" type="submit" style="width:100%;background:linear-gradient(135deg,#2563eb,#4f46e5);color:#fff;border:none;border-radius:11px;padding:13px;font-family:'Heebo',sans-serif;font-size:1rem;font-weight:800;cursor:pointer">התחברות</button>
+    </form>
     <div style="margin-top:12px;display:flex;justify-content:space-between;font-size:0.75rem">
       <a href="#" id="lg-toggle" onclick="toggleAuthMode();return false" style="color:#2563eb;text-decoration:underline;font-weight:700;display:none">➕ פתיחת חשבון לחברה חדשה</a>
       <a href="#" onclick="doReset();return false" style="color:#64748b;text-decoration:underline">שכחתי סיסמה</a>
@@ -2634,6 +2638,7 @@ function renderDrivers() {
   rebuildDriversDirectory();           // נהגים שקיימים בצי אך לא בספר
   buildDrvColFilterRow();
   applyDrvColVisibility();
+  scheduleFit();
   const q = (document.getElementById('drivers-search') || {}).value || '';
   const term = q.trim().toLowerCase();
   // ערך כל עמודה במקום אחד — משמש גם לסינון, גם למיון וגם לחיפוש החופשי
@@ -4204,6 +4209,30 @@ function setColFilter(col, val) {
   }, { passive: true, capture: true });
 })();
 
+// גובה הטבלה חושב עד כה כ-calc(100vh - 200px) — הקצאה קבועה לכל מה
+// שמעליה. משהוספו פסים (סינון פעיל, בורר עמודות, באנר סנכרון) התוכן
+// שמעל גדל, 200px הפך לקטן מדי, והעמוד עצמו התחיל להיגלל — ואז שורת
+// הכותרת הדביקה נגללה החוצה יחד עם המסגרת שלה ו"נעלמה". החישוב כאן
+// מודד את המיקום בפועל, כך שהטבלה תמיד נגמרת בדיוק מעל הסרגל התחתון
+// והעמוד אינו נגלל.
+function fitTableHeights() {
+  const nav = document.querySelector('.bottom-nav');
+  const navH = (nav && getComputedStyle(nav).position === 'fixed') ? nav.getBoundingClientRect().height : 0;
+  document.querySelectorAll('.tbl-wrap').forEach(w => {
+    if (!w.offsetParent) return;                       // מוסתר — אין מה למדוד
+    const top = w.getBoundingClientRect().top + window.scrollY - document.documentElement.scrollTop;
+    const h = window.innerHeight - top - navH - 20;   // מרווח שמונע גלישה של פיקסלים בודדים
+    w.style.maxHeight = Math.max(220, Math.round(h)) + 'px';
+  });
+}
+let _fitPending = null;
+function scheduleFit() {
+  if (_fitPending) cancelAnimationFrame(_fitPending);
+  _fitPending = requestAnimationFrame(() => { _fitPending = null; fitTableHeights(); });
+}
+window.addEventListener('resize', scheduleFit);
+window.addEventListener('orientationchange', scheduleFit);
+
 // ═══ בורר עמודות לטבלת הצי ═══
 // ההסתרה נעשית לפי מיקום העמודה ולא לפי מחלקה על כל תא, כדי שלא יהיה
 // צריך לתייג עשרים תאים בכל שורה — ובעיקר כדי ששורת הכותרת, שורת
@@ -4422,6 +4451,7 @@ function renderFleet() {
   // שהוסתרו אינן רכבים, ולספור אותן היה נראה כאילו חסרות שורות.
   const _fleetTotal = featureOn('drivers') ? VEHICLES.filter(v => !v.noVehicle).length : VEHICLES.length;
   document.getElementById('fleet-count').textContent = `מציג ${filtered.length} מתוך ${_fleetTotal} רכבים`;
+  scheduleFit();
   // סינון עמודות נשמר בין רענונים, ולכן חייב חיווי — אחרת טבלה מסוננת
   // נראית כמו טבלה שנעלמו ממנה רכבים.
   const _fc = fleetFilterCount();
@@ -10177,7 +10207,10 @@ function toggleAuthMode() {
   document.getElementById('lg-subtitle').textContent = signup ? 'פתיחת חשבון · חברה חדשה מקבלת מערכת ריקה משלה' : 'מערכת ניהול צי רכב · כניסת מנהל';
   const btn = document.getElementById('lg-btn');
   btn.textContent = signup ? 'צור חשבון' : 'התחברות';
-  btn.setAttribute('onclick', signup ? 'doSignup()' : 'doLogin()');
+  // הכפתור הוא submit של הטופס, וה-onsubmit כבר בוחר לפי _authMode.
+  // onclick נוסף כאן היה גורם לשליחה כפולה.
+  btn.removeAttribute('onclick');
+  document.getElementById('lg-pass').setAttribute('autocomplete', signup ? 'new-password' : 'current-password');
   document.getElementById('lg-toggle').textContent = signup ? '↩ יש לי כבר חשבון — התחברות' : '➕ פתיחת חשבון לחברה חדשה';
   document.getElementById('lg-err').textContent = '';
 }
@@ -10229,6 +10262,8 @@ function _toggleLgPass(btn) {
 }
 function doLogin() {
   const email = document.getElementById('lg-email').value.trim();
+  // המייל נזכר גם בלי מנהל סיסמאות, כדי שלא יוקלד בכל פעם
+  try { localStorage.setItem('fleet_lastEmail', email); } catch(e) {}
   const pass = document.getElementById('lg-pass').value;
   const err = document.getElementById('lg-err');
   const btn = document.getElementById('lg-btn');
@@ -10272,6 +10307,13 @@ auth.onAuthStateChanged(async user => {
     document.getElementById('login-gate').style.display = 'flex';
     const btn = document.getElementById('lg-btn');
     if (btn) { btn.disabled = false; btn.textContent = 'התחברות'; }
+    // מילוי המייל האחרון, כדי שיישאר רק להקליד סיסמה (או שמנהל
+    // הסיסמאות של הדפדפן ימלא גם אותה)
+    try {
+      const em = document.getElementById('lg-email');
+      const last = localStorage.getItem('fleet_lastEmail');
+      if (em && last && !em.value) { em.value = last; const pw = document.getElementById('lg-pass'); if (pw) pw.focus(); }
+    } catch(e) {}
   }
 });
 window.onload = () => {
