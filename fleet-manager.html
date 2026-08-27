@@ -1593,6 +1593,10 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
               </div>
               <div style="font-size:0.7rem;color:#94a3b8;flex:1;min-width:170px">ריק = ברירת המחדל: תעבורתי כל 36 חודשים, ביקורת לפי גיל הרכב (6 או 3).</div>
             </div>
+            <div style="border-top:1px solid #334155;margin-top:12px;padding-top:10px;margin-bottom:10px">
+              <button class="btn btn-secondary" style="padding:5px 12px;font-size:0.76rem" onclick="openMultiWindow()">🪟 פתח חלון לחשבון אחר</button>
+              <div style="font-size:0.7rem;color:#94a3b8;margin-top:5px">נפתח חלון עם התחברות נפרדת, כך שאפשר להיות מחובר לכמה לקוחות במקביל בלי שאחד ינתק את השני. סגירת החלון מנתקת רק אותו.</div>
+            </div>
             <div class="btn-row">
               <button class="btn btn-secondary" onclick="adminLoadClient()">📂 טען לקוח קיים</button>
               <button class="btn btn-green" onclick="adminSaveClient()">💾 שמור</button>
@@ -2175,10 +2179,21 @@ const firebaseConfig = {
   messagingSenderId: "347809967171",
   appId: "1:347809967171:web:af3eb5cdeefc827b41f8f6"
 };
-firebase.initializeApp(firebaseConfig);
-const db = firebase.firestore();
+// חלון נוסף למשתמש אחר (?multi=1).
+// ההתחברות של Firebase משותפת לכל הדפדפן, ולכן כניסה לחשבון שני בלשונית
+// אחרת הייתה מחליפה את החשבון גם בלשונית הראשונה. חלון "multi" מקבל
+// מופע Firebase נפרד בשם משלו — לאפליקציה בעלת שם יש אחסון התחברות
+// נפרד לגמרי — ובנוסף אחסון פר-לשונית (SESSION), כך שכל חלון כזה מחזיק
+// חשבון עצמאי ואינו נוגע בחלון הראשי או בחלונות multi אחרים.
+const MULTI_WIN = new URLSearchParams(location.search).get('multi') === '1';
+const _fbApp = MULTI_WIN
+  ? firebase.initializeApp(firebaseConfig, 'multi')
+  : firebase.initializeApp(firebaseConfig);
+const db = _fbApp.firestore();
 let _fbStorage = null;   // lazy — only when a document feature is used
-function fbStorage() { if (!_fbStorage) { try { _fbStorage = firebase.storage(); } catch(e) { _fbStorage = null; } } return _fbStorage; }
+// נגזר מאותו מופע Firebase, אחרת בחלון נפרד (multi) אין אפליקציית
+// ברירת מחדל כלל והעלאת מסמכים הייתה קורסת.
+function fbStorage() { if (!_fbStorage) { try { _fbStorage = _fbApp.storage(); } catch(e) { _fbStorage = null; } } return _fbStorage; }
 // גובה ה-header (משתנה בין מובייל/דסקטופ) → שורת החיפוש הדביקה תיצמד בדיוק מתחתיו
 function _syncHeaderH() { const h = document.querySelector('header'); if (h) document.documentElement.style.setProperty('--header-h', h.offsetHeight + 'px'); }
 document.addEventListener('DOMContentLoaded', _syncHeaderH);
@@ -9844,7 +9859,7 @@ async function doImport(mode) {
 
 // ── INIT ──
 // ══ AUTHENTICATION GATE ══
-const auth = firebase.auth();
+const auth = _fbApp.auth();
 let _appBooted = false;
 
 // ══ MULTI-TENANT FOUNDATION (Stage 1) ══
@@ -10390,7 +10405,8 @@ function guardTenantCache() {
   localStorage.setItem('fleet_cache_tenant', TENANT);
 }
 function bootApp() {
-  loadUiPrefs();   // ההעדפות שייכות ללקוח, ולכן נטענות רק אחרי שהוא נפתר
+  loadUiPrefs();
+  markMultiWindow();   // ההעדפות שייכות ללקוח, ולכן נטענות רק אחרי שהוא נפתר
   if (_appBooted) return;
   _appBooted = true;
   guardTenantCache();
@@ -10468,7 +10484,7 @@ async function doSignup() {
   const btn = document.getElementById('lg-btn');
   btn.disabled = true; btn.textContent = 'יוצר חשבון...';
   try {
-    await auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
+    await auth.setPersistence(MULTI_WIN ? firebase.auth.Auth.Persistence.SESSION : firebase.auth.Auth.Persistence.LOCAL);
     const cred = await auth.createUserWithEmailAndPassword(email, pass);
     try {
       // Created by the owner AFTER payment → active. validUntil gives a one-month runway
@@ -10511,7 +10527,7 @@ function doLogin() {
   err.textContent = '';
   if (!email || !pass) { err.textContent = 'נא למלא אימייל וסיסמה'; return; }
   btn.disabled = true; btn.textContent = 'מתחבר...';
-  auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL)
+  auth.setPersistence(MULTI_WIN ? firebase.auth.Auth.Persistence.SESSION : firebase.auth.Auth.Persistence.LOCAL)
     .then(() => auth.signInWithEmailAndPassword(email, pass))
     .catch(e => {
       btn.disabled = false; btn.textContent = 'התחברות';
@@ -13602,6 +13618,27 @@ async function adminLoadClient() {
 }
 // מי מחובר כרגע, לכל הלקוחות. "פעיל" נקבע לפי אותה פקיעה שמשמשת
 // לנעילה עצמה, כדי שהתצוגה תשקף בדיוק את מה שהמערכת אוכפת.
+// חלון נוסף עם התחברות עצמאית. נפתח כחלון ולא כלשונית, כדי שיהיה
+// אפשר להעמיד אותם זה לצד זה.
+function openMultiWindow() {
+  const url = location.pathname + '?multi=1';
+  window.open(url, '_blank', 'noopener,width=1400,height=900');
+}
+// סימון ויזואלי: בלי זה קל להתבלבל בין החלונות ולערוך אצל הלקוח הלא נכון
+function markMultiWindow() {
+  if (!MULTI_WIN) return;
+  let b = document.getElementById('multi-badge');
+  if (!b) {
+    b = document.createElement('div');
+    b.id = 'multi-badge';
+    b.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9997;background:#7c3aed;color:#fff;' +
+      'padding:4px 12px;font-family:Heebo,sans-serif;font-size:0.74rem;font-weight:800;text-align:center';
+    document.body.appendChild(b);
+    document.body.style.paddingTop = '26px';
+  }
+  b.textContent = '🪟 חלון נפרד — ' + (COMPANY_NAME || 'טרם מחובר') + ' · ההתחברות כאן עצמאית ואינה משפיעה על החלון הראשי';
+}
+
 async function adminLoadSessions() {
   if (TENANT !== 'nofar') return;
   const box = document.getElementById('adm-sessions');
