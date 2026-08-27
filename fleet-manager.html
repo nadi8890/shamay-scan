@@ -5277,7 +5277,7 @@ function govNeedsModel(n) {
   if (!n) return false;
   // אצל לקוח שהמשקל כבוי אצלו אין טעם בשאילתה השנייה על רכב פרטי —
   // קוד הדגם שם כבר מספרי, ורק המשקל היה חסר
-  if (featureOn('weight') && (!n.weight || n.weight === '0')) return true;
+  if (!n.weight || n.weight === '0') return true;
   return !/^\d+$/.test(String(n.modelCode || '').trim());
 }
 
@@ -11781,7 +11781,7 @@ function _govCodeStale(v) {
 async function syncFleetFromGov() {
   const hasPlate = v => !v.noVehicle && String(v.plate || '').replace(/\D/g, '').length >= 6;
   const targets = VEHICLES.filter(v => hasPlate(v)
-    && (!v.tozeretCd || !v.degemCd || (featureOn('weight') && !v.weight)
+    && (!v.tozeretCd || !v.degemCd || !v.weight
         || !v.make || !v.model || !v.year || !v.registrationExpiry
         || _govCodeStale(v)));
   if (!targets.length) { toast('כל הרכבים כבר מסונכרנים ✓'); return; }
@@ -11845,7 +11845,7 @@ async function syncFleetFromGov() {
     // נשמרים מרופדים לארבע ספרות, בדיוק כפי שהם מודפסים ברישיון הרכב
     put('tozeretCd', govPad4(nn.licCode));
     put('degemCd', govPad4(nn.modelCode));
-    if (featureOn('weight') && nn.weight && nn.weight !== '0') set('weight', nn.weight);
+    if (nn.weight && nn.weight !== '0') set('weight', nn.weight);
     set('make', nn.make); set('model', nn.model || nn.modelName); set('year', nn.year);
     set('registrationExpiry', _govDateStr(nn.regExpiry));
     if (touched) filled++;
@@ -11869,7 +11869,10 @@ async function syncFleetFromGov() {
 function _govSyncReport(r) {
   const el = document.getElementById('fleet-gov-sync');
   if (!el) return;
-  if (!r.notFound.length && !r.errored.length) return;
+  // גם ריצה שלא השלימה דבר צריכה להסביר את עצמה: "הושלמו 0" בלי פירוט
+  // אינו ניתן לאבחון — אי אפשר לדעת אם המאגר נפל, אם הרכב אינו שם, או
+  // שפשוט לא היה מה לעדכן.
+  if (!r.notFound.length && !r.errored.length && r.filled > 0) return;
   const list = (arr, max) => arr.slice(0, max).join(', ') + (arr.length > max ? ` ועוד ${arr.length - max}` : '');
   const parts = [];
   if (r.errored.length)
@@ -11881,6 +11884,9 @@ function _govSyncReport(r) {
   el.style.display = 'block';
   el.innerHTML = `<div style="background:#fffbeb;border:1.5px solid #fbbf24;border-radius:10px;padding:10px 12px;font-size:0.78rem;line-height:1.6;color:#78350f">
       <div><b>סיכום סנכרון:</b> הושלמו ${r.filled} מתוך ${r.total}${r.aborted ? esc(r.aborted) : ''}</div>
+      ${(!r.filled && !r.notFound.length && !r.errored.length)
+        ? '<div style="margin-top:5px">כל הרכבים נמצאו במאגר, אך לא היה מה לעדכן — הנתונים כבר קיימים בכרטיס. אם עמודה נראית ריקה, ייתכן שהיא מוסתרת ב"🧩 עמודות".</div>' : ''}
+      ${GOV_LAST_ERROR ? `<div style="margin-top:5px">שגיאת המאגר האחרונה: <span style="direction:ltr;display:inline-block">${esc(GOV_LAST_ERROR)}</span></div>` : ''}
       ${parts.join('')}
       <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">
         ${r.errored.length ? `<button class="btn btn-gray" style="padding:3px 10px;font-size:0.72rem" onclick="syncFleetFromGov()">🔄 נסה שוב</button>` : ''}
