@@ -9963,7 +9963,25 @@ function buildImportedVehicles() {
 async function doImport(mode) {
   const rows = window._impBuilt || buildImportedVehicles();
   if (!rows.length) { toast('אין רכבים לייבוא', true); return; }
-  if (mode === 'replace' && !confirm(`פעולה זו תמחק את כל ${VEHICLES.length} הרכבים הקיימים ותייבא ${rows.length} רכבים חדשים במקומם.\n\nלהמשיך?`)) return;
+  // ייבוא כותב לחשבון שפתוח כרגע, וזה לא תמיד החשבון שהקובץ שייך לו.
+  // בלי שם החברה באישור, ייבוא של קובץ לקוח אחד לתוך חשבון של אחר
+  // נראה בדיוק כמו ייבוא תקין — וכך צי שלם נדרס בלי שאיש שם לב.
+  const _acct = COMPANY_NAME || TENANT || ' לא ידוע ';
+  if (mode === 'replace') {
+    if (!confirm('⚠ ייבוא לחשבון: ' + _acct + '\n\n' +
+                 'פעולה זו תמחק את כל ' + VEHICLES.length + ' הרכבים שנמצאים בחשבון הזה' +
+                 '\n' + 'ותייבא ' + rows.length + ' רכבים חדשים במקומם.' +
+                 '\n\n' + 'אם זה אינו החשבון הנכון — עצור עכשיו.' + '\n\n' + 'להמשיך?')) return;
+    // עותק של הצי לפני הדריסה. הגיבוי היומי רץ פעם ביום, ולכן ייבוא
+    // שגוי בבוקר היה מוחק צי שלם עם עותק אחרון מאתמול בלבד.
+    try {
+      await fcol().doc('trash_' + Date.now()).set({
+        type: 'preImportFleet', deletedAt: new Date().toLocaleString('he-IL'),
+        count: VEHICLES.length, vehicles: stripUndef(VEHICLES)
+      });
+    } catch(e) { console.log('pre-import snapshot failed', e.code || e.message); }
+  } else if (!confirm('ייבוא לחשבון: ' + _acct + '\n\n' +
+                      'יתווספו/יעודכנו ' + rows.length + ' רכבים.' + '\n\n' + 'להמשיך?')) return;
   if (mode === 'replace') {
     VEHICLES = rows;
   } else {
