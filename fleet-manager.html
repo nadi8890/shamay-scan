@@ -588,6 +588,7 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
           <th class="col-cert col-winterCheck">❄️ בדיקת חורף</th>
           <th class="col-cert col-pneumaticChk">💨 בדיקה פניאומטית</th>
           <th class="col-cert col-brakesCert">🛑 אישור בלמים</th>
+          <th class="col-cert col-transportLic">🚌 רישיון הסעה</th>
           <th class="col-cert col-childAlertCert">👶 שכחת ילדים</th>
           <th class="col-cert col-fireExtCert">🧯 כיבוי אש</th>
           <th></th>
@@ -3146,15 +3147,25 @@ function trafficDueStr(v) { return dateAddMonths(v && v.trafficRecord, FEATURES.
 // לקוח עם רכב כבד או הסעות נדרש לאישורים שאין לשאר הלקוחות. מוגדרים
 // כאן במקום אחד — הטבלה, טופס הרכב, ההתראות והייצוא נגזרים מהרשימה,
 // כדי שהוספת אישור בעתיד לא תדרוש לגעת בארבעה מקומות נפרדים.
+// mode='done'   — התאריך שנשמר הוא מועד הביצוע, והתוקף נגזר ממנו.
+// mode='expiry' — התאריך שנשמר הוא התוקף עצמו (כך זה מגיע ברישיון
+//                 הסעה ובמערכת שכחת ילדים, שבהם רשום "בתוקף עד").
+// בלי ההבחנה הזו תאריך תוקף היה מקבל עוד שנה ומוצג כתקין בטעות.
 const EXTRA_CERTS = [
-  { key:'winterCheck',    label:'בדיקת חורף',        icon:'❄️', months:12 },
-  { key:'pneumaticChk',   label:'בדיקה פניאומטית',   icon:'💨', months:12 },
-  { key:'brakesCert',     label:'אישור בלמים',       icon:'🛑', months:12 },
-  { key:'childAlertCert', label:'אישור שכחת ילדים',  icon:'👶', months:12 },
-  { key:'fireExtCert',    label:'אישור כיבוי אש',    icon:'🧯', months:12 }
+  { key:'winterCheck',    label:'בדיקת חורף',        icon:'❄️', mode:'done',   months:12 },
+  { key:'pneumaticChk',   label:'בדיקה פניאומטית',   icon:'💨', mode:'done',   months:12 },
+  { key:'brakesCert',     label:'אישור בלמים',       icon:'🛑', mode:'done',   months:12 },
+  { key:'transportLic',   label:'תוקף רישיון הסעה',  icon:'🚌', mode:'expiry' },
+  { key:'childAlertCert', label:'מערכת שכחת ילדים',  icon:'👶', mode:'expiry' },
+  { key:'fireExtCert',    label:'אישור כיבוי אש',    icon:'🧯', mode:'done',   months:12 }
 ];
-// התאריך שנשמר הוא תאריך הביצוע; התוקף נגזר ממנו לפי months
-function certDueStr(v, c) { return dateAddMonths(v && v[c.key], c.months); }
+function certDueStr(v, c) {
+  const raw = v && v[c.key];
+  if (!raw) return '';
+  return c.mode === 'expiry' ? String(raw).trim() : dateAddMonths(raw, c.months || 12);
+}
+// תווית השדה בטופס: חשוב שיהיה ברור מה מזינים בכל אחד
+function certFieldHint(c) { return c.mode === 'expiry' ? 'בתוקף עד' : 'תאריך ביצוע'; }
 function dateAutoMask(inp) {
   const sel = inp.selectionStart;
   const prev = inp.value;
@@ -4297,8 +4308,9 @@ const FLEET_COLS = [
   { i:16, label:'❄️ בדיקת חורף',      feat:'extraCerts' },
   { i:17, label:'💨 בדיקה פניאומטית', feat:'extraCerts' },
   { i:18, label:'🛑 אישור בלמים',     feat:'extraCerts' },
-  { i:19, label:'👶 שכחת ילדים',      feat:'extraCerts' },
-  { i:20, label:'🧯 כיבוי אש',        feat:'extraCerts' }
+  { i:19, label:'🚌 רישיון הסעה',     feat:'extraCerts' },
+  { i:20, label:'👶 שכחת ילדים',      feat:'extraCerts' },
+  { i:21, label:'🧯 כיבוי אש',        feat:'extraCerts' }
 ];
 let HIDDEN_COLS = [];
 try { HIDDEN_COLS = JSON.parse(localStorage.getItem('fleet_hiddenCols')) || []; } catch(e) {}
@@ -8411,8 +8423,8 @@ const IMPORT_FIELDS = [
   { key:'year',               label:'שנתון',             syn:['שנתון','שנה','שנת ייצור','year'] },
   { key:'company',            label:'חברת ליסינג',       syn:['חברת ליסינג','ליסינג','חברה','ליס','leasing','company'] },
   { key:'licenseExpiry',      label:'תוקף רישיון נהיגה', syn:['תוקף רישיון נהיגה','רישיון נהיגה','תוקף רישיון','רשיון נהיגה','license expiry','license'] },
-  { key:'registrationExpiry', label:'תוקף רישוי (טסט)',  syn:['תוקף רישוי','רישיון רכב','טסט','תוקף טסט','רישוי שנתי','ביטוח חובה','registration','test'] },
-  { key:'insuranceExpiry',    label:'תוקף ביטוח',        syn:['תוקף ביטוח','ביטוח','ביטוח מקיף','insurance'] },
+  { key:'registrationExpiry', label:'תוקף רישוי (טסט)',  syn:['תוקף רשיון רכב','תוקף רישיון רכב','תוקף רישוי','רישיון רכב','רשיון רכב','טסט','תוקף טסט','רישוי שנתי','registration','test'] },
+  { key:'insuranceExpiry',    label:'תוקף ביטוח',        syn:['תוקף ביטוח חובה','תוקף ביטוח','ביטוח חובה','ביטוח','ביטוח מקיף','insurance'] },
   { key:'currentKm',          label:'ק"מ נוכחי',         syn:['ק"מ נוכחי','קילומטראז','קילומטר','ק"מ','קמ','מד אוץ','km','mileage','odometer'] },
   { key:'nextServiceKm',      label:'טיפול הבא (ק"מ)',   syn:['טיפול הבא','טיפול','ק"מ טיפול','service','next service'] },
   { key:'serviceDate',        label:'תאריך טיפול אחרון', syn:['תאריך טיפול אחרון','טיפול אחרון','תאריך טיפול','last service','service date'] },
@@ -8420,6 +8432,12 @@ const IMPORT_FIELDS = [
   { key:'inspection',         label:'ביקורת בטיחות',     syn:['ביקורת בטיחות','ביקורת','תאריך ביקורת','inspection'] },
   { key:'trafficRecord',      label:'עבר תעבורתי',       syn:['עבר תעבורתי','עבר תעבורה','traffic record'] },
   { key:'procedures',         label:'נהלים',             syn:['נהלים','חתימת נהלים','procedures'] },
+  { key:'winterCheck',        label:'בדיקת חורף',        syn:['בדיקת חורף','חורף','winter'] },
+  { key:'pneumaticChk',       label:'בדיקה פניאומטית',   syn:['בדיקה פניאומטית','פניאומטית','pneumatic'] },
+  { key:'brakesCert',         label:'אישור בלמים',       syn:['תאריך בדיקה אחרון','אישור בלמים','בלמים','brakes'] },
+  { key:'transportLic',       label:'תוקף רישיון הסעה',  syn:['תוקף רישיון הסעה','רישיון הסעה','רשיון הסעה','הסעה','transport'] },
+  { key:'childAlertCert',     label:'מערכת שכחת ילדים',  syn:['שכחת ילדים','מערכת שכחת ילדים','התראה לשכחת ילדים',"התקנה מע' התראה לשכחת ילדים",'child'] },
+  { key:'fireExtCert',        label:'אישור כיבוי אש',    syn:['כיבוי אש','מטף','אישור כיבוי אש','fire'] },
   { key:'code',               label:'קוד / מק"ט רכב',    syn:['קוד','מק"ט','מקט','מספר פנימי','code','asset'] },
   { key:'children',           label:'ילדים',             syn:['ילדים','children','kids'] },
   { key:'notes',              label:'הערות',             syn:['הערות','הערה','notes','remarks'] },
@@ -9759,7 +9777,7 @@ function applyFeatureFlags() {
     const box = document.getElementById('m-certs');
     if (box && featureOn('extraCerts') && !box.children.length) {
       box.innerHTML = EXTRA_CERTS.map(c =>
-        `<div class="modal-row"><label>${c.icon} ${esc(c.label)}</label>
+        `<div class="modal-row"><label>${c.icon} ${esc(c.label)} <span style="font-weight:400;color:#94a3b8;font-size:0.68rem">(${certFieldHint(c)})</span></label>
          <input id="m-${c.key}" type="text" placeholder="יי.חח.שש" inputmode="numeric" oninput="dateAutoMask(this)"></div>`).join('');
     }
   }
