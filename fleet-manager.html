@@ -11791,7 +11791,7 @@ async function syncFleetFromGov() {
                `משך משוער: כדקה לכל 60 רכבים. אפשר לעצור באמצע.`)) return;
 
   _fleetSyncStop = false;
-  const notFound = [], errored = [];
+  const notFound = [], errored = [], noRegDate = [], noDegem = [];
   let done = 0, filled = 0, missing = 0, errStreak = 0, aborted = '';
   const flush = () => {
     try {
@@ -11848,6 +11848,11 @@ async function syncFleetFromGov() {
     if (nn.weight && nn.weight !== '0') set('weight', nn.weight);
     set('make', nn.make); set('model', nn.model || nn.modelName); set('year', nn.year);
     set('registrationExpiry', _govDateStr(nn.regExpiry));
+    // מאגרי הרכב המסחרי והאוטובוסים אינם מפרסמים תוקף רישוי (tokef_dt)
+    // ולא קוד דגם. נרשם כדי שהדוח יסביר למה השדות נשארו ריקים, במקום
+    // שייראה כאילו הסנכרון נכשל.
+    if (!nn.regExpiry && !String(v.registrationExpiry || '').trim()) noRegDate.push(v.plate);
+    if (!nn.modelCode && !String(v.degemCd || '').trim()) noDegem.push(v.plate);
     if (touched) filled++;
 
     // שמירת ביניים — ריצה ארוכה שנקטעת לא מאבדת את מה שכבר הושלם
@@ -11862,7 +11867,7 @@ async function syncFleetFromGov() {
   // "לא סנכרן לי הרבה רכבים" היה חסר כל פירוט — לא ידעת אילו רכבים ולמה.
   // כאן מוצגת הרשימה בפועל, מופרדת בין "לא במאגר" (אין מה לעשות) לבין
   // "המאגר לא ענה" (שווה לנסות שוב).
-  _govSyncReport({ total: targets.length, filled, notFound, errored, aborted });
+  _govSyncReport({ total: targets.length, filled, notFound, errored, aborted, noRegDate, noDegem });
 }
 
 // דוח סיום. מוצג רק כשמשהו לא הושלם, כדי לא להטריד אחרי ריצה נקייה.
@@ -11872,12 +11877,17 @@ function _govSyncReport(r) {
   // גם ריצה שלא השלימה דבר צריכה להסביר את עצמה: "הושלמו 0" בלי פירוט
   // אינו ניתן לאבחון — אי אפשר לדעת אם המאגר נפל, אם הרכב אינו שם, או
   // שפשוט לא היה מה לעדכן.
-  if (!r.notFound.length && !r.errored.length && r.filled > 0) return;
+  r.noRegDate = r.noRegDate || []; r.noDegem = r.noDegem || [];
+  if (!r.notFound.length && !r.errored.length && !r.noRegDate.length && !r.noDegem.length && r.filled > 0) return;
   const list = (arr, max) => arr.slice(0, max).join(', ') + (arr.length > max ? ` ועוד ${arr.length - max}` : '');
   const parts = [];
   if (r.errored.length)
     parts.push(`<div style="margin-top:5px"><b>⚠ המאגר לא ענה (${r.errored.length})</b> — שווה להריץ שוב בעוד כמה דקות:<br>
       <span style="direction:ltr;display:inline-block;font-size:0.72rem">${esc(list(r.errored, 15))}</span></div>`);
+  if (r.noRegDate.length || r.noDegem.length)
+    parts.push(`<div style="margin-top:5px"><b>ℹ️ שדות שמשרד התחבורה אינו מפרסם לסוג הרכב הזה</b><br>
+      <span style="font-size:0.74rem">${r.noRegDate.length ? 'תוקף רישוי — ' + r.noRegDate.length + ' רכבים. ' : ''}${r.noDegem.length ? 'קוד דגם — ' + r.noDegem.length + ' רכבים. ' : ''}
+      אוטובוסים ורכב מסחרי מופיעים במאגר בלי השדות האלה, ולכן יש להזין אותם ידנית או לייבא מקובץ.</span></div>`);
   if (r.notFound.length)
     parts.push(`<div style="margin-top:5px"><b>🔎 לא קיימים במאגר משרד התחבורה (${r.notFound.length})</b> — בדרך כלל טרקטורים, צמ"ה ונגררים שאינם מפורסמים שם. יש להזין ידנית:<br>
       <span style="direction:ltr;display:inline-block;font-size:0.72rem">${esc(list(r.notFound, 15))}</span></div>`);
