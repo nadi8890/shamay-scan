@@ -2202,6 +2202,30 @@ const firebaseConfig = {
 // נפרד לגמרי — ובנוסף אחסון פר-לשונית (SESSION), כך שכל חלון כזה מחזיק
 // חשבון עצמאי ואינו נוגע בחלון הראשי או בחלונות multi אחרים.
 const MULTI_WIN = new URLSearchParams(location.search).get('multi') === '1';
+// המטמון המקומי (localStorage) משותף לכל החלונות באותו דומיין, ולכן שני
+// חשבונות פתוחים במקביל היו כותבים לאותם מפתחות: החלון השני נטען עם
+// הנתונים של הראשון, החליף אותם, וכל אחד "משך" את המטמון לכיוונו —
+// טעינה איטית ובלבול נתונים. בחלון נפרד המטמון מנותב לאחסון פר-לשונית,
+// כך שכל חלון מחזיק עותק משלו ואינו נוגע באחרים.
+if (MULTI_WIN) {
+  try {
+    const _tab = window.sessionStorage;
+    const _shared = window.localStorage;
+    const _isFleetKey = k => typeof k === 'string' && k.indexOf('fleet_') === 0;
+    window.__mlsGet = _shared.getItem.bind(_shared);
+    Object.defineProperty(window, 'localStorage', {
+      configurable: true,
+      value: {
+        getItem:    k => _isFleetKey(k) ? _tab.getItem(k)      : _shared.getItem(k),
+        setItem:   (k,v)=> _isFleetKey(k) ? _tab.setItem(k,v)  : _shared.setItem(k,v),
+        removeItem: k => _isFleetKey(k) ? _tab.removeItem(k)   : _shared.removeItem(k),
+        clear:     () => _tab.clear(),
+        key:        i => _tab.key(i),
+        get length() { return _tab.length; }
+      }
+    });
+  } catch(e) { console.log('multi storage shim failed', e); }
+}
 const _fbApp = MULTI_WIN
   ? firebase.initializeApp(firebaseConfig, 'multi')
   : firebase.initializeApp(firebaseConfig);
