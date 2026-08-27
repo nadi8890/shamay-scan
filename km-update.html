@@ -76,7 +76,8 @@ input{width:100%;border:1.5px solid #dde3ed;border-radius:10px;padding:12px;font
     <div style="font-weight:800;color:#9a3412;font-size:0.92rem;margin-bottom:5px">כבר ביצעת את הטיפול? ✅</div>
     <div style="font-size:0.8rem;color:#475569;margin-bottom:11px;line-height:1.5">צרף/י אישור / חשבונית טיפול — היא תישלח ישירות למחלקת הרכב לאישור וסגירה.</div>
     <button type="button" class="btn" style="background:#eef2ff;color:#3730a3;border:1.5px dashed #a5b4fc" onclick="document.getElementById('svc-file').click()">📷 צלם / בחר קובץ</button>
-    <input id="svc-file" type="file" accept="image/*,application/pdf" multiple capture="environment" style="display:none" onchange="onSvcFiles(this.files)">
+    <!-- בלי capture — ר' ההסבר ב-driver-task: אחרת אי אפשר לצרף קובץ שמור -->
+    <input id="svc-file" type="file" accept="image/*,application/pdf" multiple style="display:none" onchange="onSvcFiles(this.files)">
     <div id="svc-thumbs" style="display:flex;flex-wrap:wrap;gap:8px;margin:11px 0"></div>
     <textarea id="svc-note" rows="2" placeholder="הערה (אופציונלי): שם המוסך, תאריך הטיפול..." style="width:100%;border:1.5px solid #dde3ed;border-radius:10px;padding:10px;font-family:'Heebo',sans-serif;font-size:0.88rem;resize:vertical"></textarea>
     <div class="err" id="svc-err" style="display:none"></div>

@@ -1927,7 +1927,10 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
     <div id="m-docs-wrap" style="grid-column:1/-1;border-top:1px solid var(--border);margin-top:6px;padding-top:10px">
       <label style="font-size:0.75rem;color:var(--muted);font-weight:700;display:block;margin-bottom:6px">📎 מסמכי הרכב (סריקות)</label>
       <div id="m-docs-list"></div>
-      <input type="file" id="m-doc-file" accept="image/*,application/pdf" capture="environment" style="display:none" onchange="uploadVehicleDoc(this)">
+      <!-- בלי capture: הוא מכריח את המצלמה ומסתיר את בורר הקבצים, ואז אי
+           אפשר לצרף מסמך ששמור בטלפון. בלעדיו נפתח הבורר הרגיל, שבו
+           המצלמה עדיין אחת האפשרויות. -->
+      <input type="file" id="m-doc-file" accept="image/*,application/pdf" style="display:none" onchange="uploadVehicleDoc(this)">
       <div id="m-docs-hint" style="font-size:0.72rem;color:var(--muted);margin-top:4px"></div>
     </div>
     <div class="btn-row">
@@ -12316,7 +12319,7 @@ function renderAgentMsgs(showTyping = false) {
     </div>
   </div>
 </div>
-<input type="file" id="mdoc-file" accept="image/*" multiple capture="environment" style="display:none" onchange="onManualDocFiles(this)">
+<input type="file" id="mdoc-file" accept="image/*" multiple style="display:none" onchange="onManualDocFiles(this)">
 
 <div class="modal-overlay" id="empdocs-modal">
   <div class="modal" style="max-width:600px">
