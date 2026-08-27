@@ -10144,10 +10144,13 @@ function _stampDoc(d) {
 //   3. הדייר בכלל נפתר.
 // בכל פער — המערכת עוברת מיד לצפייה בלבד ומציגה אזעקה, כי המשך עבודה
 // במצב כזה משמעותו כתיבת נתונים של לקוח אחד לתוך חשבון של אחר.
-let _tenantAlarmOn = false;
+let _tenantAlarmOn = '';
 function tenantAlarm(reason) {
-  if (_tenantAlarmOn) return;
-  _tenantAlarmOn = true;
+  // מסננים לפי הסיבה, לא לפי "כבר הייתה אזעקה". אחרת אזעקה ראשונה
+  // ושולית משתיקה אזעקה אמיתית שמגיעה אחריה — וזה בדיוק מה שקרה כאן:
+  // ההתראה על גישה מוקדמת בלעה את בדיקת ההתאמה בין החשבון לנתונים.
+  if (_tenantAlarmOn === reason) return;
+  _tenantAlarmOn = reason;
   READ_ONLY = true;
   console.error('[TENANT GUARD]', reason, { tenant: TENANT, resolved: TENANT_RESOLVED,
                                             uid: (auth.currentUser || {}).uid });
