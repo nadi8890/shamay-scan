@@ -11809,6 +11809,14 @@ async function syncFleetFromGov() {
 
     let rec = null;
     try { rec = await govVehicleRecord(v.plate); } catch(e) { rec = null; }
+    // המאגר הממשלתי נופל מדי פעם, ובריצה רציפה על עשרות רכבים הוא גם
+    // מגביל קצב. כישלון תקשורת בודד סומן "לא נמצא" והרכב נשאר ריק,
+    // למרות שהוא קיים במאגר. לכן ניסיון חוזר אחד אחרי המתנה קצרה —
+    // רק על שגיאה אמיתית, ולא כשהמאגר ענה במפורש שאין רשומה.
+    if (!rec && GOV_LAST_ERROR) {
+      await new Promise(r => setTimeout(r, 700));
+      try { rec = await govVehicleRecord(v.plate); } catch(e) { rec = null; }
+    }
     if (!rec) {
       if (GOV_LAST_ERROR) {
         errored.push(v.plate);
