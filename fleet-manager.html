@@ -9942,6 +9942,16 @@ function applyFeatureFlags() {
   document.body.classList.toggle('feat-drivers', featureOn('drivers'));
   document.body.classList.toggle('feat-certs', featureOn('extraCerts'));
   document.body.classList.toggle('feat-splitname', featureOn('splitName'));
+  // מפתח ה-API הוא שלך ומחויב עליך. הוא נשמר בדפדפן, ולכן חשבון לקוח
+  // שנפתח על אותו מחשב היה משתמש בו על חשבונך. אצל כל דייר שאינו
+  // הבעלים המפתח מנוטרל בזיכרון וההגדרה מוסתרת: הסוכן שם עונה מהנתונים
+  // בלבד, בלי קריאות למודל.
+  const _owner = (TENANT === 'nofar');
+  if (!_owner && agentApiKey) agentApiKey = '';
+  ['agent-key-wrap','change-key-btn'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el && !_owner) el.style.display = 'none';
+  });
   const _dh = document.getElementById('drv-hdr-name');
   if (_dh) _dh.textContent = featureOn('splitName') ? 'שם פרטי' : 'שם הנהג';
   const _hd = document.getElementById('hdr-driver');
@@ -10700,6 +10710,7 @@ function toggleAgent() {
 }
 
 function saveApiKey() {
+  if (TENANT !== 'nofar') { toast('הסוכן אצלך עובד ללא מפתח — הוא עונה מהנתונים שבמערכת', true); return; }
   const key = document.getElementById('agent-key-input').value.trim();
   if (!key.startsWith('sk-ant-')) { toast('מפתח לא תקין — חייב להתחיל ב-sk-ant-', true); return; }
   agentApiKey = key;
