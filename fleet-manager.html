@@ -1610,6 +1610,7 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
               <div style="font-size:0.7rem;color:#94a3b8;flex:1;min-width:170px">ריק = ברירת המחדל: תעבורתי כל 36 חודשים, ביקורת לפי גיל הרכב (6 או 3).</div>
             </div>
             <div style="border-top:1px solid #334155;margin-top:12px;padding-top:10px;margin-bottom:10px">
+              <button class="btn btn-green" style="padding:5px 12px;font-size:0.76rem" onclick="adminViewAsClient()">👁️ צפה כלקוח הזה</button>
               <button class="btn btn-secondary" style="padding:5px 12px;font-size:0.76rem" onclick="openMultiWindow()">🪟 פתח חלון לחשבון אחר</button>
               <div style="font-size:0.7rem;color:#94a3b8;margin-top:5px">נפתח חלון עם התחברות נפרדת, כך שאפשר להיות מחובר לכמה לקוחות במקביל בלי שאחד ינתק את השני. סגירת החלון מנתקת רק אותו.</div>
             </div>
@@ -2296,6 +2297,12 @@ async function loadFromFirestore() {
     const snap = await fcol().doc('main').get();
     if (snap.exists) {
       const d = snap.data();
+      // חותמת של לקוח אחר = לא לטעון כלום. עדיף מסך ריק עם אזעקה מאשר
+      // להציג ולערוך את הנתונים של מישהו אחר.
+      if (d._tenant && d._tenant !== TENANT) {
+        tenantAlarm('הנתונים שהתקבלו שייכים ל-' + d._tenant);
+        return;
+      }
       if (Array.isArray(d.vehicles)) {
         VEHICLES = d.vehicles;
         localStorage.setItem('fleet_vehicles', JSON.stringify(VEHICLES));
@@ -9915,7 +9922,12 @@ let _appBooted = false;
 // During this transition the app still reads/writes the legacy fleet/* docs; a
 // one-time NON-DESTRUCTIVE copy mirrors them into the tenant namespace so a later
 // cutover is safe. Nothing here deletes or moves the live data.
-let TENANT = 'nofar';                 // resolved from users/{uid}; default keeps Nofar working
+// ברירת המחדל חייבת להיות "לא ידוע" ולא 'nofar'. כשהיא הייתה 'nofar',
+// כל כתיבה שקרתה לפני שזיהוי הלקוח הסתיים — או אחרי שהוא נכשל — נכתבה
+// לתוך החשבון של הבעלים. כך נתונים של לקוח יכלו לנחות אצל לקוח אחר.
+// עכשיו: אין דייר מזוהה = אין גישה לנתונים בכלל. נכשל סגור, לא פתוח.
+let TENANT = '';
+let TENANT_RESOLVED = false;
 let ROLE = 'manager';
 let COMPANY_NAME = 'נופר אנרגיה';
 // Subscription gate — set from users/{uid}. A customer is blocked when active===false
@@ -9999,8 +10011,104 @@ function _roCol(c) {
   };
 }
 function fcol() {
-  const c = USE_TENANT ? TENANT_DATA() : db.collection('fleet');
+  if (!TENANT_RESOLVED || !TENANT) {
+    tenantAlarm('ניסיון גישה לנתונים לפני זיהוי הלקוח');
+    throw new Error('TENANT_UNRESOLVED');
+  }
+  const c = USE_TENANT ? _stampCol(TENANT_DATA()) : db.collection('fleet');
   return READ_ONLY ? _roCol(c) : c;
+}
+// חותמת דייר על כל כתיבה. זו לא הגנה אלא ראיה: מסמך שנכתב אצל לקוח אחד
+// נושא את שמו, ולכן אם הוא מופיע אצל אחר — האזעקה למטה תתפוס אותו מיד
+// במקום שזה יתגלה חודש אחרי כן מול הלקוח.
+function _stampCol(c) {
+  return {
+    doc: id => _stampDoc(c.doc(id)),
+    get: (...a) => c.get(...a),
+    where: (...a) => c.where(...a),
+    orderBy: (...a) => c.orderBy(...a),
+    limit: (...a) => c.limit(...a),
+    onSnapshot: (...a) => c.onSnapshot(...a),
+    add: (v, ...a) => c.add(Object.assign({ _tenant: TENANT }, v), ...a)
+  };
+}
+function _stampDoc(d) {
+  return {
+    id: d.id,
+    get: (...a) => d.get(...a),
+    onSnapshot: (...a) => d.onSnapshot(...a),
+    collection: n => _stampCol(d.collection(n)),
+    set: (v, ...a) => d.set(Object.assign({ _tenant: TENANT }, v), ...a),
+    update: (v, ...a) => d.update(Object.assign({ _tenant: TENANT }, v), ...a),
+    delete: (...a) => d.delete(...a)
+  };
+}
+// ═══ שומר בידוד הלקוחות ═══
+// רץ בטעינה, כל 5 דקות, ובכל חזרה ללשונית. שלוש בדיקות בלתי תלויות:
+//   1. הדייר שנטען תואם למה שכתוב ב-users/{uid} ברגע זה.
+//   2. מסמך הנתונים שנקרא נושא את חותמת הדייר הנוכחי.
+//   3. הדייר בכלל נפתר.
+// בכל פער — המערכת עוברת מיד לצפייה בלבד ומציגה אזעקה, כי המשך עבודה
+// במצב כזה משמעותו כתיבת נתונים של לקוח אחד לתוך חשבון של אחר.
+let _tenantAlarmOn = false;
+function tenantAlarm(reason) {
+  if (_tenantAlarmOn) return;
+  _tenantAlarmOn = true;
+  READ_ONLY = true;
+  console.error('[TENANT GUARD]', reason, { tenant: TENANT, resolved: TENANT_RESOLVED,
+                                            uid: (auth.currentUser || {}).uid });
+  let b = document.getElementById('tenant-alarm');
+  if (!b) {
+    b = document.createElement('div');
+    b.id = 'tenant-alarm';
+    b.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#b91c1c;color:#fff;' +
+      'padding:10px 16px;font-family:Heebo,sans-serif;font-size:0.82rem;font-weight:800;text-align:center;' +
+      'box-shadow:0 2px 14px rgba(0,0,0,.4)';
+    document.body.appendChild(b);
+  }
+  b.innerHTML = '⛔ בידוד נתונים: ' + esc(reason) + ' — המערכת עברה לצפייה בלבד כדי לא לכתוב נתונים ' +
+    'לחשבון הלא נכון. התנתק והתחבר מחדש. אם זה חוזר — תתקשר אליי.';
+  try { toast('⛔ נעצרה כתיבה: ' + reason, true); } catch(e) {}
+}
+// עטיפה דקה, כדי שאפשר יהיה להריץ את הבדיקה מול משתמש מדומה בבדיקות
+function _authUser() { return auth.currentUser; }
+async function auditTenantIsolation() {
+  try {
+    const u = _authUser();
+    if (!u || !TENANT_RESOLVED) return;
+    // 1+3: מה הדייר אמור להיות עכשיו, לפי המקור האמיתי
+    // צפייה מכוונת כלקוח היא לא דליפה — אבל היא תמיד לקריאה בלבד (ר' adminViewAsClient),
+    // כך שגם במצב הזה אי אפשר לכתוב נתונים לחשבון של לקוח.
+    if (typeof _viewAsBackup !== 'undefined' && _viewAsBackup) {
+      if (!READ_ONLY) { tenantAlarm('צפייה כלקוח ללא נעילת כתיבה'); }
+      return;
+    }
+    let expected = TENANT;
+    if (u.uid === NOFAR_OWNER_UID) { expected = 'nofar'; }
+    else {
+      const snap = await db.collection('users').doc(u.uid).get();
+      expected = (snap.exists && (snap.data() || {}).tenantId) || u.uid;
+    }
+    if (expected !== TENANT) {
+      tenantAlarm('החשבון שייך ל-' + expected + ' אבל נטענו נתונים של ' + TENANT);
+      return;
+    }
+    // 2: חותמת על המסמך שנקרא
+    const main = await db.collection('tenants').doc(TENANT).collection('data').doc('main').get();
+    const st = main.exists ? (main.data() || {})._tenant : null;
+    if (st && st !== TENANT) {
+      tenantAlarm('מסמך הנתונים חתום על שם ' + st);
+      return;
+    }
+    console.log('[TENANT GUARD] ✓', TENANT);
+  } catch(e) { console.log('[TENANT GUARD] audit skipped', e.code || e.message); }
+}
+function startTenantGuard() {
+  auditTenantIsolation();
+  setInterval(auditTenantIsolation, 5 * 60 * 1000);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') auditTenantIsolation();
+  });
 }
 // The legacy Nofar owner account has no users/{uid} mapping (it predates the multi-tenant
 // structure). This is the ONLY account allowed to fall back to the 'nofar' tenant; every
@@ -10627,7 +10735,10 @@ auth.onAuthStateChanged(async user => {
   }
   if (user) {
     _bootStage = 'מזהה את הלקוח';
-    await resolveTenant(user); // which company this account belongs to (defaults to nofar)
+    await resolveTenant(user); // which company this account belongs to
+    if (!TENANT) { tenantAlarm('לא ניתן לזהות את הלקוח'); return; }
+    TENANT_RESOLVED = true;
+    startTenantGuard();
     _bootStage = 'בודק חיבור פעיל';
     if (!subscriptionOK()) { showPaywall(); return; } // block companies with an inactive/expired subscription
     if (!(await claimSession(user))) return;          // החשבון כבר פתוח במכשיר אחר
@@ -13712,6 +13823,82 @@ function markMultiWindow() {
     document.body.style.paddingTop = '26px';
   }
   b.textContent = '🪟 חלון נפרד — ' + (COMPANY_NAME || 'טרם מחובר') + ' · ההתחברות כאן עצמאית ואינה משפיעה על החלון הראשי';
+}
+
+// צפייה כלקוח: הבעלים נשאר מחובר בחשבון שלו ורק מחליף את הדייר שממנו
+// נטענים הנתונים. זה מייתר התחברות שנייה — שהיא מקור כל הסיבוך של שני
+// חלונות — ומאפשר לעבור בין לקוחות בלחיצה.
+// דורש כלל בפיירסטור שמרשה לבעלים לקרוא tenants/*.
+let _viewAsBackup = null;
+async function adminViewAsClient() {
+  if (TENANT !== 'nofar' && !_viewAsBackup) { toast('זמין רק מהחשבון שלך', true); return; }
+  const uid = (document.getElementById('adm-uid').value || '').trim();
+  if (!uid) { toast('הזן UID של הלקוח', true); return; }
+  const st = document.getElementById('adm-status');
+  st.textContent = 'נכנס לתצוגת לקוח…'; st.style.color = '#94a3b8';
+  try {
+    const snap = await db.collection('users').doc(uid).get();
+    if (!snap.exists) { st.textContent = 'לא נמצא לקוח עם ה-UID הזה'; st.style.color = '#fca5a5'; return; }
+    const d = snap.data() || {};
+    if (!_viewAsBackup) _viewAsBackup = { TENANT, COMPANY_NAME, ROLE, FEATURES: Object.assign({}, FEATURES) };
+    TENANT = d.tenantId || uid;
+    COMPANY_NAME = d.companyName || '';
+    const _f = d.features || {};
+    FEATURES = { weight: _f.weight !== false, drivers: _f.drivers === true,
+                 extraCerts: _f.extraCerts === true,
+                 trafficMonths: parseInt(_f.trafficMonths) || 36,
+                 inspectionMonths: parseInt(_f.inspectionMonths) || 0,
+                 singleSession: false,           // צפייה שלך אינה תופסת נעילה ללקוח
+                 splitName: _f.splitName === true };
+    const sys = d.systems || {};
+    SYS_ENABLED = { fleet: !!sys.fleet, shamai: !!sys.shamai, garage: !!sys.garage };
+    READ_ONLY = true;          // צופה בנתוני לקוח — בלי אפשרות לשנות אותם
+    closeModal('admin-modal');
+    showViewAsBar();
+    await reloadTenantData();
+    toast('צופה כ-' + (COMPANY_NAME || uid) + ' ✓');
+  } catch(e) {
+    st.textContent = /permission/i.test(e.code || e.message || '')
+      ? 'אין הרשאת קריאה לנתוני הלקוח — צריך להוסיף כלל בפיירסטור. תגיד לי ואשלח.'
+      : 'שגיאה: ' + (e.code || e.message);
+    console.log('adminViewAsClient', e);
+  }
+}
+function exitViewAs() {
+  if (!_viewAsBackup) return;
+  Object.assign(window, {});
+  TENANT = _viewAsBackup.TENANT; COMPANY_NAME = _viewAsBackup.COMPANY_NAME;
+  ROLE = _viewAsBackup.ROLE; FEATURES = _viewAsBackup.FEATURES;
+  SYS_ENABLED = { fleet: true, shamai: true, garage: true };
+  _viewAsBackup = null;
+  READ_ONLY = false;
+  const b = document.getElementById('viewas-bar'); if (b) b.remove();
+  document.body.style.paddingTop = '';
+  reloadTenantData().then(() => toast('חזרת לחשבון שלך ✓'));
+}
+function showViewAsBar() {
+  let b = document.getElementById('viewas-bar');
+  if (!b) {
+    b = document.createElement('div');
+    b.id = 'viewas-bar';
+    b.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:9997;background:linear-gradient(135deg,#b45309,#d97706);' +
+      'color:#fff;padding:6px 14px;font-family:Heebo,sans-serif;font-size:0.78rem;font-weight:800;display:flex;' +
+      'align-items:center;justify-content:center;gap:12px;flex-wrap:wrap';
+    document.body.appendChild(b);
+    document.body.style.paddingTop = '32px';
+  }
+  b.innerHTML = '<span>👁️ צופה כ-' + esc(COMPANY_NAME || TENANT) + '</span>' +
+    '<button onclick="exitViewAs()" style="background:#fff;color:#b45309;border:none;border-radius:8px;padding:4px 12px;' +
+    'font-family:Heebo,sans-serif;font-size:0.76rem;font-weight:800;cursor:pointer">חזרה לחשבון שלי</button>';
+}
+// טוען מחדש את כל נתוני הדייר הנוכחי, בלי לצאת ולהיכנס
+async function reloadTenantData() {
+  wipeSeedData();
+  loadUiPrefs();
+  applyFeatureFlags();
+  try { await loadFromFirestore(); } catch(e) { console.log('reloadTenantData', e); }
+  renderFleet(); renderAlerts(); renderDashboard();
+  if (typeof renderDrivers === 'function') renderDrivers();
 }
 
 async function adminLoadSessions() {
