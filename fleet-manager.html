@@ -2967,6 +2967,20 @@ async function saveVehiclesSafely(editedPlate, dk, origPlate) {
 // הרישוי בענן שונה במקף/רווח מזה שבזיכרון, או שאין בו ספרות כלל —
 // ואז המחיקה "לא תפסה" והשורה חזרה בכל רענון. לכן: התאמה
 // מדויקת, אחריה לפי ספרות בלבד, ולבסוף לפי id.
+// שורה בלי מספר רישוי ובלי id אינה ניתנת לזיהוי, ולכן גם לא למחיקה —
+// היא נשארה תקועה בטבלה. כאן מוודאים שלכל רכב יש id יציב. הערך נשמר
+// לענן בפעולת השמירה הבאה, ולכן התיקון מחזיק גם אחרי רענון.
+function _ensureVehicleIds() {
+  let n = 0, seen = new Set();
+  (VEHICLES || []).forEach((v, i) => {
+    if (v.id === undefined || v.id === null || v.id === '' || seen.has(v.id)) {
+      v.id = Date.now() + i; n++;
+    }
+    seen.add(v.id);
+  });
+  return n;
+}
+
 function _sameVehicle(x, plate, id) {
   if (id !== null && id !== undefined && x.id !== undefined && x.id === id) return true;
   const a = String(x.plate == null ? '' : x.plate).trim();
@@ -2977,6 +2991,7 @@ function _sameVehicle(x, plate, id) {
 }
 async function deleteVehicleRow(plate, id) {
   if (id === undefined) id = null;
+  _ensureVehicleIds();
   const v = VEHICLES.find(x => _sameVehicle(x, plate, id));
   const who = v ? (v.driverName || '').split('-')[0].trim() : '';
   if (!confirm(`למחוק את רכב ${plate}${who ? ' — ' + who : ''} מהצי?\n\nהרכב יוסר מהרשימה. ניתן לשחזר מהגיבוי היומי.`)) return;
@@ -3010,7 +3025,7 @@ async function deleteVehicleRow(plate, id) {
     mirrorToTenant('main', { vehicles: next });
     rebuildDriversDirectory();
     renderFleet(); renderAlerts(); renderDashboard();
-    toast(`רכב ${plate} נמחק ✓`);
+    toast(`רכב ${label} נמחק ✓`);
   } catch(e) {
     console.log('delete failed', e);
     toast(e.code === 'permission-denied'
@@ -4371,6 +4386,7 @@ function buildCompanyFilter() {
 function renderFleet() {
   applyFeatureFlags();
   applyColVisibility();
+  _ensureVehicleIds();
   const q = (document.getElementById('fleet-search').value||'').toLowerCase();
   const co = document.getElementById('fleet-company').value;
   const st = document.getElementById('fleet-status').value;
