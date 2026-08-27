@@ -124,7 +124,18 @@ async function ensureAnonAuth() {
   } catch(e) { console.log('anon auth unavailable, continuing', e.code || e.message); }
 }
 const params = new URLSearchParams(location.search);
-const TENANT = (params.get('t') || 'nofar');
+const TENANT = (params.get('t') || '').trim();
+if (!TENANT) {
+  const _stop = () => { document.body.innerHTML =
+    '<div style="max-width:420px;margin:60px auto;padding:26px;border-radius:16px;background:#fff;' +
+    'font-family:Heebo,Arial,sans-serif;text-align:center;direction:rtl;box-shadow:0 8px 30px rgba(0,0,0,.12)">' +
+    '<div style="font-size:2.4rem">🔗</div>' +
+    '<h2 style="margin:10px 0 8px;font-size:1.1rem;color:#b91c1c">הקישור אינו שלם</h2>' +
+    '<p style="margin:0;color:#475569;font-size:.9rem;line-height:1.6">חסר בו מזהה החברה, ולכן לא ניתן לפתוח אותו.<br>' +
+    'בקש מקצין הבטיחות לשלוח את הקישור מחדש מתוך המערכת.</p></div>'; };
+  if (document.body) _stop(); else document.addEventListener('DOMContentLoaded', _stop);
+  throw new Error('NO_TENANT');
+}
 const fcol = () => db.collection('tenants').doc(TENANT).collection('data');
 const urlPlate = (params.get('plate') || '').trim();
 let FLEET = [], MAIL = {}, VEH = null;

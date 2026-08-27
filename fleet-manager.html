@@ -4896,7 +4896,7 @@ async function viewIncidentPhotos(increpId) {
 }
 // קישור דיווח נזק לנהג — הנהג ממלא פרטים ומצרף תמונות (רכב שלו + צד ג'); הדיווח נכנס אוטומטית לאירועים
 function shareDamageLink() {
-  const link = `https://nadi8890.github.io/shamay-scan/driver-damage.html?t=${encodeURIComponent(TENANT || 'nofar')}`;
+  const link = `https://nadi8890.github.io/shamay-scan/driver-damage.html?t=${tid()}`;
   const msg = `דיווח נזק / תאונה לרכב 🚗\nנא למלא את הפרטים ולצרף תמונות של הנזק (כולל רכב צד ג' אם יש):\n${link}\n\n${typeof coSig === 'function' ? coSig() : ''}`;
   const done = () => toast('קישור דיווח הנזק הועתק ✓ — שלח לנהג בוואטסאפ');
   if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(msg).then(done).catch(() => _fallbackCopy(msg, done));
@@ -4907,7 +4907,7 @@ function shareDamageLinkFor(plate) {
   const v = VEHICLES.find(x => x.plate === plate);
   if (!v) { toast('הרכב לא נמצא', true); return; }
   const nm = (v.driverName || '').split('-')[0].trim();
-  const link = `https://nadi8890.github.io/shamay-scan/driver-damage.html?t=${encodeURIComponent(TENANT || 'nofar')}&plate=${encodeURIComponent(v.plate)}`;
+  const link = `https://nadi8890.github.io/shamay-scan/driver-damage.html?t=${tid()}&plate=${encodeURIComponent(v.plate)}`;
   const msg = `היי ${nm} 👋\nלדיווח נזק / תאונה לרכב ${v.plate} — מלא/י את הפרטים וצרף/י תמונות של הנזק (כולל רכב צד ג' אם יש):\n${link}\n\n${typeof coSig === 'function' ? coSig() : ''}`;
   const digits = (v.driverPhone || '').replace(/\D/g, '');
   if (digits) {
@@ -5890,7 +5890,14 @@ const KM_UPDATE_LINK = 'https://nadi8890.github.io/shamay-scan/km-update.html';
 // Every driver link MUST carry the tenant id, or a customer's drivers would fall back to
 // Nofar's data (the driver pages default ?t= to 'nofar'). sep is '?' for a bare base URL
 // or '&' when the link already has a query string.
-function tParam(sep) { return (sep || '&') + 't=' + encodeURIComponent(TENANT || 'nofar'); }
+// כל קישור שנשלח לנהג נושא את מזהה הלקוח. נפילה חזרה ל'nofar' כאן הייתה
+// שולחת נהג של לקוח אחר לכתוב לתוך החשבון של הבעלים — בדיוק הדליפה
+// שנסגרה בצד המערכת. אם אין דייר מזוהה, לא נבנה קישור בכלל.
+function tid() {
+  if (!TENANT || !TENANT_RESOLVED) { tenantAlarm('ניסיון לבנות קישור לנהג ללא זיהוי לקוח'); throw new Error('TENANT_UNRESOLVED'); }
+  return encodeURIComponent(TENANT);
+}
+function tParam(sep) { return (sep || '&') + 't=' + tid(); }
 // Message sign-off uses the signed-in company's name (Nofar for Nofar, the customer's own
 // name for every other tenant) instead of a hardcoded "נופר אנרגיה".
 function coSig() { return COMPANY_NAME ? ('מחלקת הרכב — ' + COMPANY_NAME) : 'מחלקת הרכב'; }
@@ -5921,7 +5928,7 @@ function sendKmRoundToDrivers() {
 // The chatbot ("נדי") link for this company — carries the tenant id so a customer's
 // drivers reach THEIR data, not Nofar's.
 function copyBotLink() {
-  const link = 'https://nadi8890.github.io/chat-bot/?t=' + encodeURIComponent(TENANT || 'nofar');
+  const link = 'https://nadi8890.github.io/chat-bot/?t=' + tid();
   const done = () => toast('קישור הבוט הועתק ✓ — שלח לנהגים בוואטסאפ');
   if (navigator.clipboard && navigator.clipboard.writeText) {
     navigator.clipboard.writeText(link).then(done).catch(() => _fallbackCopy(link, done));
@@ -6577,7 +6584,7 @@ async function _renderDeclPdf(rec) {
         clearTimeout(timer); cleanup(); resolve(blob);
       } catch(e) { if (done) return; done = true; clearTimeout(timer); cleanup(); reject(e); }
     };
-    ifr.src = 'driver-forms.html?t=' + encodeURIComponent(TENANT || 'nofar');
+    ifr.src = 'driver-forms.html?t=' + tid();
     document.body.appendChild(ifr);
   });
 }
@@ -7294,7 +7301,7 @@ function remindServiceScheduling(plate) {
   if (!v) { toast('הרכב לא נמצא', true); return; }
   const nm = (v.driverName || '').split('-')[0].trim();
   const line = _serviceChannel(v.company);
-  const uploadLink = `${TASK_LINK}?t=${encodeURIComponent(TENANT || 'nofar')}&plate=${encodeURIComponent(v.plate)}&type=service&req=${encodeURIComponent('אישור טיפול / מסמך רכב')}`;
+  const uploadLink = `${TASK_LINK}?t=${tid()}&plate=${encodeURIComponent(v.plate)}&type=service&req=${encodeURIComponent('אישור טיפול / מסמך רכב')}`;
   const msg = `היי ${nm} 👋\nהרכב ${v.plate} הגיע/מתקרב למועד טיפול תקופתי — נא לתאם טיפול בהקדם:\n\n${line}\n\n📎 אם הרכב כבר עבר טיפול — ניתן להעלות את מסמך הטיפול למערכת דרך הקישור:\n${uploadLink}\n\nתודה!\n${coSig()}`;
   const digits = (v.driverPhone || '').replace(/\D/g, '');
   if (digits) {
@@ -7330,7 +7337,7 @@ function requestDocFromEmployee(plate) {
   const nm = (v.driverName || '').split('-')[0].trim();
   // types נשלח במפורש: primary הופך ל-general כשנדרש יותר ממסמך אחד,
   // ואז לבדו אי אפשר לדעת אילו מסמכים נתבקשו בפועל.
-  const link = `${TASK_LINK}?t=${encodeURIComponent(TENANT || 'nofar')}&plate=${encodeURIComponent(v.plate)}&type=${encodeURIComponent(primary)}&types=${encodeURIComponent(types.join(','))}&req=${encodeURIComponent(label)}`;
+  const link = `${TASK_LINK}?t=${tid()}&plate=${encodeURIComponent(v.plate)}&type=${encodeURIComponent(primary)}&types=${encodeURIComponent(types.join(','))}&req=${encodeURIComponent(label)}`;
   const msg = `היי ${nm} 👋\nנדרש מסמך/אישור עבור הרכב ${v.plate}:\n• ${items.join('\n• ')}\n\nנא להיכנס לקישור, לצרף צילום/מסמך ולשלוח (דקה):\n${link}\n\nתודה!\n${coSig()}`;
   const digits = (v.driverPhone || '').replace(/\D/g, '');
   if (digits) {
@@ -9166,7 +9173,7 @@ async function restoreFullFromBackup(id){
   } catch(e){ toast('שגיאה בשחזור', true); console.log('restoreFull', e); }
 }
 function shareMyDocsLink(){
-  const link = `https://nadi8890.github.io/shamay-scan/my-docs.html?t=${encodeURIComponent(TENANT||'nofar')}`;
+  const link = `https://nadi8890.github.io/shamay-scan/my-docs.html?t=${tid()}`;
   const msg = `📁 המסמכים שלך — ר.מזור\nלצפייה במסמכים שלך (רישיון נהיגה, רישיון רכב, ביטוח, נהלים):\n${link}\n\nהיכנס/י עם המייל שלך — יישלח אליך קישור כניסה מאובטח, בלי סיסמה.`;
   const done = () => toast('הקישור הועתק — שלח בקבוצת העובדים ✓');
   if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(msg).then(done).catch(() => _fallbackCopy(msg, done));
