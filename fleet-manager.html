@@ -242,8 +242,10 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
 .badge-blue{background:#eff6ff;color:#1d4ed8;border:1px solid #bfdbfe}
 /* Search & filters */
 .search-row{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
-/* שורת החיפוש של הצי — דביקה מתחת ל-header, נשארת גלויה בגלילה */
-#tab-fleet .search-row{position:sticky;top:var(--header-h,52px);z-index:50;background:var(--bg);padding:8px 0;margin-bottom:6px;box-shadow:0 6px 6px -6px rgba(0,0,0,.12)}
+/* שורת המסננים גוללת כרגיל. כשהחיפוש ישב כאן היה הגיוני להצמיד
+   אותה, אבל מששדה החיפוש עלה לפס הכחול נשארו כאן רק שלושה בוררים —
+   והם נתקעו באמצע המסך והסתירו בגלילה את שורת הכפתורים שמעליהם. */
+#tab-fleet .search-row{padding:2px 0;margin-bottom:8px}
 .hdr-search{flex:1;min-width:100px;max-width:430px;background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.28);color:#fff;border-radius:9px;padding:7px 12px;font-family:'Heebo',sans-serif;font-size:0.82rem;font-weight:600}
 .hdr-search::placeholder{color:rgba(255,255,255,.72);font-weight:500}
 .hdr-search:focus{outline:none;background:rgba(255,255,255,.26);border-color:rgba(255,255,255,.55)}
@@ -562,9 +564,11 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
       <option value="soon">עומד לפוג 🟡</option>
     </select>
   </div>
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+  <!-- גלישה לשורה שנייה במקום חריגה מרוחב המסך: בטלפון צר הכפתורים
+       נדחפו אל מחוץ למסך ו"ייצוא" נחתך בקצה. -->
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;gap:6px">
     <div id="fleet-count" style="font-size:0.75rem;color:var(--muted)"></div>
-    <div style="display:flex;gap:6px;align-items:center">
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
       <button class="btn btn-primary" style="padding:6px 14px;font-size:0.78rem" onclick="openAddVehicle()">+ רכב חדש</button>
       <button class="btn-export" title="בחר אילו עמודות יוצגו בטבלה" onclick="toggleColPicker()">🧩 עמודות</button>
       <button class="btn-export" id="btn-clean-blank" style="display:none" title="מחיקת שורות שאין בהן מספר רישוי תקין — שורות ריקות ושורות כותרת שנכנסו בייבוא" onclick="cleanupBlankRows()">🧹 נקה שורות ריקות</button>
