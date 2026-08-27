@@ -575,7 +575,8 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
           <th><div class="th-sort" onclick="sortFleetCol('tozeretCd')">קוד תוצר<span class="sort-arrow" id="sarr-tozeretCd">⇅</span></div></th>
           <th><div class="th-sort" onclick="sortFleetCol('degemCd')">קוד דגם<span class="sort-arrow" id="sarr-degemCd">⇅</span></div></th>
           <th class="col-weight"><div class="th-sort" onclick="sortFleetCol('weight')">משקל כולל<span class="sort-arrow" id="sarr-weight">⇅</span></div></th>
-          <th><div class="th-sort" onclick="sortFleetCol('driver')">נהג<span class="sort-arrow" id="sarr-driver">⇅</span></div></th>
+          <th><div class="th-sort" onclick="sortFleetCol('driver')"><span id="hdr-driver">נהג</span><span class="sort-arrow" id="sarr-driver">⇅</span></div></th>
+          <th class="col-lastname"><div class="th-sort" onclick="sortFleetCol('lastname')">שם משפחה<span class="sort-arrow" id="sarr-lastname">⇅</span></div></th>
           <th><div class="th-sort" onclick="sortFleetCol('company')">חברה<span class="sort-arrow" id="sarr-company">⇅</span></div></th>
           <th><div class="th-sort" onclick="sortFleetCol('reg')">תוקף רישוי<span class="sort-arrow" id="sarr-reg">⇅</span></div></th>
           <th><div class="th-sort" onclick="sortFleetCol('ins')">תוקף ביטוח<span class="sort-arrow" id="sarr-ins">⇅</span></div></th>
@@ -999,6 +1000,7 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
 body.read-only .btn-primary,body.read-only .btn-green,body.read-only .rec-del{opacity:.45;pointer-events:none}
 body.read-only{padding-top:38px}
 body:not(.feat-certs) .col-cert{display:none}
+body:not(.feat-splitname) .col-lastname{display:none}
 /* לשונית הנהגים מוצגת רק ללקוח שהופעלה אצלו */
 body:not(.feat-drivers) .feat-drivers-only{display:none!important}</style>
 <style id="systems-ux">
@@ -1575,6 +1577,9 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
               </label>
               <label style="display:flex;align-items:center;gap:6px;cursor:pointer" title="חשבון אחד — מכשיר אחד. כניסה ממכשיר נוסף חוסמת, עם אפשרות השתלטות מפורשת. הבעלים פטור.">
                 <input id="adm-single" type="checkbox" style="width:16px;height:16px"><span>🔒 מכשיר אחד בלבד <span style="color:#94a3b8;font-weight:400">(מונע שיתוף חשבון)</span></span>
+              </label>
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer" title="שם פרטי ושם משפחה בעמודות נפרדות בטבלה ובטופס הרכב">
+                <input id="adm-splitname" type="checkbox" style="width:16px;height:16px"><span>👤 שם פרטי ומשפחה בנפרד</span>
               </label>
             </div>
             <div style="display:flex;gap:12px;margin-bottom:12px;flex-wrap:wrap;align-items:flex-end">
@@ -2520,6 +2525,27 @@ function _svcKey(v) { return String(parseKm(v.nextServiceKm)); }
 let DRIVERS = {};
 // standing rules/preferences the manager teaches the agent once — injected into every prompt
 let AGENT_RULES = '';
+// פיצול שם לשם פרטי ומשפחה (FEATURES.splitName, פר-לקוח).
+// driverName נשאר השדה הקנוני שכל השאר נשען עליו — התראות, ספר הנהגים,
+// התאמת מסמכים והבוט. firstName/lastName נשמרים לצידו, וכשהם חסרים
+// (נתונים ישנים) הם נגזרים ממנו: המילה הראשונה היא השם הפרטי.
+function driverFirst(v) {
+  if (v && String(v.firstName || '').trim()) return String(v.firstName).trim();
+  const base = String((v && v.driverName) || '').split('-')[0].trim();
+  return base ? base.split(/\s+/)[0] : '';
+}
+function driverLast(v) {
+  if (v && String(v.lastName || '').trim()) return String(v.lastName).trim();
+  const base = String((v && v.driverName) || '').split('-')[0].trim();
+  const parts = base ? base.split(/\s+/) : [];
+  return parts.length > 1 ? parts.slice(1).join(' ') : '';
+}
+// מרכיב בחזרה ל-driverName, תוך שמירת סיומת השיוך שאחרי המקף
+function composeDriverName(first, last, prev) {
+  const aff = driverAffiliation(prev || '');
+  const full = [String(first || '').trim(), String(last || '').trim()].filter(Boolean).join(' ');
+  return aff ? full + '-' + aff : full;
+}
 function driverKey(s) { return String(s||'').split('-')[0].replace(/['"׳]/g,'').replace(/\s+/g,' ').trim(); }
 // שם הנהג בלי סיומת השיוך. היה מוגדר רק בתוך renderManagerDashboard,
 // ולכן _renderCostImportPreview — שקוראת לו — קרסה ב-ReferenceError בכל
@@ -2638,8 +2664,10 @@ function drvSendForms(key) {
   if (v) openDeclShare(v.plate);
 }
 function drvOpenDocs(key) {
-  const v = _drvPickVehicle(key, 'לפתוח תיק מסמכים');
-  if (v) openEmployeeDocs(v.plate);
+  const vs = driverVehicles(key);
+  if (!vs.length) { openEmployeeDocs('', key); return; }   // תיק נהג בלבד
+  if (vs.length > 1) toast(`ל${key} ${vs.length} רכבים — נפתח עבור ${vs[0].plate}`);
+  openEmployeeDocs(vs[0].plate);
 }
 function renderDrivers() {
   const body = document.getElementById('drivers-body');
@@ -4153,7 +4181,7 @@ function renderDashboard() {
 
 // ── FLEET SORT/FILTER ──
 let fleetSort = { col: null, dir: 1 };
-let fleetColFilters = { plate:'', make:'', tozeretCd:'', degemCd:'', weight:'', driver:'', company:'', reg:'', ins:'', lic:'', km:'', insp:'', traffic:'', proc:'', from:'' };
+let fleetColFilters = { plate:'', make:'', tozeretCd:'', degemCd:'', weight:'', driver:'', lastname:'', company:'', reg:'', ins:'', lic:'', km:'', insp:'', traffic:'', proc:'', from:'' };
 // הסינון נשמר בין רענונים. מאחר שהוא שורד, חייב להיות חיווי ברור שהוא
 // פעיל — אחרת טבלה מסוננת נראית כמו טבלה שנעלמו ממנה שורות.
 try {
@@ -4317,18 +4345,20 @@ const FLEET_COLS = [
   { i:1,  label:'מס׳ רישוי' },   { i:2,  label:'יצרן / דגם' },
   { i:3,  label:'קוד תוצר' },    { i:4,  label:'קוד דגם' },
   { i:5,  label:'משקל כולל', feat:'weight' },
-  { i:6,  label:'נהג' },         { i:7,  label:'חברה' },
-  { i:8,  label:'תוקף רישוי' },  { i:9,  label:'תוקף ביטוח' },
-  { i:10, label:'רישיון נהג' },  { i:11, label:'טיפול הבא' },
-  { i:12, label:'ביקורת' },      { i:13, label:'עבר תעבורתי' },
-  { i:14, label:'נהלים' },       { i:15, label:'קבלת רכב' },
-  { i:16, label:'❄️ בדיקת חורף',      feat:'extraCerts' },
-  { i:17, label:'💨 בדיקה פניאומטית', feat:'extraCerts' },
-  { i:18, label:'⏱️ כיול טכוגרף',     feat:'extraCerts' },
-  { i:19, label:'🛑 אישור בלמים',     feat:'extraCerts' },
-  { i:20, label:'🚌 רישיון הסעה',     feat:'extraCerts' },
-  { i:21, label:'👶 שכחת ילדים',      feat:'extraCerts' },
-  { i:22, label:'🧯 כיבוי אש',        feat:'extraCerts' }
+  { i:6,  label:'נהג' },
+  { i:7,  label:'שם משפחה', feat:'splitName' },
+  { i:8,  label:'חברה' },
+  { i:9,  label:'תוקף רישוי' },  { i:10, label:'תוקף ביטוח' },
+  { i:11, label:'רישיון נהג' },  { i:12, label:'טיפול הבא' },
+  { i:13, label:'ביקורת' },      { i:14, label:'עבר תעבורתי' },
+  { i:15, label:'נהלים' },       { i:16, label:'קבלת רכב' },
+  { i:17, label:'❄️ בדיקת חורף',      feat:'extraCerts' },
+  { i:18, label:'💨 בדיקה פניאומטית', feat:'extraCerts' },
+  { i:19, label:'⏱️ כיול טכוגרף',     feat:'extraCerts' },
+  { i:20, label:'🛑 אישור בלמים',     feat:'extraCerts' },
+  { i:21, label:'🚌 רישיון הסעה',     feat:'extraCerts' },
+  { i:22, label:'👶 שכחת ילדים',      feat:'extraCerts' },
+  { i:23, label:'🧯 כיבוי אש',        feat:'extraCerts' }
 ];
 let HIDDEN_COLS = [];
 try { HIDDEN_COLS = JSON.parse(localStorage.getItem('fleet_hiddenCols')) || []; } catch(e) {}
@@ -4381,11 +4411,11 @@ function buildColFilterRow(vehicles) {
   if (row.querySelector('.col-filter-inp')) return;
   const placeholders = { plate:'רישוי...', make:'יצרן/דגם...', tozeretCd:'קוד...', degemCd:'קוד...', weight:'ק"ג...', driver:'נהג...', company:'חברה...', reg:'תאריך...', ins:'תאריך...', lic:'תאריך...', km:'ק"מ...', insp:'תאריך...', traffic:'תאריך...', proc:'תאריך...', from:'תאריך...' };
   const inp = col => `<th class="col-${col}"><input class="col-filter-inp" type="text" placeholder="${placeholders[col]||'חפש...'}" value="${esc(fleetColFilters[col]||'')}" oninput="setColFilter('${col}',this.value)"></th>`;
-  row.innerHTML = inp('plate')+inp('make')+inp('tozeretCd')+inp('degemCd')+inp('weight')+inp('driver')+inp('company')+inp('reg')+inp('ins')+inp('lic')+inp('km')+inp('insp')+inp('traffic')+inp('proc')+inp('from')
+  row.innerHTML = inp('plate')+inp('make')+inp('tozeretCd')+inp('degemCd')+inp('weight')+inp('driver')+`<th class="col-lastname"><input class="col-filter-inp" type="text" placeholder="משפחה..." value="${esc(fleetColFilters.lastname||'')}" oninput="setColFilter('lastname',this.value)"></th>`+inp('company')+inp('reg')+inp('ins')+inp('lic')+inp('km')+inp('insp')+inp('traffic')+inp('proc')+inp('from')
     + EXTRA_CERTS.map(c => `<th class="col-cert col-${c.key}"></th>`).join('') + '<th></th>';
 }
 function updateSortArrows() {
-  ['plate','make','tozeretCd','degemCd','weight','driver','company','reg','ins','lic','km','insp','traffic','proc','from'].forEach(c => {
+  ['plate','make','tozeretCd','degemCd','weight','driver','lastname','company','reg','ins','lic','km','insp','traffic','proc','from'].forEach(c => {
     const el = document.getElementById('sarr-'+c);
     if (!el) return;
     el.textContent = fleetSort.col===c ? (fleetSort.dir===1 ? '↑' : '↓') : '⇅';
@@ -4478,7 +4508,8 @@ function renderFleet() {
     if (!fMatch(v.tozeretCd, fleetColFilters.tozeretCd)) return false;
     if (!fMatch(v.degemCd, fleetColFilters.degemCd)) return false;
     if (!fMatch(v.weight, fleetColFilters.weight)) return false;
-    if (!fMatch(v.driverName, fleetColFilters.driver)) return false;
+    if (!fMatch(featureOn('splitName') ? driverFirst(v) : v.driverName, fleetColFilters.driver)) return false;
+    if (!fMatch(driverLast(v), fleetColFilters.lastname)) return false;
     if (!fMatch(v.company, fleetColFilters.company)) return false;
     if (!fMatch(v.registrationExpiry, fleetColFilters.reg)) return false;
     if (!fMatch(v.insuranceExpiry, fleetColFilters.ins)) return false;
@@ -4504,7 +4535,9 @@ function renderFleet() {
         case 'tozeretCd': va=_govNum(a.tozeretCd); vb=_govNum(b.tozeretCd); break;
         case 'degemCd': va=_govStr(a.degemCd); vb=_govStr(b.degemCd); break;   // במסחרי הקוד טקסטואלי
         case 'weight': va=_govNum(a.weight); vb=_govNum(b.weight); break;
-        case 'driver': va=a.driverName||''; vb=b.driverName||''; break;
+        case 'driver': va=featureOn('splitName')?driverFirst(a):(a.driverName||'');
+                       vb=featureOn('splitName')?driverFirst(b):(b.driverName||''); break;
+        case 'lastname': va=driverLast(a); vb=driverLast(b); break;
         case 'company': va=a.company||''; vb=b.company||''; break;
         case 'reg': va=daysUntil(a.registrationExpiry)??9999; vb=daysUntil(b.registrationExpiry)??9999; break;
         case 'ins': va=daysUntil(a.insuranceExpiry)??9999; vb=daysUntil(b.insuranceExpiry)??9999; break;
@@ -4575,7 +4608,8 @@ function renderFleet() {
       <td style="font-size:0.73rem;direction:ltr;text-align:center">${esc(govPad4(v.tozeretCd))||'—'}</td>
       <td style="font-size:0.73rem;direction:ltr;text-align:center">${esc(govPad4(v.degemCd))||'—'}</td>
       <td class="col-weight" style="font-size:0.73rem;white-space:nowrap">${v.weight ? esc(v.weight)+' ק"ג' : '—'}</td>
-      <td class="${isTrailer?'':yc(drvNm)}" style="font-size:0.73rem">${esc((v.driverName||'').split('-')[0])||'—'}</td>
+      <td class="${isTrailer?'':yc(drvNm)}" style="font-size:0.73rem">${esc(featureOn('splitName') ? driverFirst(v) : (v.driverName||'').split('-')[0])||'—'}</td>
+      <td class="col-lastname" style="font-size:0.73rem">${esc(driverLast(v))||'—'}</td>
       <td class="${yc(v.company)}">${companyBadge(v.company)}</td>
       <td class="${yc(v.registrationExpiry, cellCls(regDays))}">${statusBadge(regDays)}<br><span style="color:var(--muted);font-size:0.63rem">${esc(v.registrationExpiry)||'—'}</span></td>
       <td class="${yc(v.insuranceExpiry, cellCls(insDays))}">${statusBadge(insDays)}<br><span style="color:var(--muted);font-size:0.63rem">${esc(v.insuranceExpiry)||'—'}</span></td>
@@ -8454,6 +8488,8 @@ const IMPORT_FIELDS = [
   { key:'inspection',         label:'ביקורת בטיחות',     syn:['ביקורת בטיחות','ביקורת','תאריך ביקורת','inspection'] },
   { key:'trafficRecord',      label:'עבר תעבורתי',       syn:['עבר תעבורתי','עבר תעבורה','traffic record'] },
   { key:'procedures',         label:'נהלים',             syn:['נהלים','חתימת נהלים','procedures'] },
+  { key:'firstName',          label:'שם פרטי',           syn:['שם פרטי אחראי רכב','שם פרטי','first name'] },
+  { key:'lastName',           label:'שם משפחה',          syn:['שם משפחה אחראי רכב','שם משפחה','last name','surname'] },
   { key:'winterCheck',        label:'בדיקת חורף',        syn:['בדיקת חורף','חורף','winter'] },
   { key:'pneumaticChk',       label:'בדיקה פניאומטית',   syn:['אישור בלמים פנאומטית','בדיקה פניאומטית','פנאומטית','פניאומטית','pneumatic'] },
   { key:'brakesCert',         label:'אישור בלמים',       syn:['תאריך בדיקה אחרון','אישור בלמים','בלמים','brakes'] },
@@ -8674,6 +8710,7 @@ async function tagReqFile(docId, fileIdx, kind) {
     r.files = files;
     toast('✓ תויק כ' + (_REQ_TITLE[kind] || kind));
     if (window._empdocsPlate) openEmployeeDocs(window._empdocsPlate);
+    else if (window._empdocsDriver) openEmployeeDocs('', window._empdocsDriver);
   } catch(e) { toast('שגיאה בתיוג', true); console.log('tagReqFile', e); }
 }
 const _REQ_TITLE = { insurance: 'תעודת ביטוח', registration: 'רישיון רכב', license: 'רישיון נהיגה' };
@@ -9117,8 +9154,10 @@ let _MDOC = null;   // { kind, plate, driver, images[] }
 
 function openManualDoc(kind) {
   const plate = window._empdocsPlate || '';
-  const v = VEHICLES.find(x => _cpk2(x.plate) === _cpk2(plate));
-  _MDOC = { kind, plate, driver: v ? (v.driverName || '') : '', images: [] };
+  const v = plate ? VEHICLES.find(x => _cpk2(x.plate) === _cpk2(plate)) : null;
+  // בתיק של נהג בלי רכב אין רישוי, ולכן שם הנהג נלקח מהתיק הפתוח
+  const drv = v ? (v.driverName || '') : (window._empdocsDriver || '');
+  _MDOC = { kind, plate, driver: drv, images: [] };
   const f = document.getElementById('mdoc-file'); f.value = ''; f.click();
 }
 function _cpk2(p) { return String(p == null ? '' : p).replace(/\D/g, ''); }
@@ -9239,6 +9278,7 @@ async function tagVdocImage(docId, imgIdx, kind) {
     rec.imgKinds = ks;
     toast('✓ תויק כ' + (_REQ_TITLE[kind] || kind));
     if (window._empdocsPlate) openEmployeeDocs(window._empdocsPlate);
+    else if (window._empdocsDriver) openEmployeeDocs('', window._empdocsDriver);
   } catch(e) { toast('שגיאה בתיוג', true); console.log('tagVdocImage', e); }
 }
 
@@ -9281,6 +9321,7 @@ async function deleteEmpDoc(cat, di) {
     }
     toast('המסמך נמחק — הרץ סנכרון פורטלים כדי לעדכן את תיק העובד');
     if (window._empdocsPlate) openEmployeeDocs(window._empdocsPlate);
+    else if (window._empdocsDriver) openEmployeeDocs('', window._empdocsDriver);
   } catch(e) { toast('שגיאה במחיקה: ' + (e.code || e.message), true); console.log('deleteEmpDoc', e); }
 }
 async function deleteReqRecord(docId) {
@@ -9292,6 +9333,7 @@ async function deleteReqRecord(docId) {
     await r._ref.delete();
     toast('הקריאה נמחקה');
     if (window._empdocsPlate) openEmployeeDocs(window._empdocsPlate);
+    else if (window._empdocsDriver) openEmployeeDocs('', window._empdocsDriver);
   } catch(e) { toast('שגיאה במחיקה', true); console.log('deleteReqRecord', e); }
 }
 
@@ -9378,6 +9420,7 @@ async function saveManualDoc() {
     if (typeof renderAlerts === 'function') renderAlerts();
     if (typeof renderFleet === 'function') renderFleet();
     if (window._empdocsPlate) openEmployeeDocs(window._empdocsPlate);
+    else if (window._empdocsDriver) openEmployeeDocs('', window._empdocsDriver);
   } catch(e) {
     toast('שגיאה בשמירה: ' + (e.code || e.message), true);
     console.log('saveManualDoc', e);
@@ -9481,12 +9524,18 @@ function _empView(cat, di, fi){
 }
 function _empViewDecl(di){ window._DECLS = (window._EMPDOCS && window._EMPDOCS.decls) || []; if(typeof viewDeclaration === 'function') viewDeclaration(di); }
 function _empViewInsp(i){ window._INSPECTIONS = (window._EMPDOCS && window._EMPDOCS.insps) || []; if(typeof viewInspection === 'function') viewInspection(i); }
-async function openEmployeeDocs(plate){
-  const v = _vehByPlate(plate); if(!v){ toast('הרכב לא נמצא', true); return; }
-  const pk = String(plate).replace(/\D/g,'');
+// driverOnly: נהג שאין לו רכב משויך. התיק נפתח לפי זהות הנהג בלבד,
+// מציג את מסמכי האדם (נהלים ורישיון נהיגה) ומאפשר להעלות אותם. מסמכי
+// רכב אינם שייכים לכאן — אין רכב שאליו יוכלו להיצמד.
+async function openEmployeeDocs(plate, driverOnly){
+  const v = driverOnly ? { plate:'', driverName: driverOnly } : _vehByPlate(plate);
+  if(!v){ toast('הרכב לא נמצא', true); return; }
+  const pk = driverOnly ? '' : String(plate).replace(/\D/g,'');
   const drv = (v.driverName||'').split('-')[0].trim();
-  document.getElementById('empdocs-title').textContent = `📁 מסמכי ${drv} · ${v.plate}`;
-  window._empdocsPlate = plate;
+  document.getElementById('empdocs-title').textContent =
+    driverOnly ? `📁 מסמכי ${drv} · ללא רכב משויך` : `📁 מסמכי ${drv} · ${v.plate}`;
+  window._empdocsPlate = driverOnly ? '' : plate;
+  window._empdocsDriver = driverOnly || '';
   const body = document.getElementById('empdocs-body');
   body.innerHTML = '<div style="color:var(--muted);padding:14px">טוען מסמכים...</div>';
   document.getElementById('empdocs-modal').classList.add('open');
@@ -9575,6 +9624,15 @@ async function openEmployeeDocs(plate){
         ${ks.map(k=>`<option value="${k}"${f.docKind===k?' selected':''}>${esc(_REQ_TITLE[k]||k)}</option>`).join('')}</select>`;
     };
     const reqHtml = D.reqs.map((r,di)=>`<div style="margin-bottom:5px;font-size:0.74rem"><b>${esc(r.reqLabel||'קריאה')}</b> <span style="color:#64748b">${esc(r.dateStr||'')}</span> <span class="badge ${r.status==='approved'?'badge-green':r.status==='rejected'?'badge-red':'badge-orange'}" style="font-size:0.56rem">${esc(r.status||'ממתין')}</span> ${(r.files||[]).map((f,fi)=>`<button class="btn btn-gray" style="padding:3px 9px;font-size:0.68rem;margin:2px" onclick="_empView('reqs',${di},${fi})">${f.kind==='pdf'?'📄':'🖼️'} ${fi+1}</button><button class="btn btn-gray" style="padding:3px 7px;font-size:0.68rem;margin:2px 0" title="הורד למחשב" onclick="_empDownload('reqs',${di},${fi})">⬇️</button>${kindSel(r,f,fi)}`).join('')}<button class="btn" style="padding:3px 8px;font-size:0.68rem;margin:2px;background:#fee2e2;color:#b91c1c" title="מחק קריאה" onclick="deleteReqRecord('${esc(r._docId)}')">🗑️</button></div>`).join('');
+    if (driverOnly) {
+      body.innerHTML =
+        sec('📋','כל הטפסים החתומים', D.decls.length, declHtml, '', 'forms', true)
+        + grp('driver', '👤',
+            sec('🪪','רישיון נהיגה', D.ldocs.length, imgRow(D.ldocs,'ldocs'),
+                addBtn("openManualDoc('license')", 'העלה רישיון נהיגה'), 'driver')
+          + '<div style="font-size:0.7rem;color:#7c3aed;opacity:.75">לנהג הזה אין רכב משויך, ולכן מוצגים מסמכי הנהג בלבד. מסמכי רכב ייווספו כשיוקצה לו רכב.</div>');
+      return;
+    }
     body.innerHTML = dates
       // כל הטפסים החתומים יחד, בצבע נפרד ובמסגרת — הרובריקה שהכי מסתכלים
       // עליה, ולכן היא ראשונה ובולטת ולא מתערבבת עם שאר המסמכים.
@@ -9735,6 +9793,10 @@ function buildImportedVehicles() {
   return IMP.rows.map((r, idx) => {
     const v = { id: Date.now() + idx };
     IMPORT_FIELDS.forEach(f => { const val = cell(r, f.key); if (val) v[f.key] = val; });
+    // קובץ שיש בו שם פרטי ומשפחה בעמודות נפרדות: driverName נבנה מהם,
+    // כי הוא השדה שכל השאר במערכת נשען עליו.
+    if (!v.driverName && (v.firstName || v.lastName))
+      v.driverName = [v.firstName, v.lastName].filter(Boolean).join(' ').trim();
     return v;
   }).filter(v => (v.plate || '').trim() !== ''); // must have a plate
 }
@@ -9808,7 +9870,7 @@ function sysAllowed(name) { return SYS_ENABLED[name] !== false; }
 // העמודה, ובצי של נופר היא מיותרת. הנתון נשלף בסנכרון ממילא, ולכן
 // עדיף שלקוח יראה אותו בלי להיות תלוי בסימון ידני שלי. כיבוי ללקוח
 // מסוים נעשה בפאנל ונשמר שם כ-false מפורש.
-let FEATURES = { weight: true, drivers: false, extraCerts: false, trafficMonths: 36, inspectionMonths: 0, singleSession: false };
+let FEATURES = { weight: true, drivers: false, extraCerts: false, trafficMonths: 36, inspectionMonths: 0, singleSession: false, splitName: false };
 function featureOn(name) { return FEATURES[name] === true; }
 // עמודת הטבלה מוסתרת ב-CSS ולא נמחקת מה-DOM, כדי שמספר התאים בכותרת,
 // בשורת הסינון ובשורות יישאר זהה — טבלה שיוצאת מיישור היא באג שקט.
@@ -9816,6 +9878,9 @@ function applyFeatureFlags() {
   document.body.classList.toggle('feat-no-weight', !featureOn('weight'));
   document.body.classList.toggle('feat-drivers', featureOn('drivers'));
   document.body.classList.toggle('feat-certs', featureOn('extraCerts'));
+  document.body.classList.toggle('feat-splitname', featureOn('splitName'));
+  const _hd = document.getElementById('hdr-driver');
+  if (_hd) _hd.textContent = featureOn('splitName') ? 'שם פרטי' : 'נהג';
   const row = document.getElementById('m-weight-row');
   if (row) row.style.display = featureOn('weight') ? '' : 'none';
   // שדות האישורים נבנים פעם אחת מתוך EXTRA_CERTS
@@ -9876,7 +9941,7 @@ async function resolveTenant(user) {
     TENANT = 'nofar'; ROLE = 'manager'; COMPANY_NAME = 'נופר אנרגיה';
     SUB_ACTIVE = true; SUB_VALID_UNTIL = '';
     SYS_ENABLED = { fleet: true, shamai: true, garage: true };
-    FEATURES = { weight: false, drivers: false, extraCerts: false, trafficMonths: 36, inspectionMonths: 0, singleSession: false };   // נופר: בלי משקל, בלי נהגים, בלי אישורים נוספים
+    FEATURES = { weight: false, drivers: false, extraCerts: false, trafficMonths: 36, inspectionMonths: 0, singleSession: false, splitName: false };   // נופר: בלי משקל, בלי נהגים, בלי אישורים נוספים
     return;
   }
   try {
@@ -9908,7 +9973,8 @@ async function resolveTenant(user) {
                    extraCerts: _f.extraCerts === true,
                    trafficMonths: parseInt(_f.trafficMonths) || 36,
                    inspectionMonths: parseInt(_f.inspectionMonths) || 0,
-                   singleSession: _f.singleSession === true };
+                   singleSession: _f.singleSession === true,
+                   splitName: _f.splitName === true };
       return;
     }
     // אין עדיין רשומת users/{uid} — כלומר עוד לא הוקם ללקוח הזה חשבון
@@ -9917,14 +9983,14 @@ async function resolveTenant(user) {
     // מוסך — עד שתפתח אותם בעצמך בפאנל הניהול.
     TENANT = user.uid; COMPANY_NAME = ''; SUB_ACTIVE = true; SUB_VALID_UNTIL = '';
     SYS_ENABLED = { fleet: false, shamai: false, garage: false };
-    FEATURES = { weight: true, drivers: false, extraCerts: false, trafficMonths: 36, inspectionMonths: 0, singleSession: false };
+    FEATURES = { weight: true, drivers: false, extraCerts: false, trafficMonths: 36, inspectionMonths: 0, singleSession: false, splitName: false };
   } catch(e) {
     // On a read failure, preserve isolation — never default a stranger onto Nofar.
     // (הבעלים כבר טופל למעלה ואינו מגיע לכאן.)
     console.log('tenant resolve error', e);
     TENANT = user.uid;
     SYS_ENABLED = { fleet: false, shamai: false, garage: false };
-    FEATURES = { weight: true, drivers: false, extraCerts: false, trafficMonths: 36, inspectionMonths: 0, singleSession: false };
+    FEATURES = { weight: true, drivers: false, extraCerts: false, trafficMonths: 36, inspectionMonths: 0, singleSession: false, splitName: false };
   }
 }
 // ═══ נעילת סשן: חשבון אחד — מכשיר אחד ═══
@@ -13529,6 +13595,7 @@ async function adminLoadClient() {
     document.getElementById('adm-trafficmonths').value = _af.trafficMonths || '';
     document.getElementById('adm-inspmonths').value = _af.inspectionMonths || '';
     document.getElementById('adm-single').checked = _af.singleSession === true;
+    document.getElementById('adm-splitname').checked = _af.splitName === true;
     _admLoadedUid = uid;
     st.textContent = '✓ נטען'; st.style.color = '#86efac';
   } catch(e) { st.textContent = _admPermErr(e); st.style.color = '#fca5a5'; console.log('adminLoadClient', e); }
@@ -13603,7 +13670,8 @@ async function adminSaveClient() {
       // 0 נשמר כמשמעו "ברירת מחדל", ולכן ערך ריק או לא תקין הופך ל-0
       trafficMonths: parseInt(document.getElementById('adm-trafficmonths').value) || 0,
       inspectionMonths: parseInt(document.getElementById('adm-inspmonths').value) || 0,
-      singleSession: !!document.getElementById('adm-single').checked
+      singleSession: !!document.getElementById('adm-single').checked,
+      splitName: !!document.getElementById('adm-splitname').checked
     }
   };
   st.textContent = 'שומר…'; st.style.color = '#94a3b8';
