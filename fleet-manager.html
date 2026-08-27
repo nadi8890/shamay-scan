@@ -9837,9 +9837,21 @@ async function resolveTenant(user) {
 //   2. המשתמש באמת רוצה לעבור מכשיר — לכן מוצע כפתור השתלטות מפורש.
 //
 // הבעלים פטור: אתה עובד גם מהמחשב וגם מהטלפון, ואין סיבה לחסום את זה.
+// מזהה של המכשיר, לא של טעינת הדף. קודם נוצר מזהה חדש בכל טעינה,
+// ולכן רענון רגיל נראה למערכת כמו "מכשיר שני": הרשומה הקודמת עדיין
+// הייתה בתוך חלון הפעימה, והמשתמש שנכנס ראשון מצא את עצמו בצפייה
+// בלבד אחרי רענון. מזהה שנשמר במכשיר פותר את זה — אותו דפדפן תמיד
+// מזהה את הנעילה שלו עצמו וממשיך לערוך.
 const SESSION_ID = (() => {
-  try { return crypto.randomUUID(); }
-  catch(e) { return 'sid-' + Date.now() + '-' + Math.floor(Math.random() * 1e9); }
+  try {
+    let id = localStorage.getItem('fleet_deviceId');
+    if (!id) {
+      id = (crypto && crypto.randomUUID) ? crypto.randomUUID()
+         : 'dev-' + Date.now() + '-' + Math.floor(Math.random() * 1e9);
+      localStorage.setItem('fleet_deviceId', id);
+    }
+    return id;
+  } catch(e) { return 'dev-' + Date.now() + '-' + Math.floor(Math.random() * 1e9); }
 })();
 const SESSION_BEAT_MS  = 45 * 1000;        // כל כמה זמן מסמנים "אני חי"
 const SESSION_STALE_MS = 3 * 60 * 1000;    // אחרי כמה שקט הסשן נחשב מת
