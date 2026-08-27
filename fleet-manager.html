@@ -194,15 +194,30 @@ tr:hover td{background:#f0f7ff!important}
 #tab-fleet table th,#tab-fleet table td{padding:8px 6px}
 #tab-fleet #fleet-thead th:nth-child(2),
 #tab-fleet #fleet-body td:nth-child(2){min-width:118px;max-width:140px;white-space:normal;overflow-wrap:anywhere}
+/* עמודות השם. בלי min-width הן נדחסו לכ-35px כשיש הרבה עמודות, והכותרת
+   "שם משפחה" נשברה לשלוש שורות ונראתה חתוכה. הרוחב מספיק לשם רגיל,
+   והכותרות אינן נשברות באמצע מילה. */
 #tab-fleet #fleet-thead th:nth-child(6),
 #tab-fleet #fleet-body td:nth-child(6),
 #tab-fleet #fleet-thead th:nth-child(7),
-#tab-fleet #fleet-body td:nth-child(7){max-width:88px;white-space:normal;overflow-wrap:anywhere}
+#tab-fleet #fleet-body td:nth-child(7){min-width:76px;max-width:104px;white-space:normal;overflow-wrap:normal;word-break:keep-all}
+/* עמודת החברה */
+#tab-fleet #fleet-thead th:nth-child(8),
+#tab-fleet #fleet-body td:nth-child(8){max-width:92px;white-space:normal;overflow-wrap:anywhere}
+/* כותרות: שתי שורות לכל היותר, בלי שבירה באמצע מילה */
+#tab-fleet #fleet-thead th{word-break:keep-all;hyphens:none}
+/* עמודת הפעולות — הכפתורים כבר ברשת 2×2, אין צורך ברוחב נוסף */
+#tab-fleet #fleet-thead th:last-child,
+#tab-fleet #fleet-body td:last-child{width:1%;white-space:nowrap}
 /* מסך צר יותר (לפטופ 1024–1200) — מצמצמים עוד קצת כדי להישאר בלי גלילה */
+@media (max-width:1450px){
+  #tab-fleet table th{font-size:0.64rem;letter-spacing:0}
+  #tab-fleet table th,#tab-fleet table td{padding:7px 4px}
+}
 @media (max-width:1200px){
   #tab-fleet table{font-size:0.74rem}
-  #tab-fleet table th,#tab-fleet table td{padding:7px 4px}
-  #tab-fleet table th{font-size:0.66rem}
+  #tab-fleet table th,#tab-fleet table td{padding:6px 3px}
+  #tab-fleet table th{font-size:0.62rem}
   #tab-fleet #fleet-thead th:nth-child(2),
   #tab-fleet #fleet-body td:nth-child(2){min-width:100px;max-width:118px}
   #tab-fleet #fleet-thead th:nth-child(6),
@@ -731,7 +746,8 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
     <table>
       <thead id="drivers-thead">
         <tr>
-          <th><div class="th-sort" onclick="sortDrvCol('name')">שם הנהג<span class="sort-arrow" id="dsarr-name">⇅</span></div></th>
+          <th><div class="th-sort" onclick="sortDrvCol('name')"><span id="drv-hdr-name">שם הנהג</span><span class="sort-arrow" id="dsarr-name">⇅</span></div></th>
+          <th class="col-lastname"><div class="th-sort" onclick="sortDrvCol('lastname')">שם משפחה<span class="sort-arrow" id="dsarr-lastname">⇅</span></div></th>
           <th><div class="th-sort" onclick="sortDrvCol('id')">ת.ז<span class="sort-arrow" id="dsarr-id">⇅</span></div></th>
           <th><div class="th-sort" onclick="sortDrvCol('phone')">טלפון<span class="sort-arrow" id="dsarr-phone">⇅</span></div></th>
           <th><div class="th-sort" onclick="sortDrvCol('email')">מייל<span class="sort-arrow" id="dsarr-email">⇅</span></div></th>
@@ -2697,7 +2713,8 @@ function renderDrivers() {
   const cell = (k, col) => {
     const d = DRIVERS[k] || {};
     switch (col) {
-      case 'name':    return k + ' ' + (d.affiliation || '');
+      case 'name':    return (featureOn('splitName') ? driverFirst({driverName:k, firstName:d.firstName}) : k) + ' ' + (d.affiliation || '');
+      case 'lastname': return driverLast({driverName:k, lastName:d.lastName});
       case 'id':      return d.driverId || '';
       case 'phone':   return d.driverPhone || '';
       case 'email':   return d.driverEmail || '';
@@ -2709,7 +2726,7 @@ function renderDrivers() {
       default:        return '';
     }
   };
-  const COLS = ['name','id','phone','email','licNum','licExp','traffic','address','plates'];
+  const COLS = ['name','lastname','id','phone','email','licNum','licExp','traffic','address','plates'];
   let keys = Object.keys(DRIVERS);
   // סינון פר-עמודה
   const _match = (val, f) => !f || String(val || '').toLowerCase().includes(String(f).toLowerCase());
@@ -2758,7 +2775,8 @@ function renderDrivers() {
     // שם הנהג נכנס לתוך מרכאות ב-onclick, ולכן חייב בריחה גם ל-HTML וגם לגרש
     const kq = esc(k).replace(/'/g, "\\'");
     return `<tr style="cursor:pointer" onclick="openDriverModal('${kq}')">
-      <td style="font-weight:700">${esc(k)}${d.affiliation ? `<br><span style="color:var(--muted);font-size:0.66rem">${esc(d.affiliation)}</span>` : ''}</td>
+      <td style="font-weight:700">${esc(featureOn('splitName') ? driverFirst({driverName:k, firstName:d.firstName}) : k)}${d.affiliation ? `<br><span style="color:var(--muted);font-size:0.66rem">${esc(d.affiliation)}</span>` : ''}</td>
+      <td class="col-lastname" style="font-weight:700">${esc(driverLast({driverName:k, lastName:d.lastName})) || '—'}</td>
       <td style="direction:ltr;font-size:0.73rem">${esc(d.driverId) || '—'}</td>
       <td style="direction:ltr;font-size:0.73rem">${esc(d.driverPhone) || '—'}</td>
       <td style="direction:ltr;font-size:0.7rem">${esc(d.driverEmail) || '—'}</td>
@@ -2778,7 +2796,7 @@ function renderDrivers() {
     </tr>`;
   }).join('');
   if (totalDrivers && !keys.length) {
-    body.innerHTML = `<tr><td colspan="10" style="text-align:center;color:var(--muted);padding:18px">
+    body.innerHTML = `<tr><td colspan="11" style="text-align:center;color:var(--muted);padding:18px">
       אין נהג שתואם את הסינון
       <button class="btn btn-gray" style="padding:3px 10px;font-size:0.72rem;margin-inline-start:8px" onclick="clearDrvFilters()">נקה סינון</button>
     </td></tr>`;
@@ -4219,7 +4237,7 @@ let replColFilters = { employee:'', plate:'', typeCompany:'', fromDate:'', toDat
 let retColFilters  = { employee:'', plate:'', make:'', fromDate:'', toDate:'', reason:'', notes:'' };
 let violColFilters = { reportNum:'', date:'', offense:'', driver:'', plate:'', points:'', fine:'', status:'' };
 let invColFilters  = { plate:'', garage:'', date:'', workType:'', driver:'' };
-let drvColFilters  = { name:'', id:'', phone:'', email:'', licNum:'', licExp:'', traffic:'', address:'', plates:'' };
+let drvColFilters  = { name:'', lastname:'', id:'', phone:'', email:'', licNum:'', licExp:'', traffic:'', address:'', plates:'' };
 try {
   const _sd = JSON.parse(localStorage.getItem('fleet_drvColFilters') || 'null');
   if (_sd) Object.keys(drvColFilters).forEach(k => { if (typeof _sd[k] === 'string') drvColFilters[k] = _sd[k]; });
@@ -4238,9 +4256,12 @@ function sortDrvCol(col) {
 // בורר עמודות לטבלת הנהגים — אותה גישה כמו בטבלת הצי: הסתרה לפי
 // מיקום העמודה, כדי שכותרת, שורת סינון ושורות יישארו מיושרות.
 const DRV_COLS = [
-  { i:1, label:'שם הנהג' },     { i:2, label:'ת.ז' },        { i:3, label:'טלפון' },
-  { i:4, label:'מייל' },        { i:5, label:'מס׳ רישיון' }, { i:6, label:'תוקף רישיון' },
-  { i:7, label:'עבר תעבורתי' }, { i:8, label:'כתובת' },      { i:9, label:'רכבים' }
+  { i:1,  label:'שם הנהג' },
+  { i:2,  label:'שם משפחה', feat:'splitName' },
+  { i:3,  label:'ת.ז' },         { i:4,  label:'טלפון' },
+  { i:5,  label:'מייל' },        { i:6,  label:'מס׳ רישיון' },
+  { i:7,  label:'תוקף רישיון' }, { i:8,  label:'עבר תעבורתי' },
+  { i:9,  label:'כתובת' },       { i:10, label:'רכבים' }
 ];
 let DRV_HIDDEN_COLS = [];
 try { DRV_HIDDEN_COLS = JSON.parse(localStorage.getItem('fleet_drvHiddenCols')) || []; } catch(e) {}
@@ -4262,7 +4283,7 @@ function toggleDrvColPicker() {
 function renderDrvColPicker() {
   const wrap = document.getElementById('drv-col-picker-chips');
   if (!wrap) return;
-  wrap.innerHTML = DRV_COLS.map(c => {
+  wrap.innerHTML = DRV_COLS.filter(c => !c.feat || featureOn(c.feat)).map(c => {
     const on = DRV_HIDDEN_COLS.indexOf(c.i) === -1;
     return `<button type="button" onclick="toggleDrvCol(${c.i})"
       style="border:1.5px solid ${on?'#2563eb':'#e2e8f0'};background:${on?'#eff6ff':'#f8fafc'};
@@ -4281,7 +4302,7 @@ function toggleDrvCol(i) {
   _saveDrvCols();
 }
 function setAllDrvCols(on) {
-  DRV_HIDDEN_COLS = on ? [] : DRV_COLS.map(c => c.i);
+  DRV_HIDDEN_COLS = on ? [] : DRV_COLS.filter(c => !c.feat || featureOn(c.feat)).map(c => c.i);
   _saveDrvCols();
 }
 function buildDrvColFilterRow() {
@@ -4292,7 +4313,9 @@ function buildDrvColFilterRow() {
   const ph = { name:'שם...', id:'ת.ז...', phone:'טלפון...', email:'מייל...', licNum:'רישיון...',
                licExp:'תאריך...', traffic:'תאריך...', address:'כתובת...', plates:'רישוי...' };
   const inp = c => `<th><input class="col-filter-inp" type="text" placeholder="${ph[c]}" value="${esc(drvColFilters[c]||'')}" oninput="setDrvColFilter('${c}',this.value)"></th>`;
-  row.innerHTML = ['name','id','phone','email','licNum','licExp','traffic','address','plates'].map(inp).join('') + '<th></th>';
+  row.innerHTML = inp('name')
+    + `<th class="col-lastname"><input class="col-filter-inp" type="text" placeholder="משפחה..." value="${esc(drvColFilters.lastname||'')}" oninput="setDrvColFilter('lastname',this.value)"></th>`
+    + ['id','phone','email','licNum','licExp','traffic','address','plates'].map(inp).join('') + '<th></th>';
 }
 
 function sortFleetCol(col) {
@@ -9894,6 +9917,8 @@ function applyFeatureFlags() {
   document.body.classList.toggle('feat-drivers', featureOn('drivers'));
   document.body.classList.toggle('feat-certs', featureOn('extraCerts'));
   document.body.classList.toggle('feat-splitname', featureOn('splitName'));
+  const _dh = document.getElementById('drv-hdr-name');
+  if (_dh) _dh.textContent = featureOn('splitName') ? 'שם פרטי' : 'שם הנהג';
   const _hd = document.getElementById('hdr-driver');
   if (_hd) _hd.textContent = featureOn('splitName') ? 'שם פרטי' : 'נהג';
   const row = document.getElementById('m-weight-row');
