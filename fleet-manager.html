@@ -3161,7 +3161,7 @@ const EXTRA_CERTS = [
   // heavyOnly: נדרש רק ברכב כבד (אוטובוסים ומשאיות). ברכב קל הבדיקות
   // האלה אינן רלוונטיות, ולכן אין להן התראה ואין להן ערך בטבלה.
   { key:'pneumaticChk',   label:'בדיקה פניאומטית',   icon:'💨', mode:'done',   months:12, heavyOnly:true },
-  { key:'tachograph',     label:'כיול טכוגרף',       icon:'⏱️', mode:'done',   months:12, heavyOnly:true },
+  { key:'tachograph',     label:'כיול טכוגרף',       icon:'⏱️', mode:'expiry', heavyOnly:true },
   { key:'brakesCert',     label:'אישור בלמים',       icon:'🛑', mode:'done',   months:12 },
   { key:'transportLic',   label:'תוקף רישיון הסעה',  icon:'🚌', mode:'expiry' },
   { key:'childAlertCert', label:'מערכת שכחת ילדים',  icon:'👶', mode:'expiry' },
@@ -8455,9 +8455,9 @@ const IMPORT_FIELDS = [
   { key:'trafficRecord',      label:'עבר תעבורתי',       syn:['עבר תעבורתי','עבר תעבורה','traffic record'] },
   { key:'procedures',         label:'נהלים',             syn:['נהלים','חתימת נהלים','procedures'] },
   { key:'winterCheck',        label:'בדיקת חורף',        syn:['בדיקת חורף','חורף','winter'] },
-  { key:'pneumaticChk',       label:'בדיקה פניאומטית',   syn:['בדיקה פניאומטית','פניאומטית','pneumatic'] },
+  { key:'pneumaticChk',       label:'בדיקה פניאומטית',   syn:['אישור בלמים פנאומטית','בדיקה פניאומטית','פנאומטית','פניאומטית','pneumatic'] },
   { key:'brakesCert',         label:'אישור בלמים',       syn:['תאריך בדיקה אחרון','אישור בלמים','בלמים','brakes'] },
-  { key:'tachograph',         label:'כיול טכוגרף',       syn:['כיול טכוגרף','טכוגרף','tachograph'] },
+  { key:'tachograph',         label:'כיול טכוגרף',       syn:['תקינות כיול והתאמת טכוגרף בתוקף עד','כיול טכוגרף','טכוגרף','tachograph'] },
   { key:'transportLic',       label:'תוקף רישיון הסעה',  syn:['תוקף רישיון הסעה','רישיון הסעה','רשיון הסעה','הסעה','transport'] },
   { key:'childAlertCert',     label:'מערכת שכחת ילדים',  syn:['שכחת ילדים','מערכת שכחת ילדים','התראה לשכחת ילדים',"התקנה מע' התראה לשכחת ילדים",'child'] },
   { key:'fireExtCert',        label:'אישור כיבוי אש',    syn:['כיבוי אש','מטף','אישור כיבוי אש','fire'] },
