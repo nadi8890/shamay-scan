@@ -3164,6 +3164,88 @@ async function deleteVehicleRow(plate, id) {
   }
 }
 
+// ═══ מחיקה מרובה ═══
+// נדרש כשצריך להוציא הרבה שורות בבת אחת — למשל רכבים שנכתבו לחשבון
+// בטעות. אחת-אחת זה עשרות אישורים, ולכן: סימון, אישור אחד, כתיבה אחת.
+let _selVeh = new Set();
+function _selKey(v) { return String(v.id || '') + '|' + String(v.plate || ''); }
+function toggleVehSel(cb) {
+  const k = String(cb.dataset.i || '') + '|' + String(cb.dataset.p || '');
+  if (cb.checked) _selVeh.add(k); else _selVeh.delete(k);
+  renderSelBar();
+}
+function clearVehSel() {
+  _selVeh.clear();
+  document.querySelectorAll('.row-sel').forEach(c => { c.checked = false; });
+  renderSelBar();
+}
+function selectAllVisible() {
+  document.querySelectorAll('.row-sel').forEach(c => {
+    c.checked = true; _selVeh.add(String(c.dataset.i || '') + '|' + String(c.dataset.p || ''));
+  });
+  renderSelBar();
+}
+function renderSelBar() {
+  let b = document.getElementById('sel-bar');
+  if (!_selVeh.size) { if (b) b.remove(); return; }
+  if (!b) {
+    b = document.createElement('div');
+    b.id = 'sel-bar';
+    b.style.cssText = 'position:fixed;bottom:64px;left:50%;transform:translateX(-50%);z-index:9996;' +
+      'background:#1e293b;color:#fff;border-radius:14px;padding:9px 14px;display:flex;align-items:center;' +
+      'gap:10px;box-shadow:0 8px 26px rgba(0,0,0,.35);font-family:Heebo,sans-serif;font-size:0.8rem;font-weight:700';
+    document.body.appendChild(b);
+  }
+  b.innerHTML = '<span>נבחרו ' + _selVeh.size + '</span>' +
+    '<button onclick="selectAllVisible()" style="background:#334155;color:#fff;border:none;border-radius:9px;padding:5px 10px;font-family:Heebo,sans-serif;font-size:0.76rem;font-weight:700;cursor:pointer">בחר את כל המוצג</button>' +
+    '<button onclick="deleteSelectedVehicles()" style="background:#dc2626;color:#fff;border:none;border-radius:9px;padding:5px 12px;font-family:Heebo,sans-serif;font-size:0.78rem;font-weight:800;cursor:pointer">🗑️ מחק נבחרים</button>' +
+    '<button onclick="clearVehSel()" style="background:none;color:#94a3b8;border:none;font-family:Heebo,sans-serif;font-size:0.76rem;cursor:pointer">בטל</button>';
+}
+async function deleteSelectedVehicles() {
+  if (READ_ONLY) { toast('מצב צפייה בלבד — אי אפשר למחוק.', true); return; }
+  if (!_authUser()) { toast('⚠ לא מחובר — התחבר מחדש כדי למחוק', true); return; }
+  if (!_selVeh.size) return;
+  _ensureVehicleIds();
+  const sel = new Set(_selVeh);
+  const hit = v => sel.has(_selKey(v));
+  const doomed = VEHICLES.filter(hit);
+  const names = doomed.slice(0, 12)
+    .map(v => '• ' + (v.plate || '—') + (v.driverName ? ' — ' + String(v.driverName).split('-')[0].trim() : ''))
+    .join('\n');
+  if (!confirm('למחוק ' + sel.size + ' שורות מהצי?\n\n' + names +
+               (doomed.length > 12 ? '\n• ועוד ' + (doomed.length - 12) + '…' : '') +
+               '\n\nהשורות יישמרו בסל האשפה וניתן לשחזר אותן מהגיבוי היומי.')) return;
+  try {
+    const snap = await fcol().doc('main').get();
+    let cloud = (snap.data() || {}).vehicles;
+    if (!Array.isArray(cloud)) cloud = VEHICLES.slice();
+    const removed = cloud.filter(hit);
+    const next = cloud.filter(v => !hit(v));
+    // גיבוי לפני המחיקה: הגיבוי היומי רץ פעם ביום, ורכב שנוסף ונמחק
+    // באותו יום היה נעלם בלי עותק.
+    if (removed.length) {
+      try {
+        await fcol().doc('trash_' + Date.now()).set({
+          type: 'deletedVehiclesBulk', deletedAt: new Date().toLocaleString('he-IL'),
+          count: removed.length, vehicles: stripUndef(removed)
+        });
+      } catch(e) { console.log('bulk trash snapshot failed', e.code || e.message); }
+    }
+    VEHICLES = VEHICLES.filter(v => !hit(v));
+    localStorage.setItem('fleet_vehicles', JSON.stringify(VEHICLES));
+    await fcol().doc('main').set({ vehicles: stripUndef(next) }, { merge: true });
+    mirrorToTenant('main', { vehicles: next });
+    clearVehSel();
+    rebuildDriversDirectory();
+    renderFleet(); renderAlerts(); renderDashboard();
+    toast(removed.length + ' שורות נמחקו ✓');
+  } catch(e) {
+    console.log('bulk delete failed', e);
+    toast(e.code === 'permission-denied' ? '⚠ אין הרשאה למחוק — התחבר מחדש'
+                                         : '⚠ המחיקה נכשלה: ' + (e.code || e.message), true);
+  }
+}
+
 // Re-render the dashboard only while it's the visible tab (it runs a km-report query,
 // so we don't want it firing on every background snapshot).
 function refreshDashboardIfOpen() {
@@ -4673,7 +4755,7 @@ function renderFleet() {
     // yellow if empty — but never for a no-vehicle employee (vehicle fields don't apply)
     const yc = (val, cls) => (!noVeh && blank(val)) ? 'cell-yellow' : (cls||'');
     return `<tr class="${rowCls}" style="cursor:pointer" title="לחץ לעריכה" onclick="editVehicle('${esc(v.plate)}')">
-      <td class="${noVeh?'':yc(v.plate)}" style="font-weight:700;color:var(--accent);direction:ltr;font-size:0.78rem;white-space:nowrap">${noVeh ? '<span style="color:#7c3aed">👤 ללא רכב</span>' : (esc(v.plate)||'—')}</td>
+      <td class="${noVeh?'':yc(v.plate)}" style="font-weight:700;color:var(--accent);direction:ltr;font-size:0.78rem;white-space:nowrap"><input type="checkbox" class="row-sel" data-p="${esc(v.plate)}" data-i="${esc(v.id||'')}" ${_selVeh.has(_selKey(v))?'checked':''} onclick="event.stopPropagation();toggleVehSel(this)" style="margin-left:6px;cursor:pointer;transform:scale(1.15)">${noVeh ? '<span style="color:#7c3aed">👤 ללא רכב</span>' : (esc(v.plate)||'—')}</td>
       <td class="${yc((v.make||'')+(v.model||''))}" style="font-size:0.73rem">${esc(v.make)} ${esc(v.model)}<br><span style="color:var(--muted);font-size:0.65rem">${esc(v.year)}</span></td>
       <td style="font-size:0.73rem;direction:ltr;text-align:center">${esc(govPad4(v.tozeretCd))||'—'}</td>
       <td style="font-size:0.73rem;direction:ltr;text-align:center">${esc(govPad4(v.degemCd))||'—'}</td>
