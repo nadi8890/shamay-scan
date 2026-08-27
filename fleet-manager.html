@@ -244,6 +244,9 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
 .search-row{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
 /* שורת החיפוש של הצי — דביקה מתחת ל-header, נשארת גלויה בגלילה */
 #tab-fleet .search-row{position:sticky;top:var(--header-h,52px);z-index:50;background:var(--bg);padding:8px 0;margin-bottom:6px;box-shadow:0 6px 6px -6px rgba(0,0,0,.12)}
+.hdr-search{flex:1;min-width:100px;max-width:430px;background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.28);color:#fff;border-radius:9px;padding:7px 12px;font-family:'Heebo',sans-serif;font-size:0.82rem;font-weight:600}
+.hdr-search::placeholder{color:rgba(255,255,255,.72);font-weight:500}
+.hdr-search:focus{outline:none;background:rgba(255,255,255,.26);border-color:rgba(255,255,255,.55)}
 .search-input{background:#fff;border:1px solid var(--border);color:var(--text);border-radius:9px;padding:9px 13px;font-family:'Heebo',sans-serif;font-size:0.88rem;flex:1;min-width:180px;box-shadow:0 1px 3px rgba(0,0,0,.05)}
 .search-input:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(37,99,235,.1)}
 .filter-select{background:#fff;border:1px solid var(--border);color:var(--text);border-radius:9px;padding:9px 10px;font-family:'Heebo',sans-serif;font-size:0.82rem;box-shadow:0 1px 3px rgba(0,0,0,.05)}
@@ -427,6 +430,10 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
 </div>
 
 <header>
+  <!-- החיפוש יושב על הפס הכחול עצמו: במסך נייד הפס היה כמעט ריק,
+       והחיפוש נדחק מתחת לשורת הכפתורים ולמונה. כאן הוא גם גלוי תמיד,
+       כי ה-header דביק. הוא מוצג רק בלשונית צי הרכב — ר' showTab. -->
+  <input class="hdr-search" id="fleet-search" placeholder="🔍 חפש לפי רישוי, שם, יצרן..." oninput="renderFleet()">
   <div style="display:flex;align-items:center;gap:10px">
     <span id="presence-lamp" title="" onclick="presenceInfo()" style="display:none;align-items:center;gap:5px;background:rgba(255,255,255,.16);padding:3px 10px;border-radius:999px;cursor:pointer;white-space:nowrap;font-size:0.72rem;font-weight:800;color:#fff">
       <span id="presence-dot" style="width:9px;height:9px;border-radius:50%;background:#22c55e;box-shadow:0 0 6px rgba(34,197,94,.9)"></span>
@@ -543,7 +550,6 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
 <!-- ══════════════ TAB: FLEET ══════════════ -->
 <div class="tab-content active" id="tab-fleet">
   <div class="search-row">
-    <input class="search-input" id="fleet-search" placeholder="🔍 חפש לפי רישוי, שם, יצרן..." oninput="renderFleet()">
     <select class="filter-select" id="fleet-company" onchange="renderFleet()">
       <option value="">כל החברות</option>
     </select>
@@ -3489,6 +3495,9 @@ function showTab(name, btn) {
   const _nb = (btn && btn.classList && btn.classList.contains('nav-btn'))
             ? btn : document.querySelector('.nav-btn[data-tab="'+name+'"]');
   if (_nb) { _nb.classList.add('active'); _nb.setAttribute('aria-selected','true'); }
+  // החיפוש שעל הפס הכחול מסנן את צי הרכב, ולכן אין לו מה לעשות בלשוניות אחרות
+  const _hs = document.getElementById('fleet-search');
+  if (_hs) _hs.style.display = (name === 'fleet') ? '' : 'none';
   // מעבר ללשונית של מערכת אחרת מחליף גם את המערכת הפעילה — אלא אם היא
   // נעולה, ואז נשארים איפה שהיינו במקום לקרוס למחצה למערכת חסומה.
   const _sys = sysOf(name);
