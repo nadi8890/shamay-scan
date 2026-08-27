@@ -164,7 +164,7 @@ header{background:#1e40af;padding:9px 16px;display:flex;align-items:center;justi
 .alert-icon{font-size:1.1rem;flex-shrink:0;margin-top:1px}
 .alert-text strong{display:block;font-size:0.82rem;font-weight:700}
 /* Table */
-.tbl-wrap{overflow:auto;-webkit-overflow-scrolling:touch;border-radius:12px;border:1.5px solid #cbd5e1;box-shadow:0 2px 10px rgba(0,0,0,.07);max-height:calc(100vh - 200px);padding-bottom:58px}
+.tbl-wrap{overflow:auto;-webkit-overflow-scrolling:touch;border-radius:12px;border:1.5px solid #cbd5e1;box-shadow:0 2px 10px rgba(0,0,0,.07);max-height:calc(100vh - 200px);padding-bottom:44px}
 /* הריפוד למטה שומר שטח גלילה ריק בסוף הטבלה, כך שכפתור הסוכן
    שצף בפינה השמאלית התחתונה יושב מעל שטח ריק ולעולם לא מעל
    כפתורי השורה האחרונה. ההתעמעמות לבדה לא הספיקה: ברגע שהעכבר
@@ -546,7 +546,7 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
     <div style="display:flex;gap:6px;align-items:center">
       <button class="btn btn-primary" style="padding:6px 14px;font-size:0.78rem" onclick="openAddVehicle()">+ רכב חדש</button>
       <button class="btn-export" title="בחר אילו עמודות יוצגו בטבלה" onclick="toggleColPicker()">🧩 עמודות</button>
-      <button class="btn-export" id="btn-clean-blank" style="display:none" title="מחיקת שורות בלי מספר רישוי ובלי נהג" onclick="cleanupBlankRows()">🧹 נקה שורות ריקות</button>
+      <button class="btn-export" id="btn-clean-blank" style="display:none" title="מחיקת שורות שאין בהן מספר רישוי תקין — שורות ריקות ושורות כותרת שנכנסו בייבוא" onclick="cleanupBlankRows()">🧹 נקה שורות ריקות</button>
       <button class="btn-export" title="משלים קוד תוצר, קוד דגם, משקל כולל ותוקף רישוי לרכבים שחסרים — רק שדות ריקים" onclick="syncFleetFromGov()">🏛️ סנכרן צי</button>
       <button class="btn-export" onclick="exportSection('fleet')">📥 ייצוא Excel</button>
     </div>
@@ -587,6 +587,7 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
           <th><div class="th-sort" onclick="sortFleetCol('from')">קבלת רכב<span class="sort-arrow" id="sarr-from">⇅</span></div></th>
           <th class="col-cert col-winterCheck">❄️ בדיקת חורף</th>
           <th class="col-cert col-pneumaticChk">💨 בדיקה פניאומטית</th>
+          <th class="col-cert col-tachograph">⏱️ כיול טכוגרף</th>
           <th class="col-cert col-brakesCert">🛑 אישור בלמים</th>
           <th class="col-cert col-transportLic">🚌 רישיון הסעה</th>
           <th class="col-cert col-childAlertCert">👶 שכחת ילדים</th>
@@ -2995,13 +2996,17 @@ function _sameVehicle(x, plate, id) {
 // בייבוא מקובץ שיש בו שורה עודפת, ואי אפשר לזהות אותן אחת-אחת.
 async function cleanupBlankRows() {
   if (READ_ONLY) { toast('מצב צפייה בלבד — אי אפשר למחוק', true); return; }
-  const isBlank = v => !String(v.plate || '').replace(/\D/g, '') &&
-                       !String(v.driverName || '').trim();
+  // רכב אמיתי תמיד מכיל ספרות במספר הרישוי. שורה בלי ולו ספרה אחת אינה
+  // רכב: או שורה ריקה, או שורת כותרת שנכנסה בייבוא שגוי. המבחן הוא
+  // הרישוי ולא היעדר נהג — לשורת כותרת יש טקסט גם בעמודת הנהג.
+  const isBlank = v => !String(v.plate || '').replace(/\D/g, '');
   const blanks = (VEHICLES || []).filter(isBlank);
-  if (!blanks.length) { toast('אין שורות ריקות בטבלה'); return; }
-  if (!confirm(`נמצאו ${blanks.length} שורות ריקות (בלי מספר רישוי ובלי נהג).
-
-למחוק אותן?`)) return;
+  if (!blanks.length) { toast('אין שורות ללא מספר רישוי בטבלה'); return; }
+  const preview = blanks.slice(0, 5)
+    .map(v => '• ' + (String(v.driverName || '').trim() || String(v.plate || '').trim() || '(ריק)'))
+    .join('\n');
+  const more = blanks.length > 5 ? '\n• ...' : '';
+  if (!confirm((blanks.length === 1 ? 'נמצאה שורה אחת בלי מספר רישוי תקין:' : 'נמצאו ' + blanks.length + ' שורות בלי מספר רישוי תקין:') + '\n\n' + preview + more + '\n\nלמחוק אותן?')) return;
   if (!auth.currentUser) { toast('⚠ לא מחובר — התחבר מחדש', true); return; }
   try {
     const next = VEHICLES.filter(v => !isBlank(v));
@@ -3011,7 +3016,7 @@ async function cleanupBlankRows() {
     mirrorToTenant('main', { vehicles: next });
     rebuildDriversDirectory();
     renderFleet(); renderAlerts(); renderDashboard();
-    toast(`✓ נמחקו ${blanks.length} שורות ריקות`);
+    toast(blanks.length === 1 ? '✓ נמחקה שורה אחת' : '✓ נמחקו ' + blanks.length + ' שורות');
   } catch(e) {
     toast('שגיאה במחיקה: ' + (e.code || e.message), true);
     console.log('cleanupBlankRows', e);
@@ -3153,12 +3158,23 @@ function trafficDueStr(v) { return dateAddMonths(v && v.trafficRecord, FEATURES.
 // בלי ההבחנה הזו תאריך תוקף היה מקבל עוד שנה ומוצג כתקין בטעות.
 const EXTRA_CERTS = [
   { key:'winterCheck',    label:'בדיקת חורף',        icon:'❄️', mode:'done',   months:12 },
-  { key:'pneumaticChk',   label:'בדיקה פניאומטית',   icon:'💨', mode:'done',   months:12 },
+  // heavyOnly: נדרש רק ברכב כבד (אוטובוסים ומשאיות). ברכב קל הבדיקות
+  // האלה אינן רלוונטיות, ולכן אין להן התראה ואין להן ערך בטבלה.
+  { key:'pneumaticChk',   label:'בדיקה פניאומטית',   icon:'💨', mode:'done',   months:12, heavyOnly:true },
+  { key:'tachograph',     label:'כיול טכוגרף',       icon:'⏱️', mode:'done',   months:12, heavyOnly:true },
   { key:'brakesCert',     label:'אישור בלמים',       icon:'🛑', mode:'done',   months:12 },
   { key:'transportLic',   label:'תוקף רישיון הסעה',  icon:'🚌', mode:'expiry' },
   { key:'childAlertCert', label:'מערכת שכחת ילדים',  icon:'👶', mode:'expiry' },
   { key:'fireExtCert',    label:'אישור כיבוי אש',    icon:'🧯', mode:'done',   months:12 }
 ];
+// רכב "כבד" לפי המשקל הכולל שנמשך ממשרד התחבורה. משקל לא ידוע נחשב
+// לא-כבד: עדיף לא להתריע מאשר להציף התראות על רכבים קלים.
+const HEAVY_KG = 5000;
+function vehWeightKg(v) {
+  const n = parseInt(String((v && v.weight) || '').replace(/D/g, ''), 10);
+  return isNaN(n) ? 0 : n;
+}
+function certApplies(v, c) { return !c.heavyOnly || vehWeightKg(v) >= HEAVY_KG; }
 function certDueStr(v, c) {
   const raw = v && v[c.key];
   if (!raw) return '';
@@ -4258,12 +4274,13 @@ function fitTableHeights() {
   document.querySelectorAll('.tbl-wrap').forEach(w => {
     if (!w.offsetParent) return;                       // מוסתר — אין מה למדוד
     const top = w.getBoundingClientRect().top + window.scrollY - document.documentElement.scrollTop;
-    const h = window.innerHeight - top - navH - 20;   // מרווח שמונע גלישה של פיקסלים בודדים
+    const h = window.innerHeight - top - navH - 8;    // מרווח מינימלי שמונע גלישה של פיקסלים בודדים
     w.style.maxHeight = Math.max(220, Math.round(h)) + 'px';
   });
 }
 let _fitPending = null;
 function scheduleFit() {
+  try { fitTableHeights(); } catch(e) {}
   if (_fitPending) cancelAnimationFrame(_fitPending);
   _fitPending = requestAnimationFrame(() => { _fitPending = null; fitTableHeights(); });
 }
@@ -4307,10 +4324,11 @@ const FLEET_COLS = [
   { i:14, label:'נהלים' },       { i:15, label:'קבלת רכב' },
   { i:16, label:'❄️ בדיקת חורף',      feat:'extraCerts' },
   { i:17, label:'💨 בדיקה פניאומטית', feat:'extraCerts' },
-  { i:18, label:'🛑 אישור בלמים',     feat:'extraCerts' },
-  { i:19, label:'🚌 רישיון הסעה',     feat:'extraCerts' },
-  { i:20, label:'👶 שכחת ילדים',      feat:'extraCerts' },
-  { i:21, label:'🧯 כיבוי אש',        feat:'extraCerts' }
+  { i:18, label:'⏱️ כיול טכוגרף',     feat:'extraCerts' },
+  { i:19, label:'🛑 אישור בלמים',     feat:'extraCerts' },
+  { i:20, label:'🚌 רישיון הסעה',     feat:'extraCerts' },
+  { i:21, label:'👶 שכחת ילדים',      feat:'extraCerts' },
+  { i:22, label:'🧯 כיבוי אש',        feat:'extraCerts' }
 ];
 let HIDDEN_COLS = [];
 try { HIDDEN_COLS = JSON.parse(localStorage.getItem('fleet_hiddenCols')) || []; } catch(e) {}
@@ -4515,9 +4533,9 @@ function renderFleet() {
   scheduleFit();
   // סינון עמודות נשמר בין רענונים, ולכן חייב חיווי — אחרת טבלה מסוננת
   // נראית כמו טבלה שנעלמו ממנה רכבים.
-  const _blank = (VEHICLES || []).filter(v => !String(v.plate || '').replace(/\D/g, '') && !String(v.driverName || '').trim()).length;
+  const _blank = (VEHICLES || []).filter(v => !String(v.plate || '').replace(/\D/g, '')).length;
   const _cb = document.getElementById('btn-clean-blank');
-  if (_cb) { _cb.style.display = _blank ? '' : 'none'; _cb.textContent = `🧹 נקה ${_blank} שורות ריקות`; }
+  if (_cb) { _cb.style.display = _blank ? '' : 'none'; _cb.textContent = _blank === 1 ? '🧹 נקה שורה ללא רישוי' : `🧹 נקה ${_blank} שורות ללא רישוי`; }
   const _fc = fleetFilterCount();
   const _fb = document.getElementById('filter-active-bar');
   if (_fb) {
@@ -4577,7 +4595,10 @@ function renderFleet() {
         return `<td class="cell-yellow"><span class="badge badge-yellow" style="background:#fefce8;color:#713f12;border:1px solid #fde68a">📝 למילוי</span><br><span style="color:#b45309;font-size:0.58rem">הנהג צריך לחתום</span></td>`;
       })()}
       <td class="${yc(v.vehicleFrom)}" style="font-size:0.73rem;white-space:nowrap">${esc(v.vehicleFrom)||'—'}</td>
-      ${EXTRA_CERTS.map(c => { const _dd = daysUntil(certDueStr(v, c));
+      ${EXTRA_CERTS.map(c => {
+        if (!certApplies(v, c))
+          return `<td class="col-cert col-${c.key}" style="color:var(--muted);font-size:0.62rem;text-align:center" title="נדרש רק ברכב מעל ${HEAVY_KG.toLocaleString('he-IL')} ק\"ג">לא נדרש</td>`;
+        const _dd = daysUntil(certDueStr(v, c));
         return `<td class="col-cert col-${c.key} ${isTrailer ? '' : yc(v[c.key], cellCls(_dd))}">${statusBadge(_dd)}<br><span style="color:var(--muted);font-size:0.6rem">${esc(v[c.key]) || '—'}</span></td>`;
       }).join('')}
       <td>
@@ -6981,7 +7002,8 @@ function buildDynamicAlerts() {
     addDate('traffic', 'עבר תעבורתי', trafficDueStr(v));
     // אישורים נוספים — רק אצל לקוח שהוגדרו לו, ורק לרכב אמיתי
     if (featureOn('extraCerts') && !v.noVehicle)
-      EXTRA_CERTS.forEach(c => addDate('certs', c.label, certDueStr(v, c)));
+      EXTRA_CERTS.filter(c => certApplies(v, c))
+                 .forEach(c => addDate('certs', c.label, certDueStr(v, c)));
     addDate('procedures', 'נהלים', dateAddYears(v.procedures, 5));
     // MISSING DOCUMENTS — a blank document field (not an expiry) is its own alert type,
     // so the officer can chase it. Skipped for employees with no vehicle; license is
@@ -8435,6 +8457,7 @@ const IMPORT_FIELDS = [
   { key:'winterCheck',        label:'בדיקת חורף',        syn:['בדיקת חורף','חורף','winter'] },
   { key:'pneumaticChk',       label:'בדיקה פניאומטית',   syn:['בדיקה פניאומטית','פניאומטית','pneumatic'] },
   { key:'brakesCert',         label:'אישור בלמים',       syn:['תאריך בדיקה אחרון','אישור בלמים','בלמים','brakes'] },
+  { key:'tachograph',         label:'כיול טכוגרף',       syn:['כיול טכוגרף','טכוגרף','tachograph'] },
   { key:'transportLic',       label:'תוקף רישיון הסעה',  syn:['תוקף רישיון הסעה','רישיון הסעה','רשיון הסעה','הסעה','transport'] },
   { key:'childAlertCert',     label:'מערכת שכחת ילדים',  syn:['שכחת ילדים','מערכת שכחת ילדים','התראה לשכחת ילדים',"התקנה מע' התראה לשכחת ילדים",'child'] },
   { key:'fireExtCert',        label:'אישור כיבוי אש',    syn:['כיבוי אש','מטף','אישור כיבוי אש','fire'] },
@@ -9610,9 +9633,14 @@ function handleImportFile(input) {
       const ws = _normXlsxDates(wb.Sheets[wb.SheetNames[0]]);
       const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '', raw: false, blankrows: false });
       if (!aoa.length) throw new Error('הקובץ ריק');
-      // first non-empty row = headers
-      IMP.headers = (aoa[0] || []).map(h => String(h == null ? '' : h).trim());
-      IMP.rows = aoa.slice(1).filter(r => r.some(c => String(c).trim() !== ''));
+      // שורת הכותרות אינה בהכרח הראשונה: קבצים רבים פותחים בשורת כותרת
+      // של המסמך ("מצבת רכב — חברה X") ואולי גם בשורה ריקה, והכותרות
+      // האמיתיות מתחת. לקיחת השורה הראשונה כברירת מחדל דחפה את שורת
+      // הכותרות האמיתית פנימה כרכב — שורה שאי אפשר למחוק כי היא ריקה.
+      // לכן נבחרת השורה שהכי הרבה תאים בה תואמים שמות שדה מוכרים.
+      const hi = _detectHeaderRow(aoa);
+      IMP.headers = (aoa[hi] || []).map(h => String(h == null ? '' : h).trim());
+      IMP.rows = aoa.slice(hi + 1).filter(r => r.some(c => String(c).trim() !== ''));
       if (!IMP.rows.length) throw new Error('לא נמצאו שורות נתונים מתחת לשורת הכותרות');
       buildMappingUI();
       document.getElementById('imp-row-count').textContent = IMP.rows.length;
@@ -9624,6 +9652,26 @@ function handleImportFile(input) {
   };
   reader.onerror = () => { errEl.textContent = '⚠ לא ניתן לקרוא את הקובץ'; errEl.style.display = 'block'; };
   reader.readAsArrayBuffer(file);
+}
+
+// מדרג את עשר השורות הראשונות ובוחר את זו שנראית הכי כמו כותרות:
+// כמה מהתאים בה מזוהים כשם שדה מוכר. שוויון נשאר על הראשונה, וכך
+// קובץ רגיל שהכותרות בו בשורה הראשונה ממשיך להתנהג בדיוק כמו קודם.
+function _detectHeaderRow(aoa) {
+  const known = [];
+  IMPORT_FIELDS.forEach(f => (f.syn || []).forEach(x => known.push(normHeader(x))));
+  const score = row => (row || []).reduce((n, c) => {
+    const h = normHeader(String(c == null ? '' : c));
+    if (!h) return n;
+    return n + (known.some(k => k && (k === h || h.includes(k) || k.includes(h))) ? 1 : 0);
+  }, 0);
+  let best = 0, bestScore = -1;
+  for (let i = 0; i < Math.min(aoa.length, 10); i++) {
+    const sc = score(aoa[i]);
+    if (sc > bestScore) { bestScore = sc; best = i; }
+  }
+  // אם שום שורה לא זוהתה, נשארים על הראשונה כמו קודם
+  return bestScore > 0 ? best : 0;
 }
 
 function autoDetectColumn(field) {
@@ -9777,7 +9825,7 @@ function applyFeatureFlags() {
     const box = document.getElementById('m-certs');
     if (box && featureOn('extraCerts') && !box.children.length) {
       box.innerHTML = EXTRA_CERTS.map(c =>
-        `<div class="modal-row"><label>${c.icon} ${esc(c.label)} <span style="font-weight:400;color:#94a3b8;font-size:0.68rem">(${certFieldHint(c)})</span></label>
+        `<div class="modal-row"><label>${c.icon} ${esc(c.label)} <span style="font-weight:400;color:#94a3b8;font-size:0.68rem">(${certFieldHint(c)}${c.heavyOnly ? ' · רק מעל ' + HEAVY_KG.toLocaleString('he-IL') + ' ק"ג' : ''})</span></label>
          <input id="m-${c.key}" type="text" placeholder="יי.חח.שש" inputmode="numeric" oninput="dateAutoMask(this)"></div>`).join('');
     }
   }
