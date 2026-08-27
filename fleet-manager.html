@@ -546,6 +546,7 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
     <div style="display:flex;gap:6px;align-items:center">
       <button class="btn btn-primary" style="padding:6px 14px;font-size:0.78rem" onclick="openAddVehicle()">+ רכב חדש</button>
       <button class="btn-export" title="בחר אילו עמודות יוצגו בטבלה" onclick="toggleColPicker()">🧩 עמודות</button>
+      <button class="btn-export" id="btn-clean-blank" style="display:none" title="מחיקת שורות בלי מספר רישוי ובלי נהג" onclick="cleanupBlankRows()">🧹 נקה שורות ריקות</button>
       <button class="btn-export" title="משלים קוד תוצר, קוד דגם, משקל כולל ותוקף רישוי לרכבים שחסרים — רק שדות ריקים" onclick="syncFleetFromGov()">🏛️ סנכרן צי</button>
       <button class="btn-export" onclick="exportSection('fleet')">📥 ייצוא Excel</button>
     </div>
@@ -2989,8 +2990,38 @@ function _sameVehicle(x, plate, id) {
   const da = a.replace(/\D/g, ''), dbb = b.replace(/\D/g, '');
   return !!(da && dbb && da === dbb);
 }
+// ניקוי שורות ריקות: בלי מספר רישוי ובלי נהג. שורות כאלה נוצרות
+// בייבוא מקובץ שיש בו שורה עודפת, ואי אפשר לזהות אותן אחת-אחת.
+async function cleanupBlankRows() {
+  if (READ_ONLY) { toast('מצב צפייה בלבד — אי אפשר למחוק', true); return; }
+  const isBlank = v => !String(v.plate || '').replace(/\D/g, '') &&
+                       !String(v.driverName || '').trim();
+  const blanks = (VEHICLES || []).filter(isBlank);
+  if (!blanks.length) { toast('אין שורות ריקות בטבלה'); return; }
+  if (!confirm(`נמצאו ${blanks.length} שורות ריקות (בלי מספר רישוי ובלי נהג).
+
+למחוק אותן?`)) return;
+  if (!auth.currentUser) { toast('⚠ לא מחובר — התחבר מחדש', true); return; }
+  try {
+    const next = VEHICLES.filter(v => !isBlank(v));
+    VEHICLES = next;
+    localStorage.setItem('fleet_vehicles', JSON.stringify(VEHICLES));
+    await fcol().doc('main').set({ vehicles: stripUndef(next) }, { merge: true });
+    mirrorToTenant('main', { vehicles: next });
+    rebuildDriversDirectory();
+    renderFleet(); renderAlerts(); renderDashboard();
+    toast(`✓ נמחקו ${blanks.length} שורות ריקות`);
+  } catch(e) {
+    toast('שגיאה במחיקה: ' + (e.code || e.message), true);
+    console.log('cleanupBlankRows', e);
+  }
+}
+
 async function deleteVehicleRow(plate, id) {
   if (id === undefined) id = null;
+  // במצב צפייה בלבד הכתיבה לענן נבלעת, והשורה הייתה נעלמת מהמסך וחוזרת
+  // ברענון. עדיף לומר את זה מראש מאשר להיראות כאילו המחיקה עבדה.
+  if (READ_ONLY) { toast('מצב צפייה בלבד — אי אפשר למחוק. שחרר את הנעילה בהגדרות.', true); return; }
   _ensureVehicleIds();
   const v = VEHICLES.find(x => _sameVehicle(x, plate, id));
   const who = v ? (v.driverName || '').split('-')[0].trim() : '';
@@ -4472,6 +4503,9 @@ function renderFleet() {
   scheduleFit();
   // סינון עמודות נשמר בין רענונים, ולכן חייב חיווי — אחרת טבלה מסוננת
   // נראית כמו טבלה שנעלמו ממנה רכבים.
+  const _blank = (VEHICLES || []).filter(v => !String(v.plate || '').replace(/\D/g, '') && !String(v.driverName || '').trim()).length;
+  const _cb = document.getElementById('btn-clean-blank');
+  if (_cb) { _cb.style.display = _blank ? '' : 'none'; _cb.textContent = `🧹 נקה ${_blank} שורות ריקות`; }
   const _fc = fleetFilterCount();
   const _fb = document.getElementById('filter-active-bar');
   if (_fb) {
