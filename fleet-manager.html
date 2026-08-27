@@ -2201,6 +2201,7 @@ const firebaseConfig = {
 // מופע Firebase נפרד בשם משלו — לאפליקציה בעלת שם יש אחסון התחברות
 // נפרד לגמרי — ובנוסף אחסון פר-לשונית (SESSION), כך שכל חלון כזה מחזיק
 // חשבון עצמאי ואינו נוגע בחלון הראשי או בחלונות multi אחרים.
+let _bootStage = 'טעינה';
 const MULTI_WIN = new URLSearchParams(location.search).get('multi') === '1';
 // המטמון המקומי (localStorage) משותף לכל החלונות באותו דומיין, ולכן שני
 // חשבונות פתוחים במקביל היו כותבים לאותם מפתחות: החלון השני נטען עם
@@ -10576,12 +10577,22 @@ function doLogin() {
   err.textContent = '';
   if (!email || !pass) { err.textContent = 'נא למלא אימייל וסיסמה'; return; }
   btn.disabled = true; btn.textContent = 'מתחבר...';
+  _bootStage = 'מתחבר';
+  clearTimeout(window._loginWatchdog);
+  window._loginWatchdog = setTimeout(() => {
+    if (document.getElementById('login-gate').style.display === 'none') return;  // כבר נכנס
+    btn.disabled = false; btn.textContent = 'התחברות';
+    err.textContent = 'ההתחברות נתקעה בשלב: ' + _bootStage + '. נסה שוב, ואם חוזר — שלח לי את השלב הזה.';
+  }, 25000);
   auth.setPersistence(MULTI_WIN ? firebase.auth.Auth.Persistence.SESSION : firebase.auth.Auth.Persistence.LOCAL)
-    .then(() => auth.signInWithEmailAndPassword(email, pass))
+    .then(() => { _bootStage = 'מאמת סיסמה'; return auth.signInWithEmailAndPassword(email, pass); })
+    .then(() => { _bootStage = 'טוען את החשבון'; })
     .catch(e => {
+      clearTimeout(window._loginWatchdog);
       btn.disabled = false; btn.textContent = 'התחברות';
       const m = { 'auth/wrong-password':'סיסמה שגויה', 'auth/user-not-found':'משתמש לא קיים', 'auth/invalid-email':'אימייל לא תקין', 'auth/invalid-credential':'אימייל או סיסמה שגויים', 'auth/too-many-requests':'יותר מדי ניסיונות — נסה שוב בעוד כמה דקות' };
-      err.textContent = m[e.code] || 'שגיאת התחברות';
+      err.textContent = (m[e.code] || 'שגיאת התחברות') + (e.code ? ' (' + e.code + ')' : '');
+      console.log('doLogin failed', e);
     });
 }
 function doReset() {
@@ -10605,9 +10616,13 @@ auth.onAuthStateChanged(async user => {
     return;
   }
   if (user) {
+    _bootStage = 'מזהה את הלקוח';
     await resolveTenant(user); // which company this account belongs to (defaults to nofar)
+    _bootStage = 'בודק חיבור פעיל';
     if (!subscriptionOK()) { showPaywall(); return; } // block companies with an inactive/expired subscription
     if (!(await claimSession(user))) return;          // החשבון כבר פתוח במכשיר אחר
+    _bootStage = 'טוען נתונים';
+    clearTimeout(window._loginWatchdog);
     bootApp();
   } else {
     document.getElementById('login-gate').style.display = 'flex';
