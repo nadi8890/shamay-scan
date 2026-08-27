@@ -5894,7 +5894,7 @@ const KM_UPDATE_LINK = 'https://nadi8890.github.io/shamay-scan/km-update.html';
 // שולחת נהג של לקוח אחר לכתוב לתוך החשבון של הבעלים — בדיוק הדליפה
 // שנסגרה בצד המערכת. אם אין דייר מזוהה, לא נבנה קישור בכלל.
 function tid() {
-  if (!TENANT || !TENANT_RESOLVED) { tenantAlarm('ניסיון לבנות קישור לנהג ללא זיהוי לקוח'); throw new Error('TENANT_UNRESOLVED'); }
+  if (!TENANT || !TENANT_RESOLVED) { throw new Error('TENANT_UNRESOLVED'); }
   return encodeURIComponent(TENANT);
 }
 function tParam(sep) { return (sep || '&') + 't=' + tid(); }
@@ -10019,7 +10019,12 @@ function _roCol(c) {
 }
 function fcol() {
   if (!TENANT_RESOLVED || !TENANT) {
-    tenantAlarm('ניסיון גישה לנתונים לפני זיהוי הלקוח');
+    // גישה לפני שהדייר נפתר נחסמת — אבל זו אינה דליפה אלא סדר פעולות:
+    // איזשהו טיימר או מאזין הקדים את סיום ההתחברות. הזריקה לבדה כבר
+    // מונעת כתיבה לחשבון הלא נכון, ולכן אין כאן אזעקה ואין נעילה
+    // לצפייה בלבד — אחרת המשתמש התקין ננעל בלי סיבה. האזעקה שמורה
+    // לפער אמיתי בין החשבון לנתונים, שאותו בודקת auditTenantIsolation.
+    console.warn('[TENANT GUARD] גישה נחסמה לפני זיהוי הלקוח:', new Error().stack);
     throw new Error('TENANT_UNRESOLVED');
   }
   const c = USE_TENANT ? _stampCol(TENANT_DATA()) : db.collection('fleet');
