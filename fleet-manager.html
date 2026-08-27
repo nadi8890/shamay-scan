@@ -9204,6 +9204,35 @@ async function deleteReqRecord(docId) {
   } catch(e) { toast('שגיאה במחיקה', true); console.log('deleteReqRecord', e); }
 }
 
+// מסמך חדש מחליף את הקודם מאותו סוג ולאותו נושא, במקום להיערם.
+// רישיון נהיגה שייך לנהג ולכן מושווה לפי שם הנהג; רישיון רכב וביטוח
+// שייכים לרכב ולכן לפי מספר רישוי. מסמך מסוג אחר לעולם לא נמחק.
+// המחיקה בלתי הפיכה — העותק הישן נשאר במייל שנשלח בזמן ההעלאה.
+async function _replaceOlderDocs(kind, plate, driver, keepDocId) {
+  const t = (kind === 'license') ? 'licensedocs' : 'vehicledocs';
+  const pk = _cpk2(plate || '');
+  const dk = driverKey(driver || '');
+  let removed = 0;
+  try {
+    const snap = await fcol().where('type', '==', t).get();
+    for (const d of snap.docs) {
+      if (d.id === keepDocId) continue;
+      const r = d.data() || {};
+      // רק אותו סוג בדיוק. רשומה בלי סיווג (imgKinds מעורב) לא נגעת בה,
+      // כי אי אפשר לדעת אם היא מכילה גם מסמך אחר.
+      const rk = r.reqType || r.docKind || '';
+      if (rk !== kind) continue;
+      const sameSubject = (kind === 'license')
+        ? (dk && driverKey(r.driver || r.name || '') === dk)
+        : (pk && _cpk2(r.plate || '') === pk);
+      if (!sameSubject) continue;
+      await fcol().doc(d.id).delete();
+      removed++;
+    }
+  } catch(e) { console.log('_replaceOlderDocs', e); }
+  return removed;
+}
+
 async function saveManualDoc() {
   if (!_MDOC || !_MDOC.images.length) return;
   const btn = document.getElementById('mdoc-save');
@@ -9233,6 +9262,9 @@ async function saveManualDoc() {
       // כבר החלנו את התאריכים כאן, ואין צורך שהסורק האוטומטי יחזור עליהם
       scanned: true, applied: true
     });
+    // המסמך החדש מחליף את הקודם מאותו סוג — נמחק רק אחרי שהחדש נשמר,
+    // כדי שכשל בשמירה לא ישאיר את הנושא בלי שום מסמך.
+    const _replaced = await _replaceOlderDocs(k, plate, _MDOC.driver || '', 'mdoc_' + created);
     // עדכון התוקפים בכרטיס הרכב, כדי שההתראות ייעלמו
     const v = VEHICLES.find(x => _cpk2(x.plate) === _cpk2(plate)) ||
               (k === 'license' ? VEHICLES.find(x => _cpk2(x.plate) === _cpk2(_MDOC.plate)) : null);
@@ -9248,7 +9280,10 @@ async function saveManualDoc() {
       if (reg || ins || lex) saveVehiclesSafely(v.plate, null, v.plate);
     }
     document.getElementById('mdoc-modal').classList.remove('open');
-    toast('✓ המסמך נשמר בתיק' + (v && (reg || ins || lex) ? ' והתוקף עודכן' : ''));
+    // אומרים במפורש שמסמך קודם הוחלף — מחיקה שקטה היא הפתעה רעה
+    toast('✓ המסמך נשמר בתיק'
+          + (v && (reg || ins || lex) ? ' והתוקף עודכן' : '')
+          + (_replaced ? ` · הוחלף ${_replaced === 1 ? 'המסמך הקודם' : _replaced + ' מסמכים קודמים'}` : ''));
     if (typeof renderAlerts === 'function') renderAlerts();
     if (typeof renderFleet === 'function') renderFleet();
     if (window._empdocsPlate) openEmployeeDocs(window._empdocsPlate);
