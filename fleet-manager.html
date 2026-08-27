@@ -6391,26 +6391,7 @@ const VDOC_SCAN_PROMPT = `אלה צילומים של מסמכי רכב ישרא�
 {"insuranceExpiry":"DD/MM/YYYY","registrationExpiry":"DD/MM/YYYY"}`;
 const LIC_SCAN_PROMPT = `אלה צילומים של רישיון נהיגה ישראלי. חלץ את תאריך תפוגת הרישיון (בתוקף עד). ברישיון נהיגה ישראלי תאריך זה מופיע ליד השדה המסומן "4b" (בתוקף עד) — קח את התאריך המאוחר, שהוא תוקף הרישיון. אם לא ברור — החזר "". אל תנחש. החזר JSON בלבד:
 {"licenseExpiry":"DD/MM/YYYY"}`;
-// סריקה זמינה גם ללקוחות, בלי שהמפתח יגיע אליהם: אצלך היא רצה ישירות
-// מול המודל, ואצלם היא עוברת דרך ה-Apps Script שלך — שם המפתח יושב.
-function scanAvailable() {
-  const ms = (typeof MAIL_SETTINGS !== "undefined" && MAIL_SETTINGS) || {};
-  return !!agentApiKey || !!ms.gasUrl;
-}
-async function _scanViaRelay(images, promptText) {
-  const ms = (typeof MAIL_SETTINGS !== "undefined" && MAIL_SETTINGS) || {};
-  if (!ms.gasUrl) throw new Error("no relay");
-  // text/plain כדי שלא ייווצר preflight — Apps Script אינו עונה עליו
-  const resp = await fetch(ms.gasUrl, { method: "POST", headers: { "Content-Type": "text/plain" },
-    body: JSON.stringify({ action: "scanDoc", token: ms.gasToken || "",
-                           prompt: promptText, images: (images || []).slice(0, 4) }) });
-  const data = await resp.json();
-  if (!data.ok) throw new Error(data.error || "scan failed");
-  const m = String(data.text || "").match(/\{[\s\S]*\}/);
-  return m ? JSON.parse(m[0]) : {};
-}
 async function scanDatesFromImages(images, promptText) {
-  if (!agentApiKey) return await _scanViaRelay(images, promptText);
   const content = [{ type:'text', text: promptText },
     ...(images||[]).map(b => ({ type:'image', source:{ type:'base64', media_type:'image/jpeg', data:b } }))];
   const resp = await fetch('https://api.anthropic.com/v1/messages', {
@@ -6426,7 +6407,7 @@ async function scanDatesFromImages(images, promptText) {
 }
 let _autoScanRan = false;
 async function autoScanDriverDocs() {
-  if (_autoScanRan || !auth.currentUser || !scanAvailable()) return; // דורש מפתח מקומי או ממסר
+  if (_autoScanRan || !auth.currentUser || !agentApiKey) return; // needs the API key (manager side)
   _autoScanRan = true;
   const validDate = s => !!parseDate(s);
   const plateEq = (a, b) => String(a||'').replace(/\D/g,'') === String(b||'').replace(/\D/g,'');
@@ -7475,7 +7456,7 @@ async function scanReqExpiry(r, kind){
   const ck = r._docId + '|' + kind;
   if (ck in _reqScanCache) return _reqScanCache[ck] === 'pending' ? null : _reqScanCache[ck];
   const imgs = _reqImages(r, kind);
-  if (!imgs.length || !scanAvailable()) { _reqScanCache[ck] = null; return null; }
+  if (!imgs.length || !agentApiKey) { _reqScanCache[ck] = null; return null; }
   _reqScanCache[ck] = 'pending';
   // רישיון הרכב ותעודת הביטוח נקראים מאותו פרומפט ומחזירים את שני
   // התאריכים יחד — סורקים פעם אחת ומחלקים, במקום פעמיים על אותה תמונה.
@@ -7496,7 +7477,7 @@ function _scanPendingReqs(){
       const inp = document.getElementById('reqdate-' + r._docId + '-' + kind);
       const note = document.getElementById('reqscan-' + r._docId + '-' + kind);
       if (inp && !inp.value && d) inp.value = d;
-      if (note) note.textContent = d ? '✓ זוהה אוטומטית' : (scanAvailable() ? 'לא זוהה — הזן ידנית' : 'הזן ידנית');
+      if (note) note.textContent = d ? '✓ זוהה אוטומטית' : (agentApiKey ? 'לא זוהה — הזן ידנית' : 'הזן ידנית');
     };
     if ((ck in _reqScanCache) && _reqScanCache[ck] !== 'pending') { fill(_reqScanCache[ck]); return; }
     scanReqExpiry(r, kind).then(fill);
