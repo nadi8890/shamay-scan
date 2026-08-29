@@ -8032,9 +8032,39 @@ async function buildReminders(){
   let pendingReqs = [];
   try { pendingReqs = (await readDriverDocs('requirement')).filter(r => (r.status||'pending') === 'pending'); }
   catch(e) { pendingReqs = (typeof PENDING_REQS !== 'undefined' ? PENDING_REQS : []).filter(r => (r.status||'pending') === 'pending'); }
+  // טפסים חתומים לא הופיעו בפעמון כלל — רק מסמכים שהועלו. לכן טופס
+  // שנהג חתם עליו הגיע למערכת בשקט, ובטלפון (שבו הפעמון הוא כל מה
+  // שרואים) הוא פשוט לא נראה. מוצגים רק חדשים שטרם נצפו.
+  let newDecls = [];
+  try { newDecls = _unseenDecls(await readDriverDocs('declaration')); } catch(e) {}
   const openRepl = (typeof REPLACEMENTS !== 'undefined' ? REPLACEMENTS : []).filter(r => !_replHasReturn(r));
   const openTasks = (typeof TASKS !== 'undefined' ? TASKS : []).filter(t => !t.done);
-  return { alerts, alertPlates, procMissing, kmMissing, pendingReqs, openRepl, openTasks, total: alerts.length + procMissing.length + kmMissing.length + pendingReqs.length + openRepl.length + openTasks.length };
+  return { alerts, alertPlates, procMissing, kmMissing, pendingReqs, newDecls, openRepl, openTasks, total: alerts.length + procMissing.length + kmMissing.length + pendingReqs.length + newDecls.length + openRepl.length + openTasks.length };
+}
+// זיכרון "כבר ראיתי", לכל לקוח בנפרד. בפעם הראשונה מסמנים את כל מה
+// שקיים כנצפה — אחרת הפעמון היה מתמלא בכל ההצהרות הישנות בבת אחת.
+const DECL_SEEN = 'declSeen';
+function _unseenDecls(list) {
+  const seen = _prefGet(DECL_SEEN, null);
+  const ids = (list || []).map(r => r._docId).filter(Boolean);
+  if (seen === null) { _prefSet(DECL_SEEN, ids.slice(-400)); return []; }
+  const s = new Set(seen);
+  return (list || []).filter(r => r._docId && !s.has(r._docId))
+                     .sort((a, b) => (b.created || 0) - (a.created || 0));
+}
+function markDeclsSeen() {
+  const s = new Set(_prefGet(DECL_SEEN, []));
+  ((window._DECLS_NEW) || []).forEach(r => s.add(r._docId));
+  _prefSet(DECL_SEEN, [...s].slice(-400));
+  window._DECLS_NEW = [];
+}
+// מהפעמון ישר אל הטפסים החתומים, ומסמן אותם כנצפו
+function openSignedForms() {
+  markDeclsSeen();
+  const b = document.querySelector('.nav-btn[data-tab="forms"]');
+  try { showTab('forms', b); } catch(e) {}
+  try { closeModal('reminders-modal'); } catch(e) {}
+  if (typeof loadDeclarations === 'function') loadDeclarations();
 }
 function _remSyncAutoBox() {
   const b = document.getElementById('rem-auto-off');
@@ -8050,6 +8080,17 @@ async function showRemindersPopup(force, data){
     </div>`;
   // מסמכים לאישור — בלוק מורחב עם צפייה במסמך ישירות מהפעמון
   window._bellReqs = data.pendingReqs || [];
+  window._DECLS_NEW = data.newDecls || [];
+  const declBlock = (data.newDecls && data.newDecls.length) ? `
+    <div style="background:#eef2ff;border:1px solid #c7d2fe;border-radius:11px;padding:10px 12px;margin-bottom:10px">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap">
+        <div style="font-size:0.82rem;font-weight:800;color:#3730a3">✍️ טפסים חדשים שנחתמו</div>
+        <span style="font-size:1.5rem;font-weight:900;color:#4f46e5">${data.newDecls.length}</span>
+      </div>
+      ${data.newDecls.slice(0,6).map(r => `<div style="font-size:0.76rem;color:#334155;margin-top:5px">        ✍️ ${esc(String(r.driver || r.name || "עובד").split("-")[0].trim())} חתם/ה על <b>${esc(r.formTitle || r.title || "טופס")}</b>        ${r.plate ? ` — רכב ${esc(r.plate)}` : ""} <span style="color:#94a3b8">· ${esc(r.dateStr || "")}</span></div>`).join("")}
+      ${data.newDecls.length > 6 ? `<div style="font-size:0.72rem;color:#64748b;margin-top:5px">ועוד ${data.newDecls.length - 6}…</div>` : ""}
+      <button class="btn btn-primary" style="margin-top:9px;padding:5px 13px;font-size:0.75rem" onclick="openSignedForms()">פתח את הטפסים החתומים</button>
+    </div>` : '';
   const reqBlock = (data.pendingReqs && data.pendingReqs.length) ? `
     <div style="background:#fff;border:1.5px solid #e2e8f0;border-right:4px solid #16a34a;border-radius:12px;padding:12px 14px;margin-bottom:10px">
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px">
@@ -8069,6 +8110,7 @@ async function showRemindersPopup(force, data){
     </div>` : '';
   const html =
     reqBlock +
+    declBlock +
     ((data.openTasks && data.openTasks.length) ? row('✅','משימות פתוחות', data.openTasks.length, '#2563eb', 'tasks', 'משימות שפתחת וטרם סומנו כבוצעו') : '') +
     row('⏰','התראות תוקף פעילות', data.alerts.length, '#dc2626', 'alerts', `${data.alertPlates.size} רכבים — רישוי/ביטוח/רישיון/ביקורת/טיפול`) +
     row('📝','נהלים שלא נחתמו', data.procMissing.length, '#d97706', 'fleet', 'רכבים עם נהג שטרם חתם על נהלים ואחריות') +
@@ -8122,6 +8164,8 @@ async function _buildMascotMsgs(){
   const M = [];
   // מסמכים לאישור — פר מסמך
   (d.pendingReqs||[]).forEach(r => M.push(`📥 ${nm(r.driver)||'עובד'} העלה ${r.reqLabel||'מסמך'} לרכב ${r.plate} — ממתין לאישורך`));
+  // טפסים חתומים חדשים — פר טופס
+  (d.newDecls||[]).forEach(r => M.push(`✍️ ${nm(r.driver || r.name)||'עובד'} חתם/ה על ${r.formTitle || r.title || 'טופס'}${r.plate ? ` — רכב ${r.plate}` : ''} — חדש`));
   // משימות פתוחות — פר משימה
   openTasks.forEach(t => { if (t && t.text) M.push(`📌 משימה פתוחה: ${String(t.text).slice(0, 62)}`); });
   // התראות תוקף — פר רכב, עם כמה ימים נשארו
