@@ -7475,13 +7475,19 @@ const _reqScanRaw = {};   // סריקה משותפת: ביטוח ורישוי נ
 // הסוגים שיש להם תאריך תוקף. קריאה משולבת מחזיקה יותר מאחד, ולכן
 // _REQ_DATE[r.reqType] לבדו החמיץ אותה — reqType הוא general.
 function reqDateKinds(r) { return reqKinds(r).filter(k => _REQ_DATE[k]); }
-// הצילומים ששייכים לסוג מסוים. בהגשה מתויגת נלקחים רק שלו; בהגשה
-// ישנה שאינה מתויגת נלקחים כולם, ונותנים לסורק להחליט.
+// הצילומים ששייכים לסוג מסוים. בהגשה מתויגת נלקחים רק שלו.
+// בלי תיוג — סורקים רק אם כל ההגשה היא מהסוג הזה בלבד.
 function _reqImages(r, kind) {
   const imgs = (r.files || []).filter(f => f.kind === 'image' && f.base64);
   const mine = imgs.filter(f => f.docKind === kind);
   if (mine.length) return mine.map(f => f.base64);
-  return imgs.some(f => f.docKind) ? [] : imgs.map(f => f.base64);
+  // קודם, הגשה לא מתויגת שלחה את *כל* צילומיה לכל סוג — ולכן מסמכים
+  // שאינם רישיון נהיגה, רישיון רכב או ביטוח (קבלות, אישורי טיפול,
+  // תמונות נזק) נשלחו לסריקה. זו גם עלות מיותרת וגם סיכון אמיתי:
+  // תאריך שנקרא מהמסמך הלא נכון נכנס כתוקף ביטוח או רישוי.
+  const kinds = reqKinds(r);
+  if (kinds.length === 1 && kinds[0] === kind && !imgs.some(f => f.docKind)) return imgs.map(f => f.base64);
+  return [];
 }
 async function scanReqExpiry(r, kind){
   const cfg = _REQ_DATE[kind]; if (!cfg) return null;
