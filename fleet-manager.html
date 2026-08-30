@@ -733,6 +733,8 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
     </div>
     <div style="display:flex;gap:6px;flex-wrap:wrap">
       <button class="btn btn-primary" style="padding:6px 14px;font-size:0.8rem" onclick="openDriverModal()">+ נהג חדש</button>
+      <button class="btn-export" title="ייבוא מצבת נהגים מקובץ אקסל" onclick="document.getElementById('drv-imp-file').click()">📥 ייבוא מאקסל</button>
+      <input type="file" id="drv-imp-file" accept=".xlsx,.xls,.csv" style="display:none" onchange="onDriversImportFile(this)">
       <button class="btn-export" title="בחר אילו עמודות יוצגו" onclick="toggleDrvColPicker()">🧩 עמודות</button>
       <button class="btn-export" onclick="exportSection('drivers')">📥 ייצוא Excel</button>
     </div>
@@ -766,6 +768,12 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
           <th><div class="th-sort" onclick="sortDrvCol('traffic')">עבר תעבורתי<span class="sort-arrow" id="dsarr-traffic">⇅</span></div></th>
           <th><div class="th-sort" onclick="sortDrvCol('address')">כתובת<span class="sort-arrow" id="dsarr-address">⇅</span></div></th>
           <th><div class="th-sort" onclick="sortDrvCol('plates')">רכבים<span class="sort-arrow" id="dsarr-plates">⇅</span></div></th>
+          <th><div class="th-sort" onclick="sortDrvCol('birth')">תאריך לידה<span class="sort-arrow" id="dsarr-birth">⇅</span></div></th>
+          <th><div class="th-sort" onclick="sortDrvCol('dtype')">סוג נהג<span class="sort-arrow" id="dsarr-dtype">⇅</span></div></th>
+          <th><div class="th-sort" onclick="sortDrvCol('trafficValid')">תוקף מידע תעבורתי<span class="sort-arrow" id="dsarr-trafficValid">⇅</span></div></th>
+          <th><div class="th-sort" onclick="sortDrvCol('health')">תוקף הצהרת בריאות<span class="sort-arrow" id="dsarr-health">⇅</span></div></th>
+          <th><div class="th-sort" onclick="sortDrvCol('status')">סטטוס<span class="sort-arrow" id="dsarr-status">⇅</span></div></th>
+          <th><div class="th-sort" onclick="sortDrvCol('code')">קוד אישי<span class="sort-arrow" id="dsarr-code">⇅</span></div></th>
           <th></th>
         </tr>
         <tr class="col-filter-row" id="drv-filter-row"></tr>
@@ -1844,6 +1852,14 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
       <div class="modal-row"><label>שיוך <span style="font-weight:400;color:#94a3b8;font-size:0.7rem">— מחלקה/אגף</span></label><input id="dm-aff" type="text" placeholder="גינון / פיקוח / תברואה"></div>
     </div>
     <div class="modal-row"><label>כתובת</label><input id="dm-addr" type="text" placeholder="רחוב, מספר, עיר"></div>
+    <div class="modal-grid">
+      <div class="modal-row"><label>תאריך לידה</label><input id="dm-birth" type="text" placeholder="יי.חח.שש" inputmode="numeric" oninput="dateAutoMask(this)"></div>
+      <div class="modal-row"><label>סוג נהג</label><input id="dm-dtype" type="text" placeholder="מורשה"></div>
+      <div class="modal-row"><label>תוקף בדיקת מידע תעבורתי <span style="font-weight:400;color:#94a3b8;font-size:0.68rem">(תקנה 585א)</span></label><input id="dm-trafficvalid" type="text" placeholder="יי.חח.שש" inputmode="numeric" oninput="dateAutoMask(this)"></div>
+      <div class="modal-row"><label>תוקף הצהרת בריאות</label><input id="dm-health" type="text" placeholder="יי.חח.שש" inputmode="numeric" oninput="dateAutoMask(this)"></div>
+      <div class="modal-row"><label>סטטוס נהג</label><input id="dm-status" type="text" placeholder="פעיל"></div>
+      <div class="modal-row"><label>קוד אישי</label><input id="dm-code" type="text" style="direction:ltr"></div>
+    </div>
     <div class="modal-row"><label>הערות</label><textarea id="dm-notes" rows="2"></textarea></div>
     <div id="dm-vehicles" style="font-size:0.76rem;color:var(--muted);margin-top:2px"></div>
     <div id="dm-err" style="color:#dc2626;font-size:0.78rem;font-weight:700;min-height:16px;margin-top:4px"></div>
@@ -2668,6 +2684,9 @@ function openDriverModal(key) {
   val('dm-email', d.driverEmail); val('dm-licnum', d.licNum); val('dm-licexp', d.licenseExpiry);
   val('dm-traffic', d.trafficRecord); val('dm-aff', d.affiliation); val('dm-addr', d.address);
   val('dm-notes', d.notes);
+  val('dm-birth', d.birthDate); val('dm-dtype', d.driverType);
+  val('dm-trafficvalid', d.trafficValid); val('dm-health', d.healthValid);
+  val('dm-status', d.status); val('dm-code', d.personalCode);
   document.getElementById('dm-err').textContent = '';
   document.getElementById('dm-del').style.display = key ? '' : 'none';
   const vs = key ? driverVehicles(key) : [];
@@ -2675,6 +2694,115 @@ function openDriverModal(key) {
     ? (vs.length ? `רכבים משויכים: ${vs.map(v => v.plate).join(', ')}` : 'אין רכב משויך כרגע')
     : '';
   document.getElementById('driver-modal').classList.add('open');
+}
+// ═══ ייבוא מצבת נהגים מאקסל ═══
+// לקוח מנהל את מצבת הנהגים בגיליון, ולהקליד אותה מחדש נהג-נהג זו עבודה
+// של שעות. הכותרות מזוהות לפי שם ולא לפי מיקום, כי לכל לקוח סדר עמודות
+// אחר, והן אינן בהכרח בשורה הראשונה (בקובץ של רמלה יש שורת כותרת-על).
+const DRIVER_IMPORT_FIELDS = [
+  { key:'lastName',      syn:['שם משפחה','משפחה','last name','surname'] },
+  { key:'firstName',     syn:['שם פרטי','פרטי','first name'] },
+  { key:'fullName',      syn:['שם מלא','שם הנהג','שם נהג'] },
+  { key:'driverId',      syn:['תעודת זהות','ת.ז','תז','מספר זהות'] },
+  { key:'birthDate',     syn:['תאריך לידה','לידה'] },
+  { key:'address',       syn:['כתובת'] },
+  { key:'driverPhone',   syn:['טלפון סולולרי','טלפון סלולרי','טלפון נייד','פלאפון','נייד','טלפון'] },
+  { key:'licNum',        syn:['מספר רישיון','מספר רשיון','מס רישיון','מס׳ רישיון'] },
+  { key:'licenseExpiry', syn:['תוקף רישיון נהיגה','תוקף רישיון','תוקף רשיון'] },
+  { key:'affiliation',   syn:['מחלקה','אגף','שיוך'] },
+  { key:'driverType',    syn:['סוג נהג'] },
+  { key:'trafficValid',  syn:['תוקף בדיקת מידע תעבורתי','מידע תעבורתי','תקנה 585א','עבר תעבורתי'] },
+  { key:'healthValid',   syn:['תוקף הצהרת בריאות','הצהרת בריאות'] },
+  { key:'status',        syn:['סטטוס נהג','סטטוס'] },
+  { key:'personalCode',  syn:['קוד אישי'] },
+  { key:'driverEmail',   syn:['מייל','אימייל','דואל','email'] }
+];
+// עמודה משויכת לשדה שההתאמה שלו ארוכה יותר, אחרת "טלפון" היה חוטף את
+// "טלפון סולולרי" ושדות היו נדרסים זה על זה.
+function _drvMapHeaders(hdr) {
+  const map = {};
+  (hdr || []).forEach((h, idx) => {
+    const n = normHeader(h);
+    if (!n) return;
+    let best = null, bestLen = 0;
+    DRIVER_IMPORT_FIELDS.forEach(f => f.syn.forEach(s => {
+      const k = normHeader(s);
+      if (!k) return;
+      if (n === k || n.indexOf(k) > -1 || k.indexOf(n) > -1) {
+        if (k.length > bestLen) { best = f.key; bestLen = k.length; }
+      }
+    }));
+    if (best && map[best] === undefined) map[best] = idx;
+  });
+  return map;
+}
+// הכותרות אינן בהכרח בשורה הראשונה — בוחרים את השורה שמזוהות בה הכי הרבה
+function _drvHeaderRow(rows) {
+  let best = 0, bestScore = -1;
+  for (let r = 0; r < Math.min(rows.length, 12); r++) {
+    const sc = Object.keys(_drvMapHeaders(rows[r])).length;
+    if (sc > bestScore) { bestScore = sc; best = r; }
+  }
+  return { row: best, score: bestScore };
+}
+async function onDriversImportFile(input) {
+  const file = input.files && input.files[0];
+  if (input) input.value = '';
+  if (!file) return;
+  if (READ_ONLY) { toast('מצב צפייה בלבד — אי אפשר לייבא.', true); return; }
+  if (typeof XLSX === 'undefined') { toast('הספרייה עדיין נטענת — נסה שוב', true); return; }
+  try {
+    const buf = await file.arrayBuffer();
+    // הגיליון שבו זוהו הכי הרבה כותרות — חוברת יכולה לפתוח בגיליון הסבר
+    let bestSheet = null, bestScore = 0, bestHdr = 0;
+    _xlsxSheets(buf).forEach(sh => {
+      const h = _drvHeaderRow(sh.rows);
+      if (h.score > bestScore) { bestScore = h.score; bestSheet = sh; bestHdr = h.row; }
+    });
+    if (!bestSheet || bestScore < 2) { toast('לא זוהו עמודות נהגים בקובץ', true); return; }
+    const rows = bestSheet.rows;
+    const map = _drvMapHeaders(rows[bestHdr]);
+    const at = (r, key) => map[key] === undefined ? '' : String(r[map[key]] == null ? '' : r[map[key]]).trim();
+    const found = [];
+    for (let r = bestHdr + 1; r < rows.length; r++) {
+      const row = rows[r] || [];
+      const first = at(row, 'firstName'), last = at(row, 'lastName');
+      const full = at(row, 'fullName') || [first, last].filter(Boolean).join(' ');
+      const name = driverKey(full);
+      if (!name) continue;
+      const rec = { firstName: first, lastName: last };
+      ['driverId','birthDate','address','driverPhone','licNum','licenseExpiry','affiliation',
+       'driverType','trafficValid','healthValid','status','personalCode','driverEmail'].forEach(k => {
+        const v = at(row, k);
+        if (v) rec[k] = v;
+      });
+      found.push({ name, rec });
+    }
+    if (!found.length) { toast('לא נמצאו נהגים בקובץ', true); return; }
+    // אותו לקח מהייבוא של הצי: אישור שאינו אומר לאיזה חשבון הוא כותב
+    // הוא איך שמצבת של לקוח אחד נוחתת אצל אחר.
+    const acct = COMPANY_NAME || TENANT;
+    const existing = found.filter(f => DRIVERS[f.name]).length;
+    if (!confirm('ייבוא מצבת נהגים לחשבון: ' + acct + String.fromCharCode(10,10) +
+                 'נמצאו ' + found.length + ' נהגים בקובץ.' + String.fromCharCode(10) +
+                 (existing ? ('מתוכם ' + existing + ' כבר קיימים — פרטיהם יעודכנו.' + String.fromCharCode(10)) : '') +
+                 'נהגים קיימים שאינם בקובץ לא יימחקו.' + String.fromCharCode(10,10) +
+                 'אם זה אינו החשבון הנכון — עצור עכשיו.' + String.fromCharCode(10,10) + 'להמשיך?')) return;
+    let added = 0, updated = 0;
+    found.forEach(f => {
+      if (DRIVERS[f.name]) updated++; else added++;
+      DRIVERS[f.name] = Object.assign(DRIVERS[f.name] || {}, f.rec);
+      syncDriverToVehicles(f.name);
+    });
+    saveToFirestore('drivers', DRIVERS);
+    try { localStorage.setItem('fleet_vehicles', JSON.stringify(VEHICLES)); } catch(e) {}
+    saveToFirestore('vehicles', VEHICLES);
+    renderDrivers(); renderFleet(); renderAlerts();
+    toast('✓ יובאו ' + added + ' נהגים חדשים, ' + updated + ' עודכנו');
+  } catch (e) {
+    console.log('drivers import failed', e);
+    toast('⚠ הייבוא נכשל: ' + (e.message || e), true);
+  }
 }
 async function saveDriver() {
   const g = id => (document.getElementById(id).value || '').trim();
@@ -2696,7 +2824,9 @@ async function saveDriver() {
   DRIVERS[name] = Object.assign(DRIVERS[name] || {}, {
     driverId: g('dm-id'), driverPhone: g('dm-phone'), driverEmail: g('dm-email'),
     licNum: g('dm-licnum'), licenseExpiry: g('dm-licexp'), trafficRecord: g('dm-traffic'),
-    affiliation: g('dm-aff'), address: g('dm-addr'), notes: g('dm-notes')
+    affiliation: g('dm-aff'), address: g('dm-addr'), notes: g('dm-notes'),
+    birthDate: g('dm-birth'), driverType: g('dm-dtype'), trafficValid: g('dm-trafficvalid'),
+    healthValid: g('dm-health'), status: g('dm-status'), personalCode: g('dm-code')
   });
   syncDriverToVehicles(name);          // הערכים יורדים לרכבים שהנהג מחזיק
   saveToFirestore('drivers', DRIVERS);
@@ -2765,10 +2895,16 @@ function renderDrivers() {
       case 'traffic': return d.trafficRecord || '';
       case 'address': return d.address || '';
       case 'plates':  return driverVehicles(k).map(v => v.plate).join(' ');
+      case 'birth':   return d.birthDate || '';
+      case 'dtype':   return d.driverType || '';
+      case 'trafficValid': return d.trafficValid || '';
+      case 'health':  return d.healthValid || '';
+      case 'status':  return d.status || '';
+      case 'code':    return d.personalCode || '';
       default:        return '';
     }
   };
-  const COLS = ['name','lastname','id','phone','email','licNum','licExp','traffic','address','plates'];
+  const COLS = ['name','lastname','id','phone','email','licNum','licExp','traffic','address','plates','birth','dtype','trafficValid','health','status','code'];
   let keys = Object.keys(DRIVERS);
   // סינון פר-עמודה
   const _match = (val, f) => !f || String(val || '').toLowerCase().includes(String(f).toLowerCase());
@@ -2827,6 +2963,12 @@ function renderDrivers() {
       <td style="font-size:0.73rem">${esc(d.trafficRecord) || '—'}</td>
       <td style="font-size:0.72rem">${esc(d.address) || '—'}</td>
       <td style="font-size:0.72rem;direction:ltr">${vs.length ? vs.map(v => esc(v.plate)).join('<br>') : '—'}</td>
+      <td style="font-size:0.72rem">${esc(d.birthDate) || '—'}</td>
+      <td style="font-size:0.72rem">${esc(d.driverType) || '—'}</td>
+      <td style="font-size:0.72rem">${esc(d.trafficValid) || '—'}</td>
+      <td style="font-size:0.72rem">${esc(d.healthValid) || '—'}</td>
+      <td style="font-size:0.72rem">${esc(d.status) || '—'}</td>
+      <td style="font-size:0.72rem;direction:ltr">${esc(d.personalCode) || '—'}</td>
       <td>
         <div style="display:flex;gap:3px;justify-content:flex-end;flex-wrap:wrap">
           <button class="btn btn-gray" style="padding:3px 8px;font-size:0.7rem" title="ערוך נהג" onclick="event.stopPropagation();openDriverModal('${kq}')">✏️</button>
@@ -4386,7 +4528,7 @@ let replColFilters = { employee:'', plate:'', typeCompany:'', fromDate:'', toDat
 let retColFilters  = { employee:'', plate:'', make:'', fromDate:'', toDate:'', reason:'', notes:'' };
 let violColFilters = { reportNum:'', date:'', offense:'', driver:'', plate:'', points:'', fine:'', status:'' };
 let invColFilters  = { plate:'', garage:'', date:'', workType:'', driver:'' };
-let drvColFilters  = { name:'', lastname:'', id:'', phone:'', email:'', licNum:'', licExp:'', traffic:'', address:'', plates:'' };
+let drvColFilters  = { name:'', lastname:'', id:'', phone:'', email:'', licNum:'', licExp:'', traffic:'', address:'', plates:'', birth:'', dtype:'', trafficValid:'', health:'', status:'', code:'' };
 try {
   const _sd = JSON.parse(localStorage.getItem('fleet_drvColFilters') || 'null');
   if (_sd) Object.keys(drvColFilters).forEach(k => { if (typeof _sd[k] === 'string') drvColFilters[k] = _sd[k]; });
@@ -4410,7 +4552,10 @@ const DRV_COLS = [
   { i:3,  label:'ת.ז' },         { i:4,  label:'טלפון' },
   { i:5,  label:'מייל' },        { i:6,  label:'מס׳ רישיון' },
   { i:7,  label:'תוקף רישיון' }, { i:8,  label:'עבר תעבורתי' },
-  { i:9,  label:'כתובת' },       { i:10, label:'רכבים' }
+  { i:9,  label:'כתובת' },       { i:10, label:'רכבים' },
+  { i:11, label:'תאריך לידה' },  { i:12, label:'סוג נהג' },
+  { i:13, label:'תוקף מידע תעבורתי' }, { i:14, label:'תוקף הצהרת בריאות' },
+  { i:15, label:'סטטוס' },       { i:16, label:'קוד אישי' }
 ];
 let DRV_HIDDEN_COLS = [];
 try { DRV_HIDDEN_COLS = JSON.parse(localStorage.getItem('fleet_drvHiddenCols')) || []; } catch(e) {}
@@ -4464,7 +4609,7 @@ function buildDrvColFilterRow() {
   const inp = c => `<th><input class="col-filter-inp" type="text" placeholder="${ph[c]}" value="${esc(drvColFilters[c]||'')}" oninput="setDrvColFilter('${c}',this.value)"></th>`;
   row.innerHTML = inp('name')
     + `<th class="col-lastname"><input class="col-filter-inp" type="text" placeholder="משפחה..." value="${esc(drvColFilters.lastname||'')}" oninput="setDrvColFilter('lastname',this.value)"></th>`
-    + ['id','phone','email','licNum','licExp','traffic','address','plates'].map(inp).join('') + '<th></th>';
+    + ['id','phone','email','licNum','licExp','traffic','address','plates','birth','dtype','trafficValid','health','status','code'].map(inp).join('') + '<th></th>';
 }
 
 function sortFleetCol(col) {
