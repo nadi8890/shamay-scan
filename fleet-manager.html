@@ -9872,6 +9872,47 @@ function openManualDoc(kind) {
 }
 function _cpk2(p) { return String(p == null ? '' : p).replace(/\D/g, ''); }
 
+// ביטוח ורישיון רכב מגיעים מחברות הביטוח וממשרד התחבורה כקובץ PDF,
+// ולא כצילום. עד כה אפשר היה להעלות רק תמונות, והמשתמש נאלץ לצלם את
+// המסך או להמיר בעצמו.
+//
+// ההמרה נעשית בכניסה ולא בהמשך: כל מה שיושב במערכת נשאר תמונה אחת
+// ואחידה — נצפה, נשלח במייל ונסרק אוטומטית בדיוק כמו צילום. הדרך
+// השנייה, לשמור PDF כסוג נפרד, הייתה מחייבת טיפול נפרד בכל מקום שבו
+// מסמך מוצג, מצורף או נקרא.
+async function _pdfToImages(file, maxPages) {
+  if (typeof pdfjsLib === 'undefined') throw new Error('PDFJS_MISSING');
+  try { pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'; } catch(e) {}
+  const pdf = await pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise;
+  const out = [];
+  const n = Math.min(pdf.numPages, maxPages || 3);
+  for (let k = 1; k <= n; k++) {
+    const pg = await pdf.getPage(k);
+    // 2.0 נותן טקסט קריא לסריקה; מתחת לזה תאריכים קטנים מיטשטשים
+    const vp = pg.getViewport({ scale: 2.0 });
+    const c = document.createElement('canvas');
+    c.width = vp.width; c.height = vp.height;
+    // ציור PDF נשען על פריימים של הדפדפן, ובלשונית שאינה בחזית הוא
+    // עלול לא להסתיים כלל. בלי גבול זמן ההעלאה הייתה נתקעת על
+    // "ממיר…" בלי הודעה ובלי דרך לצאת.
+    await Promise.race([
+      pg.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise,
+      new Promise((_, rej) => setTimeout(() => rej(new Error('PDF_RENDER_TIMEOUT')), 20000))
+    ]);
+    out.push(c.toDataURL('image/jpeg', 0.72).split(',')[1]);
+  }
+  return out;
+}
+// קובץ בודד — תמונה או PDF — הופך לרשימת תמונות מוקטנות
+async function _docFileToImages(f, maxPx, q) {
+  if (f.type === 'application/pdf' || /\.pdf$/i.test(f.name || '')) {
+    const pages = await _pdfToImages(f, 3);
+    const out = [];
+    for (const b of pages) out.push(await _shrinkB64(b, maxPx || 1100, q || 0.55));
+    return out;
+  }
+  return [await _shrinkB64(await _fileToB64(f), maxPx || 1100, q || 0.55)];
+}
 function _fileToB64(file) {
   return new Promise((res, rej) => {
     const fr = new FileReader();
@@ -9883,10 +9924,17 @@ function _fileToB64(file) {
 async function onManualDocFiles(input) {
   const files = Array.from(input.files || []); input.value = '';
   if (!files.length || !_MDOC) return;
-  toast('מכווץ תמונות…');
+  const anyPdf = files.some(f => f.type === 'application/pdf' || /\.pdf$/i.test(f.name || ''));
+  toast(anyPdf ? 'ממיר את ה-PDF…' : 'מכווץ תמונות…');
   for (const f of files.slice(0, 3)) {
-    try { _MDOC.images.push(await _shrinkB64(await _fileToB64(f), 1100, 0.55)); }
-    catch(e) { console.log('mdoc read', f.name, e); }
+    try { (await _docFileToImages(f)).forEach(b => _MDOC.images.push(b)); }
+    catch(e) {
+      console.log('mdoc read', f.name, e);
+      const m = String(e && e.message || e);
+      if (m.indexOf('PDF_') === 0) toast(m === 'PDF_RENDER_TIMEOUT'
+        ? 'המרת ה-PDF נתקעה — השאר את החלון בחזית ונסה שוב'
+        : 'לא ניתן לקרוא PDF כרגע — נסה לצרף צילום', true);
+    }
   }
   if (!_MDOC.images.length) { toast('לא הצלחתי לקרוא את הקבצים', true); return; }
 
@@ -13464,7 +13512,7 @@ function renderAgentMsgs(showTyping = false) {
     </div>
   </div>
 </div>
-<input type="file" id="mdoc-file" accept="image/*" multiple style="display:none" onchange="onManualDocFiles(this)">
+<input type="file" id="mdoc-file" accept="image/*,application/pdf" multiple style="display:none" onchange="onManualDocFiles(this)">
 
 <div class="modal-overlay" id="empdocs-modal">
   <div class="modal" style="max-width:600px">
