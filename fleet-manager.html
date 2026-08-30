@@ -1532,6 +1532,13 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
       <div><div style="font-weight:800;color:#fff;font-size:1rem">ביקורת קצין בטיחות</div>
       <div style="font-size:0.75rem;color:#dbeafe">מילוי דיגיטלי בשטח — נשמר בתיק הרכב ונשלח למייל</div></div>
     </div>
+    <!-- ביקורת לאוטובוס שאינו בצי: קצין הבטיחות נקרא לבדוק אוטובוס של
+         גורם אחר, ואין לו רכב במערכת שלפיו ייבחר הטופס. -->
+    <div class="form-card" id="bus-insp-card" style="display:none;background:linear-gradient(135deg,#7c2d12,#c2410c);border-color:#7c2d12" onclick="openInspectionForm('', true)">
+      <span style="font-size:2.2rem">🚌</span>
+      <div><div style="font-weight:800;color:#fff;font-size:1rem">ביקורת אוטובוס ורכב ציבורי</div>
+      <div style="font-size:0.75rem;color:#fed7aa">טופס ב1 המלא — גם לרכב שאינו בצי. נשמר בביקורות שבוצעו ונשלח למייל</div></div>
+    </div>
     <div class="form-card" onclick="copyBotLink()" style="background:linear-gradient(135deg,#4f46e5,#7c3aed);border-color:#4f46e5;margin-top:10px">
       <span style="font-size:2.2rem">🤖</span>
       <div><div style="font-weight:800;color:#fff;font-size:1rem">קישור לבוט נדי (לנהגים)</div>
@@ -6370,7 +6377,11 @@ const BUS_INSPECTION_SECTIONS = [
 // איזה טופס פותחים: הדגל מופעל ללקוח, והבחירה בפועל היא לפי משקל הרכב.
 // לחברת הסעות יש גם רכבים קטנים, ולכפות עליהם טופס אוטובוס היה מייצר
 // ביקורת מלאה בסעיפים שאינם קיימים ברכב.
+// ביקורת שנפתחה במפורש כביקורת אוטובוס נשארת כזו גם אם מספר הרכב אינו
+// מוכר במערכת — זה בדיוק המקרה של בדיקה לאוטובוס של גורם אחר.
+let _inspForceBus = false;
 function inspSections() {
+  if (_inspForceBus && featureOn('busForm')) return BUS_INSPECTION_SECTIONS;
   if (!featureOn('busForm')) return INSPECTION_SECTIONS;
   const el = document.getElementById('if-plate');
   const plate = el ? (el.value || '').trim() : '';
@@ -7212,7 +7223,8 @@ async function loadInspectionHistory() {
   } catch(e) { wrap.innerHTML = '<div style="color:#dc2626;font-size:0.8rem;padding:8px">שגיאה בטעינת היסטוריה</div>'; }
 }
 
-function openInspectionForm(prefillPlate) {
+function openInspectionForm(prefillPlate, forceBus) {
+  _inspForceBus = !!forceBus;
   document.getElementById('forms-menu').style.display = 'none';
   document.getElementById('inspection-form').style.display = '';
   ['if-plate','if-model','if-km','if-notes'].forEach(id => document.getElementById(id).value = '');
@@ -7256,7 +7268,7 @@ function inspFillFromPlate() {
   document.getElementById('if-driver-name').textContent = v.driverName || '—';
   if (v.currentKm) document.getElementById('if-km').value = v.currentKm;
   // הרכב נבחר — ייתכן שסוג הטופס השתנה (אוטובוס מול רכב רגיל)
-  if (featureOn('busForm')) { inspSeedAnswers(); renderInspSections(); }
+  if (featureOn('busForm') && !_inspForceBus) { inspSeedAnswers(); renderInspSections(); }
 }
 
 // ── signature pad ──
@@ -7425,6 +7437,7 @@ async function submitInspection() {
     dateStr,
     plate,
     inspType: document.getElementById('if-type').value,
+    formKind: (_inspForceBus || inspSections() === BUS_INSPECTION_SECTIONS) ? 'bus' : 'private',
     model: document.getElementById('if-model').value.trim(),
     driver: (VEHICLES.find(x => x.plate === plate) || {}).driverName || '',
     km: document.getElementById('if-km').value.trim(),
@@ -10613,6 +10626,8 @@ function applyFeatureFlags() {
     const el = document.getElementById(id);
     if (el && !_owner) el.style.display = 'none';
   });
+  const _bc = document.getElementById('bus-insp-card');
+  if (_bc) _bc.style.display = featureOn('busForm') ? '' : 'none';
   const _dh = document.getElementById('drv-hdr-name');
   if (_dh) _dh.textContent = featureOn('splitName') ? 'שם פרטי' : 'שם הנהג';
   const _hd = document.getElementById('hdr-driver');
