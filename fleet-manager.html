@@ -599,6 +599,7 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
         <tr>
           <th><div class="th-sort" onclick="sortFleetCol('plate')">מס׳ רישוי<span class="sort-arrow" id="sarr-plate">⇅</span></div></th>
           <th><div class="th-sort" onclick="sortFleetCol('make')">יצרן / דגם<span class="sort-arrow" id="sarr-make">⇅</span></div></th>
+          <th class="col-year"><div class="th-sort" onclick="sortFleetCol('year')">שנתון<span class="sort-arrow" id="sarr-year">⇅</span></div></th>
           <th><div class="th-sort" onclick="sortFleetCol('tozeretCd')">קוד תוצר<span class="sort-arrow" id="sarr-tozeretCd">⇅</span></div></th>
           <th><div class="th-sort" onclick="sortFleetCol('degemCd')">קוד דגם<span class="sort-arrow" id="sarr-degemCd">⇅</span></div></th>
           <th class="col-weight"><div class="th-sort" onclick="sortFleetCol('weight')">משקל כולל<span class="sort-arrow" id="sarr-weight">⇅</span></div></th>
@@ -1037,6 +1038,7 @@ body.read-only .btn-primary,body.read-only .btn-green,body.read-only .rec-del{op
 body.read-only{padding-top:38px}
 body:not(.feat-certs) .col-cert{display:none}
 body:not(.feat-splitname) .col-lastname{display:none}
+body:not(.feat-yearcol) .col-year{display:none}
 /* לשונית הנהגים מוצגת רק ללקוח שהופעלה אצלו */
 body:not(.feat-drivers) .feat-drivers-only{display:none!important}</style>
 <style id="systems-ux">
@@ -1626,6 +1628,9 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
               </label>
               <label style="display:flex;align-items:center;gap:6px;cursor:pointer" title="טופס ב1 של משרד התחבורה — בדיקת תקינות בטיחותית לאוטובוס ורכב ציבורי. מוחל על כל רכבי הלקוח.">
                 <input id="adm-busform" type="checkbox" style="width:16px;height:16px"><span>🚌 טופס ביקורת ציבורי לכל הצי <span style="color:#94a3b8;font-weight:400">(מפעיל הסעות)</span></span>
+              </label>
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer" title="שנתון הרכב בעמודה משלו בטבלת הצי, במקום כשורה קטנה מתחת לדגם">
+                <input id="adm-yearcol" type="checkbox" style="width:16px;height:16px"><span>📅 שנתון בעמודה נפרדת</span>
               </label>
             </div>
             <div style="display:flex;gap:12px;margin-bottom:12px;flex-wrap:wrap;align-items:flex-end">
@@ -4719,7 +4724,7 @@ function renderDashboard() {
 
 // ── FLEET SORT/FILTER ──
 let fleetSort = { col: null, dir: 1 };
-let fleetColFilters = { plate:'', make:'', tozeretCd:'', degemCd:'', weight:'', driver:'', lastname:'', company:'', reg:'', ins:'', lic:'', km:'', insp:'', traffic:'', proc:'', from:'' };
+let fleetColFilters = { plate:'', make:'', year:'', tozeretCd:'', degemCd:'', weight:'', driver:'', lastname:'', company:'', reg:'', ins:'', lic:'', km:'', insp:'', traffic:'', proc:'', from:'' };
 // הסינון נשמר בין רענונים. מאחר שהוא שורד, חייב להיות חיווי ברור שהוא
 // פעיל — אחרת טבלה מסוננת נראית כמו טבלה שנעלמו ממנה שורות.
 try {
@@ -4889,25 +4894,36 @@ function loadUiPrefs() {
 // הסינון והשורות עצמן יישארו תמיד מיושרות זו לזו.
 const FLEET_COLS = [
   { i:1,  label:'מס׳ רישוי' },   { i:2,  label:'יצרן / דגם' },
-  { i:3,  label:'קוד תוצר' },    { i:4,  label:'קוד דגם' },
-  { i:5,  label:'משקל כולל', feat:'weight' },
-  { i:6,  label:'נהג' },
-  { i:7,  label:'שם משפחה', feat:'splitName' },
-  { i:8,  label:'חברה' },
-  { i:9,  label:'תוקף רישוי' },  { i:10, label:'תוקף ביטוח' },
-  { i:11, label:'רישיון נהג' },  { i:12, label:'טיפול הבא' },
-  { i:13, label:'ביקורת' },      { i:14, label:'עבר תעבורתי' },
-  { i:15, label:'נהלים' },       { i:16, label:'קבלת רכב' },
-  { i:17, label:'❄️ בדיקת חורף',      feat:'extraCerts' },
-  { i:18, label:'💨 בדיקה פניאומטית', feat:'extraCerts' },
-  { i:19, label:'⏱️ כיול טכוגרף',     feat:'extraCerts' },
-  { i:20, label:'🛑 אישור בלמים',     feat:'extraCerts' },
-  { i:21, label:'🚌 רישיון הסעה',     feat:'extraCerts' },
-  { i:22, label:'👶 שכחת ילדים',      feat:'extraCerts' },
-  { i:23, label:'🧯 כיבוי אש',        feat:'extraCerts' }
+  { i:3,  label:'שנתון', feat:'yearCol' },
+  { i:4,  label:'קוד תוצר' },    { i:5,  label:'קוד דגם' },
+  { i:6,  label:'משקל כולל', feat:'weight' },
+  { i:7,  label:'נהג' },
+  { i:8,  label:'שם משפחה', feat:'splitName' },
+  { i:9,  label:'חברה' },
+  { i:10,  label:'תוקף רישוי' },  { i:11, label:'תוקף ביטוח' },
+  { i:12, label:'רישיון נהג' },  { i:13, label:'טיפול הבא' },
+  { i:14, label:'ביקורת' },      { i:15, label:'עבר תעבורתי' },
+  { i:16, label:'נהלים' },       { i:17, label:'קבלת רכב' },
+  { i:18, label:'❄️ בדיקת חורף',      feat:'extraCerts' },
+  { i:19, label:'💨 בדיקה פניאומטית', feat:'extraCerts' },
+  { i:20, label:'⏱️ כיול טכוגרף',     feat:'extraCerts' },
+  { i:21, label:'🛑 אישור בלמים',     feat:'extraCerts' },
+  { i:22, label:'🚌 רישיון הסעה',     feat:'extraCerts' },
+  { i:23, label:'👶 שכחת ילדים',      feat:'extraCerts' },
+  { i:24, label:'🧯 כיבוי אש',        feat:'extraCerts' }
 ];
 let HIDDEN_COLS = [];
 try { HIDDEN_COLS = JSON.parse(localStorage.getItem('fleet_hiddenCols')) || []; } catch(e) {}
+// עמודת השנתון נוספה במקום השלישי, ולכן כל עמודה שאחריה זזה. הבחירות
+// השמורות מתייחסות למספר מיקום, ובלי הסטה חד-פעמית הן היו מסתירות
+// מעכשיו עמודה אחרת מזו שהמשתמש ביקש להסתיר.
+try {
+  if (Number(localStorage.getItem('fleet_colsVer') || 1) < 2) {
+    HIDDEN_COLS = HIDDEN_COLS.map(n => Number(n) >= 3 ? Number(n) + 1 : Number(n));
+    localStorage.setItem('fleet_hiddenCols', JSON.stringify(HIDDEN_COLS));
+    localStorage.setItem('fleet_colsVer', '2');
+  }
+} catch(e) {}
 function applyColVisibility() {
   let st = document.getElementById('col-vis-style');
   if (!st) { st = document.createElement('style'); st.id = 'col-vis-style'; document.head.appendChild(st); }
@@ -4957,7 +4973,7 @@ function buildColFilterRow(vehicles) {
   if (row.querySelector('.col-filter-inp')) return;
   const placeholders = { plate:'רישוי...', make:'יצרן/דגם...', tozeretCd:'קוד...', degemCd:'קוד...', weight:'ק"ג...', driver:'נהג...', company:'חברה...', reg:'תאריך...', ins:'תאריך...', lic:'תאריך...', km:'ק"מ...', insp:'תאריך...', traffic:'תאריך...', proc:'תאריך...', from:'תאריך...' };
   const inp = col => `<th class="col-${col}"><input class="col-filter-inp" type="text" placeholder="${placeholders[col]||'חפש...'}" value="${esc(fleetColFilters[col]||'')}" oninput="setColFilter('${col}',this.value)"></th>`;
-  row.innerHTML = inp('plate')+inp('make')+inp('tozeretCd')+inp('degemCd')+inp('weight')+inp('driver')+`<th class="col-lastname"><input class="col-filter-inp" type="text" placeholder="משפחה..." value="${esc(fleetColFilters.lastname||'')}" oninput="setColFilter('lastname',this.value)"></th>`+inp('company')+inp('reg')+inp('ins')+inp('lic')+inp('km')+inp('insp')+inp('traffic')+inp('proc')+inp('from')
+  row.innerHTML = inp('plate')+inp('make')+`<th class="col-year"><input class="col-filter-inp" type="text" placeholder="שנתון..." value="${esc(fleetColFilters.year||'')}" oninput="setColFilter('year',this.value)"></th>`+inp('tozeretCd')+inp('degemCd')+inp('weight')+inp('driver')+`<th class="col-lastname"><input class="col-filter-inp" type="text" placeholder="משפחה..." value="${esc(fleetColFilters.lastname||'')}" oninput="setColFilter('lastname',this.value)"></th>`+inp('company')+inp('reg')+inp('ins')+inp('lic')+inp('km')+inp('insp')+inp('traffic')+inp('proc')+inp('from')
     + EXTRA_CERTS.map(c => `<th class="col-cert col-${c.key}"></th>`).join('') + '<th></th>';
 }
 function updateSortArrows() {
@@ -5051,6 +5067,7 @@ function renderFleet() {
     const fMatch = (val, f) => !f || String(val||'').toLowerCase().includes(f.toLowerCase());
     if (!fMatch(v.plate, fleetColFilters.plate)) return false;
     if (!fMatch((v.make||'')+' '+(v.model||''), fleetColFilters.make)) return false;
+    if (!fMatch(v.year, fleetColFilters.year)) return false;
     if (!fMatch(v.tozeretCd, fleetColFilters.tozeretCd)) return false;
     if (!fMatch(v.degemCd, fleetColFilters.degemCd)) return false;
     if (!fMatch(v.weight, fleetColFilters.weight)) return false;
@@ -5078,6 +5095,7 @@ function renderFleet() {
       switch(fleetSort.col) {
         case 'plate': va=a.plate||''; vb=b.plate||''; break;
         case 'make': va=(a.make||'')+(a.model||''); vb=(b.make||'')+(b.model||''); break;
+        case 'year': va=_govNum(a.year); vb=_govNum(b.year); break;
         case 'tozeretCd': va=_govNum(a.tozeretCd); vb=_govNum(b.tozeretCd); break;
         case 'degemCd': va=_govStr(a.degemCd); vb=_govStr(b.degemCd); break;   // במסחרי הקוד טקסטואלי
         case 'weight': va=_govNum(a.weight); vb=_govNum(b.weight); break;
@@ -5150,7 +5168,8 @@ function renderFleet() {
     const yc = (val, cls) => (!noVeh && blank(val)) ? 'cell-yellow' : (cls||'');
     return `<tr class="${rowCls}" style="cursor:pointer" title="לחץ לעריכה" onclick="editVehicle('${esc(v.plate)}')">
       <td class="${noVeh?'':yc(v.plate)}" style="font-weight:700;color:var(--accent);direction:ltr;font-size:0.78rem;white-space:nowrap"><input type="checkbox" class="row-sel" data-p="${esc(v.plate)}" data-i="${esc(v.id||'')}" ${_selVeh.has(_selKey(v))?'checked':''} onclick="event.stopPropagation();toggleVehSel(this)" style="margin-left:6px;cursor:pointer;transform:scale(1.15)">${noVeh ? '<span style="color:#7c3aed">👤 ללא רכב</span>' : (esc(v.plate)||'—')}</td>
-      <td class="${yc((v.make||'')+(v.model||''))}" style="font-size:0.73rem">${esc(v.make)} ${esc(v.model)}<br><span style="color:var(--muted);font-size:0.65rem">${esc(v.year)}</span></td>
+      <td class="${yc((v.make||'')+(v.model||''))}" style="font-size:0.73rem">${esc(v.make)} ${esc(v.model)}${featureOn('yearCol') ? '' : `<br><span style="color:var(--muted);font-size:0.65rem">${esc(v.year)}</span>`}</td>
+      <td class="col-year" style="font-size:0.73rem;direction:ltr;text-align:center">${esc(v.year)||'—'}</td>
       <td style="font-size:0.73rem;direction:ltr;text-align:center">${esc(govPad4(v.tozeretCd))||'—'}</td>
       <td style="font-size:0.73rem;direction:ltr;text-align:center">${esc(govPad4(v.degemCd))||'—'}</td>
       <td class="col-weight" style="font-size:0.73rem;white-space:nowrap">${v.weight ? esc(v.weight)+' ק"ג' : '—'}</td>
@@ -10605,7 +10624,7 @@ function sysAllowed(name) { return SYS_ENABLED[name] !== false; }
 // העמודה, ובצי של נופר היא מיותרת. הנתון נשלף בסנכרון ממילא, ולכן
 // עדיף שלקוח יראה אותו בלי להיות תלוי בסימון ידני שלי. כיבוי ללקוח
 // מסוים נעשה בפאנל ונשמר שם כ-false מפורש.
-let FEATURES = { weight: true, drivers: false, extraCerts: false, trafficMonths: 36, inspectionMonths: 0, singleSession: false, busForm: false, splitName: false };
+let FEATURES = { weight: true, drivers: false, extraCerts: false, trafficMonths: 36, inspectionMonths: 0, singleSession: false, busForm: false, yearCol: false, splitName: false };
 function featureOn(name) { return FEATURES[name] === true; }
 // עמודת הטבלה מוסתרת ב-CSS ולא נמחקת מה-DOM, כדי שמספר התאים בכותרת,
 // בשורת הסינון ובשורות יישאר זהה — טבלה שיוצאת מיישור היא באג שקט.
@@ -10614,6 +10633,7 @@ function applyFeatureFlags() {
   document.body.classList.toggle('feat-drivers', featureOn('drivers'));
   document.body.classList.toggle('feat-certs', featureOn('extraCerts'));
   document.body.classList.toggle('feat-splitname', featureOn('splitName'));
+  document.body.classList.toggle('feat-yearcol', featureOn('yearCol'));
   // מפתח ה-API הוא שלך ומחויב עליך. הוא נשמר בדפדפן, ולכן חשבון לקוח
   // שנפתח על אותו מחשב היה משתמש בו על חשבונך. אצל כל דייר שאינו
   // הבעלים המפתח מנוטרל בזיכרון וההגדרה מוסתרת: הסוכן שם עונה מהנתונים
@@ -10826,6 +10846,7 @@ async function resolveTenant(user) {
                    inspectionMonths: parseInt(_f.inspectionMonths) || 0,
                    singleSession: _f.singleSession === true,
                    busForm: _f.busForm === true,
+                   yearCol: _f.yearCol === true,
                    splitName: _f.splitName === true };
       return;
     }
@@ -14468,6 +14489,7 @@ async function adminLoadClient() {
     document.getElementById('adm-single').checked = _af.singleSession === true;
     document.getElementById('adm-splitname').checked = _af.splitName === true;
     document.getElementById('adm-busform').checked = _af.busForm === true;
+    document.getElementById('adm-yearcol').checked = _af.yearCol === true;
     _admLoadedUid = uid;
     st.textContent = '✓ נטען'; st.style.color = '#86efac';
   } catch(e) { st.textContent = _admPermErr(e); st.style.color = '#fca5a5'; console.log('adminLoadClient', e); }
@@ -14641,7 +14663,8 @@ async function adminSaveClient() {
       inspectionMonths: parseInt(document.getElementById('adm-inspmonths').value) || 0,
       singleSession: !!document.getElementById('adm-single').checked,
       splitName: !!document.getElementById('adm-splitname').checked,
-      busForm: !!document.getElementById('adm-busform').checked
+      busForm: !!document.getElementById('adm-busform').checked,
+      yearCol: !!document.getElementById('adm-yearcol').checked
     }
   };
   st.textContent = 'שומר…'; st.style.color = '#94a3b8';
