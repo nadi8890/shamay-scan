@@ -6331,6 +6331,56 @@ const INSPECTION_SECTIONS = [
   { title: 'אביזרי בטיחות', items: ['אפוד זוהר/משולש אזהרה','מגבה, מפתח גלגלים/מגבים'] },
   { title: 'נסיעת מבחן', items: ['היגוי, יציבות רכב, תנועה'] }
 ];
+// טופס ב'1 של משרד התחבורה — בדיקת תקינות בטיחותית לאוטובוס. הטופס
+// הרגיל בנוי לרכב פרטי ואינו מכסה מערכות שקיימות רק באוטובוס: התרעת
+// סטייה מנתיב, כיבוי אש אוטומטי, התרעת השארת ילדים, ערכת מילוט ועוד.
+// לקצין בטיחות בחברת הסעות זה ההבדל בין ביקורת תקפה לבין טופס שאינו
+// עונה על הדרישה.
+const BUS_INSPECTION_SECTIONS = [
+  { title: 'מכונאות', items: [
+    'צמיגים/בדיקת אומים/אופנים', 'שחיקת צמיגים', 'מערכת פליטה',
+    'בלמים/בלם עזר', 'דליפות אוויר/צינורות פגומים/שפשוף בגלגלים או בחלקי מרכב',
+    'נזילות שמן מנוע, דלק, מים', 'מערכת היגוי/חופשים, נזילות',
+    'בולמי זעזועים/כריות אוויר'] },
+  { title: 'חשמל', items: [
+    'זמזם אוויר', 'מערכת תאורה כללית', 'אורות פנים-חוץ',
+    'שעונים/נוריות ביקורת', 'היסטוריית תקלות ברכב', 'מהבהבים',
+    'מגבים – מתיזי מים', 'צופר', 'מערכת מיזוג אוויר – מזגן',
+    'מצברים – תקינות ושלמות צמות חוטים וכבלים/משתפשפים במרכב'] },
+  { title: 'מערכות בטיחות באוטובוס', items: [
+    'מערכת התרעה מפני התנגשות מלפנים וסטייה מנתיב (אוטובוס משנת 2012) – בתשאול הנהג',
+    'מערכת אוטומטית לכיבוי אש (אוטובוס שאינו עירוני מעל 22 נוסעים)',
+    'מערכת התרעה על השארת ילדים ברכב המורשה להסיע תלמידים',
+    'פנסי איתות בחזית ומאחור ברכב להסעת ילדים'] },
+  { title: 'מרכב', items: [
+    'ניקיון כללי', 'פגושים', 'סדקים בשמשה קדמית',
+    'חיישני דלתות ותאי מטען', 'מרכב חוץ-פנים',
+    'שילוט בדופנות הרכב כחוק (על פי רישיון ההסעה)', 'מושבים/משענות/חיזוק',
+    'מראות', 'מד-אוץ', 'טכוגרף', 'אבזרי עזר',
+    'מטפי כיבוי אש', 'פטישים באוטובוס', 'עזרה ראשונה',
+    'ערכת מילוט באוטובוס', 'שלטים/שלט חיצוני/הסעת תלמידים',
+    'אלונקה באוטובוס', 'משולש אזהרה', 'חגורות בטיחות בכל המושבים',
+    'מגבה (ג\'ק)', 'מפתח גלגלים', 'גלגל רזרבי'] },
+  { title: 'רישיונות ומסמכים', items: ['רישיונות ושאר מסמכים בתוקף'] },
+  { title: 'נסיעת מבחן', items: ['ביצוע נסיעת מבחן לרכב'] }
+];
+// איזה טופס פותחים: הדגל מופעל ללקוח, והבחירה בפועל היא לפי משקל הרכב.
+// לחברת הסעות יש גם רכבים קטנים, ולכפות עליהם טופס אוטובוס היה מייצר
+// ביקורת מלאה בסעיפים שאינם קיימים ברכב.
+function inspSections() {
+  if (!featureOn('busForm')) return INSPECTION_SECTIONS;
+  const el = document.getElementById('if-plate');
+  const plate = el ? (el.value || '').trim() : '';
+  const v = VEHICLES.find(x => String(x.plate).replace(/\D/g, '') === String(plate).replace(/\D/g, ''));
+  return (v && vehWeightKg(v) >= HEAVY_KG) ? BUS_INSPECTION_SECTIONS : INSPECTION_SECTIONS;
+}
+// שינוי רכב באמצע הטופס יכול להחליף את סוגו; התשובות שנרשמו לסעיפים
+// שקיימים בשני הטפסים נשמרות, והשאר מתאפס ל"תקין".
+function inspSeedAnswers() {
+  const keep = inspAnswers || {};
+  inspAnswers = {};
+  inspSections().forEach(s => s.items.forEach(it => { inspAnswers[it] = keep[it] || 'תקין'; }));
+}
 let inspAnswers = {};
 
 function renderFormsTab() {
@@ -7167,7 +7217,7 @@ function openInspectionForm(prefillPlate) {
   initSignaturePad();
   // checklist — everything starts as תקין, tap to change
   inspAnswers = {};
-  INSPECTION_SECTIONS.forEach(s => s.items.forEach(it => inspAnswers[it] = 'תקין'));
+  inspSeedAnswers();
   renderInspSections();
   // opened for a specific vehicle (e.g. from the vehicle edit modal) — prefill + autofill
   if (prefillPlate) { document.getElementById('if-plate').value = prefillPlate; inspFillFromPlate(); }
@@ -7184,7 +7234,7 @@ function inspectFromModal() {
 
 function renderInspSections() {
   const cls = v => v==='תקין' ? 'sel-ok' : v==='לא תקין' ? 'sel-bad' : 'sel-fixed';
-  document.getElementById('if-sections').innerHTML = INSPECTION_SECTIONS.map(s => `
+  document.getElementById('if-sections').innerHTML = inspSections().map(s => `
     <div class="insp-section">
       <div class="insp-section-hdr">${esc(s.title)}</div>
       ${s.items.map(it => `<div class="insp-item">
@@ -7202,6 +7252,8 @@ function inspFillFromPlate() {
   document.getElementById('if-model').value = ((v.make||'')+' '+(v.model||'')).trim();
   document.getElementById('if-driver-name').textContent = v.driverName || '—';
   if (v.currentKm) document.getElementById('if-km').value = v.currentKm;
+  // הרכב נבחר — ייתכן שסוג הטופס השתנה (אוטובוס מול רכב רגיל)
+  if (featureOn('busForm')) { inspSeedAnswers(); renderInspSections(); }
 }
 
 // ── signature pad ──
@@ -7237,7 +7289,7 @@ function buildInspectionText(r) {
   lines.push(`סוג רכב: ${r.model||'-'} | מחזיק: ${r.driver||'-'}`);
   lines.push(`קריאת מד אוץ: ${r.km||'-'} ק"מ`);
   lines.push('');
-  INSPECTION_SECTIONS.forEach(s => {
+  inspSections().forEach(s => {
     lines.push(`◼ ${s.title}`);
     s.items.forEach(it => {
       const val = (r.items||{})[it] || '-';
@@ -7254,7 +7306,7 @@ function buildInspectionText(r) {
 
 // ── inspection PDF ──
 function buildInspectionPdfHtml(r) {
-  const rows = INSPECTION_SECTIONS.map(s => `
+  const rows = inspSections().map(s => `
     <tr><td colspan="4" style="background:#eef2f7;font-weight:800;padding:6px 10px;border:1px solid #cbd5e1">${esc(s.title)}</td></tr>
     ${s.items.map(it => {
       const val = (r.items||{})[it] || '';
@@ -10539,7 +10591,7 @@ function sysAllowed(name) { return SYS_ENABLED[name] !== false; }
 // העמודה, ובצי של נופר היא מיותרת. הנתון נשלף בסנכרון ממילא, ולכן
 // עדיף שלקוח יראה אותו בלי להיות תלוי בסימון ידני שלי. כיבוי ללקוח
 // מסוים נעשה בפאנל ונשמר שם כ-false מפורש.
-let FEATURES = { weight: true, drivers: false, extraCerts: false, trafficMonths: 36, inspectionMonths: 0, singleSession: false, splitName: false };
+let FEATURES = { weight: true, drivers: false, extraCerts: false, trafficMonths: 36, inspectionMonths: 0, singleSession: false, busForm: false, splitName: false };
 function featureOn(name) { return FEATURES[name] === true; }
 // עמודת הטבלה מוסתרת ב-CSS ולא נמחקת מה-DOM, כדי שמספר התאים בכותרת,
 // בשורת הסינון ובשורות יישאר זהה — טבלה שיוצאת מיישור היא באג שקט.
@@ -10759,6 +10811,7 @@ async function resolveTenant(user) {
                    trafficMonths: parseInt(_f.trafficMonths) || 36,
                    inspectionMonths: parseInt(_f.inspectionMonths) || 0,
                    singleSession: _f.singleSession === true,
+                   busForm: _f.busForm === true,
                    splitName: _f.splitName === true };
       return;
     }
