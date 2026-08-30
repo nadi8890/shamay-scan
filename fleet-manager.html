@@ -943,6 +943,13 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
     <input id="cost-file" type="file" multiple style="display:none" onchange="onCostFile(this)">
     <div id="dash-costs-view"></div>
   </div>
+  <div class="dash-sec" id="dash-empcost-sec" style="display:none">
+    <div class="dash-sec-hdr" style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+      <span>👤 עלות כוללת לכל עובד</span>
+      <span id="dash-empcost-note" style="font-size:0.7rem;color:var(--muted);font-weight:400"></span>
+    </div>
+    <div id="dash-empcost-view"></div>
+  </div>
   <div class="dash-sec" id="dash-divisions-sec"><div class="dash-sec-hdr">🏷️ חלוקה לפי חטיבה</div><div id="dash-divisions"></div></div>
   <div class="dash-sec"><div class="dash-sec-hdr">🏢 התפלגות הצי לפי חברת ליסינג</div><div id="dash-companies"></div></div>
   <div class="dash-sec"><div class="dash-sec-hdr">💰 עלויות ותחזוקה</div><div id="dash-costs"></div></div>
@@ -4231,6 +4238,44 @@ function _fuelRecords(text) {
   }
   return out;
 }
+// חשבונית ספק חודשית (ליסינג, שטיפה, כבישי אגרה) אינה חשבונית לרכב
+// אחד אלא טבלה של עשרות רכבים, שורה לכל רכב עם החיוב שלו. עד כה נקרא
+// ממנה רכב אחד וסכום אחד, ולכן חשבונית של 120 רכבים נכנסה כשורה אחת
+// והשאר נעלם. כאן מחלצים שורה-שורה, כמו שכבר נעשה לדוח תדלוקים —
+// אלא שזה עובד לכל קטגוריה ולא לדלק בלבד.
+function _pdfTableRecords(txt, fileName, category) {
+  const lines = String(txt || '').split(/\r?\n/);
+  const known = new Set((VEHICLES || []).map(v => _cpk(v.plate)).filter(Boolean));
+  // תאריך החשבונית משמש לכל השורות: בחשבונית חודשית אין תאריך פר-רכב
+  let docMk = _curMonth();
+  const dm = String(txt).match(/(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})/);
+  if (dm) { const y = dm[3].length === 2 ? '20' + dm[3] : dm[3]; docMk = y + '-' + String(dm[2]).padStart(2, '0'); }
+  const rows = [];
+  let known_hits = 0;
+  for (const line of lines) {
+    if (!line || line.length > 400) continue;
+    // תאריך בשורה מתפרק ל-8 ספרות ונראה בדיוק כמו מספר רישוי — מוסר קודם.
+    // מפריד אלפים מוסר כדי ש-1,250.00 יישאר אסימון אחד.
+    const norm = line.replace(/\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4}/g, ' ').replace(/(\d),(?=\d{3})/g, '$1');
+    const toks = norm.split(/[^\d.]+/).filter(Boolean);
+    const plates = toks.filter(t => /^\d{6,8}$/.test(t) && t[0] !== '0');
+    if (plates.length !== 1) continue;          // שתי "לוחיות" בשורה = כנראה לא טבלת רכבים
+    const plate = plates[0];
+    // סכום עם אגורות הוא הסימן החזק ביותר; בלעדיו מספר שלם בטווח סביר
+    let amts = toks.filter(t => /^\d+\.\d{2}$/.test(t)).map(Number).filter(x => x > 0);
+    if (!amts.length) amts = toks.filter(t => /^\d{2,6}$/.test(t) && t !== plate).map(Number).filter(x => x >= 10 && x <= 200000);
+    if (!amts.length) continue;
+    if (known.has(plate)) known_hits++;
+    rows.push({ plate, mk: docMk, amt: Math.round(Math.max(...amts) * 100) / 100,
+                cat: category, src: fileName, sure: known.has(plate) });
+  }
+  if (rows.length < 2) return [];               // שורה אחת = חשבונית רגילה, לא טבלה
+  // הצי מוכר ואף רישוי לא תואם לו — סימן שפענחנו מספרי חשבונית או ח.פ
+  // כלוחיות. עדיף ליפול לקריאה הרגילה מאשר להזרים אשפה לעלויות.
+  if (known.size && known_hits === 0) return [];
+  return rows;
+}
+
 // חשבונית PDF בודדת: רכב אחד + סכום כולל אחד
 // מחזיר רשומה, או אובייקט {_skip:'סיבה'} כדי שנוכל להסביר למשתמש
 // למה קובץ לא נקלט במקום להשמיט אותו בשקט.
@@ -4335,6 +4380,10 @@ async function onCostFile(input) {
         }
         let text = '';
         try { text = await _pdfText(file); } catch(e) { console.log('pdf text', file.name, e); }
+        // חשבונית שמפרטת כמה רכבים נקראת כטבלה לפני שמנסים לקרוא אותה
+        // כחשבונית לרכב יחיד
+        const multi = _pdfTableRecords(text, file.name, category);
+        if (multi.length) { recs.push(...multi); continue; }
         let r = _invoiceFromText(text, file.name, category);
         // PDF סרוק: אין שכבת טקסט. מרנדרים את העמוד לתמונה ונותנים
         // לסורק ה-AI שכבר משמש לרישיונות ותעודות ביטוח לקרוא אותה.
@@ -4625,6 +4674,38 @@ function renderManagerDashboard() {
           <div class="dash-val">₪${r.total.toLocaleString()}</div></div>`;
       }).join('');
     }
+  }
+
+  // ── עלות לכל עובד: אותם נתונים, מקובצים לפי מי שהחזיק ברכב ──
+  // מנהל צי נשאל "כמה עולה לי העובד", לא "כמה עולה הרכב". עובד שהחליף
+  // רכב באמצע החודש הופיע עד כה כשתי שורות נפרדות שאי אפשר לחבר בעין.
+  const _empAgg = {};
+  _rows.forEach(r => {
+    // "רכב 12345678" = לא זוהה מחזיק; אלה לא מתמזגים לעובד מדומה אחד
+    const anon = /^רכב \d+$/.test(String(r.name || ''));
+    const key = anon ? '— לא משויך לעובד —' : String(r.name).split('·')[0].trim();
+    const e = _empAgg[key] = _empAgg[key] || { name: key, total: 0, plates: new Set(), brk: {}, anon };
+    e.total += r.total;
+    e.plates.add(r.plate);
+    Object.entries(r.brk).forEach(([k, v]) => { e.brk[k] = (e.brk[k] || 0) + v; });
+  });
+  const _empRows = Object.values(_empAgg).sort((a, b) => b.total - a.total);
+  const _empSec = document.getElementById('dash-empcost-sec');
+  const _empEl = document.getElementById('dash-empcost-view');
+  if (_empSec) _empSec.style.display = _empRows.length ? '' : 'none';
+  if (_empEl && _empRows.length) {
+    const _emax = Math.max(..._empRows.map(r => r.total), 1);
+    const _enote = document.getElementById('dash-empcost-note');
+    if (_enote) _enote.textContent = `${_lastMonth === 'all' ? 'כל התקופה' : 'חודש ' + _lastMonth} · ${_empRows.length} עובדים`;
+    _empEl.innerHTML = _empRows.slice(0, 15).map((r, i) => {
+      const short = Object.entries(r.brk).map(([k, v]) => `${COST_LABEL[k] || k} ₪${v.toLocaleString()}`).join(' · ');
+      const cars = r.plates.size > 1 ? `<span style="color:#b45309;font-size:0.66rem"> · ${r.plates.size} רכבים</span>` : '';
+      return `<div class="dash-row">
+        <div class="dash-rank ${i < 3 && !r.anon ? 'top' : ''}">${i + 1}</div>
+        <div class="dash-name">${esc(r.name)}${cars} <span style="color:var(--muted);font-weight:400;font-size:0.66rem">${esc(short)}</span></div>
+        <div class="dash-bar-wrap"><div class="dash-bar" style="width:${Math.round(r.total / _emax * 100)}%;background:linear-gradient(90deg,#818cf8,#6366f1)"></div></div>
+        <div class="dash-val">₪${r.total.toLocaleString()}</div></div>`;
+    }).join('');
   }
 
   // ── חלוקה לפי ישות בקבוצה — נבנית מרשימת הישויות, לא מרשימה קשיחה ──
