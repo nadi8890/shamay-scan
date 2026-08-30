@@ -2851,6 +2851,22 @@ async function runDriversImport(replace) {
     DRIVERS[f.name] = Object.assign(DRIVERS[f.name] || {}, f.rec);
     syncDriverToVehicles(f.name);
   });
+  // אימות סוגר: ספריית הנהגים נבנית מהצי, ולכן די בשם שנכתב מעט אחרת
+  // על רכב כדי שייווצר ממנו נהג נוסף — וההצבה יוצאת גדולה מהקובץ בלי
+  // שאיש יבין מדוע. במקום לרדוף אחרי הסיבה, ההחלפה אוכפת את התוצאה:
+  // אחרי בנייה מחדש, כל מי שאינו בקובץ יורד, והרשימה שווה לקובץ בדיוק.
+  if (replace) {
+    const names2 = new Set(found.map(f => f.name));
+    rebuildDriversDirectory();
+    const extra = Object.keys(DRIVERS).filter(k => !names2.has(k));
+    if (extra.length) {
+      console.log('drivers not in the imported file, removed:', extra);
+      const _p4 = _purgeDriversFromFleet(extra);
+      orphaned += _p4.orphaned + _p4.rowsRemoved;
+      removed += extra.length;
+      extra.forEach(k => delete DRIVERS[k]);
+    }
+  }
   try {
     await saveDriversExact();
     try { localStorage.setItem('fleet_vehicles', JSON.stringify(VEHICLES)); } catch(e) {}
