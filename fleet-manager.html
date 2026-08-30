@@ -737,7 +737,6 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
       <button class="btn btn-primary" style="padding:6px 14px;font-size:0.8rem" onclick="openDriverModal()">+ נהג חדש</button>
       <button class="btn-export" title="ייבוא מצבת נהגים מקובץ אקסל" onclick="document.getElementById('drv-imp-file').click()">📥 ייבוא מאקסל</button>
       <input type="file" id="drv-imp-file" accept=".xlsx,.xls,.csv" style="display:none" onchange="onDriversImportFile(this)">
-      <button class="btn-export" title="מאיפה מגיע כל נהג ברשימה" onclick="diagnoseDrivers()">🔎 מאיפה הנהגים</button>
       <button class="btn-export" title="בחר אילו עמודות יוצגו" onclick="toggleDrvColPicker()">🧩 עמודות</button>
       <button class="btn-export" onclick="exportSection('drivers')">📥 ייצוא Excel</button>
     </div>
@@ -2944,40 +2943,6 @@ function _purgeDriversFromFleet(keys) {
     return true;
   });
   return { orphaned, rowsRemoved };
-}
-// ═══ אבחון: מאיפה מגיע כל נהג ברשימה ═══
-// הרשימה מורכבת משני מקורות — מה ששמור בענן, ומה שנבנה מתוך שמות
-// שיושבים על רכבים. כשההצבה יוצאת גדולה מהקובץ שיובא, השאלה היחידה
-// שחשובה היא מי הנוספים ומאיזה רכב הם הגיעו. במקום לנחש, מציגים.
-async function diagnoseDrivers() {
-  const cloudNames = new Set();
-  try {
-    const snap = await fcol().doc('main').get();
-    Object.keys((snap.data() || {}).drivers || {}).forEach(k => cloudNames.add(k));
-  } catch(e) { console.log('diagnoseDrivers read failed', e); }
-  const fromFleet = {};
-  VEHICLES.forEach(v => {
-    const k = driverKey(v.driverName);
-    if (!k) return;
-    (fromFleet[k] = fromFleet[k] || []).push((v.noVehicle ? 'עובד ללא רכב' : v.plate) || '—');
-  });
-  const all = Object.keys(DRIVERS);
-  const onlyFleet = all.filter(k => !cloudNames.has(k));
-  const onlyCloud = all.filter(k => cloudNames.has(k) && !fromFleet[k]);
-  const lines = onlyFleet.map(k => '• ' + k + '  ←  ' + (fromFleet[k] || ['לא ידוע']).join(', '));
-  console.log('נהגים שאינם שמורים בענן ונבנו מהצי:', onlyFleet);
-  console.log('לפי רכב:', fromFleet);
-  const body =
-    'סה"כ ברשימה: ' + all.length + String.fromCharCode(10) +
-    'שמורים בענן: ' + cloudNames.size + String.fromCharCode(10) +
-    'רק בענן (בלי רכב): ' + onlyCloud.length + String.fromCharCode(10) +
-    'נבנו מהצי ואינם בענן: ' + onlyFleet.length + String.fromCharCode(10,10) +
-    (onlyFleet.length
-      ? ('אלה הנוספים, ומאיזה רכב הם הגיעו:' + String.fromCharCode(10) + lines.slice(0, 30).join(String.fromCharCode(10)) +
-         (onlyFleet.length > 30 ? (String.fromCharCode(10) + '…ועוד ' + (onlyFleet.length - 30)) : ''))
-      : 'הרשימה זהה למה ששמור בענן.');
-  alert(body);
-  return { total: all.length, cloud: cloudNames.size, onlyFleet, fromFleet };
 }
 // ═══ בחירה מרובה של נהגים ═══
 // מצבת שיובאה מונה מאות שורות, ומחיקה אחת-אחת היא מאות אישורים.
