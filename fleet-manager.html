@@ -4276,31 +4276,76 @@ function _pdfTableRecords(txt, fileName, category) {
   return rows;
 }
 
+// בחשבוניות מוסך שם הקובץ אמין יותר מהטקסט הפנימי: הוא כולל "רישוי
+// 58155204" או "לרכב 19958504" ואת תאריך החשבונית. הטקסט הפנימי מגיע
+// מ-PDF בעברית שמוציא את המילים בסדר הפוך, ולכן "לתשלום" ו"רישוי"
+// מופיעים שם *אחרי* המספר ולא לפניו.
+function _plateFromName(fileName) {
+  const fn = String(fileName || '');
+  const known = new Set((VEHICLES || []).map(v => _cpk(v.plate)).filter(Boolean));
+  const all = (fn.match(/\d{6,8}/g) || []).filter(d => d[0] !== '0');
+  // רכב שקיים בצי — הסימן החזק ביותר, ולכן נבדק ראשון
+  const hit = all.find(d => known.has(d));
+  if (hit) return { plate: hit, sure: true };
+  const kw = fn.match(/(?:רישוי|לרכב|לוחית|מ\.?ר\.?)[^\d]{0,8}(\d{6,8})/);
+  if (kw) return { plate: kw[1], sure: true };
+  // מספר חשבונית באורך של לוחית הוא המלכודת שהחליפה את 19958504 ב-143611
+  const inv = (fn.match(/(?:חשבונית|חשבונית\s*מס|מס['\u05f3"]?)\s*(\d{4,8})/g) || [])
+    .map(m => (m.match(/(\d{4,8})/) || [])[1]).filter(Boolean);
+  const rest = all.filter(d => inv.indexOf(d) < 0);
+  if (rest.length === 1) return { plate: rest[0], sure: false };
+  return { plate: '', sure: false };
+}
+
+function _monthFromName(fileName) {
+  const m = String(fileName || '').match(/(\d{1,2})[.\/\-](\d{1,2})[.\/\-](\d{2,4})/);
+  if (!m) return '';
+  const mo = Number(m[2]);
+  if (!(mo >= 1 && mo <= 12)) return '';
+  const y = m[3].length === 2 ? '20' + m[3] : m[3];
+  return y + '-' + String(mo).padStart(2, '0');
+}
+
 // חשבונית PDF בודדת: רכב אחד + סכום כולל אחד
 // מחזיר רשומה, או אובייקט {_skip:'סיבה'} כדי שנוכל להסביר למשתמש
 // למה קובץ לא נקלט במקום להשמיט אותו בשקט.
 function _invoiceFromText(txt, fileName, category) {
   txt = String(txt || ''); const fn = String(fileName || '');
-  if (!txt.trim()) return { _skip: 'אין טקסט בקובץ — כנראה PDF סרוק' };
-  let plate = '', plateSure = false;
-  const kw = txt.match(/(?:רכב|רישוי|לוחית|מ\.?ר\.?|מספר\s*רכב)[^\d]{0,12}(\d[\d\-]{5,10}\d)/);
-  if (kw) { plate = kw[1].replace(/\D/g, ''); plateSure = true; }
-  if (!(plate.length >= 6 && plate.length <= 8)) { const fm = fn.match(/(\d{6,8})/); if (fm) { plate = fm[1]; plateSure = true; } }
-  // נפילה אחרונה: מספר בודד בטקסט. זה עלול להיות מספר חשבונית או ח.פ,
-  // ולכן מסומן כלא-ודאי ומוצג לאישור בתצוגה המקדימה.
+  if (!txt.trim()) return { _skip: 'PDF סרוק — נדרש סורק AI, או שם קובץ שכולל מספר רישוי' };
+  // שם הקובץ ראשון: הוא נשלט על ידי מי שתייק את החשבונית ולכן מדויק,
+  // בעוד שהטקסט הפנימי הוליד את מספר החשבונית כמספר רכב.
+  const _pn = _plateFromName(fn);
+  let plate = _pn.plate, plateSure = _pn.sure;
+  const known = (VEHICLES || []).map(v => String(v.plate || '').replace(/\D/g, '')).filter(Boolean);
+  const all = (txt.match(/\d{6,8}/g) || []).filter(d => !/^0/.test(d));
   if (!(plate.length >= 6 && plate.length <= 8)) {
-    const known = (VEHICLES || []).map(v => String(v.plate || '').replace(/\D/g, '')).filter(Boolean);
-    const all = (txt.match(/\d{6,8}/g) || []).filter(d => !/^0/.test(d));
     const hit = all.find(d => known.includes(d));      // התאמה לרכב שקיים בצי = ודאי
     if (hit) { plate = hit; plateSure = true; }
+  }
+  if (!(plate.length >= 6 && plate.length <= 8)) {
+    // מילת מפתח בטקסט, בשני הכיוונים — ב-PDF בעברית המספר מקדים את המילה
+    const kw = txt.match(/(?:רכב|רישוי|לוחית|מ\.?ר\.?|מספר\s*רכב)[^\d]{0,12}(\d[\d\-]{5,10}\d)/)
+            || txt.match(/(\d[\d\-]{5,10}\d)[^\d]{0,4}(?:רישוי|מספר\s*רכב)/);
+    if (kw) { plate = kw[1].replace(/\D/g, ''); plateSure = true; }
+    // נפילה אחרונה: מספר בודד בטקסט. עלול להיות מספר חשבונית או ח.פ,
+    // ולכן מסומן כלא-ודאי ומוצג לאישור בתצוגה המקדימה.
     else if (all.length) { plate = all[0]; plateSure = false; }
   }
   plate = plate.replace(/\D/g, '');
   if (!(plate.length >= 6 && plate.length <= 8)) return { _skip: 'לא נמצא מספר רכב' };
   const money = s => { const m = String(s).replace(/,/g, '').match(/\d+(?:\.\d+)?/); return m ? parseFloat(m[0]) : NaN; };
   let amt = NaN;
-  const tk = txt.match(/(?:סה["״']?כ\s*לתשלום|לתשלום|סה["״']?כ\s*כולל|כולל\s*מע["״']?מ|total)[^\d]{0,15}(\d[\d,]*\.?\d*)/i);
-  if (tk) amt = money(tk[1]);
+  // הסכום הכולל הוא כמעט תמיד המספר העשרוני הגדול ביותר בחשבונית, וזה
+  // נכון בכל חשבוניות המוסך שנבדקו (1,802.00 / 2,510.00 / 2,539.00).
+  // מילת המפתח נראתה אמינה יותר, אבל "תנאי תשלום: שוטף+60" נקרא כ"לתשלום 60"
+  // והסכום ירד מ-1,802 ל-60 — ולכן היא ירדה לגיבוי, ובלי שורת תנאי התשלום.
+  const _dec = (txt.match(/\d[\d,]*\.\d{2}/g) || []).map(money).filter(x => !isNaN(x) && x > 0);
+  if (_dec.length) amt = Math.max(..._dec);
+  if (isNaN(amt) || amt <= 0) {
+    const _clean = txt.replace(/תנאי\s*תשלום[^\n]*/g, ' ').replace(/שוטף\s*\+?\s*\d+/g, ' ');
+    const tk = _clean.match(/(?:סה["״']?כ\s*לתשלום|לתשלום|סה["״']?כ\s*כולל|כולל\s*מע["״']?מ|total)[^\d]{0,15}(\d[\d,]*\.?\d*)/i);
+    if (tk) amt = money(tk[1]);
+  }
   // סכום עם שתי ספרות אחרי הנקודה
   if (isNaN(amt) || amt <= 0) { const nums = (txt.match(/\d[\d,]*\.\d{2}/g) || []).map(money).filter(x => !isNaN(x) && x > 0); if (nums.length) amt = Math.max(...nums); }
   // חשבוניות רבות מציגות סכום עגול בלי אגורות. מחפשים סכום שצמוד
@@ -4311,28 +4356,62 @@ function _invoiceFromText(txt, fileName, category) {
     if (cur.length) amt = Math.max(...cur);
   }
   if (isNaN(amt) || amt <= 0) return { _skip: 'לא נמצא סכום לתשלום' };
-  let mk = _curMonth(); const dm = txt.match(/(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})/); if (dm) { const y = dm[3].length === 2 ? '20' + dm[3] : dm[3]; mk = `${y}-${dm[2].padStart(2, '0')}`; }
+  let mk = _monthFromName(fn) || _curMonth(); const dm = txt.match(/(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})/); if (dm) { const y = dm[3].length === 2 ? '20' + dm[3] : dm[3]; mk = `${y}-${dm[2].padStart(2, '0')}`; }
   return { plate, mk, amt: Math.round(amt * 100) / 100, cat: category, src: fn, sure: plateSure };
 }
-// מרנדר את העמוד הראשון של PDF לתמונת JPEG (base64) לצורך סריקת AI
-async function _pdfPageImage(file) {
-  if (typeof pdfjsLib === 'undefined') return '';
+// מרנדר עמודי PDF לתמונות JPEG (base64) לצורך סריקת AI.
+// קודם נקרא רק העמוד הראשון, וחשבונית ספק שנמשכת על שני עמודים איבדה
+// את כל הרכבים שבעמוד השני.
+async function _pdfPageImages(file, maxPages) {
+  if (typeof pdfjsLib === 'undefined') return [];
   const pdf = await pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise;
-  const pg = await pdf.getPage(1);
-  const vp = pg.getViewport({ scale: 2 });
-  const cv = document.createElement('canvas');
-  cv.width = Math.min(1600, Math.round(vp.width));
-  cv.height = Math.round(vp.height * (cv.width / vp.width));
-  const ctx = cv.getContext('2d');
-  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, cv.width, cv.height);
-  await pg.render({ canvasContext: ctx, viewport: pg.getViewport({ scale: 2 * (cv.width / vp.width) }) }).promise;
-  try { return cv.toDataURL('image/jpeg', 0.8).split(',')[1]; } catch(e) { return ''; }
+  const out = [];
+  const last = Math.min(pdf.numPages, maxPages || 4);
+  for (let i = 1; i <= last; i++) {
+    const pg = await pdf.getPage(i);
+    const vp = pg.getViewport({ scale: 2 });
+    const cv = document.createElement('canvas');
+    cv.width = Math.min(1600, Math.round(vp.width));
+    cv.height = Math.round(vp.height * (cv.width / vp.width));
+    const ctx = cv.getContext('2d');
+    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, cv.width, cv.height);
+    await pg.render({ canvasContext: ctx, viewport: pg.getViewport({ scale: 2 * (cv.width / vp.width) }) }).promise;
+    try { const b = cv.toDataURL('image/jpeg', 0.8).split(',')[1]; if (b) out.push(b); } catch(e) {}
+  }
+  return out;
 }
+async function _pdfPageImage(file) { return (await _pdfPageImages(file, 1))[0] || ''; }
 
 const INVOICE_SCAN_PROMPT = `זו חשבונית ישראלית של מוסך או ספק שירות לרכב.
+ייתכן שהיא לרכב אחד, וייתכן שהיא מפרטת כמה רכבים בטבלה — שורה לכל רכב.
 החזר JSON בלבד, בלי טקסט נוסף, במבנה:
-{"plate":"מספר הרכב בספרות בלבד","amount":"הסכום הכולל לתשלום כולל מע\"מ, מספר בלבד","date":"תאריך החשבונית בפורמט DD/MM/YYYY"}
-אם ערך אינו מופיע בחשבונית — החזר עבורו מחרוזת ריקה. אל תנחש.`;
+{"date":"תאריך החשבונית בפורמט DD/MM/YYYY","vehicles":[{"plate":"מספר הרכב בספרות בלבד","amount":"הסכום המחויב לאותו רכב, מספר בלבד"}]}
+לחשבונית לרכב אחד — איבר אחד, עם הסכום הכולל לתשלום כולל מע\"מ.
+לחשבונית שמפרטת כמה רכבים — איבר לכל רכב, עם הסכום של אותה שורה בלבד.
+אל תכלול את שורת הסיכום כרכב. אם ערך אינו מופיע — החזר מחרוזת ריקה. אל תנחש.`;
+
+// מחזיר מערך רשומות (יכול להיות ריק). שם הקובץ משלים רישוי שהסורק
+// פספס, כי בחשבוניות המוסך הוא כתוב שם במפורש.
+async function _invoiceFromImages(images, category, fileName) {
+  const out = await scanDatesFromImages(images, INVOICE_SCAN_PROMPT, 2000);
+  const d = parseDate(out && out.date);
+  const mkDoc = d ? (d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2))
+                  : (_monthFromName(fileName) || _curMonth());
+  let list = (out && Array.isArray(out.vehicles)) ? out.vehicles : [];
+  // תאימות לאחור: תשובה בפורמט הישן, רכב אחד ברמה העליונה
+  if (!list.length && out && (out.plate || out.amount)) list = [{ plate: out.plate, amount: out.amount }];
+  const fromName = _plateFromName(fileName);
+  const recs = [];
+  list.forEach(v => {
+    let plate = String((v && v.plate) || '').replace(/\D/g, '');
+    const amt = parseFloat(String((v && v.amount) || '').replace(/[^\d.]/g, ''));
+    if (!(plate.length >= 6 && plate.length <= 8) && list.length === 1) plate = fromName.plate;
+    if (!(plate.length >= 6 && plate.length <= 8)) return;
+    if (!(amt > 0)) return;
+    recs.push({ plate, mk: mkDoc, amt: Math.round(amt * 100) / 100, cat: category, src: fileName, sure: true, ai: true });
+  });
+  return recs;
+}
 
 async function _invoiceFromImage(b64, category, fileName) {
   const out = await scanDatesFromImages([b64], INVOICE_SCAN_PROMPT);
@@ -4385,16 +4464,26 @@ async function onCostFile(input) {
         const multi = _pdfTableRecords(text, file.name, category);
         if (multi.length) { recs.push(...multi); continue; }
         let r = _invoiceFromText(text, file.name, category);
-        // PDF סרוק: אין שכבת טקסט. מרנדרים את העמוד לתמונה ונותנים
-        // לסורק ה-AI שכבר משמש לרישיונות ותעודות ביטוח לקרוא אותה.
-        if (r && r._skip && !text.trim() && agentApiKey) {
+        // PDF סרוק: אין שכבת טקסט. מרנדרים את העמודים לתמונות ונותנים
+        // לסורק ה-AI שכבר משמש לרישיונות ותעודות ביטוח לקרוא אותם.
+        if (r && r._skip && !text.trim() && scanAvailable()) {
           try {
-            const img = await _pdfPageImage(file);
-            if (img) {
-              const ai = await _invoiceFromImage(img, category, file.name);
-              if (ai && !ai._skip) r = ai;
-            }
+            toast('סורק חשבונית סרוקה… ' + file.name.slice(0, 30));
+            const imgs = await _pdfPageImages(file, 4);
+            const ai = imgs.length ? await _invoiceFromImages(imgs, category, file.name) : [];
+            if (ai.length) { recs.push(...ai); continue; }
           } catch(e) { console.log('invoice ai scan', file.name, e); }
+        }
+        // אין סורק, או שהסורק לא זיהה: בחשבוניות המוסך שם הקובץ מכיל
+        // "רישוי ..." ואת התאריך, ולכן אפשר לפתוח שורה עם סכום להשלמה
+        // ידנית. עדיף מלדלג על החשבונית בשקט ולאבד אותה מהעלויות.
+        if (r && r._skip && !text.trim()) {
+          const pn = _plateFromName(file.name);
+          if (pn.plate) {
+            recs.push({ plate: pn.plate, mk: _monthFromName(file.name) || _curMonth(),
+                        amt: 0, cat: category, src: file.name, sure: pn.sure, pending: true });
+            continue;
+          }
         }
         if (r && !r._skip) recs.push(r);
         else skipped.push(file.name + (r && r._skip ? ' — ' + r._skip : ''));
@@ -4435,7 +4524,7 @@ async function onCostFile(input) {
   }
   // צבירה לפי חודש+רכב לתצוגה מקדימה
   const agg = {};
-  recs.forEach(r => { const k = r.mk + '|' + _cpk(r.plate); (agg[k] = agg[k] || { plate: _cpk(r.plate), mk: r.mk, amt: 0, liters: 0, sure: true, ai: false }); agg[k].amt += r.amt; agg[k].liters += (r.liters || 0); if (r.sure === false) agg[k].sure = false; if (r.ai) agg[k].ai = true; });
+  recs.forEach(r => { const k = r.mk + '|' + _cpk(r.plate); (agg[k] = agg[k] || { plate: _cpk(r.plate), mk: r.mk, amt: 0, liters: 0, sure: true, ai: false, pending: false }); agg[k].amt += r.amt; agg[k].liters += (r.liters || 0); if (r.sure === false) agg[k].sure = false; if (r.ai) agg[k].ai = true; if (r.pending) agg[k].pending = true; });
   _costImportAgg = Object.values(agg).sort((a, b) => a.mk === b.mk ? b.amt - a.amt : a.mk.localeCompare(b.mk));
   _costImportCat = category;
   _renderCostImportPreview(skipped);
@@ -4453,7 +4542,7 @@ function _renderCostImportPreview(skipped) {
      <div style="max-height:46vh;overflow-y:auto"><table style="width:100%;border-collapse:collapse;font-size:0.82rem">
      <thead><tr style="position:sticky;top:0;background:#f8fafc"><th style="padding:5px;border:1px solid var(--border)">רכב</th><th style="padding:5px;border:1px solid var(--border)">נהג</th><th style="padding:5px;border:1px solid var(--border)">חודש</th><th style="padding:5px;border:1px solid var(--border)">₪</th></tr></thead>
      <tbody>${list.map((r, i) => `<tr>
-       <td style="padding:3px 6px;border:1px solid var(--border);direction:ltr;font-weight:700">${esc(r.plate)}${r.sure === false ? ' <span title="המספר נוחש מהטקסט — ודא שהוא נכון" style="color:#b45309">⚠</span>' : ''}${r.ai ? ' <span title="זוהה בסריקת AI" style="color:#7c3aed;font-size:0.7rem">AI</span>' : ''}</td>
+       <td style="padding:3px 6px;border:1px solid var(--border);direction:ltr;font-weight:700${r.pending ? ';background:#fffbeb' : ''}">${esc(r.plate)}${r.pending ? ' <span title="חשבונית סרוקה — מספר הרכב נקרא משם הקובץ, הסכום להשלמה ידנית" style="color:#b45309">✎</span>' : ''}${r.sure === false ? ' <span title="המספר נוחש מהטקסט — ודא שהוא נכון" style="color:#b45309">⚠</span>' : ''}${r.ai ? ' <span title="זוהה בסריקת AI" style="color:#7c3aed;font-size:0.7rem">AI</span>' : ''}</td>
        <td style="padding:3px 6px;border:1px solid var(--border);font-size:0.74rem">${_nm(r.plate, r.mk)}</td>
        <td style="padding:3px 6px;border:1px solid var(--border)"><input value="${esc(r.mk)}" oninput="_costImportAgg[${i}].mk=this.value.trim()" style="width:74px;font-size:0.76rem;text-align:center"></td>
        <td style="padding:3px 6px;border:1px solid var(--border)"><input type="number" value="${Math.round(r.amt)}" oninput="_costImportAgg[${i}].amt=parseFloat(this.value)||0" style="width:84px;text-align:left"></td>
@@ -6993,14 +7082,16 @@ async function _scanViaRelay(images, promptText) {
   const m = String(data.text || "").match(/\{[\s\S]*\}/);
   return m ? JSON.parse(m[0]) : {};
 }
-async function scanDatesFromImages(images, promptText) {
-  if (!agentApiKey) return await _scanViaRelay(images, promptText);
+async function scanDatesFromImages(images, promptText, maxTokens) {
+  if (!agentApiKey) return await _scanViaRelay(images, promptText, maxTokens);
   const content = [{ type:'text', text: promptText },
     ...(images||[]).map(b => ({ type:'image', source:{ type:'base64', media_type:'image/jpeg', data:b } }))];
   const resp = await fetch('https://api.anthropic.com/v1/messages', {
     method:'POST',
     headers:{ 'Content-Type':'application/json', 'x-api-key': agentApiKey, 'anthropic-version':'2023-06-01', 'anthropic-dangerous-direct-browser-access':'true' },
-    body: JSON.stringify({ model: AGENT_MODEL, max_tokens:300, thinking:{type:'disabled'}, messages:[{ role:'user', content }] })
+    // 300 הספיקו לתאריך בודד; חשבונית שמפרטת עשרות רכבים נחתכת באמצע
+    // וה-JSON חוזר שבור, ולכן הקורא יכול להרחיב את התקציב.
+    body: JSON.stringify({ model: AGENT_MODEL, max_tokens: maxTokens || 300, thinking:{type:'disabled'}, messages:[{ role:'user', content }] })
   });
   const data = await resp.json();
   if (!resp.ok) throw new Error((data.error && data.error.message) || 'API error');
