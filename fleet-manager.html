@@ -1942,7 +1942,7 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
       <div class="modal-row"><label>קוד תוצר <span style="font-weight:400;color:#94a3b8;font-size:0.7rem">(ממשרד התחבורה)</span></label><input id="m-tozeretCd" type="text" placeholder="305" inputmode="numeric" style="direction:ltr"></div>
       <div class="modal-row"><label>קוד דגם</label><input id="m-degemCd" type="text" placeholder="1" style="direction:ltr"></div>
       <div class="modal-row" id="m-weight-row"><label>משקל כולל (ק״ג)</label><input id="m-weight" type="text" placeholder="1610" inputmode="numeric" style="direction:ltr"></div>
-      <div class="modal-row"><label>שם נהג</label><input id="m-driver" type="text" placeholder="ישראל ישראלי" onchange="autoFillDriverFields()"></div>
+      <div class="modal-row"><label>שם נהג</label><input id="m-driver" type="text" placeholder="הקלד שם — ייפתחו הצעות" list="drivers-datalist" autocomplete="off" oninput="autoFillDriverFields()" onchange="autoFillDriverFields()"><datalist id="drivers-datalist"></datalist><div id="m-driver-hint" style="display:none;font-size:0.7rem;color:#059669;font-weight:700;margin-top:3px"></div></div>
       <div class="modal-row"><label>נייד נהג</label><input id="m-phone" type="tel" placeholder="050-0000000" style="direction:ltr"></div>
       <div class="modal-row"><label>מייל נהג<span style="font-weight:400;color:#94a3b8;font-size:0.7rem"> — לצפייה במסמכים שלו</span></label><input id="m-email" type="email" placeholder="name@example.com" style="direction:ltr"></div>
       <div class="modal-row"><label>תוקף רישוי (טסט)</label><input id="m-regExpiry" type="text" placeholder="יי.חח.שש" inputmode="numeric" oninput="dateAutoMask(this)"></div>
@@ -2873,29 +2873,51 @@ function syncDriverToVehicles(n) {
 // המסמכים האישי. כשמחליפים נהג ברכב, השארת המייל הקודם היתה נותנת לנהג
 // היוצא גישה לתיק של מי שקיבל את הרכב אחריו.
 let _modalDriverKey = '', _modalDriverEmail = '';
+// ערכי הנהג שנטענו לטופס. שדה שעדיין מחזיק את ערך הנהג הקודם מתחלף
+// כשבוחרים נהג אחר; שדה שהמנהל הקליד בעצמו נשאר.
+let _modalDriverSnap = {};
+// ההצעות נבנות מלשונית הנהגים. הלקוח מקים רכב ומקליד שם שכבר קיים —
+// מכאן הוא מוצא אותו מיד, במקום להקליד מחדש טלפון, מייל ותוקף רישיון.
+function fillDriversDatalist() {
+  const dl = document.getElementById('drivers-datalist');
+  if (!dl) return;
+  const names = Object.keys(DRIVERS || {})
+    .filter(k => k && k.indexOf('emp_') !== 0)
+    .sort((a, b) => a.localeCompare(b, 'he'));
+  dl.innerHTML = names.map(n => '<option value="' + esc(n) + '"></option>').join('');
+}
 function autoFillDriverFields() {
   const drvInp = document.getElementById('m-driver');
   const n = driverKey(drvInp.value);
-  const em = document.getElementById('m-email');
-  if (em && n !== _modalDriverKey) {
-    const cur = (em.value || '').trim().toLowerCase();
-    const prev = (_modalDriverEmail || '').trim().toLowerCase();
-    // מחליפים רק אם בשדה עדיין יושב המייל של הנהג הקודם - מייל שהוקלד
-    // ידנית בעריכה הזאת נשמר
-    if (!cur || cur === prev) em.value = (DRIVERS[n] || {}).driverEmail || '';
-  }
   const d = DRIVERS[n];
-  if (!d) return;
-  // restore the driver's affiliation (ישראל / מטה) if the name was typed without it
+  const hint = document.getElementById('m-driver-hint');
+  if (!d) { if (hint) hint.style.display = 'none'; return; }
+  // שם שהוקלד בלי שיוך (ישראל / מטה) מקבל אותו בחזרה מהרשומה
   if (d.affiliation && !driverAffiliation(drvInp.value)) drvInp.value = withAffiliation(drvInp.value, d.affiliation);
-  const lic = document.getElementById('m-licExpiry');
-  const trf = document.getElementById('m-traffic');
-  const ph = document.getElementById('m-phone');
-  if (d.licenseExpiry && !lic.value) lic.value = d.licenseExpiry;
-  if (d.trafficRecord && !trf.value) trf.value = d.trafficRecord;
-  if (d.driverPhone && ph && !ph.value) ph.value = d.driverPhone;
-  const em2 = document.getElementById('m-email');
-  if (d.driverEmail && em2 && !em2.value) em2.value = d.driverEmail;
+  const changed = (n !== _modalDriverKey);
+  const filled = [];
+  // שדה ריק — ממלאים. שדה שמחזיק את ערך הנהג הקודם — מחליפים, אחרת
+  // הטלפון של הנהג הקודם היה נשאר על הרכב אחרי החלפת נהג. שדה שהוקלד
+  // ידנית בעריכה הזאת לא נדרס.
+  const put = (id, val, prev, label) => {
+    if (!val) return;
+    const el = document.getElementById(id); if (!el) return;
+    const cur = String(el.value || '').trim();
+    if (!cur || (changed && cur === String(prev || '').trim())) { el.value = val; filled.push(label); }
+  };
+  const S = _modalDriverSnap || {};
+  put('m-phone',     d.driverPhone,   S.phone,   'נייד');
+  put('m-email',     d.driverEmail,   S.email,   'מייל');
+  put('m-licExpiry', d.licenseExpiry, S.lic,     'תוקף רישיון');
+  put('m-traffic',   d.trafficRecord, S.traffic, 'עבר תעבורתי');
+  _modalDriverKey = n;
+  _modalDriverEmail = d.driverEmail || '';
+  _modalDriverSnap = { phone: d.driverPhone || '', email: d.driverEmail || '',
+                       lic: d.licenseExpiry || '', traffic: d.trafficRecord || '' };
+  if (hint) {
+    hint.textContent = filled.length ? ('✓ נמשך מהנהגים: ' + filled.join(', ')) : '✓ נהג קיים בלשונית נהגים';
+    hint.style.display = 'block';
+  }
 }
 function checkServiceOverages() {
   const overdue = VEHICLES.filter(v => {
@@ -8385,6 +8407,7 @@ let editingPlate = null;
 function openAddVehicle() {
   editingPlate = null;
   _modalDriverKey = ''; _modalDriverEmail = '';
+  _modalDriverSnap = {}; fillDriversDatalist();
   _lastGovRec = null; _lastGovModel = null;
   const _gs = document.getElementById('m-gov-status'); if (_gs) _gs.textContent = '';
   buildCompanyDatalist();
@@ -8417,6 +8440,7 @@ function editVehicle(plate) {
   document.getElementById('m-phone').value = v.driverPhone||'';
   document.getElementById('m-email').value = v.driverEmail||'';
   _modalDriverKey = driverKey(v.driverName); _modalDriverEmail = v.driverEmail || '';
+  _modalDriverSnap = { phone: v.driverPhone || '', email: v.driverEmail || '', lic: v.licenseExpiry || '', traffic: v.trafficRecord || '' }; fillDriversDatalist();
   document.getElementById('m-regExpiry').value = v.registrationExpiry||'';
   document.getElementById('m-insExpiry').value = v.insuranceExpiry||'';
   document.getElementById('m-licExpiry').value = v.licenseExpiry||'';
