@@ -2852,7 +2852,7 @@ async function runDriversImport(replace) {
     syncDriverToVehicles(f.name);
   });
   try {
-    await saveToFirestore('drivers', DRIVERS);
+    await saveDriversExact();
     try { localStorage.setItem('fleet_vehicles', JSON.stringify(VEHICLES)); } catch(e) {}
     await saveToFirestore('vehicles', VEHICLES);
     renderDrivers(); renderFleet(); renderAlerts();
@@ -2900,7 +2900,7 @@ async function saveDriver() {
     healthValid: g('dm-health'), status: g('dm-status'), personalCode: g('dm-code')
   });
   syncDriverToVehicles(name);          // הערכים יורדים לרכבים שהנהג מחזיק
-  saveToFirestore('drivers', DRIVERS);
+  saveDriversExact();
   try { localStorage.setItem('fleet_vehicles', JSON.stringify(VEHICLES)); } catch(e) {}
   saveToFirestore('vehicles', VEHICLES);
   document.getElementById('driver-modal').classList.remove('open');
@@ -2968,7 +2968,7 @@ async function deleteSelectedDrivers() {
   keys.forEach(k => delete DRIVERS[k]);
   clearDrvSel();
   try {
-    await saveToFirestore('drivers', DRIVERS);
+    await saveDriversExact();
     try { localStorage.setItem('fleet_vehicles', JSON.stringify(VEHICLES)); } catch(e) {}
     await saveToFirestore('vehicles', VEHICLES);
     renderDrivers(); renderFleet(); renderAlerts();
@@ -3006,7 +3006,7 @@ async function deleteDriverRow(key) {
   if (_editingDriverKey === key) _editingDriverKey = null;
   document.getElementById('driver-modal').classList.remove('open');
   try {
-    await saveToFirestore('drivers', DRIVERS);
+    await saveDriversExact();
     if (detached) {
       try { localStorage.setItem('fleet_vehicles', JSON.stringify(VEHICLES)); } catch(e) {}
       await saveToFirestore('vehicles', VEHICLES);
@@ -3290,6 +3290,22 @@ function mirrorToTenant(id, data, merge = true) {
       .catch(e => console.log('tenant mirror deferred:', id, e.code || e.message));
   } catch(e) { console.log('tenant mirror error:', id, e); }
 }
+// מפה (drivers וכדומה) נשמרה עם merge, ופיירסטור ממזג מפות לעומק:
+// מפתח שנמחק מקומית שרד בענן וחזר בטעינה הבאה. כך מחיקת נהגים —
+// בודדת, מרובה או בייבוא מחליף — נראתה כאילו עבדה וההצבה חזרה לגדול.
+// לכן מפה שנמחקים ממנה מפתחות נכתבת בשני שלבים: מחיקת השדה וכתיבתו
+// מחדש, כדי שהתוצאה בענן תהיה בדיוק מה שיש מקומית.
+async function saveDriversExact() {
+  if (READ_ONLY) return _roBlock();
+  const val = stripUndef(DRIVERS);
+  try {
+    const F = firebase.firestore.FieldValue;
+    await fcol().doc('main').set({ drivers: F.delete() }, { merge: true });
+    await fcol().doc('main').set({ drivers: val }, { merge: true });
+    mirrorToTenant('main', { drivers: val });
+  } catch(e) { console.log('saveDriversExact error', e); }
+}
+
 async function saveToFirestore(key, value) {
   if (READ_ONLY) return _roBlock();
   try {
@@ -5441,7 +5457,7 @@ function tfRememberDriver() {
   if (!changed) return;
   // ת.ז נשמרת גם על הרכב, שם היא כבר בשימוש בטפסים אחרים
   if (did) VEHICLES.forEach(v => { if (driverKey(v.driverName) === dk && !v.driverId) v.driverId = did; });
-  try { saveToFirestore('drivers', DRIVERS); } catch(e) {}
+  try { saveDriversExact(); } catch(e) {}
 }
 
 // מעבר מהסבה לעריכת פרטי הדוח עצמו ובחזרה
@@ -6147,7 +6163,7 @@ function violSaveDriverFields(pre, driverName) {
   if (addr && DRIVERS[dk].address  !== addr) { DRIVERS[dk].address  = addr; changed = true; }
   if (!changed) return;
   if (did) VEHICLES.forEach(v => { if (driverKey(v.driverName) === dk && !v.driverId) v.driverId = did; });
-  try { saveToFirestore('drivers', DRIVERS); } catch(e) {}
+  try { saveDriversExact(); } catch(e) {}
 }
 
 // נקרא כשמשנים את שם הנהג בטופס — מושך את הפרטים שלו
@@ -6809,7 +6825,7 @@ async function autoScanDriverDocs() {
       localStorage.setItem('fleet_vehicles', JSON.stringify(VEHICLES));
       await fcol().doc('main').set({ vehicles: stripUndef(VEHICLES) }, { merge:true });
       mirrorToTenant('main', { vehicles: VEHICLES });
-      saveToFirestore('drivers', DRIVERS);
+      saveDriversExact();
       if (typeof renderFleet === 'function') renderFleet();
       if (typeof renderAlerts === 'function') renderAlerts();
       if (typeof renderDashboard === 'function') renderDashboard();
@@ -8931,7 +8947,7 @@ function saveVehicle() {
     // reflect onto the saved record too
     if (editingPlate) { const i2 = VEHICLES.findIndex(x=>x.plate===v.plate); if (i2>=0) { VEHICLES[i2].licenseExpiry = v.licenseExpiry; VEHICLES[i2].trafficRecord = v.trafficRecord; VEHICLES[i2].driverPhone = v.driverPhone; VEHICLES[i2].driverEmail = v.driverEmail; VEHICLES[i2].driverName = v.driverName; } }
     syncDriverToVehicles(_dk);
-    saveToFirestore('drivers', DRIVERS);
+    saveDriversExact();
   }
   localStorage.setItem('fleet_vehicles', JSON.stringify(VEHICLES));
   localStorage.setItem('fleet_vehicles_version', VEHICLES_VERSION);
@@ -9162,7 +9178,7 @@ async function commitDriverEmails(){
         if (DRIVERS[dk] && DRIVERS[dk].docsId) continue;
         try { await buildDriverBundle(x, { ldocs: [], vdocs: [], decls: [], reqs: [] }); } catch(e) {}
       }
-      try { saveToFirestore('drivers', DRIVERS); } catch(e) {}
+      try { saveDriversExact(); } catch(e) {}
       if (await pushDocsDirectory(all)) toast('✓ הפורטל עודכן ל-' + all.length + ' עובדים');
     }
   } catch(e){ console.log('save emails', e); toast('שגיאה בשמירה', true); }
@@ -9460,7 +9476,7 @@ async function autoSyncEmployee(v) {
     await buildDriverBundle(v, { ldocs, vdocs, decls, reqs });
     DRIVERS[dk] = DRIVERS[dk] || {};
     DRIVERS[dk].dirEmail = email;
-    try { saveToFirestore('drivers', DRIVERS); } catch(e) {}
+    try { saveDriversExact(); } catch(e) {}
     // הספר קטן, ולכן פשוט נדחף מחדש במלואו
     const all = (VEHICLES || []).filter(x => (x.driverEmail || '').trim() && driverKey(x.driverName));
     await pushDocsDirectory(all);
@@ -9523,7 +9539,7 @@ async function mailOneDocsLink(plate) {
   if (!(v.driverEmail || '').trim()) { toast('לעובד אין מייל שמור', true); return; }
   const { ldocs, vdocs, decls, reqs } = await docsCache();
   await buildDriverBundle(v, { ldocs, vdocs, decls, reqs });
-  try { saveToFirestore('drivers', DRIVERS); } catch(e) {}
+  try { saveDriversExact(); } catch(e) {}
   const ok = await mailDocsLink(v);
   toast(ok ? '✓ הקישור נשלח ל-' + v.driverEmail : 'השליחה נכשלה', !ok);
 }
@@ -9571,7 +9587,7 @@ async function syncDriverPortals(){
     const cache = { ldocs, vdocs, decls, reqs };
     const built = [];
     for(const v of list){ try{ if(await buildDriverBundle(v, cache)) built.push(v); }catch(e){ console.log('bundle', v.plate, e); } }
-    try { saveToFirestore('drivers', DRIVERS); } catch(e) {}   // המזהים נשמרים
+    try { saveDriversExact(); } catch(e) {}   // המזהים נשמרים
     toast('✓ סונכרנו '+built.length+' פורטלי עובדים');
 
     // דחיפת ספר הקישורים ל-Apps Script. משם הבוט יכול לשלוח לעובד
@@ -10426,7 +10442,7 @@ async function doImport(mode) {
   try {
     localStorage.setItem('fleet_vehicles', JSON.stringify(VEHICLES));
     saveToFirestore('vehicles', VEHICLES);
-    saveToFirestore('drivers', DRIVERS);
+    saveDriversExact();
     document.getElementById('imp-done-msg').textContent =
       (mode === 'replace' ? 'הצי הוחלף' : 'הייבוא הושלם') + ` — ${rows.length} רכבים`;
     showImportStep('done');
@@ -12315,7 +12331,7 @@ async function addEmployeeNoVehicle(param) {
     if (licenseExpiry) DRIVERS[dk].licenseExpiry = licenseExpiry;
     if (trafficRecord) DRIVERS[dk].trafficRecord = trafficRecord;
     if (phone) DRIVERS[dk].driverPhone = phone;
-    saveToFirestore('drivers', DRIVERS);
+    saveDriversExact();
   }
   localStorage.setItem('fleet_vehicles', JSON.stringify(VEHICLES));
   await saveVehiclesSafely(v.plate, dk);
