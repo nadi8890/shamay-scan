@@ -1536,7 +1536,14 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
     </div>
     <!-- ביקורת לאוטובוס שאינו בצי: קצין הבטיחות נקרא לבדוק אוטובוס של
          גורם אחר, ואין לו רכב במערכת שלפיו ייבחר הטופס. -->
-    <div class="form-card" id="bus-insp-card" style="background:linear-gradient(135deg,#7c2d12,#c2410c);border-color:#7c2d12" onclick="openInspectionForm('', true)">
+    <!-- טופס בדיקת חברת הסעות של הרשות. אצל לקוח שהוגדר לו כך הוא בא
+         במקום טופס ב1, כי זה הטופס שהמבקר שלו חייב להגיש. -->
+    <div class="form-card" id="muni-insp-card" style="display:none;background:linear-gradient(135deg,#065f46,#059669);border-color:#065f46" onclick="openMuniForm()">
+      <span style="font-size:2.2rem">🏛️</span>
+      <div><div style="font-weight:800;color:#fff;font-size:1rem">בדיקת חברת הסעות</div>
+      <div style="font-size:0.75rem;color:#d1fae5">טופס הרשות — נשמר בביקורות שבוצעו ונשלח למייל</div></div>
+    </div>
+    <div class="form-card" id="bus-insp-card" style="display:none;background:linear-gradient(135deg,#7c2d12,#c2410c);border-color:#7c2d12" onclick="openInspectionForm('', true)">
       <span style="font-size:2.2rem">🚌</span>
       <div><div style="font-weight:800;color:#fff;font-size:1rem">ביקורת אוטובוס ורכב ציבורי</div>
       <div style="font-size:0.75rem;color:#fed7aa">טופס ב1 המלא — גם לרכב שאינו בצי. נשמר בביקורות שבוצעו ונשלח למייל</div></div>
@@ -1631,6 +1638,9 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
               </label>
               <label style="display:flex;align-items:center;gap:6px;cursor:pointer" title="שנתון הרכב בעמודה משלו בטבלת הצי, במקום כשורה קטנה מתחת לדגם">
                 <input id="adm-yearcol" type="checkbox" style="width:16px;height:16px"><span>📅 שנתון בעמודה נפרדת</span>
+              </label>
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer" title="טופס בדיקת חברת הסעות של הרשות — 22 בדיקות שכולן חובה">
+                <input id="adm-muniform" type="checkbox" style="width:16px;height:16px"><span>🏛️ טופס בדיקת חברת הסעות</span>
               </label>
             </div>
             <div style="display:flex;gap:12px;margin-bottom:12px;flex-wrap:wrap;align-items:flex-end">
@@ -1750,6 +1760,27 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
       <button class="btn btn-green" id="if-submit-btn" onclick="submitInspection()">✅ סיים ביקורת ושלח</button>
     </div>
   </div>
+<div id="muni-form" style="display:none">
+  <div class="card">
+    <div class="card-title">🏛️ בדיקת חברת הסעות</div>
+    <div style="font-size:0.76rem;color:var(--muted);margin-bottom:4px">כל שורה היא בדיקה שיש לענות עליה. מספר רישוי שקיים בצי ממלא מראש את מה שידוע — ועדיין צריך לאשר.</div>
+    <div id="mf-progress" style="font-size:0.78rem;font-weight:800;margin-bottom:10px"></div>
+    <div id="mf-fields" class="modal-grid"></div>
+    <div class="modal-row" style="margin-top:8px"><label>הערות</label><textarea id="mf-notes" rows="3" oninput="muniProgress()"></textarea></div>
+    <div style="font-size:0.74rem;color:var(--muted);background:#f8fafc;border:1px solid var(--border);border-radius:10px;padding:9px 11px;margin:10px 0;line-height:1.6">
+      מבוקש באדיבות מהנהג שיאשר בחתימתו את אמיתות הפרטים. <b>אין בשום מקרה לחייבו לחתום.</b>
+    </div>
+    <div class="modal-row"><label>חתימת הנהג <span style="font-weight:400;color:#94a3b8;font-size:0.7rem">— רשות, לפי הטופס</span></label>
+      <canvas id="mf-signature" width="600" height="150" style="width:100%;max-width:600px;height:150px;border:1.5px dashed var(--border);border-radius:10px;background:#fff;touch-action:none"></canvas>
+      <button class="btn btn-gray" style="padding:3px 10px;font-size:0.72rem;margin-top:5px" onclick="muniClearSig()">נקה חתימה</button>
+    </div>
+    <div class="btn-row" style="margin-top:12px">
+      <button class="btn btn-green" id="mf-submit" onclick="submitMuniForm()">✅ שמור ושלח</button>
+      <button class="btn btn-gray" onclick="closeMuniForm()">ביטול</button>
+    </div>
+  </div>
+</div>
+</div>
 </div>
 
 <!-- ══ CONTACTS VIEW MODAL (opened from the Forms tab) ══ -->
@@ -7240,6 +7271,234 @@ async function loadInspectionHistory() {
   } catch(e) { wrap.innerHTML = '<div style="color:#dc2626;font-size:0.8rem;padding:8px">שגיאה בטעינת היסטוריה</div>'; }
 }
 
+
+// ═══ טופס בדיקת חברת הסעות של הרשות ═══
+// זהו טופס ביקורת ולא טופס פרטים: כל שורה היא בדיקה שהמבקר מבצע בשטח
+// וחייב לענות עליה. לכן אין כאן שדות רשות — טופס שהוגש חלקי אינו מעיד
+// שהבדיקה נעשתה, וזו בדיוק הראיה שהרשות מחזיקה.
+//
+// הרשימה מוגדרת פעם אחת ומשמשת גם לתצוגה, גם לבדיקת השלמות, גם ל-PDF
+// וגם לגוף המייל — כדי שלא ייווצר פער בין מה שנשאל למה שנשמר.
+const MUNI_FIELDS = [
+  { k:'company',   label:'חברת הסעות',                       t:'text' },
+  { k:'plate',     label:'מס׳ רישוי',                        t:'plate' },
+  { k:'date',      label:'תאריך הבדיקה',                     t:'text' },
+  { k:'time',      label:'שעה',                              t:'text' },
+  { k:'regexp',    label:'תוקף רישיון רכב',                  t:'date' },
+  { k:'vehtype',   label:'סוג הרכב',                         t:'sel', opts:['אוטובוס','מיניבוס','טרנזיט'] },
+  { k:'year',      label:'שנת ייצור',                        t:'num' },
+  { k:'seatsLic',  label:'מספר נוסעים כמצוין ברישיון',       t:'num' },
+  { k:'seatsReal', label:'מספר נוסעים פיזית',                t:'num' },
+  { k:'insexp',    label:'תעודת ביטוח בידי הנהג — בתוקף עד', t:'date' },
+  { k:'opexp',     label:'רישיון הפעלה בידי הנהג — בתוקף עד',t:'date' },
+  { k:'sidename',  label:'שם החברה מצוין על דופן הרכב',      t:'yn' },
+  { k:'officerexp',label:'אישור בדיקת קצין בטיחות — בתוקף עד',t:'date' },
+  { k:'kidslic',   label:'בידי הנהג רישיון להסעת ילדים',     t:'yn' },
+  { k:'kidssign',  label:'שלט "ילדים" בחזית ומאחור',         t:'yn' },
+  { k:'stamp',     label:'חותמת קצין בטיחות על העתקי המסמכים', t:'yn' },
+  { k:'driver',    label:'שם הנהג',                          t:'text' },
+  { k:'driverid',  label:'ת. זהות הנהג',                     t:'num' },
+  { k:'licgrade',  label:'דרגת רישיון',                      t:'text' },
+  { k:'licexp',    label:'רישיון הנהג בתוקף עד',             t:'date' },
+  { k:'origin',    label:'נקודת מוצא לנסיעה',                t:'text' },
+  { k:'inspector', label:'שם המבקר',                         t:'text' }
+];
+function muniRenderFields() {
+  const box = document.getElementById('mf-fields');
+  if (!box) return;
+  box.innerHTML = MUNI_FIELDS.map(f => {
+    const id = 'mf-' + f.k;
+    const on = 'oninput="muniProgress()" onchange="muniProgress()"';
+    let ctl;
+    if (f.t === 'yn') {
+      ctl = '<select id="' + id + '" ' + on + '><option value="">— בחר —</option>' +
+            '<option>כן</option><option>לא</option><option>לא רלוונטי</option></select>';
+    } else if (f.t === 'sel') {
+      ctl = '<select id="' + id + '" ' + on + '><option value="">— בחר —</option>' +
+            f.opts.map(o => '<option>' + o + '</option>').join('') + '</select>';
+    } else if (f.t === 'date') {
+      ctl = '<input id="' + id + '" type="text" placeholder="יי.חח.שש" inputmode="numeric" oninput="dateAutoMask(this);muniProgress()">';
+    } else if (f.t === 'num') {
+      ctl = '<input id="' + id + '" type="text" inputmode="numeric" style="direction:ltr" ' + on + '>';
+    } else if (f.t === 'plate') {
+      ctl = '<input id="' + id + '" type="text" style="direction:ltr" oninput="muniFillFromPlate();muniProgress()">';
+    } else {
+      ctl = '<input id="' + id + '" type="text" ' + on + '>';
+    }
+    return '<div class="modal-row"><label>' + esc(f.label) + ' <span style="color:#dc2626">*</span></label>' + ctl + '</div>';
+  }).join('');
+}
+function muniVal(k) {
+  const el = document.getElementById('mf-' + k);
+  return el ? String(el.value || '').trim() : '';
+}
+function muniMissing() { return MUNI_FIELDS.filter(f => !muniVal(f.k)); }
+function muniProgress() {
+  const el = document.getElementById('mf-progress');
+  if (!el) return;
+  const miss = muniMissing().length, total = MUNI_FIELDS.length;
+  el.textContent = miss ? ('נענו ' + (total - miss) + ' מתוך ' + total + ' — נותרו ' + miss)
+                        : ('✓ כל ' + total + ' הבדיקות נענו');
+  el.style.color = miss ? '#b45309' : '#059669';
+}
+// מספר רישוי שקיים בצי ממלא מראש את מה שהמערכת כבר יודעת. זו הצעה
+// בלבד: המבקר רואה את הערך מול המסמך שבידי הנהג ומאשר או מתקן.
+function muniFillFromPlate() {
+  const pk = muniVal('plate').replace(/\D/g, '');
+  if (pk.length < 5) return;
+  const v = VEHICLES.find(x => String(x.plate).replace(/\D/g, '') === pk);
+  if (!v) return;
+  const put = (k, val) => { const el = document.getElementById('mf-' + k); if (el && !el.value && val) el.value = val; };
+  put('regexp', v.registrationExpiry);
+  put('insexp', v.insuranceExpiry);
+  put('year', v.year);
+  put('driver', (v.driverName || '').split('-')[0].trim());
+  put('licexp', v.licenseExpiry);
+  put('company', v.company || COMPANY_NAME);
+  const dk = driverKey(v.driverName);
+  if (dk && DRIVERS[dk]) put('driverid', DRIVERS[dk].driverId);
+  // תוקף אישור קצין הבטיחות נגזר מהביקורת האחרונה ומתדירות הביקורות
+  // שהוגדרה ללקוח, בדיוק כמו בהתראות.
+  if (v.inspection && typeof nextInspectionStr === 'function') put('officerexp', nextInspectionStr(v));
+  muniProgress();
+}
+function openMuniForm() {
+  document.getElementById('forms-menu').style.display = 'none';
+  document.getElementById('muni-form').style.display = '';
+  muniRenderFields();
+  const n = new Date(), p2 = x => String(x).padStart(2, '0');
+  const set = (k, val) => { const el = document.getElementById('mf-' + k); if (el) el.value = val; };
+  set('date', p2(n.getDate()) + '/' + p2(n.getMonth() + 1) + '/' + n.getFullYear());
+  set('time', p2(n.getHours()) + ':' + p2(n.getMinutes()));
+  set('inspector', (window.OFFICER_INFO && OFFICER_INFO.name) || '');
+  document.getElementById('mf-notes').value = '';
+  muniInitSig();
+  muniProgress();
+}
+function closeMuniForm() {
+  document.getElementById('muni-form').style.display = 'none';
+  renderFormsTab();
+}
+let _muniSigDrawn = false;
+function muniInitSig() {
+  const c = document.getElementById('mf-signature');
+  const ctx = c.getContext('2d');
+  ctx.clearRect(0, 0, c.width, c.height);
+  ctx.lineWidth = 2.5; ctx.lineCap = 'round'; ctx.strokeStyle = '#1e293b';
+  _muniSigDrawn = false;
+  let drawing = false;
+  const pos = e => {
+    const r = c.getBoundingClientRect();
+    const t = e.touches ? e.touches[0] : e;
+    return { x: (t.clientX - r.left) * (c.width / r.width), y: (t.clientY - r.top) * (c.height / r.height) };
+  };
+  const start = e => { drawing = true; _muniSigDrawn = true; const q = pos(e); ctx.beginPath(); ctx.moveTo(q.x, q.y); e.preventDefault(); };
+  const move = e => { if (!drawing) return; const q = pos(e); ctx.lineTo(q.x, q.y); ctx.stroke(); e.preventDefault(); };
+  const stop = () => { drawing = false; };
+  c.onmousedown = start; c.onmousemove = move; c.onmouseup = stop; c.onmouseleave = stop;
+  c.ontouchstart = start; c.ontouchmove = move; c.ontouchend = stop;
+}
+function muniClearSig() { muniInitSig(); }
+async function submitMuniForm() {
+  const miss = muniMissing();
+  if (miss.length) {
+    // שמות הבדיקות שחסרות, ולא רק "מלא הכל" — אחרת בטופס של 22 שורות
+    // המבקר מחפש בעיניים מה נשאר.
+    toast('חסרות תשובות: ' + miss.slice(0, 4).map(f => f.label).join(' · ') +
+          (miss.length > 4 ? ' ועוד ' + (miss.length - 4) : ''), true);
+    const first = document.getElementById('mf-' + miss[0].k);
+    if (first) { first.focus(); first.scrollIntoView({ block: 'center' }); }
+    return;
+  }
+  const btn = document.getElementById('mf-submit');
+  btn.disabled = true; btn.textContent = 'שומר...';
+  const now = new Date(), p2 = x => String(x).padStart(2, '0');
+  const answers = {};
+  MUNI_FIELDS.forEach(f => { answers[f.label] = muniVal(f.k); });
+  const rec = {
+    type: 'inspection',
+    formKind: 'municipal',
+    created: Date.now(),
+    dateStr: p2(now.getDate()) + '/' + p2(now.getMonth() + 1) + '/' + now.getFullYear() + ' ' +
+             p2(now.getHours()) + ':' + p2(now.getMinutes()),
+    plate: muniVal('plate'),
+    model: muniVal('vehtype'),
+    driver: muniVal('driver'),
+    inspector: muniVal('inspector'),
+    km: '',
+    notes: document.getElementById('mf-notes').value.trim(),
+    items: answers,
+    signature: _muniSigDrawn ? document.getElementById('mf-signature').toDataURL('image/png') : ''
+  };
+  try {
+    await fcol().doc('insp_' + rec.created).set(rec);
+    // הבדיקה מתועדת גם על הרכב, אם הוא בצי
+    const v = VEHICLES.find(x => String(x.plate).replace(/\D/g,'') === String(rec.plate).replace(/\D/g,''));
+    if (v) {
+      v.inspection = p2(now.getDate()) + '/' + p2(now.getMonth() + 1) + '/' + now.getFullYear();
+      if (v.inspectionScheduled) delete v.inspectionScheduled;
+      try { localStorage.setItem('fleet_vehicles', JSON.stringify(VEHICLES)); } catch(e) {}
+      saveToFirestore('vehicles', VEHICLES);
+    }
+    await muniSendMail(rec);
+    toast('✓ הבדיקה נשמרה ונשלחה');
+    closeMuniForm();
+    loadInspectionHistory(); renderAlerts(); renderFleet();
+  } catch(e) {
+    console.log('submitMuniForm', e);
+    toast('⚠ השמירה נכשלה: ' + (e.code || e.message), true);
+  }
+  btn.disabled = false; btn.textContent = '✅ שמור ושלח';
+}
+function muniText(r) {
+  const lines = ['בדיקת חברת הסעות — ' + (COMPANY_NAME || ''), 'תאריך: ' + r.dateStr, ''];
+  MUNI_FIELDS.forEach(f => lines.push(f.label + ': ' + ((r.items || {})[f.label] || '—')));
+  if (r.notes) { lines.push('', 'הערות: ' + r.notes); }
+  return lines.join(String.fromCharCode(10));
+}
+function buildMuniPdfHtml(r) {
+  const row = f => '<tr><td style="border:1px solid #333;padding:5px 8px;font-size:11px">' + esc(f.label) +
+    '</td><td style="border:1px solid #333;padding:5px 8px;font-size:11px;font-weight:700">' +
+    esc((r.items || {})[f.label] || '—') + '</td></tr>';
+  return '<div style="direction:rtl;font-family:Heebo,Arial,sans-serif;padding:14px;color:#000">' +
+    '<div style="text-align:center;font-weight:800;font-size:15px">' + esc(COMPANY_NAME || '') + '</div>' +
+    '<div style="text-align:center;font-weight:700;font-size:13px;margin-bottom:10px">בדיקת חברת הסעות</div>' +
+    '<table style="width:100%;border-collapse:collapse">' + MUNI_FIELDS.map(row).join('') + '</table>' +
+    (r.notes ? '<div style="margin-top:10px;font-size:11px"><b>הערות:</b> ' + esc(r.notes) + '</div>' : '') +
+    '<div style="margin-top:12px;font-size:10px;color:#333;line-height:1.6">מבוקש באדיבות מהנהג שיאשר בחתימתו את אמיתות הפרטים. אין בשום מקרה לחייבו לחתום.</div>' +
+    (r.signature ? '<div style="margin-top:8px"><div style="font-size:10px">חתימת הנהג:</div><img src="' + r.signature + '" style="height:60px"></div>' : '') +
+    '<div style="margin-top:10px;font-size:11px">שם המבקר: <b>' + esc((r.items || {})['שם המבקר'] || '') + '</b></div>' +
+    '</div>';
+}
+async function muniPdfBlob(r) {
+  const holder = document.createElement('div');
+  holder.style.cssText = 'position:absolute;left:-9999px;top:0';
+  holder.innerHTML = buildMuniPdfHtml(r);
+  document.body.appendChild(holder);
+  try {
+    await (document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve());
+    return await html2pdf().set({
+      margin: 8, image: { type: 'jpeg', quality: 0.92 },
+      html2canvas: { scale: 2 }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    }).from(holder.firstElementChild).outputPdf('blob');
+  } finally { document.body.removeChild(holder); }
+}
+async function muniSendMail(r) {
+  const to = MAIL_SETTINGS.recipient || INSPECTION_EMAIL;
+  const subject = 'בדיקת חברת הסעות — רכב ' + r.plate;
+  if (!MAIL_SETTINGS.gasUrl) return;
+  let files = [];
+  try {
+    const blob = await muniPdfBlob(r);
+    const b64 = await new Promise(res => { const fr = new FileReader(); fr.onload = () => res(String(fr.result).split(',')[1]); fr.readAsDataURL(blob); });
+    files = [{ base64: b64, mimeType: 'application/pdf', filename: 'בדיקת הסעות ' + r.plate + '.pdf' }];
+  } catch(e) { console.log('muni pdf failed', e); }
+  try {
+    await fetch(MAIL_SETTINGS.gasUrl, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify({ token: MAIL_SETTINGS.gasToken, to, subject, body: muniText(r), files }) });
+  } catch(e) { console.log('muni mail failed', e); }
+}
+
 function openInspectionForm(prefillPlate, forceBus) {
   _inspForceBus = !!forceBus;
   document.getElementById('forms-menu').style.display = 'none';
@@ -10672,7 +10931,7 @@ function sysAllowed(name) { return SYS_ENABLED[name] !== false; }
 // העמודה, ובצי של נופר היא מיותרת. הנתון נשלף בסנכרון ממילא, ולכן
 // עדיף שלקוח יראה אותו בלי להיות תלוי בסימון ידני שלי. כיבוי ללקוח
 // מסוים נעשה בפאנל ונשמר שם כ-false מפורש.
-let FEATURES = { weight: true, drivers: false, extraCerts: false, trafficMonths: 36, inspectionMonths: 0, singleSession: false, busForm: false, yearCol: false, splitName: false };
+let FEATURES = { weight: true, drivers: false, extraCerts: false, trafficMonths: 36, inspectionMonths: 0, singleSession: false, busForm: false, yearCol: false, municipalForm: false, splitName: false };
 function featureOn(name) { return FEATURES[name] === true; }
 // עמודת הטבלה מוסתרת ב-CSS ולא נמחקת מה-DOM, כדי שמספר התאים בכותרת,
 // בשורת הסינון ובשורות יישאר זהה — טבלה שיוצאת מיישור היא באג שקט.
@@ -10692,6 +10951,12 @@ function applyFeatureFlags() {
     const el = document.getElementById(id);
     if (el && !_owner) el.style.display = 'none';
   });
+  // טופס ב1 מוצג רק אצל מפעיל הסעות. אצל לקוח שאינו כזה הוא רק מבלבל
+  // את קצין הבטיחות ברשימת הטפסים.
+  const _bc = document.getElementById('bus-insp-card');
+  if (_bc) _bc.style.display = featureOn('busForm') ? '' : 'none';
+  const _mc = document.getElementById('muni-insp-card');
+  if (_mc) _mc.style.display = featureOn('municipalForm') ? '' : 'none';
   const _dh = document.getElementById('drv-hdr-name');
   if (_dh) _dh.textContent = featureOn('splitName') ? 'שם פרטי' : 'שם הנהג';
   const _hd = document.getElementById('hdr-driver');
@@ -10895,6 +11160,7 @@ async function resolveTenant(user) {
                    singleSession: _f.singleSession === true,
                    busForm: _f.busForm === true,
                    yearCol: _f.yearCol === true,
+                   municipalForm: _f.municipalForm === true,
                    splitName: _f.splitName === true };
       return;
     }
@@ -14538,6 +14804,7 @@ async function adminLoadClient() {
     document.getElementById('adm-splitname').checked = _af.splitName === true;
     document.getElementById('adm-busform').checked = _af.busForm === true;
     document.getElementById('adm-yearcol').checked = _af.yearCol === true;
+    document.getElementById('adm-muniform').checked = _af.municipalForm === true;
     _admLoadedUid = uid;
     st.textContent = '✓ נטען'; st.style.color = '#86efac';
   } catch(e) { st.textContent = _admPermErr(e); st.style.color = '#fca5a5'; console.log('adminLoadClient', e); }
@@ -14712,7 +14979,8 @@ async function adminSaveClient() {
       singleSession: !!document.getElementById('adm-single').checked,
       splitName: !!document.getElementById('adm-splitname').checked,
       busForm: !!document.getElementById('adm-busform').checked,
-      yearCol: !!document.getElementById('adm-yearcol').checked
+      yearCol: !!document.getElementById('adm-yearcol').checked,
+      municipalForm: !!document.getElementById('adm-muniform').checked
     }
   };
   st.textContent = 'שומר…'; st.style.color = '#94a3b8';
