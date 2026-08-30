@@ -1617,6 +1617,9 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
               <label style="display:flex;align-items:center;gap:6px;cursor:pointer" title="שם פרטי ושם משפחה בעמודות נפרדות בטבלה ובטופס הרכב">
                 <input id="adm-splitname" type="checkbox" style="width:16px;height:16px"><span>👤 שם פרטי ומשפחה בנפרד</span>
               </label>
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer" title="טופס ב1 של משרד התחבורה — בדיקת תקינות בטיחותית לאוטובוס. חל על רכבים מעל 5,000 ק&quot;ג בלבד; רכב קטן באותו חשבון ממשיך לקבל את הטופס הרגיל.">
+                <input id="adm-busform" type="checkbox" style="width:16px;height:16px"><span>🚌 טופס ביקורת לאוטובוס <span style="color:#94a3b8;font-weight:400">(מעל 5 טון)</span></span>
+              </label>
             </div>
             <div style="display:flex;gap:12px;margin-bottom:12px;flex-wrap:wrap;align-items:flex-end">
               <div class="modal-row" style="margin:0">
@@ -14453,6 +14456,7 @@ async function adminLoadClient() {
     document.getElementById('adm-inspmonths').value = _af.inspectionMonths || '';
     document.getElementById('adm-single').checked = _af.singleSession === true;
     document.getElementById('adm-splitname').checked = _af.splitName === true;
+    document.getElementById('adm-busform').checked = _af.busForm === true;
     _admLoadedUid = uid;
     st.textContent = '✓ נטען'; st.style.color = '#86efac';
   } catch(e) { st.textContent = _admPermErr(e); st.style.color = '#fca5a5'; console.log('adminLoadClient', e); }
@@ -14625,7 +14629,8 @@ async function adminSaveClient() {
       trafficMonths: parseInt(document.getElementById('adm-trafficmonths').value) || 0,
       inspectionMonths: parseInt(document.getElementById('adm-inspmonths').value) || 0,
       singleSession: !!document.getElementById('adm-single').checked,
-      splitName: !!document.getElementById('adm-splitname').checked
+      splitName: !!document.getElementById('adm-splitname').checked,
+      busForm: !!document.getElementById('adm-busform').checked
     }
   };
   st.textContent = 'שומר…'; st.style.color = '#94a3b8';
