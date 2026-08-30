@@ -737,6 +737,7 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
       <button class="btn btn-primary" style="padding:6px 14px;font-size:0.8rem" onclick="openDriverModal()">+ נהג חדש</button>
       <button class="btn-export" title="ייבוא מצבת נהגים מקובץ אקסל" onclick="document.getElementById('drv-imp-file').click()">📥 ייבוא מאקסל</button>
       <input type="file" id="drv-imp-file" accept=".xlsx,.xls,.csv" style="display:none" onchange="onDriversImportFile(this)">
+      <button class="btn-export" title="מאיפה מגיע כל נהג ברשימה" onclick="diagnoseDrivers()">🔎 מאיפה הנהגים</button>
       <button class="btn-export" title="בחר אילו עמודות יוצגו" onclick="toggleDrvColPicker()">🧩 עמודות</button>
       <button class="btn-export" onclick="exportSection('drivers')">📥 ייצוא Excel</button>
     </div>
@@ -2869,8 +2870,6 @@ async function runDriversImport(replace) {
   }
   try {
     await saveDriversExact();
-    try { localStorage.setItem('fleet_vehicles', JSON.stringify(VEHICLES)); } catch(e) {}
-    await saveToFirestore('vehicles', VEHICLES);
     renderDrivers(); renderFleet(); renderAlerts();
     toast('✓ ' + added + ' חדשים · ' + updated + ' עודכנו' +
           (removed ? (' · ' + removed + ' נמחקו') : '') +
@@ -2946,6 +2945,40 @@ function _purgeDriversFromFleet(keys) {
   });
   return { orphaned, rowsRemoved };
 }
+// ═══ אבחון: מאיפה מגיע כל נהג ברשימה ═══
+// הרשימה מורכבת משני מקורות — מה ששמור בענן, ומה שנבנה מתוך שמות
+// שיושבים על רכבים. כשההצבה יוצאת גדולה מהקובץ שיובא, השאלה היחידה
+// שחשובה היא מי הנוספים ומאיזה רכב הם הגיעו. במקום לנחש, מציגים.
+async function diagnoseDrivers() {
+  const cloudNames = new Set();
+  try {
+    const snap = await fcol().doc('main').get();
+    Object.keys((snap.data() || {}).drivers || {}).forEach(k => cloudNames.add(k));
+  } catch(e) { console.log('diagnoseDrivers read failed', e); }
+  const fromFleet = {};
+  VEHICLES.forEach(v => {
+    const k = driverKey(v.driverName);
+    if (!k) return;
+    (fromFleet[k] = fromFleet[k] || []).push((v.noVehicle ? 'עובד ללא רכב' : v.plate) || '—');
+  });
+  const all = Object.keys(DRIVERS);
+  const onlyFleet = all.filter(k => !cloudNames.has(k));
+  const onlyCloud = all.filter(k => cloudNames.has(k) && !fromFleet[k]);
+  const lines = onlyFleet.map(k => '• ' + k + '  ←  ' + (fromFleet[k] || ['לא ידוע']).join(', '));
+  console.log('נהגים שאינם שמורים בענן ונבנו מהצי:', onlyFleet);
+  console.log('לפי רכב:', fromFleet);
+  const body =
+    'סה"כ ברשימה: ' + all.length + String.fromCharCode(10) +
+    'שמורים בענן: ' + cloudNames.size + String.fromCharCode(10) +
+    'רק בענן (בלי רכב): ' + onlyCloud.length + String.fromCharCode(10) +
+    'נבנו מהצי ואינם בענן: ' + onlyFleet.length + String.fromCharCode(10,10) +
+    (onlyFleet.length
+      ? ('אלה הנוספים, ומאיזה רכב הם הגיעו:' + String.fromCharCode(10) + lines.slice(0, 30).join(String.fromCharCode(10)) +
+         (onlyFleet.length > 30 ? (String.fromCharCode(10) + '…ועוד ' + (onlyFleet.length - 30)) : ''))
+      : 'הרשימה זהה למה ששמור בענן.');
+  alert(body);
+  return { total: all.length, cloud: cloudNames.size, onlyFleet, fromFleet };
+}
 // ═══ בחירה מרובה של נהגים ═══
 // מצבת שיובאה מונה מאות שורות, ומחיקה אחת-אחת היא מאות אישורים.
 let _selDrv = new Set();
@@ -2998,8 +3031,6 @@ async function deleteSelectedDrivers() {
   clearDrvSel();
   try {
     await saveDriversExact();
-    try { localStorage.setItem('fleet_vehicles', JSON.stringify(VEHICLES)); } catch(e) {}
-    await saveToFirestore('vehicles', VEHICLES);
     renderDrivers(); renderFleet(); renderAlerts();
     toast(keys.length + ' נהגים נמחקו' + (orphaned ? (' · ' + orphaned + ' רכבים ללא נהג') : ''));
   } catch(e) {
@@ -3031,10 +3062,6 @@ async function deleteDriverRow(key) {
   document.getElementById('driver-modal').classList.remove('open');
   try {
     await saveDriversExact();
-    if (detached) {
-      try { localStorage.setItem('fleet_vehicles', JSON.stringify(VEHICLES)); } catch(e) {}
-      await saveToFirestore('vehicles', VEHICLES);
-    }
     renderDrivers(); renderFleet(); renderAlerts();
     toast(detached ? ('הנהג נמחק · ' + detached + ' רכבים נותרו ללא נהג') : 'הנהג נמחק');
   } catch(e) {
@@ -3319,14 +3346,21 @@ function mirrorToTenant(id, data, merge = true) {
 // בודדת, מרובה או בייבוא מחליף — נראתה כאילו עבדה וההצבה חזרה לגדול.
 // לכן מפה שנמחקים ממנה מפתחות נכתבת בשני שלבים: מחיקת השדה וכתיבתו
 // מחדש, כדי שהתוצאה בענן תהיה בדיוק מה שיש מקומית.
+// הנהגים והצי נשמרים יחד, ולא בשתי כתיבות נפרדות. הסיבה מדויקת: כתיבה
+// למסמך מפעילה את המאזין החי, שמחזיר את הצי מהענן ובונה ממנו מיד את
+// ספריית הנהגים. כששמרנו קודם את הנהגים, הצי שהמאזין החזיר היה עדיין
+// הישן — על רכביו נשארו שמות הנהגים שנמחקו — והם נבנו מחדש לפני שהצי
+// המעודכן הספיק להישמר. זו הסיבה שמחיקות "חזרו" ושמצבת שיובאה יצאה
+// גדולה מהקובץ. הצי נכלל בשתי הכתיבות כדי שגם הצילום שביניהן יישא אותו.
 async function saveDriversExact() {
   if (READ_ONLY) return _roBlock();
-  const val = stripUndef(DRIVERS);
+  const drv = stripUndef(DRIVERS), veh = stripUndef(VEHICLES);
   try {
     const F = firebase.firestore.FieldValue;
-    await fcol().doc('main').set({ drivers: F.delete() }, { merge: true });
-    await fcol().doc('main').set({ drivers: val }, { merge: true });
-    mirrorToTenant('main', { drivers: val });
+    await fcol().doc('main').set({ vehicles: veh, drivers: F.delete() }, { merge: true });
+    await fcol().doc('main').set({ vehicles: veh, drivers: drv }, { merge: true });
+    mirrorToTenant('main', { vehicles: veh, drivers: drv });
+    try { localStorage.setItem('fleet_vehicles', JSON.stringify(VEHICLES)); } catch(e) {}
   } catch(e) { console.log('saveDriversExact error', e); }
 }
 
