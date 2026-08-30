@@ -2709,7 +2709,6 @@ const DRIVER_IMPORT_FIELDS = [
   { key:'driverPhone',   syn:['טלפון סולולרי','טלפון סלולרי','טלפון נייד','פלאפון','נייד','טלפון'] },
   { key:'licNum',        syn:['מספר רישיון','מספר רשיון','מס רישיון','מס׳ רישיון'] },
   { key:'licenseExpiry', syn:['תוקף רישיון נהיגה','תוקף רישיון','תוקף רשיון'] },
-  { key:'affiliation',   syn:['מחלקה','אגף','שיוך'] },
   { key:'driverType',    syn:['סוג נהג'] },
   { key:'trafficValid',  syn:['תוקף בדיקת מידע תעבורתי','מידע תעבורתי','תקנה 585א','עבר תעבורתי'] },
   { key:'healthValid',   syn:['תוקף הצהרת בריאות','הצהרת בריאות'] },
@@ -2776,6 +2775,9 @@ async function onDriversImportFile(input) {
         const v = at(row, k);
         if (v) rec[k] = v;
       });
+      // מחלקה אינה מיובאת — הלקוח לא צריך אותה, והיא נצמדה לשם הנהג
+      // בכל מקום שבו הוא מוצג. ייבוא מנקה גם ערך שנכנס בייבוא קודם.
+      rec.affiliation = '';
       found.push({ name, rec });
     }
     if (!found.length) { toast('לא נמצאו נהגים בקובץ', true); return; }
@@ -2786,7 +2788,7 @@ async function onDriversImportFile(input) {
     if (!confirm('ייבוא מצבת נהגים לחשבון: ' + acct + String.fromCharCode(10,10) +
                  'נמצאו ' + found.length + ' נהגים בקובץ.' + String.fromCharCode(10) +
                  (existing ? ('מתוכם ' + existing + ' כבר קיימים — פרטיהם יעודכנו.' + String.fromCharCode(10)) : '') +
-                 'נהגים קיימים שאינם בקובץ לא יימחקו.' + String.fromCharCode(10,10) +
+                 'נהגים קיימים שאינם בקובץ לא יימחקו. שדה מחלקה יימחק.' + String.fromCharCode(10,10) +
                  'אם זה אינו החשבון הנכון — עצור עכשיו.' + String.fromCharCode(10,10) + 'להמשיך?')) return;
     let added = 0, updated = 0;
     found.forEach(f => {
