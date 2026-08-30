@@ -142,7 +142,9 @@ header{background:#1e40af;padding:9px 16px;display:flex;align-items:center;justi
 .nav-btn .icon{font-size:1.25rem;padding:2px 8px;border-radius:8px;transition:background .15s}
 /* Content */
 .tab-content{display:none;max-width:980px;margin:0 auto;padding:14px 12px}
-#tab-fleet,#tab-violations,#tab-incidents{max-width:100%;padding:10px 6px}
+/* לשונית נהגים נשארה ברוחב 980 של תוכן רגיל, ועם 16 עמודות רוב הטבלה
+   נדחסה לגלילה אופקית. היא טבלה, ולכן היא מקבלת את כל הרוחב כמו הצי. */
+#tab-fleet,#tab-drivers,#tab-violations,#tab-incidents{max-width:100%;padding:10px 6px}
 .tab-content.active{display:block}
 /* Cards */
 .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:12px;box-shadow:var(--shadow)}
@@ -1834,6 +1836,20 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
 </div>
 
 <!-- הוספה/עריכה של נהג. רק שדות ששייכים לאדם — לא לרכב. -->
+<!-- ייבוא נהגים: החלפה מלאה היא פעולה הרסנית, ולכן היא בחירה מפורשת
+     בשני כפתורים ולא ברירת מחדל של אישור/ביטול. -->
+<div class="modal-overlay" id="drvimp-modal">
+  <div class="modal" style="max-width:440px">
+    <h3>📥 ייבוא מצבת נהגים</h3>
+    <div id="drvimp-summary" style="font-size:0.84rem;line-height:1.7;color:var(--text)"></div>
+    <div id="drvimp-warn" style="display:none;margin-top:10px;padding:9px 11px;border-radius:10px;background:#fef2f2;border:1.5px solid #fecaca;color:#991b1b;font-size:0.78rem;font-weight:700;line-height:1.6"></div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:16px">
+      <button class="btn btn-primary" onclick="runDriversImport(false)">➕ הוסף ועדכן</button>
+      <button class="btn" style="background:#b45309;color:#fff" onclick="runDriversImport(true)">♻️ החלף את כל הרשימה</button>
+      <button class="btn btn-gray" style="margin-inline-start:auto" onclick="closeModal('drvimp-modal')">ביטול</button>
+    </div>
+  </div>
+</div>
 <div class="modal-overlay" id="driver-modal">
   <div class="modal">
     <h3 id="dm-title">+ נהג חדש</h3>
@@ -1854,10 +1870,10 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
     <div class="modal-row"><label>כתובת</label><input id="dm-addr" type="text" placeholder="רחוב, מספר, עיר"></div>
     <div class="modal-grid">
       <div class="modal-row"><label>תאריך לידה</label><input id="dm-birth" type="text" placeholder="יי.חח.שש" inputmode="numeric" oninput="dateAutoMask(this)"></div>
-      <div class="modal-row"><label>סוג נהג</label><input id="dm-dtype" type="text" placeholder="מורשה"></div>
+      <div class="modal-row"><label>סוג נהג</label><select id="dm-dtype"><option value=""></option><option>מורשה</option><option>רכב צמוד</option></select></div>
       <div class="modal-row"><label>תוקף בדיקת מידע תעבורתי <span style="font-weight:400;color:#94a3b8;font-size:0.68rem">(תקנה 585א)</span></label><input id="dm-trafficvalid" type="text" placeholder="יי.חח.שש" inputmode="numeric" oninput="dateAutoMask(this)"></div>
       <div class="modal-row"><label>תוקף הצהרת בריאות</label><input id="dm-health" type="text" placeholder="יי.חח.שש" inputmode="numeric" oninput="dateAutoMask(this)"></div>
-      <div class="modal-row"><label>סטטוס נהג</label><input id="dm-status" type="text" placeholder="פעיל"></div>
+      <div class="modal-row"><label>סטטוס נהג</label><select id="dm-status"><option value=""></option><option>פעיל</option><option>לא פעיל</option></select></div>
       <div class="modal-row"><label>קוד אישי</label><input id="dm-code" type="text" style="direction:ltr"></div>
     </div>
     <div class="modal-row"><label>הערות</label><textarea id="dm-notes" rows="2"></textarea></div>
@@ -2687,6 +2703,10 @@ function openDriverModal(key) {
   val('dm-birth', d.birthDate); val('dm-dtype', d.driverType);
   val('dm-trafficvalid', d.trafficValid); val('dm-health', d.healthValid);
   val('dm-status', d.status); val('dm-code', d.personalCode);
+  // ערך שהגיע מקובץ הלקוח ואינו אחת האפשרויות (למשל סוג נהג אחר)
+  // מתווסף כאפשרות במקום להיעלם בשקט בפתיחת המסך.
+  _selEnsure('dm-dtype', d.driverType);
+  _selEnsure('dm-status', d.status);
   document.getElementById('dm-err').textContent = '';
   document.getElementById('dm-del').style.display = key ? '' : 'none';
   const vs = key ? driverVehicles(key) : [];
@@ -2781,30 +2801,79 @@ async function onDriversImportFile(input) {
       found.push({ name, rec });
     }
     if (!found.length) { toast('לא נמצאו נהגים בקובץ', true); return; }
-    // אותו לקח מהייבוא של הצי: אישור שאינו אומר לאיזה חשבון הוא כותב
-    // הוא איך שמצבת של לקוח אחד נוחתת אצל אחר.
+    window._drvImpPending = found;
     const acct = COMPANY_NAME || TENANT;
     const existing = found.filter(f => DRIVERS[f.name]).length;
-    if (!confirm('ייבוא מצבת נהגים לחשבון: ' + acct + String.fromCharCode(10,10) +
-                 'נמצאו ' + found.length + ' נהגים בקובץ.' + String.fromCharCode(10) +
-                 (existing ? ('מתוכם ' + existing + ' כבר קיימים — פרטיהם יעודכנו.' + String.fromCharCode(10)) : '') +
-                 'נהגים קיימים שאינם בקובץ לא יימחקו. שדה מחלקה יימחק.' + String.fromCharCode(10,10) +
-                 'אם זה אינו החשבון הנכון — עצור עכשיו.' + String.fromCharCode(10,10) + 'להמשיך?')) return;
-    let added = 0, updated = 0;
-    found.forEach(f => {
-      if (DRIVERS[f.name]) updated++; else added++;
-      DRIVERS[f.name] = Object.assign(DRIVERS[f.name] || {}, f.rec);
-      syncDriverToVehicles(f.name);
-    });
-    saveToFirestore('drivers', DRIVERS);
-    try { localStorage.setItem('fleet_vehicles', JSON.stringify(VEHICLES)); } catch(e) {}
-    saveToFirestore('vehicles', VEHICLES);
-    renderDrivers(); renderFleet(); renderAlerts();
-    toast('✓ יובאו ' + added + ' נהגים חדשים, ' + updated + ' עודכנו');
+    const names = new Set(found.map(f => f.name));
+    const dropped = Object.keys(DRIVERS).filter(k => !names.has(k));
+    const droppedWithVeh = dropped.filter(k => driverVehicles(k).length);
+    document.getElementById('drvimp-summary').innerHTML =
+      '<b>חשבון:</b> ' + esc(acct) + '<br>' +
+      'נמצאו <b>' + found.length + '</b> נהגים בקובץ.<br>' +
+      (existing ? ('מתוכם <b>' + existing + '</b> כבר קיימים ויעודכנו.<br>') : '') +
+      '<br><b>הוסף ועדכן</b> — משאיר נהגים קיימים שאינם בקובץ.<br>' +
+      '<b>החלף את כל הרשימה</b> — משאיר בדיוק את מה שבקובץ.';
+    const warn = document.getElementById('drvimp-warn');
+    if (dropped.length) {
+      warn.innerHTML = '⚠ בהחלפה מלאה יימחקו <b>' + dropped.length + '</b> נהגים שאינם בקובץ' +
+        (droppedWithVeh.length ? (', ומתוכם <b>' + droppedWithVeh.length + '</b> משויכים לרכבים — הרכבים יישארו במערכת ללא נהג') : '') + '.';
+      warn.style.display = 'block';
+    } else { warn.style.display = 'none'; }
+    document.getElementById('drvimp-modal').classList.add('open');
   } catch (e) {
     console.log('drivers import failed', e);
     toast('⚠ הייבוא נכשל: ' + (e.message || e), true);
   }
+}
+// ההחלפה מוחקת גם את שם הנהג מהרכבים שהוא מחזיק. בלי זה ספריית
+// הנהגים נבנית מחדש מהצי והנהגים שנמחקו היו חוזרים מיד.
+async function runDriversImport(replace) {
+  const found = window._drvImpPending || [];
+  if (!found.length) return;
+  closeModal('drvimp-modal');
+  let added = 0, updated = 0, removed = 0, orphaned = 0;
+  if (replace) {
+    const names = new Set(found.map(f => f.name));
+    Object.keys(DRIVERS).forEach(k => {
+      if (names.has(k)) return;
+      removed++;
+      VEHICLES.forEach(v => {
+        if (driverKey(v.driverName) !== k) return;
+        orphaned++;
+        ['driverName','firstName','lastName','driverPhone','driverEmail','licenseExpiry','trafficRecord']
+          .forEach(f => { if (v[f] !== undefined) v[f] = ''; });
+      });
+      delete DRIVERS[k];
+    });
+  }
+  found.forEach(f => {
+    if (DRIVERS[f.name]) updated++; else added++;
+    DRIVERS[f.name] = Object.assign(DRIVERS[f.name] || {}, f.rec);
+    syncDriverToVehicles(f.name);
+  });
+  try {
+    await saveToFirestore('drivers', DRIVERS);
+    try { localStorage.setItem('fleet_vehicles', JSON.stringify(VEHICLES)); } catch(e) {}
+    await saveToFirestore('vehicles', VEHICLES);
+    renderDrivers(); renderFleet(); renderAlerts();
+    toast('✓ ' + added + ' חדשים · ' + updated + ' עודכנו' +
+          (removed ? (' · ' + removed + ' נמחקו') : '') +
+          (orphaned ? (' · ' + orphaned + ' רכבים ללא נהג') : ''));
+  } catch(e) {
+    console.log('drivers import save failed', e);
+    toast('⚠ השמירה נכשלה: ' + (e.code || e.message), true);
+  }
+  window._drvImpPending = null;
+}
+function _selEnsure(id, value) {
+  const el = document.getElementById(id);
+  if (!el || !value) return;
+  if (![...el.options].some(o => o.value === value)) {
+    const o = document.createElement('option');
+    o.value = value; o.textContent = value;
+    el.appendChild(o);
+  }
+  el.value = value;
 }
 async function saveDriver() {
   const g = id => (document.getElementById(id).value || '').trim();
@@ -2841,19 +2910,46 @@ async function saveDriver() {
 }
 function deleteDriver() { deleteDriverRow(_editingDriverKey); }
 // מחיקה ישירה משורת הטבלה, בלי לפתוח את הטופס קודם
-function deleteDriverRow(key) {
+// מחיקת נהג שמשויך אליו רכב לא עבדה: ספריית הנהגים נבנית מחדש מתוך
+// הצי בכל רינדור, ולכן הרשומה חזרה מיד. ההודעה הישנה אף אמרה זאת
+// למשתמש כעובדה — כלומר הכפתור הציג מחיקה שאינה מתרחשת.
+// עכשיו מחיקה אמיתית: השם ופרטי האדם יורדים גם מהרכבים שהוא מחזיק,
+// והרכבים עצמם נשארים במקומם ללא נהג.
+async function deleteDriverRow(key) {
   if (!key || !DRIVERS[key]) return;
+  if (READ_ONLY) { toast('מצב צפייה בלבד — אי אפשר למחוק.', true); return; }
   const vs = driverVehicles(key);
   const msg = vs.length
-    ? `ל${key} משויכים ${vs.length} רכבים (${vs.map(v => v.plate).join(', ')}).\n\nמחיקה מספר הנהגים לא תמחק את הרכבים ולא תנתק אותם — השם יישאר עליהם, והנהג יחזור לרשימה בטעינה הבאה.\n\nלמחוק בכל זאת?`
-    : `למחוק את ${key} מספר הנהגים?`;
+    ? 'למחוק את ' + key + ' מספר הנהגים?' + String.fromCharCode(10,10) +
+      'משויכים אליו ' + vs.length + ' רכבים: ' + vs.map(v => v.plate).join(', ') + String.fromCharCode(10,10) +
+      'הרכבים לא יימחקו — הם יישארו במערכת ללא נהג, ופרטי הנהג יוסרו מהם.' + String.fromCharCode(10,10) +
+      'להמשיך?'
+    : 'למחוק את ' + key + ' מספר הנהגים?';
   if (!confirm(msg)) return;
+  // פרטים שהם של האדם ולא של הרכב — יורדים יחד איתו, אחרת הרכב היה
+  // נשאר עם טלפון ותוקף רישיון של מי שכבר אינו נהג בו.
+  let detached = 0;
+  VEHICLES.forEach(v => {
+    if (driverKey(v.driverName) !== key) return;
+    detached++;
+    ['driverName','firstName','lastName','driverPhone','driverEmail','licenseExpiry','trafficRecord']
+      .forEach(f => { if (v[f] !== undefined) v[f] = ''; });
+  });
   delete DRIVERS[key];
-  saveToFirestore('drivers', DRIVERS);
-  document.getElementById('driver-modal').classList.remove('open');
   if (_editingDriverKey === key) _editingDriverKey = null;
-  renderDrivers();
-  toast('הנהג נמחק');
+  document.getElementById('driver-modal').classList.remove('open');
+  try {
+    await saveToFirestore('drivers', DRIVERS);
+    if (detached) {
+      try { localStorage.setItem('fleet_vehicles', JSON.stringify(VEHICLES)); } catch(e) {}
+      await saveToFirestore('vehicles', VEHICLES);
+    }
+    renderDrivers(); renderFleet(); renderAlerts();
+    toast(detached ? ('הנהג נמחק · ' + detached + ' רכבים נותרו ללא נהג') : 'הנהג נמחק');
+  } catch(e) {
+    console.log('deleteDriverRow failed', e);
+    toast('⚠ המחיקה נכשלה: ' + (e.code || e.message), true);
+  }
 }
 // שתי הפעולות האלה בנויות סביב רכב (טפסי קבלת רכב, ומגירת מסמכים לפי
 // רישוי), ולכן מהנהג מתרגמים לרכב שלו. כשיש כמה — נפתח הראשון ונאמר
@@ -8612,8 +8708,11 @@ function editVehicle(plate) {
   renderVehicleDocsUI();   // show this vehicle's saved documents
   document.getElementById('vehicle-modal').classList.add('open');
 }
-function closeModal() {
-  document.getElementById('vehicle-modal').classList.remove('open');
+// קיבלה שם חלון בכמה מקומות אך תמיד סגרה את חלון הרכב, ולכן חלונות
+// אחרים נשארו פתוחים אחרי הפעולה. ברירת המחדל נשמרת לקריאות הישנות.
+function closeModal(id) {
+  const el = document.getElementById(id || 'vehicle-modal');
+  if (el) el.classList.remove('open');
 }
 // ── INCIDENT (accident) add / edit ──
 let _editIncidentId = null;
