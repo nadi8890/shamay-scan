@@ -8011,6 +8011,14 @@ async function approveRequest(id) {
         saveVehiclesSafely(v.plate, null, v.plate);
       }
     }
+    // עד כה רק העלאה ידנית של המנהל החליפה מסמך קודם. מסמך שהעובד
+    // שלח נערם לצידו, ובתיק הרכב הצטברו כמה רישיונות רכב או ביטוחים
+    // ולא היה ברור איזה מהם התקף.
+    for (const k of _kinds) {
+      if (!docReplaces(k)) continue;
+      try { await _replaceOlderDocs(k, r.plate, r.driver || '', r._docId); }
+      catch(e) { console.log('replace after approve', k, e); }
+    }
     toast('הקריאה אושרה ונסגרה ✓');
     loadPendingRequests(); renderAlerts(); renderFleet(); renderDashboard();
   } catch(e) { toast('שגיאה באישור', true); console.log(e); }
@@ -9954,12 +9962,33 @@ async function deleteReqRecord(docId) {
   } catch(e) { toast('שגיאה במחיקה', true); console.log('deleteReqRecord', e); }
 }
 
+// ═══ מי מחליף ומי נערם ═══
+// ההבחנה אינה טכנית אלא מהותית: יש מסמכים שקיים מהם אחד תקף בכל רגע,
+// ויש כאלה שמטבעם יש כמה במקביל.
+//   רישיון רכב, ביטוח ונהלים — אחד תקף; חדש מחליף את הקודם.
+//   רישיון נהיגה והצהרת בני משפחה — ריבוי מסמכים (כמה נהגים, כמה בני
+//   משפחה), ולכן מסמך חדש נוסף ואינו מוחק דבר.
+// סוג שאינו מופיע כאן אינו מוחק — ברירת מחדל שאינה הרסנית. תחקיר
+// תאונה ומבחן נהיגה הם רשומות של אירוע ואסור שיידרסו.
+const DOC_REPLACES = {
+  registration: true,
+  insurance:    true,
+  procedures:   true,
+  license:      false,
+  family:       false
+};
+function docReplaces(kind) { return DOC_REPLACES[kind] === true; }
+
 // מסמך חדש מחליף את הקודם מאותו סוג ולאותו נושא, במקום להיערם.
 // רישיון נהיגה שייך לנהג ולכן מושווה לפי שם הנהג; רישיון רכב וביטוח
 // שייכים לרכב ולכן לפי מספר רישוי. מסמך מסוג אחר לעולם לא נמחק.
 // המחיקה בלתי הפיכה — העותק הישן נשאר במייל שנשלח בזמן ההעלאה.
 async function _replaceOlderDocs(kind, plate, driver, keepDocId) {
-  const t = (kind === 'license') ? 'licensedocs' : 'vehicledocs';
+  // שער יחיד: סוג שאינו מחליף יוצא כאן, בלי קשר למי קרא לו.
+  if (!docReplaces(kind)) return 0;
+  const t = (kind === 'procedures') ? 'declaration'
+          : (kind === 'license')    ? 'licensedocs'
+                                    : 'vehicledocs';
   const pk = _cpk2(plate || '');
   const dk = driverKey(driver || '');
   let removed = 0;
@@ -9970,9 +9999,9 @@ async function _replaceOlderDocs(kind, plate, driver, keepDocId) {
       const r = d.data() || {};
       // רק אותו סוג בדיוק. רשומה בלי סיווג (imgKinds מעורב) לא נגעת בה,
       // כי אי אפשר לדעת אם היא מכילה גם מסמך אחר.
-      const rk = r.reqType || r.docKind || '';
+      const rk = (t === 'declaration') ? (r.formType || '') : (r.reqType || r.docKind || '');
       if (rk !== kind) continue;
-      const sameSubject = (kind === 'license')
+      const sameSubject = (kind === 'license' || kind === 'procedures')
         ? (dk && driverKey(r.driver || r.name || '') === dk)
         : (pk && _cpk2(r.plate || '') === pk);
       if (!sameSubject) continue;
