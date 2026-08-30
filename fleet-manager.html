@@ -2833,18 +2833,18 @@ async function runDriversImport(replace) {
   closeModal('drvimp-modal');
   let added = 0, updated = 0, removed = 0, orphaned = 0;
   if (replace) {
+    // גם נהג שיושב רק על רכב ואינו ברשימת הנהגים חייב לרדת, אחרת
+    // הספרייה בונה אותו מחדש מהצי וההצבה נשארת גדולה מהקובץ.
     const names = new Set(found.map(f => f.name));
-    Object.keys(DRIVERS).forEach(k => {
-      if (names.has(k)) return;
-      removed++;
-      VEHICLES.forEach(v => {
-        if (driverKey(v.driverName) !== k) return;
-        orphaned++;
-        ['driverName','firstName','lastName','driverPhone','driverEmail','licenseExpiry','trafficRecord']
-          .forEach(f => { if (v[f] !== undefined) v[f] = ''; });
-      });
-      delete DRIVERS[k];
+    const drop = new Set(Object.keys(DRIVERS).filter(k => !names.has(k)));
+    VEHICLES.forEach(v => {
+      const k = driverKey(v.driverName);
+      if (k && !names.has(k)) drop.add(k);
     });
+    removed = drop.size;
+    const _p3 = _purgeDriversFromFleet([...drop]);
+    orphaned = _p3.orphaned + _p3.rowsRemoved;
+    drop.forEach(k => delete DRIVERS[k]);
   }
   found.forEach(f => {
     if (DRIVERS[f.name]) updated++; else added++;
@@ -2911,6 +2911,25 @@ async function saveDriver() {
 function deleteDriver() { deleteDriverRow(_editingDriverKey); }
 // מחיקה ישירה משורת הטבלה, בלי לפתוח את הטופס קודם
 // מחיקת נהג שמשויך אליו רכב לא עבדה: ספריית הנהגים נבנית מחדש מתוך
+// ספריית הנהגים נבנית מחדש מהצי בכל רינדור, ולכן נהג שנמחק חוזר כל עוד
+// נשאר לו זכר שם בצי. יש שני סוגי זכר, ורק אחד מהם טופל:
+//   1. רכב אמיתי שהוא מחזיק — השם ופרטיו יורדים ממנו, הרכב נשאר.
+//   2. עובד ללא רכב, שיושב בצי כשורת מציין-מקום (noVehicle). היא אינה
+//      נספרת כרכב, ולכן המחיקה דילגה עליה והנהג נבנה ממנה מחדש — זה
+//      מה שגרם ל"מחקתי והשורה חוזרת".
+function _purgeDriversFromFleet(keys) {
+  const gone = new Set(keys);
+  let orphaned = 0, rowsRemoved = 0;
+  const PERSON = ['driverName','firstName','lastName','driverPhone','driverEmail','licenseExpiry','trafficRecord'];
+  VEHICLES = VEHICLES.filter(v => {
+    if (!gone.has(driverKey(v.driverName))) return true;
+    if (v.noVehicle) { rowsRemoved++; return false; }
+    orphaned++;
+    PERSON.forEach(f => { if (v[f] !== undefined) v[f] = ''; });
+    return true;
+  });
+  return { orphaned, rowsRemoved };
+}
 // ═══ בחירה מרובה של נהגים ═══
 // מצבת שיובאה מונה מאות שורות, ומחיקה אחת-אחת היא מאות אישורים.
 let _selDrv = new Set();
@@ -2957,14 +2976,8 @@ async function deleteSelectedDrivers() {
                String.fromCharCode(10,10) +
                (withVeh.length ? ('ל-' + withVeh.length + ' מהם משויכים רכבים — הרכבים יישארו במערכת ללא נהג.' + String.fromCharCode(10,10)) : '') +
                'להמשיך?')) return;
-  let orphaned = 0;
-  const gone = new Set(keys);
-  VEHICLES.forEach(v => {
-    if (!gone.has(driverKey(v.driverName))) return;
-    orphaned++;
-    ['driverName','firstName','lastName','driverPhone','driverEmail','licenseExpiry','trafficRecord']
-      .forEach(f => { if (v[f] !== undefined) v[f] = ''; });
-  });
+  const _p2 = _purgeDriversFromFleet(keys);
+  const orphaned = _p2.orphaned + _p2.rowsRemoved;
   keys.forEach(k => delete DRIVERS[k]);
   clearDrvSel();
   try {
@@ -2995,13 +3008,8 @@ async function deleteDriverRow(key) {
   if (!confirm(msg)) return;
   // פרטים שהם של האדם ולא של הרכב — יורדים יחד איתו, אחרת הרכב היה
   // נשאר עם טלפון ותוקף רישיון של מי שכבר אינו נהג בו.
-  let detached = 0;
-  VEHICLES.forEach(v => {
-    if (driverKey(v.driverName) !== key) return;
-    detached++;
-    ['driverName','firstName','lastName','driverPhone','driverEmail','licenseExpiry','trafficRecord']
-      .forEach(f => { if (v[f] !== undefined) v[f] = ''; });
-  });
+  const _p1 = _purgeDriversFromFleet([key]);
+  const detached = _p1.orphaned + _p1.rowsRemoved;
   delete DRIVERS[key];
   if (_editingDriverKey === key) _editingDriverKey = null;
   document.getElementById('driver-modal').classList.remove('open');
