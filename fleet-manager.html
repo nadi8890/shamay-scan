@@ -1534,7 +1534,7 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
     </div>
     <!-- ביקורת לאוטובוס שאינו בצי: קצין הבטיחות נקרא לבדוק אוטובוס של
          גורם אחר, ואין לו רכב במערכת שלפיו ייבחר הטופס. -->
-    <div class="form-card" id="bus-insp-card" style="display:none;background:linear-gradient(135deg,#7c2d12,#c2410c);border-color:#7c2d12" onclick="openInspectionForm('', true)">
+    <div class="form-card" id="bus-insp-card" style="background:linear-gradient(135deg,#7c2d12,#c2410c);border-color:#7c2d12" onclick="openInspectionForm('', true)">
       <span style="font-size:2.2rem">🚌</span>
       <div><div style="font-weight:800;color:#fff;font-size:1rem">ביקורת אוטובוס ורכב ציבורי</div>
       <div style="font-size:0.75rem;color:#fed7aa">טופס ב1 המלא — גם לרכב שאינו בצי. נשמר בביקורות שבוצעו ונשלח למייל</div></div>
@@ -1624,8 +1624,8 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
               <label style="display:flex;align-items:center;gap:6px;cursor:pointer" title="שם פרטי ושם משפחה בעמודות נפרדות בטבלה ובטופס הרכב">
                 <input id="adm-splitname" type="checkbox" style="width:16px;height:16px"><span>👤 שם פרטי ומשפחה בנפרד</span>
               </label>
-              <label style="display:flex;align-items:center;gap:6px;cursor:pointer" title="טופס ב1 של משרד התחבורה — בדיקת תקינות בטיחותית לאוטובוס. חל על רכבים מעל 5,000 ק&quot;ג בלבד; רכב קטן באותו חשבון ממשיך לקבל את הטופס הרגיל.">
-                <input id="adm-busform" type="checkbox" style="width:16px;height:16px"><span>🚌 טופס ביקורת לאוטובוס <span style="color:#94a3b8;font-weight:400">(מעל 5 טון)</span></span>
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer" title="טופס ב1 של משרד התחבורה — בדיקת תקינות בטיחותית לאוטובוס ורכב ציבורי. מוחל על כל רכבי הלקוח.">
+                <input id="adm-busform" type="checkbox" style="width:16px;height:16px"><span>🚌 טופס ביקורת ציבורי לכל הצי <span style="color:#94a3b8;font-weight:400">(מפעיל הסעות)</span></span>
               </label>
             </div>
             <div style="display:flex;gap:12px;margin-bottom:12px;flex-wrap:wrap;align-items:flex-end">
@@ -6381,12 +6381,10 @@ const BUS_INSPECTION_SECTIONS = [
 // מוכר במערכת — זה בדיוק המקרה של בדיקה לאוטובוס של גורם אחר.
 let _inspForceBus = false;
 function inspSections() {
-  if (_inspForceBus && featureOn('busForm')) return BUS_INSPECTION_SECTIONS;
-  if (!featureOn('busForm')) return INSPECTION_SECTIONS;
-  const el = document.getElementById('if-plate');
-  const plate = el ? (el.value || '').trim() : '';
-  const v = VEHICLES.find(x => String(x.plate).replace(/\D/g, '') === String(plate).replace(/\D/g, ''));
-  return (v && vehWeightKg(v) >= HEAVY_KG) ? BUS_INSPECTION_SECTIONS : INSPECTION_SECTIONS;
+  // אצל מפעיל הסעות הטופס הציבורי חל על כל הצי, גם על רכב קטן: הנוסעים
+  // והאחריות זהים, ותנאי משקל היה מפצל את אותה חברה לשני טפסים.
+  if (featureOn('busForm') || _inspForceBus) return BUS_INSPECTION_SECTIONS;
+  return INSPECTION_SECTIONS;
 }
 // שינוי רכב באמצע הטופס יכול להחליף את סוגו; התשובות שנרשמו לסעיפים
 // שקיימים בשני הטפסים נשמרות, והשאר מתאפס ל"תקין".
@@ -10626,8 +10624,6 @@ function applyFeatureFlags() {
     const el = document.getElementById(id);
     if (el && !_owner) el.style.display = 'none';
   });
-  const _bc = document.getElementById('bus-insp-card');
-  if (_bc) _bc.style.display = featureOn('busForm') ? '' : 'none';
   const _dh = document.getElementById('drv-hdr-name');
   if (_dh) _dh.textContent = featureOn('splitName') ? 'שם פרטי' : 'שם הנהג';
   const _hd = document.getElementById('hdr-driver');
