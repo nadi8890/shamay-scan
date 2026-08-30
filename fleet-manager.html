@@ -1678,6 +1678,7 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
       <div class="insp-section-hdr">⚙️ לאן נשלחות הביקורות במייל</div>
       <div style="padding:10px">
         <div class="modal-row"><label>כתובת מייל לקבלת ביקורות (מייל עבודה)</label><input id="ms-recipient" type="email" placeholder="name@company.co.il" style="direction:ltr"></div>
+        <div class="modal-row" style="margin-top:6px"><label>טלפון מחלקת הרכב<span style="font-weight:400;color:#94a3b8;font-size:0.7rem"> — מוצג לנהגים בבוט כשאין לו תשובה. בלי זה הבוט יפנה אותם למחלקת הרכב בלי מספר</span></label><input id="ms-carphone" type="tel" placeholder="050-0000000" style="direction:ltr"></div>
         <div class="modal-row" style="margin-top:6px"><label>שירות המייל שלך (לשליחת התראות מסמכים)</label>
           <select id="ms-provider">
             <option value="outlook">Outlook / Microsoft 365</option>
@@ -3420,9 +3421,13 @@ async function writePubRoster() {
     // רשומה בספר. אי אפשר לשלוח איתו מייל חופשי.
     const mailSettings = { gasUrl: ms.gasUrl || '', mailProvider: ms.mailProvider || '',
                            fromEmail: ms.fromEmail || '', publicToken: ms.gasPublicToken || '' };
+    // זהות הלקוח לבוט: בלעדיה הבוט מציג לנהגים את שם החברה, הספקים
+    // ומספר הקצב"ת של נופר. שם החברה וטלפון מחלקת הרכב אינם מידע רגיש —
+    // הם ממילא מה שהנהג אמור לראות.
+    const org = { name: COMPANY_NAME || '', phone: ms.carDeptPhone || '' };
     // set ללא merge - כתיבה זו דורסת את המסמך כולו ולכן מוחקת בפועל את
     // officerSignature ואת הטלפונים שנכתבו בגרסאות קודמות
-    await fcol().doc('pubroster').set({ vehicles: stripUndef(vehicles), mailSettings, updatedAt: Date.now() });
+    await fcol().doc('pubroster').set({ vehicles: stripUndef(vehicles), mailSettings, org, updatedAt: Date.now() });
   } catch(e) { console.log('pubroster write failed', e.code || e.message); }
 }
 async function saveVehiclesSafely(editedPlate, dk, origPlate) {
@@ -6370,6 +6375,7 @@ function renderAlertFilter() {
 function saveMailSettings() {
   MAIL_SETTINGS = {
     recipient: document.getElementById('ms-recipient').value.trim(),
+    carDeptPhone: document.getElementById('ms-carphone').value.trim(),
     fromEmail: document.getElementById('ms-from').value.trim(),
     accountingEmail: document.getElementById('ms-accounting').value.trim(),
     mailProvider: document.getElementById('ms-provider').value,
@@ -6449,6 +6455,7 @@ function renderFormsTab() {
   document.getElementById('forms-menu').style.display = '';
   document.getElementById('inspection-form').style.display = 'none';
   document.getElementById('ms-recipient').value = MAIL_SETTINGS.recipient || '';
+  document.getElementById('ms-carphone').value = MAIL_SETTINGS.carDeptPhone || '';
   document.getElementById('ms-from').value = MAIL_SETTINGS.fromEmail || '';
   document.getElementById('ms-accounting').value = MAIL_SETTINGS.accountingEmail || '';
   document.getElementById('ms-provider').value = MAIL_SETTINGS.mailProvider || 'outlook';
