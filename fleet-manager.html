@@ -8137,6 +8137,7 @@ function buildDynamicAlerts() {
       missDoc('registration', 'חסר: תוקף רישוי (טסט)', v.registrationExpiry);
       missDoc('insurance', 'חסר: תוקף ביטוח חובה', v.insuranceExpiry);
       if (!_trailer) missDoc('license', 'חסר: רישיון נהיגה', v.licenseExpiry);
+      if (!_trailer) missDoc('traffic', 'חסר: עבר תעבורתי', v.trafficRecord);
     }
     // Safety inspection — dynamic: last inspection date + 3 months (>3yr vehicle) or 6 months
     const inspDays = daysUntilNextInsp(v);
@@ -9810,6 +9811,7 @@ function reqKinds(r) {
   if (lab.includes('ביטוח')) out.push('insurance');
   if (lab.includes('רישוי') || lab.includes('טסט')) out.push('registration');
   if (lab.includes('רישיון נהיגה')) out.push('license');
+  if (lab.includes('עבר תעבורתי')) out.push('traffic');
   return out;
 }
 function _reqDoc(r, kind, images) {
@@ -9861,7 +9863,7 @@ async function tagReqFile(docId, fileIdx, kind) {
     else if (window._empdocsDriver) openEmployeeDocs('', window._empdocsDriver);
   } catch(e) { toast('שגיאה בתיוג', true); console.log('tagReqFile', e); }
 }
-const _REQ_TITLE = { insurance: 'תעודת ביטוח', registration: 'רישיון רכב', license: 'רישיון נהיגה' };
+const _REQ_TITLE = { insurance: 'תעודת ביטוח', registration: 'רישיון רכב', license: 'רישיון נהיגה', traffic: 'אישור עבר תעבורתי' };
 // ביטוח ורישיון רכב מגיעים כשתי קריאות נפרדות. בחירת "הרשומה האחרונה"
 // בלבד הסתירה את אחת מהן, ולכן נלקח כאן העדכני ביותר מכל סוג.
 function latestPerKind(arr, fallbackTitle) {
@@ -10292,6 +10294,10 @@ const MDOC_VEH_PROMPT = `אלה צילומים של מסמכי רכב ישראל
 3) insuranceExpiry: בתעודת ביטוח החובה, "מועד פקיעת הביטוח" / "בתוקף עד" — תאריך הסיום
 שדה שאינו מופיע — החזר "". אל תנחש. החזר JSON בלבד:
 {"plate":"","registrationExpiry":"DD/MM/YYYY","insuranceExpiry":"DD/MM/YYYY"}`;
+const MDOC_TRF_PROMPT = `זהו אישור או דוח עבר תעבורתי של נהג ישראלי (רשות הרישוי / משטרת ישראל). חלץ אך ורק:
+1) trafficDate: תאריך הפקת הדוח או תאריך הבדיקה
+שדה שאינו מופיע — החזר "". אל תנחש. החזר JSON בלבד:
+{"trafficDate":"DD/MM/YYYY"}`;
 const MDOC_LIC_PROMPT = `אלה צילומים של רישיון נהיגה ישראלי. חלץ אך ורק:
 1) licenseExpiry: תאריך תפוגת הרישיון — מופיע ליד השדה המסומן "4b" (בתוקף עד). קח את התאריך המאוחר.
 2) licNum: מספר הרישיון / תעודת הזהות של בעל הרישיון
@@ -10387,10 +10393,13 @@ async function onManualDocFiles(input) {
   _mdocScan();
 }
 
+// רישיון נהיגה ועבר תעבורתי שייכים לאדם; רישיון רכב וביטוח שייכים לרכב
+function _mdocIsDriverKind(k) { return k === 'license' || k === 'traffic'; }
 function _mdocFields() {
   const k = document.getElementById('mdoc-kind').value;
-  document.getElementById('mdoc-veh').style.display = (k === 'license') ? 'none' : 'block';
+  document.getElementById('mdoc-veh').style.display = _mdocIsDriverKind(k) ? 'none' : 'block';
   document.getElementById('mdoc-lic').style.display = (k === 'license') ? 'block' : 'none';
+  document.getElementById('mdoc-trf').style.display = (k === 'traffic') ? 'block' : 'none';
   document.getElementById('mdoc-title').textContent = '➕ ' + (_REQ_TITLE[k] || 'מסמך') +
     (_MDOC && _MDOC.plate ? ' · ' + _MDOC.plate : '');
 }
@@ -10401,11 +10410,14 @@ async function _mdocScan() {
   el.textContent = '🔍 קורא את המסמך…';
   const k = document.getElementById('mdoc-kind').value;
   try {
-    const out = await scanDatesFromImages(_MDOC.images, k === 'license' ? MDOC_LIC_PROMPT : MDOC_VEH_PROMPT);
+    const _prompt = k === 'license' ? MDOC_LIC_PROMPT : k === 'traffic' ? MDOC_TRF_PROMPT : MDOC_VEH_PROMPT;
+    const out = await scanDatesFromImages(_MDOC.images, _prompt);
     const set = (id, val) => { const e = document.getElementById(id); if (val && !e.value) e.value = val; };
     const ok = d => d && parseDate(d);
     let got = [];
-    if (k === 'license') {
+    if (k === 'traffic') {
+      if (ok(out.trafficDate)) { set('mdoc-trfdate', out.trafficDate); got.push('תאריך הבדיקה'); }
+    } else if (k === 'license') {
       if (ok(out.licenseExpiry)) { set('mdoc-licexp', out.licenseExpiry); got.push('תוקף'); }
       if (out.licNum) { set('mdoc-licnum', String(out.licNum)); got.push('מספר רישיון'); }
     } else {
@@ -10592,8 +10604,9 @@ async function saveManualDoc() {
   const reg = document.getElementById('mdoc-reg').value.trim();
   const ins = document.getElementById('mdoc-ins').value.trim();
   const lex = document.getElementById('mdoc-licexp').value.trim();
-  if (k !== 'license' && !plate) { toast('חסר מספר רישוי', true); return; }
-  for (const [d, nm] of [[reg,'תוקף טסט'], [ins,'תוקף ביטוח'], [lex,'תוקף רישיון']])
+  const trf = document.getElementById('mdoc-trfdate').value.trim();
+  if (!_mdocIsDriverKind(k) && !plate) { toast('חסר מספר רישוי', true); return; }
+  for (const [d, nm] of [[reg,'תוקף טסט'], [ins,'תוקף ביטוח'], [lex,'תוקף רישיון'], [trf,'תאריך העבר התעבורתי']])
     if (bad(d)) { toast(nm + ' אינו תאריך תקין', true); return; }
 
   const bytes = _MDOC.images.reduce((n, b) => n + b.length, 0);
@@ -10603,7 +10616,7 @@ async function saveManualDoc() {
   const created = Date.now();
   try {
     await fcol().doc('mdoc_' + created).set({
-      type: k === 'license' ? 'licensedocs' : 'vehicledocs',
+      type: _mdocIsDriverKind(k) ? 'licensedocs' : 'vehicledocs',
       reqType: k, source: 'manual', created,
       dateStr: new Date(created).toLocaleDateString('he-IL'),
       plate, driver: _MDOC.driver || '',
@@ -10617,7 +10630,7 @@ async function saveManualDoc() {
     const _replaced = await _replaceOlderDocs(k, plate, _MDOC.driver || '', 'mdoc_' + created);
     // עדכון התוקפים בכרטיס הרכב, כדי שההתראות ייעלמו
     const v = VEHICLES.find(x => _cpk2(x.plate) === _cpk2(plate)) ||
-              (k === 'license' ? VEHICLES.find(x => _cpk2(x.plate) === _cpk2(_MDOC.plate)) : null);
+              (_mdocIsDriverKind(k) ? VEHICLES.find(x => _cpk2(x.plate) === _cpk2(_MDOC.plate)) : null);
     if (v) {
       if (reg) v.registrationExpiry = reg;
       if (ins) v.insuranceExpiry = ins;
@@ -10627,12 +10640,20 @@ async function saveManualDoc() {
         if (dk) { DRIVERS[dk] = DRIVERS[dk] || {}; DRIVERS[dk].licenseExpiry = lex;
                   if (typeof syncDriverToVehicles === 'function') syncDriverToVehicles(dk); }
       }
-      if (reg || ins || lex) saveVehiclesSafely(v.plate, null, v.plate);
+      // העבר התעבורתי נשמר על הנהג ולא על הרכב, ולכן הוא נשאר איתו
+      // כשהוא מחליף רכב — כמו רישיון הנהיגה
+      if (trf) {
+        v.trafficRecord = trf;
+        const dkt = driverKey(v.driverName);
+        if (dkt) { DRIVERS[dkt] = DRIVERS[dkt] || {}; DRIVERS[dkt].trafficRecord = trf;
+                   if (typeof syncDriverToVehicles === 'function') syncDriverToVehicles(dkt); }
+      }
+      if (reg || ins || lex || trf) saveVehiclesSafely(v.plate, null, v.plate);
     }
     document.getElementById('mdoc-modal').classList.remove('open');
     // אומרים במפורש שמסמך קודם הוחלף — מחיקה שקטה היא הפתעה רעה
     toast('✓ המסמך נשמר בתיק'
-          + (v && (reg || ins || lex) ? ' והתוקף עודכן' : '')
+          + (v && (reg || ins || lex || trf) ? ' והתוקף עודכן' : '')
           + (_replaced ? ` · הוחלף ${_replaced === 1 ? 'המסמך הקודם' : _replaced + ' מסמכים קודמים'}` : ''));
     if (typeof renderAlerts === 'function') renderAlerts();
     if (typeof renderFleet === 'function') renderFleet();
@@ -10768,7 +10789,7 @@ async function openEmployeeDocs(plate, driverOnly){
     // קריאה היא כמעט תמיד מסמך של הרכב — רישיון רכב, ביטוח, אישור טיפול —
     // ולכן היא נשארת עם הרכב. היוצא מן הכלל הוא רישיון נהיגה, שהוא של
     // האדם ועובר איתו כשהוא מחליף רכב.
-    const _reqIsDriver = r => reqKinds(r).includes('license');
+    const _reqIsDriver = r => { const kk = reqKinds(r); return kk.includes('license') || kk.includes('traffic'); };
     const reqSel = (reqs||[]).filter(r => _reqIsDriver(r)
         ? (dkey && _dk(r.driver||r.name)===dkey)
         : String(r.plate||'').replace(/\D/g,'')===pk
@@ -13978,6 +13999,7 @@ function renderAgentMsgs(showTyping = false) {
         <option value="registration">🚗 רישיון רכב (טסט)</option>
         <option value="insurance">🛡️ תעודת ביטוח חובה</option>
         <option value="license">🪪 רישיון נהיגה</option>
+        <option value="traffic">📋 אישור עבר תעבורתי</option>
       </select>
     </div>
     <div id="mdoc-veh">
@@ -13988,6 +14010,11 @@ function renderAgentMsgs(showTyping = false) {
     <div id="mdoc-lic" style="display:none">
       <div class="modal-row" style="margin-top:6px"><label>תוקף רישיון נהיגה</label><input id="mdoc-licexp" type="text" placeholder="dd/mm/yyyy" style="direction:ltr"></div>
       <div class="modal-row" style="margin-top:6px"><label>מספר רישיון / ת.ז</label><input id="mdoc-licnum" type="text" style="direction:ltr"></div>
+    </div>
+    <!-- בעבר תעבורתי נשמר מועד הביצוע ולא התוקף; התוקף נגזר ממנו לפי
+         מספר החודשים שהוגדר ללקוח, בדיוק כמו בשדה שבכרטיס הרכב. -->
+    <div id="mdoc-trf" style="display:none">
+      <div class="modal-row" style="margin-top:6px"><label>תאריך ביצוע הבדיקה</label><input id="mdoc-trfdate" type="text" placeholder="dd/mm/yyyy" style="direction:ltr"></div>
     </div>
     <div id="mdoc-warn" style="font-size:0.74rem;color:#b45309;margin-top:8px"></div>
     <div class="btn-row" style="margin-top:12px">
