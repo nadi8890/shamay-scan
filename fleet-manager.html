@@ -5954,6 +5954,28 @@ const GOV_RESOURCES = [
 const GOV_MODELS_RESOURCE = '142afde2-6228-49f9-8a29-9b6c3a0cbe40';
 let _govSeq = 0;
 
+const _GOV_CACHE_MAX = 400;   // רכבים; מעבר לזה נזרקות הרשומות הישנות
+function _govCacheKey() { return 'fleet_govCache_' + (typeof TENANT !== 'undefined' ? TENANT : ''); }
+function _govCacheRead() {
+  try { return JSON.parse(localStorage.getItem(_govCacheKey())) || {}; } catch(e) { return {}; }
+}
+function _govCacheGet(plate) {
+  const c = _govCacheRead()[plate];
+  return (c && c.rec) ? c : null;
+}
+function _govCachePut(plate, rec) {
+  try {
+    const all = _govCacheRead();
+    all[plate] = { rec, at: Date.now() };
+    const keys = Object.keys(all);
+    if (keys.length > _GOV_CACHE_MAX) {
+      keys.sort((a, b) => (all[a].at || 0) - (all[b].at || 0))
+          .slice(0, keys.length - _GOV_CACHE_MAX).forEach(k => delete all[k]);
+    }
+    localStorage.setItem(_govCacheKey(), JSON.stringify(all));
+  } catch(e) { /* מכסת אחסון מלאה — המטמון הוא נוחות, לא תלות */ }
+}
+
 function govJsonp(rid, query, timeoutMs) {
   return new Promise((resolve, reject) => {
     const cb = '_govCb' + (++_govSeq) + '_' + Math.floor(Date.now() % 1e7);
@@ -6105,10 +6127,12 @@ function govMerge(n, m) {
 // Error בעוד ששאילתה בסיסית עובדת. במצב כזה אסור לומר "לא נמצא",
 // כי הרכב כן קיים — פשוט אי אפשר להגיע אליו כרגע.
 let GOV_LAST_ERROR = '';
+// מתמלא כשהרשומה הוגשה מהמטמון ולא מהמאגר החי, כדי שהמסך יאמר את האמת
+let GOV_FROM_CACHE = '';
 
 async function govVehicleRecord(rawPlate) {
   const plate = String(rawPlate || '').replace(/\D/g, '');
-  GOV_LAST_ERROR = '';
+  GOV_LAST_ERROR = ''; GOV_FROM_CACHE = '';
   if (!plate) return null;
   const num = parseInt(plate, 10);
   let serverErr = 0, netErr = 0;
@@ -6123,7 +6147,7 @@ async function govVehicleRecord(rawPlate) {
     for (const rid of GOV_RESOURCES) {
       try {
         const rec = pick(await govJsonp(rid, filter));
-        if (rec) return rec;
+        if (rec) { _govCachePut(plate, rec); return rec; }
       } catch(e) { netErr++; console.log('gov lookup failed on', rid, e && e.message); }
     }
   }
@@ -6131,10 +6155,22 @@ async function govVehicleRecord(rawPlate) {
   // גיבוי: חיפוש חופשי, וגם סריקה לפי שדה טקסטואלי במאגר הראשי
   try {
     const rec = pick(await govJsonp(GOV_RESOURCES[0], 'q=' + encodeURIComponent(plate)));
-    if (rec) return rec;
+    if (rec) { _govCachePut(plate, rec); return rec; }
   } catch(e) { netErr++; console.log('gov text lookup failed:', e && e.message); }
 
-  if (serverErr || netErr) GOV_LAST_ERROR = serverErr ? 'המאגר הממשלתי מחזיר שגיאה' : 'אין מענה מהמאגר';
+  // המאגר לא ענה. אם הרכב הזה נשלף בעבר בהצלחה — עדיף להגיש את הרשומה
+  // השמורה מאשר לא כלום, ובלבד שנאמר במפורש שהיא לא טרייה.
+  if (serverErr || netErr) {
+    const c = _govCacheGet(plate);
+    if (c) {
+      const days = Math.floor((Date.now() - (c.at || 0)) / 86400000);
+      GOV_LAST_ERROR = '';
+      GOV_FROM_CACHE = days <= 0 ? 'מנתונים שמורים (נשלפו היום)'
+                                 : 'מנתונים שמורים (' + days + ' ימים)';
+      return c.rec;
+    }
+    GOV_LAST_ERROR = serverErr ? 'המאגר הממשלתי מחזיר שגיאה' : 'אין מענה מהמאגר';
+  }
   return null;
 }
 
@@ -11762,17 +11798,27 @@ function wipeSeedData() {
   // כאן אִפסה למשתמש את הבחירות שלו בכל רענון. במקום זה הן נשמרות
   // תחת מפתח שכולל את מזהה הלקוח, כך שאין גם דליפה בין לקוחות.
 }
+// המטמון של משרד התחבורה מכיל מספרי רישוי, ולכן הוא נמחק יחד עם שאר
+// המטמונים כשמתחלף הדייר במכשיר
+function _wipeGovCache() {
+  try {
+    Object.keys(localStorage).filter(k => k.indexOf('fleet_govCache_') === 0)
+      .forEach(k => localStorage.removeItem(k));
+  } catch(e) {}
+}
 function guardTenantCache() {
   // For ANY tenant other than the primary (nofar), clear the seed literals on EVERY load —
   // not just once — because the literals re-init on refresh and the old cache-flag guard
   // would skip the wipe, leaking Nofar's data into other companies' screens.
   if (TENANT !== 'nofar') {
+    if (localStorage.getItem('fleet_cache_tenant') !== TENANT) _wipeGovCache();
     wipeSeedData();
     localStorage.setItem('fleet_cache_tenant', TENANT);
     return;
   }
   // Primary tenant: only wipe when actually switching away from another tenant's cache.
   if (localStorage.getItem('fleet_cache_tenant') === TENANT) return;
+  _wipeGovCache();
   wipeSeedData();
   localStorage.setItem('fleet_cache_tenant', TENANT);
 }
@@ -13466,7 +13512,8 @@ function _govRenderStatus(justFilled) {
     const el = document.getElementById(id);
     return el && el.value !== val;
   });
-  let html = `✅ נמצא: ${esc(title)}`;
+  let html = `${GOV_FROM_CACHE ? '🗄️' : '✅'} נמצא: ${esc(title)}`;
+  if (GOV_FROM_CACHE) html += ` <span style="color:#b45309">· ${esc(GOV_FROM_CACHE)} — המאגר הממשלתי לא זמין כרגע</span>`;
   if (justFilled) html += ` · מולאו ${justFilled}`;
   if (diff.length) {
     const list = diff.map(([, lab, val]) => lab + ': ' + val).join(' · ');
