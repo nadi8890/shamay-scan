@@ -11835,6 +11835,7 @@ async function doSignup() {
   const btn = document.getElementById('lg-btn');
   btn.disabled = true; btn.textContent = 'יוצר חשבון...';
   try {
+    _markLoginClicked();
     await auth.setPersistence(MULTI_WIN ? firebase.auth.Auth.Persistence.SESSION : firebase.auth.Auth.Persistence.LOCAL);
     const cred = await auth.createUserWithEmailAndPassword(email, pass);
     try {
@@ -11885,11 +11886,15 @@ function doLogin() {
     btn.disabled = false; btn.textContent = 'התחברות';
     err.textContent = 'ההתחברות נתקעה בשלב: ' + _bootStage + '. נסה שוב, ואם חוזר — שלח לי את השלב הזה.';
   }, 25000);
+  _markLoginClicked();
   auth.setPersistence(MULTI_WIN ? firebase.auth.Auth.Persistence.SESSION : firebase.auth.Auth.Persistence.LOCAL)
     .then(() => { _bootStage = 'מאמת סיסמה'; return auth.signInWithEmailAndPassword(email, pass); })
-    .then(() => { _bootStage = 'טוען את החשבון'; })
+    .then(() => { _bootStage = 'טוען את החשבון'; return _bootFromUser(auth.currentUser); })
     .catch(e => {
       clearTimeout(window._loginWatchdog);
+      // כניסה שנכשלה אינה כניסה: בלי האיפוס, ניסיון שגוי היה מסמן את
+      // הפתיחה כמאושרת ורענון היה נכנס בלי סיסמה
+      try { sessionStorage.removeItem(_LOGIN_CLICK_KEY); } catch(e2) {}
       btn.disabled = false; btn.textContent = 'התחברות';
       const m = { 'auth/wrong-password':'סיסמה שגויה', 'auth/user-not-found':'משתמש לא קיים', 'auth/invalid-email':'אימייל לא תקין', 'auth/invalid-credential':'אימייל או סיסמה שגויים', 'auth/too-many-requests':'יותר מדי ניסיונות — נסה שוב בעוד כמה דקות' };
       err.textContent = (m[e.code] || 'שגיאת התחברות') + (e.code ? ' (' + e.code + ')' : '');
@@ -11905,18 +11910,47 @@ function doReset() {
     .catch(() => { err.textContent = 'לא ניתן לשלוח — בדוק את האימייל'; });
 }
 function doLogout() {
-  if (confirm('להתנתק מהמערכת?')) { releaseSession(); auth.signOut().then(() => location.reload()); }
-}
-auth.onAuthStateChanged(async user => {
-  // An anonymous session (left over from a driver page on the same site) must NOT
-  // count as a manager login — it can read but not write, which looks like a
-  // "permission denied" on save. Force a real email/password login instead.
-  if (user && user.isAnonymous) {
-    try { await auth.signOut(); } catch(e) {}
-    document.getElementById('login-gate').style.display = 'flex';
-    return;
+  if (confirm('להתנתק מהמערכת?')) {
+    // sessionStorage שורד את הרענון, ולכן בלי הניקוי הזה הדגל היה נשאר דלוק
+    try { sessionStorage.removeItem(_LOGIN_CLICK_KEY); } catch(e) {}
+    releaseSession(); auth.signOut().then(() => location.reload());
   }
-  if (user) {
+}
+// ═══ כניסה מפורשת בלבד ═══
+// החיבור נשמר בדפדפן (Persistence.LOCAL), ולכן כל פתיחה של המערכת נכנסה
+// אוטומטית לחשבון האחרון בלי לעבור במסך הכניסה. מי שקיבל את הקישור —
+// לקוח פוטנציאלי, או מישהו שהמכשיר עבר לידיו — נחת ישר בתוך חשבון קיים.
+// עכשיו נדרשת לחיצה על "התחברות" בכל פתיחה. הדגל יושב ב-sessionStorage
+// ולא ב-localStorage בכוונה: הוא שורד רענון של הדף (כדי שלא תיזרק מהעבודה
+// באמצע), אבל לא סגירה של הלשונית.
+const _LOGIN_CLICK_KEY = 'fleet_loginClicked';
+function _loginClickedThisSession() {
+  try { return sessionStorage.getItem(_LOGIN_CLICK_KEY) === '1'; } catch(e) { return false; }
+}
+function _markLoginClicked() {
+  try { sessionStorage.setItem(_LOGIN_CLICK_KEY, '1'); } catch(e) {}
+}
+function _showLoginGate() {
+  const g = document.getElementById('login-gate');
+  if (g) g.style.display = 'flex';
+  const btn = document.getElementById('lg-btn');
+  if (btn) { btn.disabled = false; btn.textContent = 'התחברות'; }
+  // מילוי המייל האחרון, כדי שיישאר רק להקליד סיסמה (או שמנהל
+  // הסיסמאות של הדפדפן ימלא גם אותה)
+  try {
+    const em = document.getElementById('lg-email');
+    const last = localStorage.getItem('fleet_lastEmail');
+    if (em && last && !em.value) { em.value = last; const pw = document.getElementById('lg-pass'); if (pw) pw.focus(); }
+  } catch(e) {}
+}
+
+// רצף הכניסה עצמו. נקרא גם מהמאזין וגם מ-doLogin, כי כשכבר יש חיבור
+// שמור התחברות חוזרת של אותו משתמש לא תמיד מפעילה את המאזין מחדש.
+let _authBootRunning = false;
+async function _bootFromUser(user) {
+  if (!user || _appBooted || _authBootRunning) return;
+  _authBootRunning = true;
+  try {
     _bootStage = 'מזהה את הלקוח';
     await resolveTenant(user); // which company this account belongs to
     if (!TENANT) { tenantAlarm('לא ניתן לזהות את הלקוח'); return; }
@@ -11928,18 +11962,23 @@ auth.onAuthStateChanged(async user => {
     _bootStage = 'טוען נתונים';
     clearTimeout(window._loginWatchdog);
     bootApp();
-  } else {
+  } finally { _authBootRunning = false; }
+}
+
+auth.onAuthStateChanged(async user => {
+  // An anonymous session (left over from a driver page on the same site) must NOT
+  // count as a manager login — it can read but not write, which looks like a
+  // "permission denied" on save. Force a real email/password login instead.
+  if (user && user.isAnonymous) {
+    try { await auth.signOut(); } catch(e) {}
     document.getElementById('login-gate').style.display = 'flex';
-    const btn = document.getElementById('lg-btn');
-    if (btn) { btn.disabled = false; btn.textContent = 'התחברות'; }
-    // מילוי המייל האחרון, כדי שיישאר רק להקליד סיסמה (או שמנהל
-    // הסיסמאות של הדפדפן ימלא גם אותה)
-    try {
-      const em = document.getElementById('lg-email');
-      const last = localStorage.getItem('fleet_lastEmail');
-      if (em && last && !em.value) { em.value = last; const pw = document.getElementById('lg-pass'); if (pw) pw.focus(); }
-    } catch(e) {}
+    return;
   }
+  // חיבור שמור מפתיחה קודמת אינו כניסה. לא מנתקים אותו — כך לחיצה על
+  // "התחברות" עם הסיסמה שמנהל הסיסמאות מילא נכנסת מיד.
+  if (user && !_loginClickedThisSession()) { _showLoginGate(); return; }
+  if (user) await _bootFromUser(user);
+  else _showLoginGate();
 });
 window.onload = () => {
   // Owner-only back door: signup is hidden for everyone; add ?signup=1 to the URL to
