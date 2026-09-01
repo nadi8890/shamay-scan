@@ -196,16 +196,17 @@ tr:hover td{background:#f0f7ff!important}
 #tab-fleet table th,#tab-fleet table td{padding:8px 6px}
 #tab-fleet #fleet-thead th:nth-child(2),
 #tab-fleet #fleet-body td:nth-child(2){min-width:118px;max-width:140px;white-space:normal;overflow-wrap:anywhere}
-/* עמודות השם. בלי min-width הן נדחסו לכ-35px כשיש הרבה עמודות, והכותרת
-   "שם משפחה" נשברה לשלוש שורות ונראתה חתוכה. הרוחב מספיק לשם רגיל,
-   והכותרות אינן נשברות באמצע מילה. */
-#tab-fleet #fleet-thead th:nth-child(6),
-#tab-fleet #fleet-body td:nth-child(6),
+/* עמודות השם — נהג (7) ומשפחה (8). בלי min-width הן נדחסות לכ-35px
+   כשיש הרבה עמודות, והכותרת נשברת ונראית חתוכה. המיקומים כאן חייבים
+   לעקוב אחרי סדר העמודות: הוספת קוד תוצר, קוד דגם ומשקל הזיזה אותן
+   ב-3, והכלל נשאר על משקל ונהג במקום על נהג ומשפחה. */
 #tab-fleet #fleet-thead th:nth-child(7),
-#tab-fleet #fleet-body td:nth-child(7){min-width:76px;max-width:104px;white-space:normal;overflow-wrap:normal;word-break:keep-all}
-/* עמודת החברה */
+#tab-fleet #fleet-body td:nth-child(7),
 #tab-fleet #fleet-thead th:nth-child(8),
-#tab-fleet #fleet-body td:nth-child(8){max-width:92px;white-space:normal;overflow-wrap:anywhere}
+#tab-fleet #fleet-body td:nth-child(8){min-width:76px;max-width:104px;white-space:normal;overflow-wrap:normal;word-break:keep-all}
+/* עמודת החברה */
+#tab-fleet #fleet-thead th:nth-child(9),
+#tab-fleet #fleet-body td:nth-child(9){max-width:92px;white-space:normal;overflow-wrap:anywhere}
 /* כותרות: שתי שורות לכל היותר, בלי שבירה באמצע מילה */
 #tab-fleet #fleet-thead th{word-break:keep-all;hyphens:none}
 /* עמודת הפעולות — הכפתורים כבר ברשת 2×2, אין צורך ברוחב נוסף */
@@ -222,10 +223,10 @@ tr:hover td{background:#f0f7ff!important}
   #tab-fleet table th{font-size:0.62rem}
   #tab-fleet #fleet-thead th:nth-child(2),
   #tab-fleet #fleet-body td:nth-child(2){min-width:100px;max-width:118px}
-  #tab-fleet #fleet-thead th:nth-child(6),
-  #tab-fleet #fleet-body td:nth-child(6),
   #tab-fleet #fleet-thead th:nth-child(7),
-  #tab-fleet #fleet-body td:nth-child(7){max-width:74px}
+  #tab-fleet #fleet-body td:nth-child(7),
+  #tab-fleet #fleet-thead th:nth-child(8),
+  #tab-fleet #fleet-body td:nth-child(8){max-width:74px}
 }
 .cell-red{background:#fef2f2!important}
 .cell-orange{background:#fff7ed!important}
@@ -604,7 +605,7 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
           <th><div class="th-sort" onclick="sortFleetCol('degemCd')">קוד דגם<span class="sort-arrow" id="sarr-degemCd">⇅</span></div></th>
           <th class="col-weight"><div class="th-sort" onclick="sortFleetCol('weight')">משקל כולל<span class="sort-arrow" id="sarr-weight">⇅</span></div></th>
           <th><div class="th-sort" onclick="sortFleetCol('driver')"><span id="hdr-driver">נהג</span><span class="sort-arrow" id="sarr-driver">⇅</span></div></th>
-          <th class="col-lastname"><div class="th-sort" onclick="sortFleetCol('lastname')">שם משפחה<span class="sort-arrow" id="sarr-lastname">⇅</span></div></th>
+          <th class="col-lastname"><div class="th-sort" onclick="sortFleetCol('lastname')">משפחה<span class="sort-arrow" id="sarr-lastname">⇅</span></div></th>
           <th class="col-dept"><div class="th-sort" onclick="sortFleetCol('dept')">מחלקה<span class="sort-arrow" id="sarr-dept">⇅</span></div></th>
           <th><div class="th-sort" onclick="sortFleetCol('company')">חברה<span class="sort-arrow" id="sarr-company">⇅</span></div></th>
           <th><div class="th-sort" onclick="sortFleetCol('reg')">תוקף רישוי<span class="sort-arrow" id="sarr-reg">⇅</span></div></th>
@@ -763,7 +764,7 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
       <thead id="drivers-thead">
         <tr>
           <th><div class="th-sort" onclick="sortDrvCol('name')"><span id="drv-hdr-name">שם הנהג</span><span class="sort-arrow" id="dsarr-name">⇅</span></div></th>
-          <th class="col-lastname"><div class="th-sort" onclick="sortDrvCol('lastname')">שם משפחה<span class="sort-arrow" id="dsarr-lastname">⇅</span></div></th>
+          <th class="col-lastname"><div class="th-sort" onclick="sortDrvCol('lastname')">משפחה<span class="sort-arrow" id="dsarr-lastname">⇅</span></div></th>
           <th class="col-dept"><div class="th-sort" onclick="sortDrvCol('dept')">מחלקה<span class="sort-arrow" id="dsarr-dept">⇅</span></div></th>
           <th><div class="th-sort" onclick="sortDrvCol('id')">ת.ז<span class="sort-arrow" id="dsarr-id">⇅</span></div></th>
           <th><div class="th-sort" onclick="sortDrvCol('phone')">טלפון<span class="sort-arrow" id="dsarr-phone">⇅</span></div></th>
@@ -4998,7 +4999,7 @@ function sortDrvCol(col) {
 // מיקום העמודה, כדי שכותרת, שורת סינון ושורות יישארו מיושרות.
 const DRV_COLS = [
   { i:1,  label:'שם הנהג' },
-  { i:2,  label:'שם משפחה', feat:'splitName' },
+  { i:2,  label:'משפחה', feat:'splitName' },
   { i:3,  label:'ת.ז' },         { i:4,  label:'טלפון' },
   { i:5,  label:'מייל' },        { i:6,  label:'מס׳ רישיון' },
   { i:7,  label:'תוקף רישיון' }, { i:8,  label:'עבר תעבורתי' },
@@ -5130,7 +5131,7 @@ const FLEET_COLS = [
   { i:4,  label:'קוד תוצר' },    { i:5,  label:'קוד דגם' },
   { i:6,  label:'משקל כולל', feat:'weight' },
   { i:7,  label:'נהג' },
-  { i:8,  label:'שם משפחה', feat:'splitName' },
+  { i:8,  label:'משפחה', feat:'splitName' },
   { i:9,  label:'חברה' },
   { i:10,  label:'תוקף רישוי' },  { i:11, label:'תוקף ביטוח' },
   { i:12, label:'רישיון נהג' },  { i:13, label:'טיפול הבא' },
