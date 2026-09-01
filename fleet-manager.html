@@ -607,6 +607,8 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
           <th><div class="th-sort" onclick="sortFleetCol('driver')"><span id="hdr-driver">נהג</span><span class="sort-arrow" id="sarr-driver">⇅</span></div></th>
           <th class="col-lastname"><div class="th-sort" onclick="sortFleetCol('lastname')">משפחה<span class="sort-arrow" id="sarr-lastname">⇅</span></div></th>
           <th class="col-dept"><div class="th-sort" onclick="sortFleetCol('dept')">מחלקה<span class="sort-arrow" id="sarr-dept">⇅</span></div></th>
+          <th class="col-vstatus"><div class="th-sort" onclick="sortFleetCol('vstatus')">סטטוס רכב<span class="sort-arrow" id="sarr-vstatus">⇅</span></div></th>
+          <th class="col-vstatus2"><div class="th-sort" onclick="sortFleetCol('vstatus2')">סטטוס משני<span class="sort-arrow" id="sarr-vstatus2">⇅</span></div></th>
           <th><div class="th-sort" onclick="sortFleetCol('company')">חברה<span class="sort-arrow" id="sarr-company">⇅</span></div></th>
           <th><div class="th-sort" onclick="sortFleetCol('reg')">תוקף רישוי<span class="sort-arrow" id="sarr-reg">⇅</span></div></th>
           <th><div class="th-sort" onclick="sortFleetCol('ins')">תוקף ביטוח<span class="sort-arrow" id="sarr-ins">⇅</span></div></th>
@@ -1049,6 +1051,8 @@ body.read-only{padding-top:38px}
 body:not(.feat-certs) .col-cert{display:none}
 body:not(.feat-splitname) .col-lastname{display:none}
 body:not(.feat-dept) .col-dept{display:none}
+body:not(.feat-vstatus) .col-vstatus,
+body:not(.feat-vstatus) .col-vstatus2{display:none}
 body:not(.feat-yearcol) .col-year{display:none}
 /* לשונית הנהגים מוצגת רק ללקוח שהופעלה אצלו */
 body:not(.feat-drivers) .feat-drivers-only{display:none!important}</style>
@@ -1647,6 +1651,9 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
               <label style="display:flex;align-items:center;gap:6px;cursor:pointer" title="עמודת מחלקה בטבלת הנהגים — לרשויות ולארגונים שמחלקים עובדים למחלקות">
                 <input id="adm-dept" type="checkbox" checked style="width:16px;height:16px"><span>🏛️ מחלקה לנהגים <span style="color:#94a3b8;font-weight:400">(דלוק כברירת מחדל)</span></span>
               </label>
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer" title="סטטוס רכב וסטטוס רכב משני בטבלת הצי — לרשויות שמנהלות רכבים שכורים, בליסינג ובהטבה">
+                <input id="adm-vstatus" type="checkbox" checked style="width:16px;height:16px"><span>🏷️ סטטוס רכב <span style="color:#94a3b8;font-weight:400">(דלוק כברירת מחדל)</span></span>
+              </label>
               <label style="display:flex;align-items:center;gap:6px;cursor:pointer" title="טופס ב1 של משרד התחבורה — בדיקת תקינות בטיחותית לאוטובוס ורכב ציבורי. מוחל על כל רכבי הלקוח.">
                 <input id="adm-busform" type="checkbox" style="width:16px;height:16px"><span>🚌 טופס ביקורת ציבורי לכל הצי <span style="color:#94a3b8;font-weight:400">(מפעיל הסעות)</span></span>
               </label>
@@ -2036,6 +2043,8 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
       <div class="modal-row"><label>קוד תוצר <span style="font-weight:400;color:#94a3b8;font-size:0.7rem">(ממשרד התחבורה)</span></label><input id="m-tozeretCd" type="text" placeholder="305" inputmode="numeric" style="direction:ltr"></div>
       <div class="modal-row"><label>קוד דגם</label><input id="m-degemCd" type="text" placeholder="1" style="direction:ltr"></div>
       <div class="modal-row" id="m-weight-row"><label>משקל כולל (ק״ג)</label><input id="m-weight" type="text" placeholder="1610" inputmode="numeric" style="direction:ltr"></div>
+      <div class="modal-row col-vstatus"><label>סטטוס רכב</label><select id="m-vstatus"><option value=""></option><option>פעיל</option><option>שכור</option><option>מושבת</option></select></div>
+      <div class="modal-row col-vstatus2"><label>סטטוס רכב משני</label><select id="m-vstatus2"><option value=""></option><option>פעיל</option><option>רכב ליסינג שכור</option><option>רכב ליסינג הטבה</option><option>מושבת</option></select></div>
       <div class="modal-row"><label>שם נהג</label><input id="m-driver" type="text" placeholder="הקלד שם — ייפתחו הצעות" list="drivers-datalist" autocomplete="off" oninput="autoFillDriverFields()" onchange="autoFillDriverFields()"><datalist id="drivers-datalist"></datalist><div id="m-driver-hint" style="display:none;font-size:0.7rem;color:#059669;font-weight:700;margin-top:3px"></div></div>
       <div class="modal-row"><label>נייד נהג</label><input id="m-phone" type="tel" placeholder="050-0000000" style="direction:ltr"></div>
       <div class="modal-row"><label>מייל נהג<span style="font-weight:400;color:#94a3b8;font-size:0.7rem"> — לצפייה במסמכים שלו</span></label><input id="m-email" type="email" placeholder="name@example.com" style="direction:ltr"></div>
@@ -3869,6 +3878,22 @@ function parseVehicleYear(yearStr) {
   }
   return null;
 }
+// תדירות הבדיקה של רכב מסוים, בחודשים. בקובץ מצבת הרכבים של רשות
+// התדירות מוגדרת פר-רכב ("בדיקה תקופתית - תלת חודשית"), ובלעדיה כל הצי
+// מחושב לפי גיל הרכב ותאריכי היעד יוצאים שגויים לחלק מהרכבים.
+// סדר הבדיקות אינו שרירותי: "תלת חודשית" מכיל "חודשית", ו"חצי שנתית"
+// מכיל "שנתית" — בדיקה בסדר אחר הייתה מחזירה 1 ו-12 בטעות.
+function vehInspMonths(v) {
+  const n = parseInt(v && v.inspEvery, 10);
+  if (n > 0) return n;
+  const t = String((v && v.inspType) || '').trim();
+  if (!t) return 0;
+  if (/תלת\s*חודשית|רבעונ/.test(t)) return 3;
+  if (/חצי\s*שנתית|חציונ/.test(t)) return 6;
+  if (/חודשית/.test(t)) return 1;
+  if (/שנתית/.test(t)) return 12;
+  return 0;
+}
 function nextInspectionDate(v) {
   const lastInsp = parseDate(v.inspection);
   if (!lastInsp) return null;
@@ -3877,7 +3902,9 @@ function nextInspectionDate(v) {
   const ageYears = vehicleStart ? (now - vehicleStart) / (365.25 * 24 * 3600 * 1000) : 999;
   // ברירת המחדל תלוית גיל הרכב (חצי שנה עד 3 שנים, אחרת רבעון). לקוח
   // שהוגדר לו מרווח קבוע — למשל צי שנבדק כל חודש — גובר עליה.
-  const monthsToAdd = FEATURES.inspectionMonths || (ageYears <= 3 ? 6 : 3);
+  // סדר העדיפות: מה שמוגדר על הרכב עצמו, אחריו מרווח קבוע ללקוח,
+  // ורק אז ברירת המחדל לפי גיל
+  const monthsToAdd = vehInspMonths(v) || FEATURES.inspectionMonths || (ageYears <= 3 ? 6 : 3);
   const next = new Date(lastInsp);
   next.setMonth(next.getMonth() + monthsToAdd);
   return next;
@@ -4956,7 +4983,7 @@ function renderDashboard() {
 
 // ── FLEET SORT/FILTER ──
 let fleetSort = { col: null, dir: 1 };
-let fleetColFilters = { plate:'', make:'', year:'', tozeretCd:'', degemCd:'', weight:'', driver:'', dept:'', lastname:'', company:'', reg:'', ins:'', lic:'', km:'', insp:'', traffic:'', proc:'', from:'' };
+let fleetColFilters = { plate:'', make:'', year:'', tozeretCd:'', degemCd:'', weight:'', driver:'', dept:'', vstatus:'', vstatus2:'', lastname:'', company:'', reg:'', ins:'', lic:'', km:'', insp:'', traffic:'', proc:'', from:'' };
 // הסינון נשמר בין רענונים. מאחר שהוא שורד, חייב להיות חיווי ברור שהוא
 // פעיל — אחרת טבלה מסוננת נראית כמו טבלה שנעלמו ממנה שורות.
 try {
@@ -5132,18 +5159,21 @@ const FLEET_COLS = [
   { i:6,  label:'משקל כולל', feat:'weight' },
   { i:7,  label:'נהג' },
   { i:8,  label:'משפחה', feat:'splitName' },
-  { i:9,  label:'חברה' },
-  { i:10,  label:'תוקף רישוי' },  { i:11, label:'תוקף ביטוח' },
-  { i:12, label:'רישיון נהג' },  { i:13, label:'טיפול הבא' },
-  { i:14, label:'ביקורת' },      { i:15, label:'עבר תעבורתי' },
-  { i:16, label:'נהלים' },       { i:17, label:'קבלת רכב' },
-  { i:18, label:'❄️ בדיקת חורף',      feat:'extraCerts' },
-  { i:19, label:'💨 בדיקה פניאומטית', feat:'extraCerts' },
-  { i:20, label:'⏱️ כיול טכוגרף',     feat:'extraCerts' },
-  { i:21, label:'🛑 אישור בלמים',     feat:'extraCerts' },
-  { i:22, label:'🚌 רישיון הסעה',     feat:'extraCerts' },
-  { i:23, label:'👶 שכחת ילדים',      feat:'extraCerts' },
-  { i:24, label:'🧯 כיבוי אש',        feat:'extraCerts' }
+  { i:9,  label:'מחלקה', feat:'dept' },
+  { i:10, label:'סטטוס רכב', feat:'vehStatus' },
+  { i:11, label:'סטטוס משני', feat:'vehStatus' },
+  { i:12, label:'חברה' },
+  { i:13, label:'תוקף רישוי' },  { i:14, label:'תוקף ביטוח' },
+  { i:15, label:'רישיון נהג' },  { i:16, label:'טיפול הבא' },
+  { i:17, label:'ביקורת' },      { i:18, label:'עבר תעבורתי' },
+  { i:19, label:'נהלים' },       { i:20, label:'קבלת רכב' },
+  { i:21, label:'❄️ בדיקת חורף',      feat:'extraCerts' },
+  { i:22, label:'💨 בדיקה פניאומטית', feat:'extraCerts' },
+  { i:23, label:'⏱️ כיול טכוגרף',     feat:'extraCerts' },
+  { i:24, label:'🛑 אישור בלמים',     feat:'extraCerts' },
+  { i:25, label:'🚌 רישיון הסעה',     feat:'extraCerts' },
+  { i:26, label:'👶 שכחת ילדים',      feat:'extraCerts' },
+  { i:27, label:'🧯 כיבוי אש',        feat:'extraCerts' }
 ];
 let HIDDEN_COLS = [];
 try { HIDDEN_COLS = JSON.parse(localStorage.getItem('fleet_hiddenCols')) || []; } catch(e) {}
@@ -5206,11 +5236,11 @@ function buildColFilterRow(vehicles) {
   if (row.querySelector('.col-filter-inp')) return;
   const placeholders = { plate:'רישוי...', make:'יצרן/דגם...', tozeretCd:'קוד...', degemCd:'קוד...', weight:'ק"ג...', driver:'נהג...', company:'חברה...', reg:'תאריך...', ins:'תאריך...', lic:'תאריך...', km:'ק"מ...', insp:'תאריך...', traffic:'תאריך...', proc:'תאריך...', from:'תאריך...' };
   const inp = col => `<th class="col-${col}"><input class="col-filter-inp" type="text" placeholder="${placeholders[col]||'חפש...'}" value="${esc(fleetColFilters[col]||'')}" oninput="setColFilter('${col}',this.value)"></th>`;
-  row.innerHTML = inp('plate')+inp('make')+`<th class="col-year"><input class="col-filter-inp" type="text" placeholder="שנתון..." value="${esc(fleetColFilters.year||'')}" oninput="setColFilter('year',this.value)"></th>`+inp('tozeretCd')+inp('degemCd')+inp('weight')+inp('driver')+`<th class="col-lastname"><input class="col-filter-inp" type="text" placeholder="משפחה..." value="${esc(fleetColFilters.lastname||'')}" oninput="setColFilter('lastname',this.value)"></th>`+inp('dept')+inp('company')+inp('reg')+inp('ins')+inp('lic')+inp('km')+inp('insp')+inp('traffic')+inp('proc')+inp('from')
+  row.innerHTML = inp('plate')+inp('make')+`<th class="col-year"><input class="col-filter-inp" type="text" placeholder="שנתון..." value="${esc(fleetColFilters.year||'')}" oninput="setColFilter('year',this.value)"></th>`+inp('tozeretCd')+inp('degemCd')+inp('weight')+inp('driver')+`<th class="col-lastname"><input class="col-filter-inp" type="text" placeholder="משפחה..." value="${esc(fleetColFilters.lastname||'')}" oninput="setColFilter('lastname',this.value)"></th>`+inp('dept')+inp('vstatus')+inp('vstatus2')+inp('company')+inp('reg')+inp('ins')+inp('lic')+inp('km')+inp('insp')+inp('traffic')+inp('proc')+inp('from')
     + EXTRA_CERTS.map(c => `<th class="col-cert col-${c.key}"></th>`).join('') + '<th></th>';
 }
 function updateSortArrows() {
-  ['plate','make','tozeretCd','degemCd','weight','driver','dept','lastname','company','reg','ins','lic','km','insp','traffic','proc','from'].forEach(c => {
+  ['plate','make','tozeretCd','degemCd','weight','driver','dept','vstatus','vstatus2','lastname','company','reg','ins','lic','km','insp','traffic','proc','from'].forEach(c => {
     const el = document.getElementById('sarr-'+c);
     if (!el) return;
     el.textContent = fleetSort.col===c ? (fleetSort.dir===1 ? '↑' : '↓') : '⇅';
@@ -5307,6 +5337,8 @@ function renderFleet() {
     if (!fMatch(featureOn('splitName') ? driverFirst(v) : v.driverName, fleetColFilters.driver)) return false;
     if (!fMatch(driverLast(v), fleetColFilters.lastname)) return false;
     if (!fMatch(vehicleDept(v), fleetColFilters.dept)) return false;
+    if (!fMatch(v.vehStatus, fleetColFilters.vstatus)) return false;
+    if (!fMatch(v.vehStatus2, fleetColFilters.vstatus2)) return false;
     if (!fMatch(v.company, fleetColFilters.company)) return false;
     if (!fMatch(v.registrationExpiry, fleetColFilters.reg)) return false;
     if (!fMatch(v.insuranceExpiry, fleetColFilters.ins)) return false;
@@ -5337,6 +5369,8 @@ function renderFleet() {
                        vb=featureOn('splitName')?driverFirst(b):(b.driverName||''); break;
         case 'lastname': va=driverLast(a); vb=driverLast(b); break;
         case 'dept': va=_govStr(vehicleDept(a)); vb=_govStr(vehicleDept(b)); break;
+        case 'vstatus': va=_govStr(a.vehStatus); vb=_govStr(b.vehStatus); break;
+        case 'vstatus2': va=_govStr(a.vehStatus2); vb=_govStr(b.vehStatus2); break;
         case 'company': va=a.company||''; vb=b.company||''; break;
         case 'reg': va=daysUntil(a.registrationExpiry)??9999; vb=daysUntil(b.registrationExpiry)??9999; break;
         case 'ins': va=daysUntil(a.insuranceExpiry)??9999; vb=daysUntil(b.insuranceExpiry)??9999; break;
@@ -5411,6 +5445,8 @@ function renderFleet() {
       <td class="${isTrailer?'':yc(drvNm)}" style="font-size:0.73rem">${esc(featureOn('splitName') ? driverFirst(v) : (v.driverName||'').split('-')[0])||'—'}</td>
       <td class="col-lastname" style="font-size:0.73rem">${esc(driverLast(v))||'—'}</td>
       <td class="col-dept" style="font-size:0.73rem">${esc(vehicleDept(v))||'—'}</td>
+      <td class="col-vstatus" style="font-size:0.73rem">${esc(v.vehStatus)||'—'}</td>
+      <td class="col-vstatus2" style="font-size:0.73rem">${esc(v.vehStatus2)||'—'}</td>
       <td class="${yc(v.company)}">${companyBadge(v.company)}</td>
       <td class="${yc(v.registrationExpiry, cellCls(regDays))}">${statusBadge(regDays)}<br><span style="color:var(--muted);font-size:0.63rem">${esc(v.registrationExpiry)||'—'}</span></td>
       <td class="${yc(v.insuranceExpiry, cellCls(insDays))}">${statusBadge(insDays)}<br><span style="color:var(--muted);font-size:0.63rem">${esc(v.insuranceExpiry)||'—'}</span></td>
@@ -8235,7 +8271,9 @@ function buildDynamicAlerts() {
     if (inspDays !== null && inspDays <= 7) {
       const vs = parseVehicleYear(v.year);
       const ageYrs = vs ? (today - vs) / (365.25*24*3600*1000) : 99;
-      const label = ageYrs <= 3 ? 'ביקורת בטיחות חציונית' : 'ביקורת בטיחות רבעונית';
+      const _m = vehInspMonths(v) || FEATURES.inspectionMonths || (ageYrs <= 3 ? 6 : 3);
+      const label = 'ביקורת בטיחות ' +
+        ({ 1:'חודשית', 3:'רבעונית', 6:'חציונית', 12:'שנתית' }[_m] || 'תקופתית');
       alerts.push({ cat:'inspection', plate:v.plate, driver:v.driverName, type:label, dueDate:nextInspectionStr(v), daysLeft:inspDays, prevKm:null, kmAlert:null, currentKm:null, kmDiff:null });
     }
     // ליקויי ביקורת בטיחות — נשמרו על הרכב אחרי ביקורת עם פריטים 'לא תקין'
@@ -9227,11 +9265,13 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) refr
 function exportSection(section) {
   let headers = [], rows = [];
   if (section === 'fleet') {
-    headers = ['מס׳ רישוי','יצרן','דגם','שנה','קוד תוצר','קוד דגם','משקל כולל','נהג','מחלקה','חברה','קוד רכב','תוקף רישוי','תוקף ביטוח','רישיון נהג','ק"מ נוכחי','ק"מ טיפול הבא','תאריך טיפול אחרון','ביקורת בטיחות','ילדים','רכב מתאריך','רישום תנועה','נהלים'];
-    rows = VEHICLES.map(v => [v.plate,v.make,v.model,v.year,v.tozeretCd||'',v.degemCd||'',v.weight||'',v.driverName,vehicleDept(v),v.company,v.code||'',v.registrationExpiry,v.insuranceExpiry,v.licenseExpiry,v.currentKm,v.nextServiceKm,v.serviceDate||'',v.inspection,v.children||'',v.vehicleFrom||'',v.trafficRecord||'',v.procedures||'']);
+    headers = ['מס׳ רישוי','יצרן','דגם','שנה','קוד תוצר','קוד דגם','משקל כולל','נהג','מחלקה','סטטוס רכב','סטטוס משני','חברה','קוד רכב','תוקף רישוי','תוקף ביטוח','רישיון נהג','ק"מ נוכחי','ק"מ טיפול הבא','תאריך טיפול אחרון','ביקורת בטיחות','ילדים','רכב מתאריך','רישום תנועה','נהלים'];
+    rows = VEHICLES.map(v => [v.plate,v.make,v.model,v.year,v.tozeretCd||'',v.degemCd||'',v.weight||'',v.driverName,vehicleDept(v),v.vehStatus||'',v.vehStatus2||'',v.company,v.code||'',v.registrationExpiry,v.insuranceExpiry,v.licenseExpiry,v.currentKm,v.nextServiceKm,v.serviceDate||'',v.inspection,v.children||'',v.vehicleFrom||'',v.trafficRecord||'',v.procedures||'']);
     // עמודת המשקל יורדת מהקובץ אצל לקוח שהתכונה כבויה אצלו
     // מחלקה יושבת אחרי 'נהג' (אינדקס 8), והמשקל לפניו (6). מורידים
     // מהסוף להתחלה, אחרת הסרת המשקל מזיזה את המחלקה ונחתכת עמודה אחרת.
+    // מהסוף להתחלה: סטטוס משני (10), סטטוס (9), מחלקה (8), משקל (6)
+    if (!featureOn('vehStatus')) { headers.splice(9,2); rows.forEach(r => r.splice(9,2)); }
     if (!featureOn('dept')) { headers.splice(8,1); rows.forEach(r => r.splice(8,1)); }
     if (!featureOn('weight')) { headers.splice(6,1); rows.forEach(r => r.splice(6,1)); }
     // אישורים נוספים מצורפים בסוף, רק אצל לקוח שהוגדרו לו
@@ -9393,7 +9433,7 @@ function openAddVehicle() {
   const _er0 = document.getElementById('m-entity-row');
   if (_er0) _er0.style.display = ENTITIES.length ? '' : 'none';
   document.getElementById('modal-title').textContent = 'הוסף רכב חדש';
-  ['m-plate','m-make','m-model','m-year','m-tozeretCd','m-degemCd','m-weight','m-driver','m-phone','m-email','m-regExpiry','m-insExpiry','m-licExpiry','m-inspection','m-from','m-km','m-nextKm','m-serviceDate','m-traffic','m-procedures','m-notes'].forEach(id => {
+  ['m-plate','m-make','m-model','m-year','m-tozeretCd','m-degemCd','m-weight','m-vstatus','m-vstatus2','m-driver','m-phone','m-email','m-regExpiry','m-insExpiry','m-licExpiry','m-inspection','m-from','m-km','m-nextKm','m-serviceDate','m-traffic','m-procedures','m-notes'].forEach(id => {
     document.getElementById(id).value = '';
   });
   const govSt = document.getElementById('m-gov-status');
@@ -9413,6 +9453,8 @@ function editVehicle(plate) {
   document.getElementById('m-tozeretCd').value = v.tozeretCd||'';
   document.getElementById('m-degemCd').value = v.degemCd||'';
   document.getElementById('m-weight').value = v.weight||'';
+  _selEnsure('m-vstatus', v.vehStatus);   document.getElementById('m-vstatus').value = v.vehStatus||'';
+  _selEnsure('m-vstatus2', v.vehStatus2); document.getElementById('m-vstatus2').value = v.vehStatus2||'';
   document.getElementById('m-driver').value = v.driverName||'';
   document.getElementById('m-phone').value = v.driverPhone||'';
   document.getElementById('m-email').value = v.driverEmail||'';
@@ -9531,6 +9573,8 @@ function saveVehicle() {
     tozeretCd: document.getElementById('m-tozeretCd').value.trim(),
     degemCd: document.getElementById('m-degemCd').value.trim(),
     weight: document.getElementById('m-weight').value.trim(),
+    vehStatus: (document.getElementById('m-vstatus')||{}).value || '',
+    vehStatus2: (document.getElementById('m-vstatus2')||{}).value || '',
     company: document.getElementById('m-company').value,
     entity: (document.getElementById('m-entity')||{}).value || '',
     driverName: document.getElementById('m-driver').value.trim(),
@@ -9714,24 +9758,27 @@ async function deleteVehicleDoc(t, oi) {
 // System fields a customer's spreadsheet can map onto, with Hebrew header synonyms used
 // for auto-detection. Order = display order in the mapping grid.
 const IMPORT_FIELDS = [
-  { key:'plate',              label:'מספר רכב (רישוי)', required:true, syn:['מספר רכב','מס רכב','מספר רישוי','רישוי','לוחית','מספר לוחית','רכב','plate','license plate'] },
+  { key:'plate',              label:'מספר רכב (רישוי)', required:true, syn:['מספר רישוי','מספר רשוי','מס רישוי','מס רשוי','מספר רכב','מס רכב','לוחית','מספר לוחית','רישוי','רשוי','רכב','plate','license plate'] },
   { key:'driverName',         label:'שם נהג/עובד',      syn:['שם נהג','שם עובד','שם הנהג','נהג','עובד','שם מלא','שם','driver','name'] },
   { key:'driverId',           label:'תעודת זהות',        syn:['תעודת זהות','ת.ז','ת"ז','תז','מספר זהות','ת.ז.','id number','id'] },
   { key:'driverPhone',        label:'טלפון נהג',         syn:['טלפון','נייד','פלאפון','מספר טלפון','נייד נהג','phone','mobile','cell'] },
   { key:'driverEmail',        label:'מייל נהג',          syn:['מייל','אימייל','דוא"ל','דואל','כתובת מייל','מייל נהג','email','e-mail','mail'] },
   { key:'make',               label:'יצרן',              syn:['יצרן','תוצר','תוצרת','מותג','make','manufacturer','brand'] },
   { key:'model',              label:'דגם',               syn:['דגם','model'] },
-  { key:'year',               label:'שנתון',             syn:['שנתון','שנה','שנת ייצור','year'] },
-  { key:'department',         label:'מחלקה',             syn:['מחלקה','אגף','יחידה'] },
+  { key:'year',               label:'שנתון',             syn:['שנת ייצור','שנת יצור','שנתון','שנה','year'] },
+  { key:'department',         label:'מחלקה',             syn:['מחלקה נוכחית','מחלקה','אגף','יחידה'] },
+  { key:'vehStatus',          label:'סטטוס רכב',         syn:['סטטוס רכב'] },
+  { key:'vehStatus2',         label:'סטטוס רכב משני',    syn:['סטטוס רכב משני'] },
+  { key:'inspType',           label:'סוג בדיקה תקופתית', syn:['סוג בדיקה תקופתית','סוג ביקורת','תדירות בדיקה'] },
   { key:'company',            label:'חברת ליסינג',       syn:['חברת ליסינג','ליסינג','חברה','ליס','leasing','company'] },
   { key:'licenseExpiry',      label:'תוקף רישיון נהיגה', syn:['תוקף רישיון נהיגה','רישיון נהיגה','תוקף רישיון','רשיון נהיגה','license expiry','license'] },
-  { key:'registrationExpiry', label:'תוקף רישוי (טסט)',  syn:['תוקף רשיון רכב','תוקף רישיון רכב','תוקף רישוי','רישיון רכב','רשיון רכב','טסט','תוקף טסט','רישוי שנתי','registration','test'] },
+  { key:'registrationExpiry', label:'תוקף רישוי (טסט)',  syn:['תוקף רשיון רכב','תוקף רישיון רכב','תאריך חידוש רישיון','תאריך חידוש רשיון','חידוש רישיון','תוקף רישוי','רישיון רכב','רשיון רכב','טסט','תוקף טסט','רישוי שנתי','registration','test'] },
   { key:'insuranceExpiry',    label:'תוקף ביטוח',        syn:['תוקף ביטוח חובה','תוקף ביטוח','ביטוח חובה','ביטוח','ביטוח מקיף','insurance'] },
   { key:'currentKm',          label:'ק"מ נוכחי',         syn:['ק"מ נוכחי','קילומטראז','קילומטר','ק"מ','קמ','מד אוץ','km','mileage','odometer'] },
   { key:'nextServiceKm',      label:'טיפול הבא (ק"מ)',   syn:['טיפול הבא','טיפול','ק"מ טיפול','service','next service'] },
   { key:'serviceDate',        label:'תאריך טיפול אחרון', syn:['תאריך טיפול אחרון','טיפול אחרון','תאריך טיפול','last service','service date'] },
   { key:'vehicleFrom',        label:'תאריך קבלת רכב',    syn:['תאריך קבלה','קבלת רכב','תאריך קבלת רכב','מתאריך','from date','start date'] },
-  { key:'inspection',         label:'ביקורת בטיחות',     syn:['ביקורת בטיחות','ביקורת','תאריך ביקורת','inspection'] },
+  { key:'inspection',         label:'ביקורת בטיחות',     syn:['ביקורת בטיחות','תאריך בדיקה תקופתית אחרונה','בדיקה תקופתית אחרונה','בדיקה תקופתית','ביקורת','תאריך ביקורת','inspection'] },
   { key:'trafficRecord',      label:'עבר תעבורתי',       syn:['עבר תעבורתי','עבר תעבורה','traffic record'] },
   { key:'procedures',         label:'נהלים',             syn:['נהלים','חתימת נהלים','procedures'] },
   { key:'firstName',          label:'שם פרטי',           syn:['שם פרטי אחראי רכב','שם פרטי','first name'] },
@@ -11071,9 +11118,15 @@ function autoDetectColumn(field) {
   const H = IMP.headers.map(normHeader);
   // exact match first, then "contains" either direction
   for (const s of field.syn) { const i = H.indexOf(normHeader(s)); if (i >= 0) return i; }
+  // כותרת שמתאימה במדויק לשדה אחר שמורה לו, ואינה נתפסת בהתאמה חלקית.
+  // בלי זה "סטטוס רכב" נחטף על ידי מספר הרישוי, שבין המילים הנרדפות
+  // שלו יש "רכב" וההשוואה היא הכלה דו-כיוונית — והסטטוס נכנס כרישוי.
+  const claimed = new Set();
+  IMPORT_FIELDS.forEach(f => { if (f.key !== field.key)
+    (f.syn || []).forEach(x => { const k = normHeader(x); if (H.indexOf(k) >= 0) claimed.add(k); }); });
   for (const s of field.syn) {
     const ns = normHeader(s);
-    const i = H.findIndex(h => h && (h.includes(ns) || ns.includes(h)));
+    const i = H.findIndex(h => h && !claimed.has(h) && (h.includes(ns) || ns.includes(h)));
     if (i >= 0) return i;
   }
   return -1;
@@ -11228,7 +11281,7 @@ function sysAllowed(name) { return SYS_ENABLED[name] !== false; }
 // העמודה, ובצי של נופר היא מיותרת. הנתון נשלף בסנכרון ממילא, ולכן
 // עדיף שלקוח יראה אותו בלי להיות תלוי בסימון ידני שלי. כיבוי ללקוח
 // מסוים נעשה בפאנל ונשמר שם כ-false מפורש.
-let FEATURES = { dept: true, weight: true, drivers: false, extraCerts: false, trafficMonths: 36, inspectionMonths: 0, singleSession: false, busForm: false, yearCol: false, municipalForm: false, splitName: false };
+let FEATURES = { dept: true, vehStatus: true, weight: true, drivers: false, extraCerts: false, trafficMonths: 36, inspectionMonths: 0, singleSession: false, busForm: false, yearCol: false, municipalForm: false, splitName: false };
 function featureOn(name) { return FEATURES[name] === true; }
 // עמודת הטבלה מוסתרת ב-CSS ולא נמחקת מה-DOM, כדי שמספר התאים בכותרת,
 // בשורת הסינון ובשורות יישאר זהה — טבלה שיוצאת מיישור היא באג שקט.
@@ -11238,6 +11291,7 @@ function applyFeatureFlags() {
   document.body.classList.toggle('feat-certs', featureOn('extraCerts'));
   document.body.classList.toggle('feat-splitname', featureOn('splitName'));
   document.body.classList.toggle('feat-dept', featureOn('dept'));
+  document.body.classList.toggle('feat-vstatus', featureOn('vehStatus'));
   document.body.classList.toggle('feat-yearcol', featureOn('yearCol'));
   // מפתח ה-API הוא שלך ומחויב עליך. הוא נשמר בדפדפן, ולכן חשבון לקוח
   // שנפתח על אותו מחשב היה משתמש בו על חשבונך. אצל כל דייר שאינו
@@ -11423,7 +11477,7 @@ async function resolveTenant(user) {
     TENANT = 'nofar'; ROLE = 'manager'; COMPANY_NAME = 'נופר אנרגיה';
     SUB_ACTIVE = true; SUB_VALID_UNTIL = '';
     SYS_ENABLED = { fleet: true, shamai: true, garage: true };
-    FEATURES = { dept: false, weight: false, drivers: false, extraCerts: false, trafficMonths: 36, inspectionMonths: 0, singleSession: false, splitName: false };   // נופר: בלי משקל, בלי נהגים, בלי אישורים נוספים
+    FEATURES = { dept: false, vehStatus: false, weight: false, drivers: false, extraCerts: false, trafficMonths: 36, inspectionMonths: 0, singleSession: false, splitName: false };   // נופר: בלי משקל, בלי נהגים, בלי אישורים נוספים
     return;
   }
   try {
@@ -11451,6 +11505,7 @@ async function resolveTenant(user) {
       // trafficMonths/inspectionMonths: 0 או חסר = ברירת המחדל הרגילה
       const _f = d.features || {};
       FEATURES = { dept: _f.dept !== false,
+                   vehStatus: _f.vehStatus !== false,
                    weight: _f.weight !== false,
                    drivers: _f.drivers === true,
                    extraCerts: _f.extraCerts === true,
@@ -11469,14 +11524,14 @@ async function resolveTenant(user) {
     // מוסך — עד שתפתח אותם בעצמך בפאנל הניהול.
     TENANT = user.uid; COMPANY_NAME = ''; SUB_ACTIVE = true; SUB_VALID_UNTIL = '';
     SYS_ENABLED = { fleet: false, shamai: false, garage: false };
-    FEATURES = { dept: true, weight: true, drivers: false, extraCerts: false, trafficMonths: 36, inspectionMonths: 0, singleSession: false, splitName: false };
+    FEATURES = { dept: true, vehStatus: true, weight: true, drivers: false, extraCerts: false, trafficMonths: 36, inspectionMonths: 0, singleSession: false, splitName: false };
   } catch(e) {
     // On a read failure, preserve isolation — never default a stranger onto Nofar.
     // (הבעלים כבר טופל למעלה ואינו מגיע לכאן.)
     console.log('tenant resolve error', e);
     TENANT = user.uid;
     SYS_ENABLED = { fleet: false, shamai: false, garage: false };
-    FEATURES = { dept: true, weight: true, drivers: false, extraCerts: false, trafficMonths: 36, inspectionMonths: 0, singleSession: false, splitName: false };
+    FEATURES = { dept: true, vehStatus: true, weight: true, drivers: false, extraCerts: false, trafficMonths: 36, inspectionMonths: 0, singleSession: false, splitName: false };
   }
 }
 // ═══ נעילת סשן: חשבון אחד — מכשיר אחד ═══
@@ -15217,6 +15272,7 @@ async function adminLoadClient() {
     document.getElementById('adm-single').checked = _af.singleSession === true;
     document.getElementById('adm-splitname').checked = _af.splitName === true;
     document.getElementById('adm-dept').checked = _af.dept !== false;
+    document.getElementById('adm-vstatus').checked = _af.vehStatus !== false;
     document.getElementById('adm-busform').checked = _af.busForm === true;
     document.getElementById('adm-yearcol').checked = _af.yearCol === true;
     document.getElementById('adm-muniform').checked = _af.municipalForm === true;
@@ -15394,6 +15450,7 @@ async function adminSaveClient() {
       singleSession: !!document.getElementById('adm-single').checked,
       splitName: !!document.getElementById('adm-splitname').checked,
       dept: !!document.getElementById('adm-dept').checked,
+      vehStatus: !!document.getElementById('adm-vstatus').checked,
       busForm: !!document.getElementById('adm-busform').checked,
       yearCol: !!document.getElementById('adm-yearcol').checked,
       municipalForm: !!document.getElementById('adm-muniform').checked
