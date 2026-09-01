@@ -3443,6 +3443,29 @@ async function saveToFirestore(key, value) {
 // all other vehicles keep their freshest cloud values.
 // ── עותק ציבורי מסונן של הצי לקריאת הנהגים (בלי מידע רגיש) ──
 // הנהגים קוראים רק את pubroster; main (עם ת"ז/טלפון/ילדים/עבר תעבורתי/הערות) נשאר לקריאת המנהל בלבד.
+// נהג נכנס לעדכון ק"מ עם מספר הנייד שלו, שקל לזכור יותר ממספר רכב.
+// אבל pubroster נקרא בהזדהות אנונימית, ולכן רשימת הטלפונים של כל
+// העובדים לא תיכנס לשם — זו בדיוק ההגנה שהמסמך הזה נועד לספק.
+// במקום המספר נשמרת טביעת אצבע שלו: הדף מחשב את אותה טביעה ממה
+// שהנהג הקליד ומשווה. מי שקורא את המסמך רואה מחרוזת ולא מספר.
+// חשוב לדעת: מספר נייד ישראלי הוא מרחב קטן, ולכן טביעה אינה סוד מוחלט —
+// היא מונעת שאיבה של רשימת טלפונים, לא בדיקה של מספר בודד שכבר בידך.
+function _phoneDigits9(phone) {
+  let d = String(phone == null ? '' : phone).replace(/\D/g, '');
+  if (d.startsWith('972')) d = d.slice(3);
+  d = d.replace(/^0+/, '');
+  return d.length >= 9 ? d.slice(-9) : d;
+}
+async function phoneFingerprint(phone) {
+  const d = _phoneDigits9(phone);
+  if (d.length < 8) return '';
+  try {
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('ramzor:' + d));
+    return Array.from(new Uint8Array(buf)).slice(0, 8)
+      .map(b => b.toString(16).padStart(2, '0')).join('');
+  } catch(e) { return ''; }
+}
+
 async function writePubRoster() {
   if (!auth.currentUser) return;
   try {
@@ -3461,6 +3484,15 @@ async function writePubRoster() {
       registrationExpiry: v.registrationExpiry || '', insuranceExpiry: v.insuranceExpiry || '',
       inspection: v.inspection || ''
     }));
+    // הטביעה מחושבת מהטלפון שעל הרכב או מזה שברשומת הנהג — אצל לקוח
+    // שייבא מצבת נהגים הוא יושב רק שם
+    try {
+      const src = (Array.isArray(VEHICLES) ? VEHICLES : []);
+      await Promise.all(vehicles.map(async (row, i) => {
+        const fp = await phoneFingerprint(driverPhoneOf(src[i]));
+        if (fp) row.phoneFp = fp;
+      }));
+    } catch(e) { console.log('phone fingerprint failed', e); }
     const ms = (typeof MAIL_SETTINGS !== 'undefined' && MAIL_SETTINGS) ? MAIL_SETTINGS : {};
     // הטוקן נשאר במסמך המוגן בלבד. pubroster נקרא בהזדהות אנונימית,
     // וכתיבתו לשם הייתה מבטלת את כל ההגנה שהוא נועד לספק.

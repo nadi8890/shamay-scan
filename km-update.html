@@ -49,8 +49,9 @@ input{width:100%;border:1.5px solid #dde3ed;border-radius:10px;padding:12px;font
 </div>
 
 <div id="step-plate" class="card" style="display:none">
-  <label>הקלד/י את מספר הרכב שלך (מופיע על לוחית הרישוי)</label>
-  <input id="plate-inp" inputmode="numeric" placeholder="12345678">
+  <label>הקלד/י מספר רכב או את מספר הנייד שלך</label>
+  <input id="plate-inp" inputmode="numeric" placeholder="12345678 או 050-0000000">
+  <div style="font-size:0.76rem;color:#64748b;margin-top:4px">אפשר להזין את מה שנוח לזכור — לוחית הרישוי או הנייד שרשום במערכת</div>
   <div class="err" id="plate-err"></div>
   <button class="btn" id="plate-go" style="margin-top:12px" onclick="findVehicle()" disabled>טוען רשימת רכבים…</button>
 </div>
@@ -151,6 +152,63 @@ _kmReady = (async function init() {
   else document.getElementById('step-plate').style.display = 'block';
 })();
 
+// אותה טביעת אצבע שנשמרת ב-pubroster בצד המנהל. המספר עצמו אינו
+// נשמר שם — רשימת הטלפונים של כל העובדים לא תיחשף בקישור ציבורי.
+function _phoneDigits9(phone) {
+  let d = String(phone == null ? '' : phone).replace(/\D/g, '');
+  if (d.startsWith('972')) d = d.slice(3);
+  d = d.replace(/^0+/, '');
+  return d.length >= 9 ? d.slice(-9) : d;
+}
+async function phoneFingerprint(phone) {
+  const d = _phoneDigits9(phone);
+  if (d.length < 8) return '';
+  try {
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode('ramzor:' + d));
+    return Array.from(new Uint8Array(buf)).slice(0, 8)
+      .map(b => b.toString(16).padStart(2, '0')).join('');
+  } catch(e) { return ''; }
+}
+// נייד ישראלי: מתחיל ב-05 ובן 10 ספרות, או 9 ספרות אחרי הסרת האפס.
+// מספר רכב הוא 6-8 ספרות, ולכן אין חפיפה בין השניים.
+function _looksLikePhone(digits) {
+  const d = String(digits || '');
+  return /^05\d{8}$/.test(d) || /^9725\d{8}$/.test(d) || /^5\d{8}$/.test(d);
+}
+// כשמספר אחד משויך לכמה רכבים, הנהג בוחר מביניהם במקום לקבל את הראשון
+function _showVehiclePick(list) {
+  const err = document.getElementById('plate-err');
+  err.style.display = 'none';
+  const box = document.getElementById('step-plate');
+  let pick = document.getElementById('veh-pick');
+  if (!pick) { pick = document.createElement('div'); pick.id = 'veh-pick'; pick.style.marginTop = '10px'; box.appendChild(pick); }
+  pick.innerHTML = '<div style="font-size:0.82rem;color:#334155;margin-bottom:6px">לנייד הזה משויכים כמה רכבים — בחר/י:</div>' +
+    list.map(v => `<button class="btn" style="width:100%;margin-bottom:6px" onclick="_pickVeh('${String(v.plate).replace(/'/g, "")}')">` +
+      `${(v.make || '') + ' ' + (v.model || '')} · ${v.plate}</button>`).join('');
+}
+function _pickVeh(plate) {
+  const pick = document.getElementById('veh-pick'); if (pick) pick.remove();
+  selectVehicle(String(plate).replace(/\D/g, ''));
+}
+
+async function findByPhone(digits) {
+  const err = document.getElementById('plate-err');
+  const fp = await phoneFingerprint(digits);
+  const hits = fp ? FLEET.filter(v => v.phoneFp && v.phoneFp === fp) : [];
+  if (!hits.length) {
+    err.textContent = 'לא נמצא רכב שמשויך לנייד הזה. אפשר להזין במקום את מספר הרכב, או לפנות למחלקת הרכב.';
+    err.style.display = 'block';
+    return;
+  }
+  if (hits.length > 1) { _showVehiclePick(hits); return; }
+  selectVehicle(String(hits[0].plate).replace(/\D/g, ''));
+}
+
+// נייד או מספר רכב — לפי מה שנראה מה שהוקלד
+function _route(typed) {
+  if (_looksLikePhone(typed)) { findByPhone(typed); return; }
+  selectVehicle(typed);
+}
 function selectVehicle(plateDigits) {
   const err = document.getElementById('plate-err');
   document.getElementById('step-plate').style.display = 'block';
@@ -165,7 +223,7 @@ function selectVehicle(plateDigits) {
   }
   VEH = FLEET.find(v => String(v.plate||'').replace(/\D/g,'') === plateDigits);  // String(): מספר רכב עשוי להיות מספר ולא מחרוזת
   if (!VEH) {
-    if (plateDigits) { err.textContent = 'מספר הרכב לא נמצא ברשימה (' + FLEET.length + ' רכבים) — בדוק/י את המספר, ואם הוא נכון פנה/י למחלקת הרכב'; err.style.display = 'block'; }
+    if (plateDigits) { err.textContent = 'המספר לא נמצא ברשימה (' + FLEET.length + ' רכבים) — אפשר לנסות את מספר הרכב או את הנייד, ואם שניהם נכונים פנה/י למחלקת הרכב'; err.style.display = 'block'; }
     return;
   }
   err.style.display = 'none';
@@ -196,16 +254,17 @@ function selectVehicle(plateDigits) {
 function findVehicle() {
   document.getElementById('plate-err').style.display = 'none';
   const _typed = document.getElementById('plate-inp').value.replace(/\D/g,'');
+  const _pick = document.getElementById('veh-pick'); if (_pick) _pick.remove();
   if (!_kmLoaded && _kmReady) {
     const b = document.getElementById('plate-go');
     if (b) { b.disabled = true; b.textContent = 'טוען רשימת רכבים…'; }
     _kmReady.then(() => {
       if (b) { b.disabled = false; b.textContent = 'המשך ←'; }
-      selectVehicle(_typed);
+      _route(_typed);
     });
     return;
   }
-  selectVehicle(_typed);
+  _route(_typed);
 }
 
 async function submitKm() {
