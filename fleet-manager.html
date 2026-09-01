@@ -3844,10 +3844,11 @@ function trafficDueStr(v) { return dateAddMonths(v && v.trafficRecord, FEATURES.
 // בלי ההבחנה הזו תאריך תוקף היה מקבל עוד שנה ומוצג כתקין בטעות.
 const EXTRA_CERTS = [
   { key:'winterCheck',    label:'בדיקת חורף',        icon:'❄️', mode:'done',   months:12 },
-  // heavyOnly: נדרש רק ברכב כבד (אוטובוסים ומשאיות). ברכב קל הבדיקות
-  // האלה אינן רלוונטיות, ולכן אין להן התראה ואין להן ערך בטבלה.
-  { key:'pneumaticChk',   label:'בדיקה פניאומטית',   icon:'💨', mode:'done',   months:12, heavyOnly:true },
-  { key:'tachograph',     label:'כיול טכוגרף',       icon:'⏱️', mode:'expiry', heavyOnly:true },
+  // busOnly: כיול טכוגרף ובדיקה פניאומטית נדרשים באוטובוסים בלבד —
+  // לא בכל רכב כבד. במשאית או בטרקטור הם אינם רלוונטיים, ולכן אין להם
+  // התראה והתא בטבלה מציג "לא נדרש".
+  { key:'pneumaticChk',   label:'בדיקה פניאומטית',   icon:'💨', mode:'done',   months:12, busOnly:true },
+  { key:'tachograph',     label:'כיול טכוגרף',       icon:'⏱️', mode:'expiry', busOnly:true },
   { key:'brakesCert',     label:'אישור בלמים',       icon:'🛑', mode:'done',   months:12 },
   { key:'transportLic',   label:'תוקף רישיון הסעה',  icon:'🚌', mode:'expiry' },
   { key:'childAlertCert', label:'מערכת שכחת ילדים',  icon:'👶', mode:'expiry' },
@@ -3860,7 +3861,16 @@ function vehWeightKg(v) {
   const n = parseInt(String((v && v.weight) || '').replace(/\D/g, ''), 10);
   return isNaN(n) ? 0 : n;
 }
-function certApplies(v, c) { return !c.heavyOnly || vehWeightKg(v) >= HEAVY_KG; }
+// אוטובוס לפי סוג הרכב שנשמר מהסנכרון מול משרד התחבורה, ולגיבוי גם
+// לפי הטקסט בדגם וביצרן — רכב שטרם סונכרן אין לו סוג שמור.
+const BUS_WORDS = /אוטובוס|מיניבוס|מידיבוס|אוטובוס זעיר|minibus|autobus/i;
+function isBus(v) {
+  return BUS_WORDS.test([(v && v.vehicleType) || '', (v && v.model) || '', (v && v.make) || ''].join(' '));
+}
+function certApplies(v, c) {
+  if (c.busOnly) return isBus(v);
+  return !c.heavyOnly || vehWeightKg(v) >= HEAVY_KG;
+}
 function certDueStr(v, c) {
   const raw = v && v[c.key];
   if (!raw) return '';
@@ -5540,7 +5550,7 @@ function renderFleet() {
       <td class="${yc(v.vehicleFrom)}" style="font-size:0.73rem;white-space:nowrap">${esc(v.vehicleFrom)||'—'}</td>
       ${EXTRA_CERTS.map(c => {
         if (!certApplies(v, c))
-          return `<td class="col-cert col-${c.key}" style="color:var(--muted);font-size:0.62rem;text-align:center" title="נדרש רק ברכב מעל ${HEAVY_KG.toLocaleString('he-IL')} ק\"ג">לא נדרש</td>`;
+          return `<td class="col-cert col-${c.key}" style="color:var(--muted);font-size:0.62rem;text-align:center" title="${c.busOnly ? 'נדרש באוטובוסים בלבד' : 'נדרש רק ברכב מעל ' + HEAVY_KG.toLocaleString('he-IL') + ' ק\"ג'}">לא נדרש</td>`;
         const _dd = daysUntil(certDueStr(v, c));
         return `<td class="col-cert col-${c.key} ${isTrailer ? '' : yc(v[c.key], cellCls(_dd))}">${statusBadge(_dd)}<br><span style="color:var(--muted);font-size:0.6rem">${esc(v[c.key]) || '—'}</span></td>`;
       }).join('')}
@@ -13600,6 +13610,7 @@ async function syncVehicleFromGov(plate) {
   if (lookup.make && lookup.make!=='—') v.make = lookup.make;
   if (lookup.model && lookup.model!=='—') v.model = lookup.model;
   if (lookup.year && String(lookup.year)!=='—') v.year = String(lookup.year);
+  if (lookup.vehicleTypeName) v.vehicleType = lookup.vehicleTypeName;
   if (lookup.tozeretCd && lookup.tozeretCd!=='—') v.tozeretCd = govPad4(lookup.tozeretCd);
   if (lookup.degemCd && lookup.degemCd!=='—') v.degemCd = govPad4(lookup.degemCd);
   if (lookup.weight && lookup.weight!=='—') v.weight = String(lookup.weight);
@@ -13700,6 +13711,7 @@ async function syncFleetFromGov() {
       v[k] = String(val); touched = true;
     };
     // נשמרים מרופדים לארבע ספרות, בדיוק כפי שהם מודפסים ברישיון הרכב
+    put('vehicleType', nn.type);      // אוטובוס / משא / פרטי — קובע אילו אישורים נדרשים
     put('tozeretCd', govPad4(nn.licCode));
     put('degemCd', govPad4(nn.modelCode));
     if (nn.weight && nn.weight !== '0') set('weight', nn.weight);
@@ -13900,6 +13912,7 @@ async function lookupVehicleGov(rawPlate) {
       onRoadSince: fmtDate(rec.moed_aliya_lakvish),
       engineCC: rec.engine_cc||'—',
       doors: rec.num_doors||'—',
+      vehicleTypeName: gn.type||'',
       tozeretCd: gn.licCode||'—',
       degemCd: gn.modelCode||'—',
       weight: (gn.weight && gn.weight!=='0') ? gn.weight : '—'
