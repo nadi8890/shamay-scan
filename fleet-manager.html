@@ -2052,6 +2052,15 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
       <div class="modal-row"><label>תוקף ביטוח חובה</label><input id="m-insExpiry" type="text" placeholder="יי.חח.שש" inputmode="numeric" oninput="dateAutoMask(this)"></div>
       <div class="modal-row"><label>תוקף רישיון נהג</label><input id="m-licExpiry" type="text" placeholder="יי.חח.שש" inputmode="numeric" oninput="dateAutoMask(this)"></div>
       <div class="modal-row"><label>ביקורת בטיחות</label><input id="m-inspection" type="text" placeholder="יי.חח.שש" inputmode="numeric" oninput="dateAutoMask(this)"></div>
+      <div class="modal-row"><label>תדירות ביקורת <span style="font-weight:400;color:#94a3b8;font-size:0.7rem">(דורס את החישוב האוטומטי)</span></label>
+        <select id="m-inspEvery">
+          <option value="">אוטומטי</option>
+          <option value="1">כל חודש</option>
+          <option value="3">כל 3 חודשים</option>
+          <option value="6">כל 6 חודשים</option>
+          <option value="12">כל שנה</option>
+        </select>
+      </div>
       <div class="modal-row"><label>תאריך קבלת רכב</label><input id="m-from" type="text" placeholder="יי.חח.שש" inputmode="numeric" oninput="dateAutoMask(this)"></div>
       <div class="modal-row"><label>ק״מ נוכחי</label><input id="m-km" type="text" placeholder="45000"></div>
       <div class="modal-row"><label>טיפול הבא (ק״מ)</label><input id="m-nextKm" type="text" placeholder="60000"></div>
@@ -3895,6 +3904,24 @@ function isHeavyVehicle(v) {
   if (kg >= 5000) return true;
   const txt = [(v && v.model) || '', (v && v.make) || '', (v && v.vehicleType) || ''].join(' ');
   return HEAVY_WORDS.test(txt);
+}
+// מה המערכת גוזרת לרכב הזה בלי ההגדרה הידנית — לתצוגה בכרטיס, כדי
+// שברור מה בוחרים לדרוס
+function autoInspMonths(v) {
+  const copy = { ...(v || {}) }; delete copy.inspEvery;
+  const m = vehInspMonths(copy);
+  if (m) return m;
+  const start = parseVehicleYear(v && v.year);
+  const age = start ? (new Date() - start) / (365.25 * 24 * 3600 * 1000) : 999;
+  return FEATURES.inspectionMonths || (age <= 3 ? 6 : 3);
+}
+function _inspEveryLabel(m) {
+  return { 1:'כל חודש', 3:'כל 3 חודשים', 6:'כל 6 חודשים', 12:'כל שנה' }[m] || ('כל ' + m + ' חודשים');
+}
+function _syncInspEveryAuto(v) {
+  const sel = document.getElementById('m-inspEvery');
+  if (!sel || !sel.options.length) return;
+  sel.options[0].textContent = 'אוטומטי — ' + _inspEveryLabel(autoInspMonths(v || {}));
 }
 function vehInspMonths(v) {
   const n = parseInt(v && v.inspEvery, 10);
@@ -9447,7 +9474,7 @@ function openAddVehicle() {
   const _er0 = document.getElementById('m-entity-row');
   if (_er0) _er0.style.display = ENTITIES.length ? '' : 'none';
   document.getElementById('modal-title').textContent = 'הוסף רכב חדש';
-  ['m-plate','m-make','m-model','m-year','m-tozeretCd','m-degemCd','m-weight','m-vstatus','m-vstatus2','m-driver','m-phone','m-email','m-regExpiry','m-insExpiry','m-licExpiry','m-inspection','m-from','m-km','m-nextKm','m-serviceDate','m-traffic','m-procedures','m-notes'].forEach(id => {
+  ['m-plate','m-make','m-model','m-year','m-tozeretCd','m-degemCd','m-weight','m-vstatus','m-vstatus2','m-driver','m-phone','m-email','m-regExpiry','m-insExpiry','m-licExpiry','m-inspection','m-inspEvery','m-from','m-km','m-nextKm','m-serviceDate','m-traffic','m-procedures','m-notes'].forEach(id => {
     document.getElementById(id).value = '';
   });
   const govSt = document.getElementById('m-gov-status');
@@ -9478,6 +9505,8 @@ function editVehicle(plate) {
   document.getElementById('m-insExpiry').value = v.insuranceExpiry||'';
   document.getElementById('m-licExpiry').value = v.licenseExpiry||'';
   document.getElementById('m-inspection').value = v.inspection||'';
+  document.getElementById('m-inspEvery').value = v.inspEvery ? String(v.inspEvery) : '';
+  _syncInspEveryAuto(v);
   document.getElementById('m-from').value = v.vehicleFrom||'';
   document.getElementById('m-km').value = v.currentKm||'';
   document.getElementById('m-nextKm').value = v.nextServiceKm||'';
@@ -9598,6 +9627,7 @@ function saveVehicle() {
     insuranceExpiry: document.getElementById('m-insExpiry').value.trim(),
     licenseExpiry: document.getElementById('m-licExpiry').value.trim(),
     inspection: document.getElementById('m-inspection').value.trim() || (!editingPlate && !_noVeh ? (document.getElementById('m-from').value.trim() || _today) : ''),
+    inspEvery: (document.getElementById('m-inspEvery')||{}).value || '',
     vehicleFrom: document.getElementById('m-from').value.trim(),
     currentKm: document.getElementById('m-km').value.trim(),
     nextServiceKm: document.getElementById('m-nextKm').value.trim() || (!editingPlate && !_noVeh ? String((parseInt(document.getElementById('m-km').value)||0)+15000) : ''),
