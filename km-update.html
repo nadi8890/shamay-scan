@@ -52,7 +52,7 @@ input{width:100%;border:1.5px solid #dde3ed;border-radius:10px;padding:12px;font
   <label>הקלד/י את מספר הרכב שלך (מופיע על לוחית הרישוי)</label>
   <input id="plate-inp" inputmode="numeric" placeholder="12345678">
   <div class="err" id="plate-err"></div>
-  <button class="btn" style="margin-top:12px" onclick="findVehicle()">המשך ←</button>
+  <button class="btn" id="plate-go" style="margin-top:12px" onclick="findVehicle()" disabled>טוען רשימת רכבים…</button>
 </div>
 
 <div id="step-km" style="display:none">
@@ -130,7 +130,12 @@ const urlPlate = (_kmParams.get('plate') || '').replace(/\D/g,'');
 const parseKmNum = s => parseInt(String(s||'').replace(/\D/g,'')) || 0;
 
 let _kmLoadErr = null, _kmLoaded = false;
-(async function init() {
+// שדה הרישוי מוצג מיד, אבל רשימת הרכבים מגיעה מהרשת. נהג שהקליד מהר —
+// וזה בדיוק מה שעושים כשמקבלים קישור בוואטסאפ — קיבל "רשימת הרכבים לא
+// נטענה" או "לא נמצא", למרות שהרכב שלו קיים. שומרים את ההבטחה כדי
+// שאפשר יהיה להמתין לה במקום לענות תשובה שגויה.
+let _kmReady = null;
+_kmReady = (async function init() {
   await ensureAnonAuth(); // must precede any read so the identity is in place
   try {
     let d = {};
@@ -140,6 +145,8 @@ let _kmLoadErr = null, _kmLoaded = false;
     MAIL = d.mailSettings || {};
     _kmLoaded = true;
   } catch(e) { _kmLoadErr = e; }
+  const _b = document.getElementById('plate-go');
+  if (_b) { _b.disabled = false; _b.textContent = 'המשך ←'; }
   if (urlPlate) selectVehicle(urlPlate);
   else document.getElementById('step-plate').style.display = 'block';
 })();
@@ -158,7 +165,7 @@ function selectVehicle(plateDigits) {
   }
   VEH = FLEET.find(v => String(v.plate||'').replace(/\D/g,'') === plateDigits);  // String(): מספר רכב עשוי להיות מספר ולא מחרוזת
   if (!VEH) {
-    if (plateDigits) { err.textContent = 'מספר הרכב לא נמצא במערכת — בדוק/י ונסה/י שוב'; err.style.display = 'block'; }
+    if (plateDigits) { err.textContent = 'מספר הרכב לא נמצא ברשימה (' + FLEET.length + ' רכבים) — בדוק/י את המספר, ואם הוא נכון פנה/י למחלקת הרכב'; err.style.display = 'block'; }
     return;
   }
   err.style.display = 'none';
@@ -188,7 +195,17 @@ function selectVehicle(plateDigits) {
 }
 function findVehicle() {
   document.getElementById('plate-err').style.display = 'none';
-  selectVehicle(document.getElementById('plate-inp').value.replace(/\D/g,''));
+  const _typed = document.getElementById('plate-inp').value.replace(/\D/g,'');
+  if (!_kmLoaded && _kmReady) {
+    const b = document.getElementById('plate-go');
+    if (b) { b.disabled = true; b.textContent = 'טוען רשימת רכבים…'; }
+    _kmReady.then(() => {
+      if (b) { b.disabled = false; b.textContent = 'המשך ←'; }
+      selectVehicle(_typed);
+    });
+    return;
+  }
+  selectVehicle(_typed);
 }
 
 async function submitKm() {
