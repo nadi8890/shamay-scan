@@ -3478,6 +3478,30 @@ async function writePubRoster() {
     await fcol().doc('pubroster').set({ vehicles: stripUndef(vehicles), mailSettings, org, updatedAt: Date.now() });
   } catch(e) { console.log('pubroster write failed', e.code || e.message); }
 }
+// מפתח הזהות של רכב: ספרות בלבד. "12-345-67", "1234567" ו-1234567
+// (מספר) הם אותו רכב, וכל השוואה שלא מנרמלת אותם יצרה כפילויות.
+function vehKey(p) {
+  const s = String(p == null ? '' : p).trim();
+  if (/^emp_/i.test(s)) return s.toLowerCase();   // עובד ללא רכב — לא מספר רישוי
+  const d = s.replace(/\D/g, '');
+  return d || s.toLowerCase();
+}
+// מסיר כפילויות שנוצרו בעבר: הרשומה הראשונה נשמרת, וכל רשומה נוספת
+// עם אותו מפתח ממוזגת לתוכה כך שערך שקיים רק בכפילה לא יאבד.
+function dedupeVehicles(list) {
+  const seen = new Map(); const out = [];
+  (list || []).forEach(v => {
+    const k = vehKey(v && v.plate);
+    if (!k) { out.push(v); return; }
+    if (!seen.has(k)) { seen.set(k, v); out.push(v); return; }
+    const keep = seen.get(k);
+    Object.keys(v || {}).forEach(f => {
+      const cur = keep[f];
+      if (cur === undefined || cur === null || String(cur).trim() === '') keep[f] = v[f];
+    });
+  });
+  return out;
+}
 async function saveVehiclesSafely(editedPlate, dk, origPlate) {
   // must be signed in to write (rules require auth) — surface the problem loudly
   if (!auth.currentUser) {
@@ -3487,7 +3511,7 @@ async function saveVehiclesSafely(editedPlate, dk, origPlate) {
   // Robust plate compare: normalize to a trimmed string so a number-vs-string or
   // whitespace mismatch between the local array and the cloud can never make the
   // vehicle look "not found" (which used to unshift a DUPLICATE row on edit).
-  const _pk = p => String(p == null ? '' : p).trim();
+  const _pk = vehKey;
   // Where the record lives in the cloud = its ORIGINAL plate (edits may change the plate);
   // falls back to the new plate for a fresh add.
   const _findKey = _pk(origPlate || editedPlate);
@@ -3500,6 +3524,7 @@ async function saveVehiclesSafely(editedPlate, dk, origPlate) {
     const snap = await fcol().doc('main').get();
     let cloud = (snap.data() || {}).vehicles;
     if (!Array.isArray(cloud)) cloud = VEHICLES.slice();
+    cloud = dedupeVehicles(cloud);
     const idx = cloud.findIndex(v => _pk(v.plate) === _findKey);
     if (idx >= 0) cloud[idx] = edited; else cloud.unshift(edited);
     if (dk) cloud.forEach(v => {
@@ -9650,7 +9675,7 @@ function saveVehicle() {
     if (el) v[c.key] = el.value.trim();
   });
   if (editingPlate) {
-    const idx = VEHICLES.findIndex(x=>x.plate===editingPlate);
+    const idx = VEHICLES.findIndex(x => vehKey(x.plate) === vehKey(editingPlate));
     if (idx>=0) VEHICLES[idx] = { ...VEHICLES[idx], ...v };
   } else {
     VEHICLES.unshift(v);
