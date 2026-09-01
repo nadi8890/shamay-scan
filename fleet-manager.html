@@ -1643,7 +1643,7 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
                 <input id="adm-splitname" type="checkbox" style="width:16px;height:16px"><span>👤 שם פרטי ומשפחה בנפרד</span>
               </label>
               <label style="display:flex;align-items:center;gap:6px;cursor:pointer" title="עמודת מחלקה בטבלת הנהגים — לרשויות ולארגונים שמחלקים עובדים למחלקות">
-                <input id="adm-dept" type="checkbox" style="width:16px;height:16px"><span>🏛️ מחלקה לנהגים</span>
+                <input id="adm-dept" type="checkbox" checked style="width:16px;height:16px"><span>🏛️ מחלקה לנהגים <span style="color:#94a3b8;font-weight:400">(דלוק כברירת מחדל)</span></span>
               </label>
               <label style="display:flex;align-items:center;gap:6px;cursor:pointer" title="טופס ב1 של משרד התחבורה — בדיקת תקינות בטיחותית לאוטובוס ורכב ציבורי. מוחל על כל רכבי הלקוח.">
                 <input id="adm-busform" type="checkbox" style="width:16px;height:16px"><span>🚌 טופס ביקורת ציבורי לכל הצי <span style="color:#94a3b8;font-weight:400">(מפעיל הסעות)</span></span>
@@ -2798,6 +2798,7 @@ const DRIVER_IMPORT_FIELDS = [
   { key:'driverPhone',   syn:['טלפון סולולרי','טלפון סלולרי','טלפון נייד','פלאפון','נייד','טלפון'] },
   { key:'licNum',        syn:['מספר רישיון','מספר רשיון','מס רישיון','מס׳ רישיון'] },
   { key:'licenseExpiry', syn:['תוקף רישיון נהיגה','תוקף רישיון','תוקף רשיון'] },
+  { key:'department',    syn:['מחלקה','אגף','יחידה'] },
   { key:'driverType',    syn:['סוג נהג'] },
   { key:'trafficValid',  syn:['תוקף בדיקת מידע תעבורתי','מידע תעבורתי','תקנה 585א','עבר תעבורתי'] },
   { key:'healthValid',   syn:['תוקף הצהרת בריאות','הצהרת בריאות'] },
@@ -2860,7 +2861,7 @@ async function onDriversImportFile(input) {
       if (!name) continue;
       const rec = { firstName: first, lastName: last };
       ['driverId','birthDate','address','driverPhone','licNum','licenseExpiry','affiliation',
-       'driverType','trafficValid','healthValid','status','personalCode','driverEmail'].forEach(k => {
+       'department','driverType','trafficValid','healthValid','status','personalCode','driverEmail'].forEach(k => {
         const v = at(row, k);
         if (v) rec[k] = v;
       });
@@ -7868,10 +7869,15 @@ function buildInspectionPdfHtml(r) {
     </table>
   </div>`;
 }
+// כל בנייה של פלט לביקורת עוברת דרך כאן, כדי שסוג הטופס ייבחר פעם
+// אחת ולא ייפול שוב בין המסלולים
+function _inspHtmlFor(r) {
+  return (r && r.formKind === 'municipal') ? buildMuniPdfHtml(r) : buildInspectionPdfHtml(r);
+}
 async function inspImgBlob(r) {
   const holder = document.createElement('div');
   holder.style.cssText = 'position:absolute;left:-9999px;top:0';
-  holder.innerHTML = buildInspectionPdfHtml(r);
+  holder.innerHTML = _inspHtmlFor(r);
   document.body.appendChild(holder);
   try {
     const canvas = await html2canvas(holder.firstElementChild, { scale: 2, backgroundColor: '#ffffff' });
@@ -7881,7 +7887,7 @@ async function inspImgBlob(r) {
 async function inspPdfBlob(r) {
   const holder = document.createElement('div');
   holder.style.cssText = 'position:absolute;left:-9999px;top:0';
-  holder.innerHTML = buildInspectionPdfHtml(r);
+  holder.innerHTML = _inspHtmlFor(r);
   document.body.appendChild(holder);
   try {
     // ההמתנה לגופנים היא צעד הכנה בלבד — היה כאן return לפניה, ולכן
@@ -7903,7 +7909,7 @@ async function inspPdfDownload(r) {
     const blob = await inspPdfBlob(r);
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `ביקורת בטיחות ${r.plate}.pdf`;
+    a.download = (r.formKind === 'municipal' ? 'בדיקת הסעות ' : 'ביקורת בטיחות ') + r.plate + '.pdf';
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 5000);
   } catch(e) { toast('שגיאה ביצירת PDF', true); }
@@ -11188,7 +11194,7 @@ function sysAllowed(name) { return SYS_ENABLED[name] !== false; }
 // העמודה, ובצי של נופר היא מיותרת. הנתון נשלף בסנכרון ממילא, ולכן
 // עדיף שלקוח יראה אותו בלי להיות תלוי בסימון ידני שלי. כיבוי ללקוח
 // מסוים נעשה בפאנל ונשמר שם כ-false מפורש.
-let FEATURES = { weight: true, drivers: false, extraCerts: false, trafficMonths: 36, inspectionMonths: 0, singleSession: false, busForm: false, yearCol: false, municipalForm: false, splitName: false };
+let FEATURES = { dept: true, weight: true, drivers: false, extraCerts: false, trafficMonths: 36, inspectionMonths: 0, singleSession: false, busForm: false, yearCol: false, municipalForm: false, splitName: false };
 function featureOn(name) { return FEATURES[name] === true; }
 // עמודת הטבלה מוסתרת ב-CSS ולא נמחקת מה-DOM, כדי שמספר התאים בכותרת,
 // בשורת הסינון ובשורות יישאר זהה — טבלה שיוצאת מיישור היא באג שקט.
@@ -11383,7 +11389,7 @@ async function resolveTenant(user) {
     TENANT = 'nofar'; ROLE = 'manager'; COMPANY_NAME = 'נופר אנרגיה';
     SUB_ACTIVE = true; SUB_VALID_UNTIL = '';
     SYS_ENABLED = { fleet: true, shamai: true, garage: true };
-    FEATURES = { weight: false, drivers: false, extraCerts: false, trafficMonths: 36, inspectionMonths: 0, singleSession: false, splitName: false };   // נופר: בלי משקל, בלי נהגים, בלי אישורים נוספים
+    FEATURES = { dept: false, weight: false, drivers: false, extraCerts: false, trafficMonths: 36, inspectionMonths: 0, singleSession: false, splitName: false };   // נופר: בלי משקל, בלי נהגים, בלי אישורים נוספים
     return;
   }
   try {
@@ -11410,7 +11416,8 @@ async function resolveTenant(user) {
       // המחדל שלה כבויה — בניגוד ל-weight שכבוי רק בכיבוי מפורש.
       // trafficMonths/inspectionMonths: 0 או חסר = ברירת המחדל הרגילה
       const _f = d.features || {};
-      FEATURES = { weight: _f.weight !== false,
+      FEATURES = { dept: _f.dept !== false,
+                   weight: _f.weight !== false,
                    drivers: _f.drivers === true,
                    extraCerts: _f.extraCerts === true,
                    trafficMonths: parseInt(_f.trafficMonths) || 36,
@@ -11428,14 +11435,14 @@ async function resolveTenant(user) {
     // מוסך — עד שתפתח אותם בעצמך בפאנל הניהול.
     TENANT = user.uid; COMPANY_NAME = ''; SUB_ACTIVE = true; SUB_VALID_UNTIL = '';
     SYS_ENABLED = { fleet: false, shamai: false, garage: false };
-    FEATURES = { weight: true, drivers: false, extraCerts: false, trafficMonths: 36, inspectionMonths: 0, singleSession: false, splitName: false };
+    FEATURES = { dept: true, weight: true, drivers: false, extraCerts: false, trafficMonths: 36, inspectionMonths: 0, singleSession: false, splitName: false };
   } catch(e) {
     // On a read failure, preserve isolation — never default a stranger onto Nofar.
     // (הבעלים כבר טופל למעלה ואינו מגיע לכאן.)
     console.log('tenant resolve error', e);
     TENANT = user.uid;
     SYS_ENABLED = { fleet: false, shamai: false, garage: false };
-    FEATURES = { weight: true, drivers: false, extraCerts: false, trafficMonths: 36, inspectionMonths: 0, singleSession: false, splitName: false };
+    FEATURES = { dept: true, weight: true, drivers: false, extraCerts: false, trafficMonths: 36, inspectionMonths: 0, singleSession: false, splitName: false };
   }
 }
 // ═══ נעילת סשן: חשבון אחד — מכשיר אחד ═══
@@ -15116,7 +15123,7 @@ async function adminLoadClient() {
     document.getElementById('adm-inspmonths').value = _af.inspectionMonths || '';
     document.getElementById('adm-single').checked = _af.singleSession === true;
     document.getElementById('adm-splitname').checked = _af.splitName === true;
-    document.getElementById('adm-dept').checked = _af.dept === true;
+    document.getElementById('adm-dept').checked = _af.dept !== false;
     document.getElementById('adm-busform').checked = _af.busForm === true;
     document.getElementById('adm-yearcol').checked = _af.yearCol === true;
     document.getElementById('adm-muniform').checked = _af.municipalForm === true;
