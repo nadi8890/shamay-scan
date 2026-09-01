@@ -205,8 +205,14 @@ tr:hover td{background:#f0f7ff!important}
 #tab-fleet #fleet-thead th:nth-child(8),
 #tab-fleet #fleet-body td:nth-child(8){min-width:76px;max-width:104px;white-space:normal;overflow-wrap:normal;word-break:keep-all}
 /* עמודת החברה */
-#tab-fleet #fleet-thead th:nth-child(9),
-#tab-fleet #fleet-body td:nth-child(9){max-width:92px;white-space:normal;overflow-wrap:anywhere}
+/* חברה — שם ליסינג ארוך מותר להישבר, אבל בין מילים ולא באמצע מילה,
+   ועם רוחב מינימלי כדי ש"חברה" לא תתפצל לשתי שורות בטבלה צפופה */
+#tab-fleet #fleet-thead th:nth-child(12),
+#tab-fleet #fleet-body td:nth-child(12){min-width:66px;max-width:96px;white-space:normal;overflow-wrap:normal;word-break:keep-all}
+/* מחלקה וסטטוסים — מילה אחת שלמה, בלי שבירה באמצע */
+#tab-fleet .col-dept,
+#tab-fleet .col-vstatus,
+#tab-fleet .col-vstatus2{min-width:68px;max-width:112px;white-space:normal;overflow-wrap:normal;word-break:keep-all}
 /* כותרות: שתי שורות לכל היותר, בלי שבירה באמצע מילה */
 #tab-fleet #fleet-thead th{word-break:keep-all;hyphens:none}
 /* עמודת הפעולות — הכפתורים כבר ברשת 2×2, אין צורך ברוחב נוסף */
