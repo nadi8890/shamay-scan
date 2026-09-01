@@ -7714,7 +7714,10 @@ function buildMuniPdfHtml(r) {
   const row = f => '<tr><td style="border:1px solid #333;padding:5px 8px;font-size:11px">' + esc(f.label) +
     '</td><td style="border:1px solid #333;padding:5px 8px;font-size:11px;font-weight:700">' +
     esc((r.items || {})[f.label] || '—') + '</td></tr>';
-  return '<div style="direction:rtl;font-family:Heebo,Arial,sans-serif;padding:14px;color:#000">' +
+  // רוחב ורקע מפורשים: הטופס מרונדר מחוץ למסך (left:-9999px) לפני
+  // ההמרה ל-PDF, ובלי רוחב הוא נכווץ לאפס ו-html2canvas החזיר עמוד ריק.
+  // הביקורת הרגילה תמיד הגדירה width:760px — כאן זה פשוט נשכח.
+  return '<div style="width:760px;background:#fff;direction:rtl;font-family:Heebo,Arial,sans-serif;padding:24px;color:#000">' +
     '<div style="text-align:center;font-weight:800;font-size:15px">' + esc(COMPANY_NAME || '') + '</div>' +
     '<div style="text-align:center;font-weight:700;font-size:13px;margin-bottom:10px">בדיקת חברת הסעות</div>' +
     '<table style="width:100%;border-collapse:collapse">' + MUNI_FIELDS.map(row).join('') + '</table>' +
