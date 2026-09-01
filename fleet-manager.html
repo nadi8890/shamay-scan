@@ -1535,6 +1535,10 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
     .settings-box>summary::after{content:'▾';margin-inline-start:auto;color:#64748b;transition:transform .15s}
     .settings-box[open]>summary::after{transform:rotate(180deg)}
     .settings-box>summary:hover{background:#f1f5f9}
+    /* הכותרת בתוך summary היא פריט flex, ובלי flex-grow היא נדחסת
+       לרוחב המילה הארוכה ביותר ונשברת לחמש שורות. הבאדג' אינו מתכווץ. */
+    .settings-box>summary>.section-title{flex:1 1 auto;min-width:0}
+    .settings-box>summary>.count-badge{flex:0 0 auto}
     .settings-body{padding:14px;border-top:1px solid #e2e8f0}
     .settings-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px;align-items:start}
     .settings-grid .form-card{max-width:none!important;margin-top:0!important;height:100%}
@@ -1735,8 +1739,10 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
     </div>
       </div>
     </details>
-    <div class="section-hdr" style="margin-top:18px"><div style="display:flex;align-items:center;gap:8px"><span class="section-title">ביקורות שבוצעו</span><span class="count-badge" id="insp-count">0</span></div></div>
-    <div id="insp-history"></div>
+    <details class="settings-box" id="sec-insp">
+      <summary><span class="section-title">ביקורות שבוצעו</span><span class="count-badge" id="insp-count">0</span></summary>
+      <div class="settings-body"><div id="insp-history"></div></div>
+    </details>
     <div class="section-hdr" style="margin-top:18px"><div style="display:flex;align-items:center;gap:8px"><span class="section-title" id="kmround-title">🛣️ סבב עדכון ק"מ</span><span class="count-badge" id="kmround-count">—</span></div>
       <div style="display:flex;gap:6px">
         <button class="btn btn-primary" style="padding:5px 12px;font-size:0.78rem" onclick="copyKmGroupMsg()">📋 העתק הודעה לקבוצה</button>
@@ -1745,11 +1751,15 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
     </div>
     <div id="kmround-panel"></div>
 
-    <div class="section-hdr" style="margin-top:18px"><div style="display:flex;align-items:center;gap:8px"><span class="section-title">🚗 מסמכי רכב שהעלו נהגים</span><span class="count-badge" id="vdocs-count">0</span></div></div>
-    <div id="vdocs-panel"></div>
+    <details class="settings-box" id="sec-vdocs">
+      <summary><span class="section-title">🚗 מסמכי רכב שהעלו נהגים</span><span class="count-badge" id="vdocs-count">0</span></summary>
+      <div class="settings-body"><div id="vdocs-panel"></div></div>
+    </details>
 
-    <div class="section-hdr" style="margin-top:18px"><div style="display:flex;align-items:center;gap:8px"><span class="section-title">📨 הצהרות קבלת רכב שהתקבלו</span><span class="count-badge" id="decl-count">0</span></div></div>
-    <div id="decl-history"></div>
+    <details class="settings-box" id="sec-decl">
+      <summary><span class="section-title">📨 הצהרות קבלת רכב שהתקבלו</span><span class="count-badge" id="decl-count">0</span></summary>
+      <div class="settings-body"><div id="decl-history"></div></div>
+    </details>
   </div>
 
   <!-- inspection form -->
@@ -12199,6 +12209,21 @@ function guardTenantCache() {
   wipeSeedData();
   localStorage.setItem('fleet_cache_tenant', TENANT);
 }
+// שלוש הרשימות הארוכות בלשונית הטפסים מקופלות כברירת מחדל — הכותרת
+// והמונה מספיקים כדי לדעת אם יש שם משהו חדש. מי שפותח רובריקה, היא
+// נשארת פתוחה גם בכניסה הבאה.
+const _COLLAPSE_SECS = ['sec-insp', 'sec-vdocs', 'sec-decl'];
+function initCollapsibleSections() {
+  _COLLAPSE_SECS.forEach(id => {
+    const el = document.getElementById(id);
+    if (!el || el._wired) return;
+    el._wired = true;
+    try { if (localStorage.getItem('fleet_sec_' + id) === '1') el.open = true; } catch(e) {}
+    el.addEventListener('toggle', () => {
+      try { localStorage.setItem('fleet_sec_' + id, el.open ? '1' : '0'); } catch(e) {}
+    });
+  });
+}
 function bootApp() {
   loadUiPrefs();
   markMultiWindow();   // ההעדפות שייכות ללקוח, ולכן נטענות רק אחרי שהוא נפתר
@@ -12207,6 +12232,7 @@ function bootApp() {
   guardTenantCache();
   applySysLocks();
   applyFeatureFlags();
+  initCollapsibleSections();
   const _adm = document.getElementById('admin-clients-panel');
   if (_adm) _adm.style.display = (TENANT === 'nofar') ? 'block' : 'none';
   // אם המערכת השמורה ננעלה מאז הביקור הקודם, נבחרת הראשונה הפתוחה מבין
