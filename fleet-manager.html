@@ -763,6 +763,7 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
         <tr>
           <th><div class="th-sort" onclick="sortDrvCol('name')"><span id="drv-hdr-name">שם הנהג</span><span class="sort-arrow" id="dsarr-name">⇅</span></div></th>
           <th class="col-lastname"><div class="th-sort" onclick="sortDrvCol('lastname')">שם משפחה<span class="sort-arrow" id="dsarr-lastname">⇅</span></div></th>
+          <th class="col-dept"><div class="th-sort" onclick="sortDrvCol('dept')">מחלקה<span class="sort-arrow" id="dsarr-dept">⇅</span></div></th>
           <th><div class="th-sort" onclick="sortDrvCol('id')">ת.ז<span class="sort-arrow" id="dsarr-id">⇅</span></div></th>
           <th><div class="th-sort" onclick="sortDrvCol('phone')">טלפון<span class="sort-arrow" id="dsarr-phone">⇅</span></div></th>
           <th><div class="th-sort" onclick="sortDrvCol('email')">מייל<span class="sort-arrow" id="dsarr-email">⇅</span></div></th>
@@ -1045,6 +1046,7 @@ body.read-only .btn-primary,body.read-only .btn-green,body.read-only .rec-del{op
 body.read-only{padding-top:38px}
 body:not(.feat-certs) .col-cert{display:none}
 body:not(.feat-splitname) .col-lastname{display:none}
+body:not(.feat-dept) .col-dept{display:none}
 body:not(.feat-yearcol) .col-year{display:none}
 /* לשונית הנהגים מוצגת רק ללקוח שהופעלה אצלו */
 body:not(.feat-drivers) .feat-drivers-only{display:none!important}</style>
@@ -1640,6 +1642,9 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
               <label style="display:flex;align-items:center;gap:6px;cursor:pointer" title="שם פרטי ושם משפחה בעמודות נפרדות בטבלה ובטופס הרכב">
                 <input id="adm-splitname" type="checkbox" style="width:16px;height:16px"><span>👤 שם פרטי ומשפחה בנפרד</span>
               </label>
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer" title="עמודת מחלקה בטבלת הנהגים — לרשויות ולארגונים שמחלקים עובדים למחלקות">
+                <input id="adm-dept" type="checkbox" style="width:16px;height:16px"><span>🏛️ מחלקה לנהגים</span>
+              </label>
               <label style="display:flex;align-items:center;gap:6px;cursor:pointer" title="טופס ב1 של משרד התחבורה — בדיקת תקינות בטיחותית לאוטובוס ורכב ציבורי. מוחל על כל רכבי הלקוח.">
                 <input id="adm-busform" type="checkbox" style="width:16px;height:16px"><span>🚌 טופס ביקורת ציבורי לכל הצי <span style="color:#94a3b8;font-weight:400">(מפעיל הסעות)</span></span>
               </label>
@@ -1921,6 +1926,7 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
       <div class="modal-row"><label>בדיקת עבר תעבורתי</label><input id="dm-traffic" type="text" placeholder="יי.חח.שש" inputmode="numeric" oninput="dateAutoMask(this)"></div>
       <div class="modal-row"><label>שיוך <span style="font-weight:400;color:#94a3b8;font-size:0.7rem">— מחלקה/אגף</span></label><input id="dm-aff" type="text" placeholder="גינון / פיקוח / תברואה"></div>
     </div>
+    <div class="modal-row col-dept"><label>מחלקה</label><input id="dm-dept" type="text" placeholder="גינון / פיקוח / רווחה" list="dept-list"><datalist id="dept-list"></datalist></div>
     <div class="modal-row"><label>כתובת</label><input id="dm-addr" type="text" placeholder="רחוב, מספר, עיר"></div>
     <div class="modal-grid">
       <div class="modal-row"><label>תאריך לידה</label><input id="dm-birth" type="text" placeholder="יי.חח.שש" inputmode="numeric" oninput="dateAutoMask(this)"></div>
@@ -2753,6 +2759,15 @@ function openDriverModal(key) {
   val('dm-name', key || ''); val('dm-id', d.driverId); val('dm-phone', d.driverPhone);
   val('dm-email', d.driverEmail); val('dm-licnum', d.licNum); val('dm-licexp', d.licenseExpiry);
   val('dm-traffic', d.trafficRecord); val('dm-aff', d.affiliation); val('dm-addr', d.address);
+  val('dm-dept', d.department);
+  // רשימת המחלקות נבנית מהנהגים עצמם, כדי שהשנייה והלאה ייבחרו ולא יוקלדו
+  // מחדש — וכך לא ייווצרו "גינון" ו"מחלקת גינון" כשתי מחלקות שונות
+  try {
+    const dl = document.getElementById('dept-list');
+    if (dl) dl.innerHTML = [...new Set(Object.values(DRIVERS || {})
+      .map(x => String((x && x.department) || '').trim()).filter(Boolean))]
+      .sort((a, b) => a.localeCompare(b, 'he')).map(x => `<option value="${esc(x)}">`).join('');
+  } catch(e) {}
   val('dm-notes', d.notes);
   val('dm-birth', d.birthDate); val('dm-dtype', d.driverType);
   val('dm-trafficvalid', d.trafficValid); val('dm-health', d.healthValid);
@@ -2964,6 +2979,7 @@ async function saveDriver() {
     driverId: g('dm-id'), driverPhone: g('dm-phone'), driverEmail: g('dm-email'),
     licNum: g('dm-licnum'), licenseExpiry: g('dm-licexp'), trafficRecord: g('dm-traffic'),
     affiliation: g('dm-aff'), address: g('dm-addr'), notes: g('dm-notes'),
+    department: g('dm-dept'),
     birthDate: g('dm-birth'), driverType: g('dm-dtype'), trafficValid: g('dm-trafficvalid'),
     healthValid: g('dm-health'), status: g('dm-status'), personalCode: g('dm-code')
   });
@@ -3122,6 +3138,7 @@ function renderDrivers() {
     switch (col) {
       case 'name':    return (featureOn('splitName') ? driverFirst({driverName:k, firstName:d.firstName}) : k) + ' ' + (d.affiliation || '');
       case 'lastname': return driverLast({driverName:k, lastName:d.lastName});
+      case 'dept':    return d.department || '';
       case 'id':      return d.driverId || '';
       case 'phone':   return d.driverPhone || '';
       case 'email':   return d.driverEmail || '';
@@ -3139,7 +3156,7 @@ function renderDrivers() {
       default:        return '';
     }
   };
-  const COLS = ['name','lastname','id','phone','email','licNum','licExp','traffic','address','plates','birth','dtype','trafficValid','health','status','code'];
+  const COLS = ['name','lastname','dept','id','phone','email','licNum','licExp','traffic','address','plates','birth','dtype','trafficValid','health','status','code'];
   let keys = Object.keys(DRIVERS);
   // סינון פר-עמודה
   const _match = (val, f) => !f || String(val || '').toLowerCase().includes(String(f).toLowerCase());
@@ -3190,6 +3207,7 @@ function renderDrivers() {
     return `<tr style="cursor:pointer" onclick="openDriverModal('${kq}')">
       <td style="font-weight:700"><input type="checkbox" class="drv-sel" data-k="${esc(k)}" ${_selDrv.has(k)?"checked":""} onclick="event.stopPropagation();toggleDrvSel(this)" style="margin-left:6px;cursor:pointer;transform:scale(1.15)">${esc(featureOn('splitName') ? driverFirst({driverName:k, firstName:d.firstName}) : k)}${d.affiliation ? `<br><span style="color:var(--muted);font-size:0.66rem">${esc(d.affiliation)}</span>` : ''}</td>
       <td class="col-lastname" style="font-weight:700">${esc(driverLast({driverName:k, lastName:d.lastName})) || '—'}</td>
+      <td class="col-dept" style="font-size:0.73rem">${esc(d.department) || '—'}</td>
       <td style="direction:ltr;font-size:0.73rem">${esc(d.driverId) || '—'}</td>
       <td style="direction:ltr;font-size:0.73rem">${esc(d.driverPhone) || '—'}</td>
       <td style="direction:ltr;font-size:0.7rem">${esc(d.driverEmail) || '—'}</td>
@@ -4953,7 +4971,7 @@ let replColFilters = { employee:'', plate:'', typeCompany:'', fromDate:'', toDat
 let retColFilters  = { employee:'', plate:'', make:'', fromDate:'', toDate:'', reason:'', notes:'' };
 let violColFilters = { reportNum:'', date:'', offense:'', driver:'', plate:'', points:'', fine:'', status:'' };
 let invColFilters  = { plate:'', garage:'', date:'', workType:'', driver:'' };
-let drvColFilters  = { name:'', lastname:'', id:'', phone:'', email:'', licNum:'', licExp:'', traffic:'', address:'', plates:'', birth:'', dtype:'', trafficValid:'', health:'', status:'', code:'' };
+let drvColFilters  = { name:'', lastname:'', dept:'', id:'', phone:'', email:'', licNum:'', licExp:'', traffic:'', address:'', plates:'', birth:'', dtype:'', trafficValid:'', health:'', status:'', code:'' };
 try {
   const _sd = JSON.parse(localStorage.getItem('fleet_drvColFilters') || 'null');
   if (_sd) Object.keys(drvColFilters).forEach(k => { if (typeof _sd[k] === 'string') drvColFilters[k] = _sd[k]; });
@@ -5034,6 +5052,7 @@ function buildDrvColFilterRow() {
   const inp = c => `<th><input class="col-filter-inp" type="text" placeholder="${ph[c]}" value="${esc(drvColFilters[c]||'')}" oninput="setDrvColFilter('${c}',this.value)"></th>`;
   row.innerHTML = inp('name')
     + `<th class="col-lastname"><input class="col-filter-inp" type="text" placeholder="משפחה..." value="${esc(drvColFilters.lastname||'')}" oninput="setDrvColFilter('lastname',this.value)"></th>`
+    + `<th class="col-dept"><input class="col-filter-inp" type="text" placeholder="מחלקה..." value="${esc(drvColFilters.dept||'')}" oninput="setDrvColFilter('dept',this.value)"></th>`
     + ['id','phone','email','licNum','licExp','traffic','address','plates','birth','dtype','trafficValid','health','status','code'].map(inp).join('') + '<th></th>';
 }
 
@@ -9200,13 +9219,15 @@ function exportSection(section) {
     headers = ['עובד','רישוי רכב','יצרן','דגם','מתאריך','עד תאריך','סיבת החזרה','הערות'];
     rows = RETURNS.map(r => [r.employee,r.plate,r.make,r.model,r.fromDate,r.toDate,r.reason,r.notes]);
   } else if (section === 'drivers') {
-    headers = ['שם הנהג','שיוך','ת.ז','טלפון','מייל','מס׳ רישיון','תוקף רישיון','עבר תעבורתי','כתובת','רכבים','הערות'];
+    headers = ['שם הנהג','שיוך','מחלקה','ת.ז','טלפון','מייל','מס׳ רישיון','תוקף רישיון','עבר תעבורתי','כתובת','רכבים','הערות'];
     rows = Object.keys(DRIVERS).sort((a,b)=>a.localeCompare(b,'he')).map(k => {
       const d = DRIVERS[k] || {};
-      return [k, d.affiliation||'', d.driverId||'', d.driverPhone||'', d.driverEmail||'',
+      return [k, d.affiliation||'', d.department||'', d.driverId||'', d.driverPhone||'', d.driverEmail||'',
               d.licNum||'', d.licenseExpiry||'', d.trafficRecord||'', d.address||'',
               driverVehicles(k).map(v=>v.plate).join(', '), d.notes||''];
     });
+    // אצל לקוח שהמחלקה כבויה אצלו העמודה יורדת מהקובץ
+    if (!featureOn('dept')) { headers.splice(2,1); rows.forEach(r => r.splice(2,1)); }
   }
   // במקום להוריד מיד — פותחים חלון בחירת עמודות
   window._exportCtx = { section, headers, rows };
@@ -11176,6 +11197,7 @@ function applyFeatureFlags() {
   document.body.classList.toggle('feat-drivers', featureOn('drivers'));
   document.body.classList.toggle('feat-certs', featureOn('extraCerts'));
   document.body.classList.toggle('feat-splitname', featureOn('splitName'));
+  document.body.classList.toggle('feat-dept', featureOn('dept'));
   document.body.classList.toggle('feat-yearcol', featureOn('yearCol'));
   // מפתח ה-API הוא שלך ומחויב עליך. הוא נשמר בדפדפן, ולכן חשבון לקוח
   // שנפתח על אותו מחשב היה משתמש בו על חשבונך. אצל כל דייר שאינו
@@ -15094,6 +15116,7 @@ async function adminLoadClient() {
     document.getElementById('adm-inspmonths').value = _af.inspectionMonths || '';
     document.getElementById('adm-single').checked = _af.singleSession === true;
     document.getElementById('adm-splitname').checked = _af.splitName === true;
+    document.getElementById('adm-dept').checked = _af.dept === true;
     document.getElementById('adm-busform').checked = _af.busForm === true;
     document.getElementById('adm-yearcol').checked = _af.yearCol === true;
     document.getElementById('adm-muniform').checked = _af.municipalForm === true;
@@ -15270,6 +15293,7 @@ async function adminSaveClient() {
       inspectionMonths: parseInt(document.getElementById('adm-inspmonths').value) || 0,
       singleSession: !!document.getElementById('adm-single').checked,
       splitName: !!document.getElementById('adm-splitname').checked,
+      dept: !!document.getElementById('adm-dept').checked,
       busForm: !!document.getElementById('adm-busform').checked,
       yearCol: !!document.getElementById('adm-yearcol').checked,
       municipalForm: !!document.getElementById('adm-muniform').checked
