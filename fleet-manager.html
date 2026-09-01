@@ -2023,9 +2023,9 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
     <div id="iv-sig-wrap" style="display:none;margin-top:8px"><div style="font-size:0.75rem;color:var(--muted);margin-bottom:3px">חתימת הבוחן:</div><img id="iv-sig" style="max-width:220px;border:1px solid #e2e8f0;border-radius:8px;background:#fff"></div>
     <div class="btn-row">
       <button class="btn btn-secondary" onclick="document.getElementById('insp-view-modal').classList.remove('open')">סגור</button>
-      <button class="btn btn-secondary" onclick="inspPdfDownload(window._viewInspRec)">📄 PDF</button>
-      <button class="btn btn-secondary" onclick="inspImgDownload(window._viewInspRec)">🖼️ תמונה</button>
-      <button class="btn btn-primary" onclick="inspImgShare(window._viewInspRec)">📤 שתף</button>
+      <button class="btn btn-secondary" id="iv-pdf" onclick="ivPdf()">📄 PDF</button>
+      <button class="btn btn-secondary" id="iv-img" onclick="ivImg()">🖼️ תמונה</button>
+      <button class="btn btn-primary" id="iv-share" onclick="ivShare()">📤 שתף</button>
     </div>
   </div>
 </div>
@@ -7613,12 +7613,72 @@ async function resendDeclarationMail(i) {
   } catch(e) { toast('שגיאה בשליחה', true); console.log('resendDeclarationMail', e); }
 }
 
+// חלון הצפייה משותף לביקורות ולטפסים החתומים. עד כה הכפתורים היו
+// מחווטים לרשומת ביקורת בלבד, ולכן פתיחת טופס נהלים ולחיצה על PDF
+// החזירה "זמין רק לביקורות" — למרות שלטופס יש מסמך מלא משלו.
+function _ivButtons(kind) {
+  const set = (id, show) => { const b = document.getElementById(id); if (b) b.style.display = show ? '' : 'none'; };
+  set('iv-pdf', true);
+  // לטופס חתום אין מסלול רינדור לתמונה, ולכן הכפתור יורד במקום להיכשל
+  set('iv-img', kind === 'insp');
+  set('iv-share', true);
+}
+async function ivPdf() {
+  if (window._viewInspRec) return inspPdfDownload(window._viewInspRec);
+  const r = window._viewDeclRec;
+  if (!r) { toast('אין מסמך להורדה', true); return; }
+  toast('מכין מסמך…');
+  try {
+    const blob = await _renderDeclPdf(r);
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `${_declFileName(r)}.pdf`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  } catch(e) { console.log('decl pdf', e); toast('שגיאה ביצירת המסמך', true); }
+}
+function ivImg() {
+  if (window._viewInspRec) return inspImgDownload(window._viewInspRec);
+  toast('לטופס חתום יש מסמך PDF בלבד', true);
+}
+async function ivShare() {
+  if (window._viewInspRec) return inspImgShare(window._viewInspRec);
+  const r = window._viewDeclRec;
+  if (!r) { toast('אין מסמך לשיתוף', true); return; }
+  toast('מכין מסמך…');
+  try {
+    const blob = await _renderDeclPdf(r);
+    const file = new File([blob], `${_declFileName(r)}.pdf`, { type: 'application/pdf' });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({ files: [file], title: _declFileName(r) });
+      return;
+    }
+    // דפדפן שאינו תומך בשיתוף קבצים — הורדה במקום כישלון שקט
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(file); a.download = file.name; a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    toast('הדפדפן אינו תומך בשיתוף — המסמך הורד');
+  } catch(e) {
+    if (e && e.name === 'AbortError') return;   // המשתמש ביטל
+    console.log('decl share', e); toast('שגיאה בשיתוף', true);
+  }
+}
+function _declFileName(r) {
+  const title = (r.formType && typeof DECL_FORM_META !== 'undefined' && DECL_FORM_META[r.formType])
+    ? String(DECL_FORM_META[r.formType].label).replace(/^\S+\s/, '') : 'טופס נהג';
+  return `${title} - ${r.name || ''} ${r.plate || ''}`.trim();
+}
+
 function viewDeclaration(i) {
   const r = (window._DECLS||[])[i];
   if (!r) return;
-  document.getElementById('iv-title').textContent = `הצהרת קבלת רכב — ${r.name||''}`;
+  const _t = (r.formType && typeof DECL_FORM_META !== 'undefined' && DECL_FORM_META[r.formType])
+    ? DECL_FORM_META[r.formType].label : 'טפסי קבלת רכב';
+  document.getElementById('iv-title').textContent = `${_t} — ${r.name||''}`;
   document.getElementById('iv-body').textContent = buildDeclText(r);
   window._viewInspRec = null;
+  window._viewDeclRec = r;
+  _ivButtons('decl');
   const sw = document.getElementById('iv-sig-wrap');
   if (r.signature) { sw.style.display = ''; document.getElementById('iv-sig').src = r.signature; }
   else sw.style.display = 'none';
@@ -8226,6 +8286,8 @@ function viewInspection(i) {
   const r = (window._INSPECTIONS||[])[i];
   if (!r) return;
   window._viewInspRec = r;
+  window._viewDeclRec = null;
+  _ivButtons('insp');
   // בדיקת חברת הסעות היא טופס אחר לגמרי, עם שדות משלה. עד כה הצפייה
   // בנתה תמיד את הטקסט של ביקורת הבטיחות, ולכן הוצגו סעיפים שאין
   // ברשומה והשדות שמולאו לא הופיעו.
