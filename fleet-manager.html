@@ -6900,10 +6900,6 @@ function openDeclShare(plate, driverName) {
     (plate ? `plate=${encodeURIComponent(plate)}` : 'plate=') + tParam('&');
   const digits = ((v && v.driverPhone) || drvRec.driverPhone || '').replace(/\D/g,'');
   window._declIntl = digits ? (digits.startsWith('972') ? digits : '972' + digits.replace(/^0/,'')) : '';
-  // סעיפי הנזק והתאונה מתייחסים לרכב מסוים, ולכן יורדים כשאין רכב —
-  // עדיף להסתיר מלשלוח לנהג קישור שיבקש ממנו מספר רכב שאין לו
-  const _dsVeh = document.getElementById('dsm-vehicle-only');
-  if (_dsVeh) _dsVeh.style.display = plate ? '' : 'none';
   document.getElementById('dsm-info').innerHTML = window._declIntl
     ? `${esc(driver || 'נהג')} — ${plate ? 'רכב ' + esc(plate) : 'ללא רכב משויך'} | 📱 <b dir="ltr">${esc((v && v.driverPhone) || drvRec.driverPhone || '')}</b><br><span style="font-size:0.72rem">בחר איזה טופס לשלוח — ההודעה תיפתח ישירות בצ'אט עם הנהג</span>`
     : `${esc(driver || 'נהג')} — ${plate ? 'רכב ' + esc(plate) : 'ללא רכב משויך'}<br><span style="font-size:0.72rem;color:#d97706">⚠ אין מספר נייד שמור לנהג — ייפתח וואטסאפ לבחירת איש קשר. אפשר להוסיף מספר בעריכת הרכב (✏️)</span>`;
@@ -6921,7 +6917,7 @@ function sendDeclForm(formKey) {
 // Send the general link (the menu with all 3 receipt forms) straight to WhatsApp,
 // same behaviour as the per-form buttons.
 function sendDeclAll() {
-  const msg = `שלום ${window._declDriver || ''},\n${window._declPlate ? 'לקראת קבלת רכב ' + window._declPlate + ' ' : ''}נא למלא ולחתום על ${window._declPlate ? 'טפסי קבלת הרכב' : 'טפסי הנהג'} בקישור:\n${window._declLink}\n\nלוקח כמה דקות בטלפון. תודה!\n${coSig()}`;
+  const msg = `שלום ${window._declDriver || ''},\n${window._declPlate ? 'לקראת קבלת רכב ' + window._declPlate + ' ' : ''}נא למלא ולחתום על טפסי קבלת הרכב בקישור:\n${window._declLink}\n\nלוקח כמה דקות בטלפון. תודה!\n${coSig()}`;
   const url = window._declIntl
     ? `https://wa.me/${window._declIntl}?text=${encodeURIComponent(msg)}`
     : 'https://wa.me/?text=' + encodeURIComponent(msg);
