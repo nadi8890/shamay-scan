@@ -5758,7 +5758,7 @@ function shareDamageLinkFor(plate) {
   const nm = (v.driverName || '').split('-')[0].trim();
   const link = `https://nadi8890.github.io/shamay-scan/driver-damage.html?t=${tid()}&plate=${encodeURIComponent(v.plate)}`;
   const msg = `היי ${nm} 👋\nלדיווח נזק / תאונה לרכב ${v.plate} — מלא/י את הפרטים וצרף/י תמונות של הנזק (כולל רכב צד ג' אם יש):\n${link}\n\n${typeof coSig === 'function' ? coSig() : ''}`;
-  const digits = (v.driverPhone || '').replace(/\D/g, '');
+  const digits = driverPhoneOf(v).replace(/\D/g, '');
   if (digits) {
     const intl = digits.startsWith('972') ? digits : '972' + digits.replace(/^0/, '');
     window.open('https://wa.me/' + intl + '?text=' + encodeURIComponent(msg), '_blank');
@@ -6948,7 +6948,7 @@ function remindKmDriver(i) {
   const v = (window._kmMissing||[])[i];
   if (!v) return;
   const nm = (v.driverName||'').split('-')[0].trim();
-  const digits = (v.driverPhone||'').replace(/\D/g,'');
+  const digits = driverPhoneOf(v).replace(/\D/g,'');
   const intl = digits.startsWith('972') ? digits : '972' + digits.replace(/^0/,'');
   const msg = `היי ${nm} 👋\nתזכורת קטנה — נא לעדכן את הק"מ הנוכחי של הרכב (${v.plate}) בקישור:\n${KM_UPDATE_LINK}?plate=${v.plate}${tParam('&')}\n\nלוקח 20 שניות. תודה!\n${coSig()}`;
   window.open('https://wa.me/' + intl + '?text=' + encodeURIComponent(msg), '_blank');
@@ -7010,19 +7010,34 @@ const DECL_FORM_META = {
 // driverName נמסר כשאין רכב — הטפסים האישיים (נהלים, בני משפחה, עבר
 // תעבורתי) שייכים לאדם ולא לרכב, ואין סיבה שעובד שטרם קיבל רכב לא יקבל
 // אותם. הקישור נשלח בלי פרמטר plate, ודף הטפסים מציג "טפסי נהג".
+// הטלפון של הנהג עשוי לשבת על רשומת הנהג ולא על הרכב — כך הוא מגיע
+// בייבוא מצבת נהגים. כל שליחת וואטסאפ עוברת דרך כאן, אחרת מסך אחד
+// פותח את השיחה ומסך אחר פותח בורר אנשי קשר על אותו נהג בדיוק.
+function driverPhoneOf(v) {
+  const direct = String((v && v.driverPhone) || '').trim();
+  if (direct) return direct;
+  const dk = (typeof driverKey === 'function') ? driverKey((v && v.driverName) || '') : '';
+  const rec = (dk && typeof DRIVERS === 'object' && DRIVERS && DRIVERS[dk]) || {};
+  return String(rec.driverPhone || '').trim();
+}
 function openDeclShare(plate, driverName) {
   const v = VEHICLES.find(x => x.plate === plate);
-  const drvRec = (!v && driverName) ? (DRIVERS[driverName] || {}) : {};
-  const driver = v ? (v.driverName||'').split('-')[0].trim()
-                   : String(driverName || '').split('-')[0].trim();
+  const _dname = v ? (v.driverName || '') : String(driverName || '');
+  // רשומת הנהג נקראה עד כה רק כשאין רכב, ולכן טלפון שיושב עליה ולא על
+  // הרכב — כך הוא מגיע בייבוא מצבת נהגים — לא נמצא, ווואטסאפ נפתח
+  // בבורר אנשי קשר למרות שהמספר קיים במערכת.
+  const _dk = (typeof driverKey === 'function') ? driverKey(_dname) : _dname;
+  const drvRec = (DRIVERS && (DRIVERS[_dk] || DRIVERS[_dname])) || {};
+  const driver = String(_dname).split('-')[0].trim();
   window._declPlate = plate || '';
   window._declDriver = driver;
   window._declLink = `https://nadi8890.github.io/shamay-scan/driver-forms.html?` +
     (plate ? `plate=${encodeURIComponent(plate)}` : 'plate=') + tParam('&');
-  const digits = ((v && v.driverPhone) || drvRec.driverPhone || '').replace(/\D/g,'');
+  const _phone = (v ? driverPhoneOf(v) : '') || String(drvRec.driverPhone || '').trim();
+  const digits = _phone.replace(/\D/g,'');
   window._declIntl = digits ? (digits.startsWith('972') ? digits : '972' + digits.replace(/^0/,'')) : '';
   document.getElementById('dsm-info').innerHTML = window._declIntl
-    ? `${esc(driver || 'נהג')} — ${plate ? 'רכב ' + esc(plate) : 'ללא רכב משויך'} | 📱 <b dir="ltr">${esc((v && v.driverPhone) || drvRec.driverPhone || '')}</b><br><span style="font-size:0.72rem">בחר איזה טופס לשלוח — ההודעה תיפתח ישירות בצ'אט עם הנהג</span>`
+    ? `${esc(driver || 'נהג')} — ${plate ? 'רכב ' + esc(plate) : 'ללא רכב משויך'} | 📱 <b dir="ltr">${esc(_phone)}</b><br><span style="font-size:0.72rem">בחר איזה טופס לשלוח — ההודעה תיפתח ישירות בצ'אט עם הנהג</span>`
     : `${esc(driver || 'נהג')} — ${plate ? 'רכב ' + esc(plate) : 'ללא רכב משויך'}<br><span style="font-size:0.72rem;color:#d97706">⚠ אין מספר נייד שמור לנהג — ייפתח וואטסאפ לבחירת איש קשר. אפשר להוסיף מספר בעריכת הרכב (✏️)</span>`;
   document.getElementById('decl-share-modal').classList.add('open');
 }
@@ -7085,7 +7100,7 @@ async function cancelInspBooking(plate) {
 function sendInspReminderPlate(plate) {
   const v = VEHICLES.find(x => x.plate === plate);
   const name = v ? (v.driverName || '').split('-')[0].trim() : '';
-  const digits = (v && v.driverPhone ? v.driverPhone : '').replace(/\D/g, '');
+  const digits = driverPhoneOf(v).replace(/\D/g, '');
   const intl = digits ? (digits.startsWith('972') ? digits : '972' + digits.replace(/^0/, '')) : '';
   const t = new Date();
   const sent = `${t.getFullYear()}-${('0'+(t.getMonth()+1)).slice(-2)}-${('0'+t.getDate()).slice(-2)}`;
@@ -8523,7 +8538,7 @@ function remindServiceScheduling(plate) {
   const line = _serviceChannel(v.company);
   const uploadLink = `${TASK_LINK}?t=${tid()}&plate=${encodeURIComponent(v.plate)}&type=service&req=${encodeURIComponent('אישור טיפול / מסמך רכב')}`;
   const msg = `היי ${nm} 👋\nהרכב ${v.plate} הגיע/מתקרב למועד טיפול תקופתי — נא לתאם טיפול בהקדם:\n\n${line}\n\n📎 אם הרכב כבר עבר טיפול — ניתן להעלות את מסמך הטיפול למערכת דרך הקישור:\n${uploadLink}\n\nתודה!\n${coSig()}`;
-  const digits = (v.driverPhone || '').replace(/\D/g, '');
+  const digits = driverPhoneOf(v).replace(/\D/g, '');
   if (digits) {
     const intl = digits.startsWith('972') ? digits : '972' + digits.replace(/^0/, '');
     window.open('https://wa.me/' + intl + '?text=' + encodeURIComponent(msg), '_blank');
@@ -8559,7 +8574,7 @@ function requestDocFromEmployee(plate) {
   // ואז לבדו אי אפשר לדעת אילו מסמכים נתבקשו בפועל.
   const link = `${TASK_LINK}?t=${tid()}&plate=${encodeURIComponent(v.plate)}&type=${encodeURIComponent(primary)}&types=${encodeURIComponent(types.join(','))}&req=${encodeURIComponent(label)}`;
   const msg = `היי ${nm} 👋\nנדרש מסמך/אישור עבור הרכב ${v.plate}:\n• ${items.join('\n• ')}\n\nנא להיכנס לקישור, לצרף צילום/מסמך ולשלוח (דקה):\n${link}\n\nתודה!\n${coSig()}`;
-  const digits = (v.driverPhone || '').replace(/\D/g, '');
+  const digits = driverPhoneOf(v).replace(/\D/g, '');
   if (digits) {
     const intl = digits.startsWith('972') ? digits : '972' + digits.replace(/^0/, '');
     window.open('https://wa.me/' + intl + '?text=' + encodeURIComponent(msg), '_blank');
