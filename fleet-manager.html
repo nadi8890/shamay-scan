@@ -6187,9 +6187,11 @@ async function govVehicleRecord(rawPlate) {
     if (rec) { _govCachePut(plate, rec); return rec; }
   } catch(e) { netErr++; console.log('gov text lookup failed:', e && e.message); }
 
-  // המאגר לא ענה. אם הרכב הזה נשלף בעבר בהצלחה — עדיף להגיש את הרשומה
-  // השמורה מאשר לא כלום, ובלבד שנאמר במפורש שהיא לא טרייה.
-  if (serverErr || netErr) {
+  // לא הוחזרה רשומה. זה קורה גם כשהמאגר נופל, וגם כשהוא עונה תקין אך
+  // ריק — ב-31.8.2026 מאגר הרכב הפרטי החזיר success=true עם total=0
+  // בזמן טעינה מחדש אצלם. בשני המקרים, אם הרכב נשלף בעבר בהצלחה עדיף
+  // להגיש את הרשומה השמורה מאשר לא כלום: היא הייתה אמיתית כשנשמרה.
+  {
     const c = _govCacheGet(plate);
     if (c) {
       const days = Math.floor((Date.now() - (c.at || 0)) / 86400000);
@@ -6198,7 +6200,7 @@ async function govVehicleRecord(rawPlate) {
                                  : 'מנתונים שמורים (' + days + ' ימים)';
       return c.rec;
     }
-    GOV_LAST_ERROR = serverErr ? 'המאגר הממשלתי מחזיר שגיאה' : 'אין מענה מהמאגר';
+    if (serverErr || netErr) GOV_LAST_ERROR = serverErr ? 'המאגר הממשלתי מחזיר שגיאה' : 'אין מענה מהמאגר';
   }
   return null;
 }
