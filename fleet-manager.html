@@ -13711,8 +13711,11 @@ function _govFields(rec) {
     ['m-make',      'יצרן',        n.make],
     ['m-model',     'דגם',         n.model],
     ['m-year',      'שנתון',       n.year],
-    ['m-tozeretCd', 'קוד תוצר',    n.licCode],
-    ['m-degemCd',   'קוד דגם',     n.modelCode],
+    // אותו ריפוד ל-4 ספרות שמופעל בשמירה ובתצוגה. בלעדיו רכב מסונכרן
+    // מציג 0044 בטופס בעוד שהמאגר מציע 44, וכפתור "עדכן מהמאגר" מדווח
+    // על הבדל שאינו קיים — בכל פתיחה מחדש, לנצח.
+    ['m-tozeretCd', 'קוד תוצר',    govPad4(n.licCode)],
+    ['m-degemCd',   'קוד דגם',     govPad4(n.modelCode)],
     ['m-weight',    'משקל כולל',   (featureOn('weight') && n.weight && n.weight !== '0') ? n.weight : ''],
     ['m-regExpiry', 'תוקף רישוי',  _govDateStr(n.regExpiry)]
   ].filter(f => f[2]);
