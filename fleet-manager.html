@@ -1684,7 +1684,11 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
                 <label style="color:#cbd5e1">ביקורת בטיחות — כל כמה חודשים</label>
                 <input id="adm-inspmonths" type="number" min="1" max="60" placeholder="לפי גיל הרכב" style="width:150px;background:#1e293b;color:#e2e8f0;border-color:#334155">
               </div>
-              <div style="font-size:0.7rem;color:#94a3b8;flex:1;min-width:170px">ריק = ברירת המחדל: תעבורתי כל 36 חודשים, ביקורת לפי גיל הרכב (6 או 3).</div>
+              <div class="modal-row" style="margin:0">
+                <label style="color:#cbd5e1">התראת טיפול — כמה ק"מ לפני</label>
+                <input id="adm-servicekm" type="number" min="100" max="10000" step="100" placeholder="2000" style="width:150px;background:#1e293b;color:#e2e8f0;border-color:#334155">
+              </div>
+              <div style="font-size:0.7rem;color:#94a3b8;flex:1;min-width:170px">ריק = ברירת המחדל: תעבורתי כל 36 חודשים, ביקורת לפי גיל הרכב (6 או 3), התראת טיפול 2,000 ק"מ לפני.</div>
             </div>
             <div style="border-top:1px solid #334155;margin-top:12px;padding-top:10px;margin-bottom:10px">
               <button class="btn btn-green" style="padding:5px 12px;font-size:0.76rem" onclick="adminViewAsClient()">👁️ צפה כלקוח הזה</button>
@@ -3901,6 +3905,9 @@ function vehicleDept(v) {
     return String(d.department || '').trim();
   } catch(e) { return ''; }
 }
+// כמה ק"מ לפני הטיפול מתחילה ההתראה. ברירת המחדל 2,000 — מרווח של
+// דיווח ק"מ חודשי אחד לפחות — וניתן לשנות לכל לקוח בפאנל הניהול.
+function SERVICE_KM_ALERT() { return parseInt(FEATURES.serviceKmAlert, 10) || 2000; }
 function trafficDueStr(v) { return dateAddMonths(v && v.trafficRecord, FEATURES.trafficMonths || 36); }
 
 // ═══ אישורים נוספים (פר-לקוח, FEATURES.extraCerts) ═══
@@ -8514,10 +8521,13 @@ function buildDynamicAlerts() {
     const _isTrailer = !_drv || _drv.includes('נגרר') || _drv.includes('ללא נהג');
     const cur = parseKm(v.currentKm);
     const nxt = parseKm(v.nextServiceKm);
-    // KM side — alert within 2000 km of next service or overdue
+    // KM side — התראה כשנותרו פחות מ-serviceKmAlert ק"מ לטיפול, או בחריגה.
+    // הסף היה 500 בקוד בעוד שההערה כאן טענה 2000, ובדיווח ק"מ חודשי
+    // חלון של 500 ק"מ פשוט נבלע בין שני דיווחים.
+    const _kmWin = SERVICE_KM_ALERT();
     const kmOverdue = cur > 0 && nxt > 0 && cur >= nxt;
-    if (!_isTrailer && cur > 0 && nxt > 0 && cur >= nxt - 500)
-      alerts.push({ cat:'service', plate:v.plate, driver:v.driverName, type:'טיפול הבא (ק"מ)', dueDate:'—', daysLeft:null, prevKm:null, kmAlert:500, currentKm:cur, kmDiff: cur - nxt + 500 });
+    if (!_isTrailer && cur > 0 && nxt > 0 && cur >= nxt - _kmWin)
+      alerts.push({ cat:'service', plate:v.plate, driver:v.driverName, type:'טיפול הבא (ק"מ)', dueDate:'—', daysLeft:null, prevKm:null, kmAlert:_kmWin, currentKm:cur, kmDiff: cur - nxt + 500 });
     // TIME side — 1 year (SERVICE_INTERVAL_MONTHS) after the last service date.
     // Only when a last-service date exists; suppressed if the km-service is already overdue
     // (so the earlier-of-the-two shows a single alert, not two).
@@ -11560,7 +11570,7 @@ function sysAllowed(name) { return SYS_ENABLED[name] !== false; }
 // העמודה, ובצי של נופר היא מיותרת. הנתון נשלף בסנכרון ממילא, ולכן
 // עדיף שלקוח יראה אותו בלי להיות תלוי בסימון ידני שלי. כיבוי ללקוח
 // מסוים נעשה בפאנל ונשמר שם כ-false מפורש.
-let FEATURES = { dept: true, vehStatus: true, weight: true, drivers: false, extraCerts: false, trafficMonths: 36, inspectionMonths: 0, singleSession: false, busForm: false, yearCol: false, municipalForm: false, splitName: false };
+let FEATURES = { dept: true, vehStatus: true, weight: true, drivers: false, extraCerts: false, trafficMonths: 36, inspectionMonths: 0, serviceKmAlert: 2000, singleSession: false, busForm: false, yearCol: false, municipalForm: false, splitName: false };
 function featureOn(name) { return FEATURES[name] === true; }
 // עמודת הטבלה מוסתרת ב-CSS ולא נמחקת מה-DOM, כדי שמספר התאים בכותרת,
 // בשורת הסינון ובשורות יישאר זהה — טבלה שיוצאת מיישור היא באג שקט.
@@ -11756,7 +11766,7 @@ async function resolveTenant(user) {
     TENANT = 'nofar'; ROLE = 'manager'; COMPANY_NAME = 'נופר אנרגיה';
     SUB_ACTIVE = true; SUB_VALID_UNTIL = '';
     SYS_ENABLED = { fleet: true, shamai: true, garage: true };
-    FEATURES = { dept: false, vehStatus: false, weight: false, drivers: false, extraCerts: false, trafficMonths: 36, inspectionMonths: 0, singleSession: false, splitName: false };   // נופר: בלי משקל, בלי נהגים, בלי אישורים נוספים
+    FEATURES = { dept: false, vehStatus: false, weight: false, drivers: false, extraCerts: false, trafficMonths: 36, inspectionMonths: 0, serviceKmAlert: 2000, singleSession: false, splitName: false };   // נופר: בלי משקל, בלי נהגים, בלי אישורים נוספים
     return;
   }
   try {
@@ -11790,6 +11800,7 @@ async function resolveTenant(user) {
                    extraCerts: _f.extraCerts === true,
                    trafficMonths: parseInt(_f.trafficMonths) || 36,
                    inspectionMonths: parseInt(_f.inspectionMonths) || 0,
+                   serviceKmAlert: parseInt(_f.serviceKmAlert) || 2000,
                    singleSession: _f.singleSession === true,
                    busForm: _f.busForm === true,
                    yearCol: _f.yearCol === true,
@@ -11803,14 +11814,14 @@ async function resolveTenant(user) {
     // מוסך — עד שתפתח אותם בעצמך בפאנל הניהול.
     TENANT = user.uid; COMPANY_NAME = ''; SUB_ACTIVE = true; SUB_VALID_UNTIL = '';
     SYS_ENABLED = { fleet: false, shamai: false, garage: false };
-    FEATURES = { dept: true, vehStatus: true, weight: true, drivers: false, extraCerts: false, trafficMonths: 36, inspectionMonths: 0, singleSession: false, splitName: false };
+    FEATURES = { dept: true, vehStatus: true, weight: true, drivers: false, extraCerts: false, trafficMonths: 36, inspectionMonths: 0, serviceKmAlert: 2000, singleSession: false, splitName: false };
   } catch(e) {
     // On a read failure, preserve isolation — never default a stranger onto Nofar.
     // (הבעלים כבר טופל למעלה ואינו מגיע לכאן.)
     console.log('tenant resolve error', e);
     TENANT = user.uid;
     SYS_ENABLED = { fleet: false, shamai: false, garage: false };
-    FEATURES = { dept: true, vehStatus: true, weight: true, drivers: false, extraCerts: false, trafficMonths: 36, inspectionMonths: 0, singleSession: false, splitName: false };
+    FEATURES = { dept: true, vehStatus: true, weight: true, drivers: false, extraCerts: false, trafficMonths: 36, inspectionMonths: 0, serviceKmAlert: 2000, singleSession: false, splitName: false };
   }
 }
 // ═══ נעילת סשן: חשבון אחד — מכשיר אחד ═══
@@ -15575,6 +15586,7 @@ async function adminLoadClient() {
     document.getElementById('adm-certs').checked = _af.extraCerts === true;
     document.getElementById('adm-trafficmonths').value = _af.trafficMonths || '';
     document.getElementById('adm-inspmonths').value = _af.inspectionMonths || '';
+    document.getElementById('adm-servicekm').value = _af.serviceKmAlert || '';
     document.getElementById('adm-single').checked = _af.singleSession === true;
     document.getElementById('adm-splitname').checked = _af.splitName === true;
     document.getElementById('adm-dept').checked = _af.dept !== false;
@@ -15632,6 +15644,7 @@ async function adminViewAsClient() {
                  extraCerts: _f.extraCerts === true,
                  trafficMonths: parseInt(_f.trafficMonths) || 36,
                  inspectionMonths: parseInt(_f.inspectionMonths) || 0,
+                   serviceKmAlert: parseInt(_f.serviceKmAlert) || 2000,
                  singleSession: false,           // צפייה שלך אינה תופסת נעילה ללקוח
                  splitName: _f.splitName === true };
     const sys = d.systems || {};
@@ -15753,6 +15766,7 @@ async function adminSaveClient() {
       // 0 נשמר כמשמעו "ברירת מחדל", ולכן ערך ריק או לא תקין הופך ל-0
       trafficMonths: parseInt(document.getElementById('adm-trafficmonths').value) || 0,
       inspectionMonths: parseInt(document.getElementById('adm-inspmonths').value) || 0,
+      serviceKmAlert: parseInt(document.getElementById('adm-servicekm').value) || 0,
       singleSession: !!document.getElementById('adm-single').checked,
       splitName: !!document.getElementById('adm-splitname').checked,
       dept: !!document.getElementById('adm-dept').checked,
