@@ -780,6 +780,7 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
           <th><div class="th-sort" onclick="sortDrvCol('licNum')">מס׳ רישיון<span class="sort-arrow" id="dsarr-licNum">⇅</span></div></th>
           <th><div class="th-sort" onclick="sortDrvCol('licExp')">תוקף רישיון<span class="sort-arrow" id="dsarr-licExp">⇅</span></div></th>
           <th><div class="th-sort" onclick="sortDrvCol('traffic')">עבר תעבורתי<span class="sort-arrow" id="dsarr-traffic">⇅</span></div></th>
+          <th><div class="th-sort" onclick="sortDrvCol('proc')">נהלים<span class="sort-arrow" id="dsarr-proc">⇅</span></div></th>
           <th><div class="th-sort" onclick="sortDrvCol('address')">כתובת<span class="sort-arrow" id="dsarr-address">⇅</span></div></th>
           <th><div class="th-sort" onclick="sortDrvCol('plates')">רכבים<span class="sort-arrow" id="dsarr-plates">⇅</span></div></th>
           <th><div class="th-sort" onclick="sortDrvCol('birth')">תאריך לידה<span class="sort-arrow" id="dsarr-birth">⇅</span></div></th>
@@ -3156,6 +3157,23 @@ function drvOpenDocs(key) {
   if (vs.length > 1) toast(`ל${key} ${vs.length} רכבים — נפתח עבור ${vs[0].plate}`);
   openEmployeeDocs(vs[0].plate);
 }
+// הנהלים נחתמים על ידי האדם, אבל נשמרים על הרכב שהוא מחזיק — כך זה
+// מגיע מטופס הנהלים שהנהג חותם עליו. בטבלת הנהגים נלקח התאריך המאוחר
+// ביותר מבין הרכבים שלו; ערך ששמור ישירות על רשומת הנהג גובר עליו.
+function driverProcedures(k) {
+  const d = (DRIVERS && DRIVERS[k]) || {};
+  const own = String(d.procedures || '').trim();
+  if (own) return own;
+  let best = '', bestT = -1;
+  (driverVehicles(k) || []).forEach(v => {
+    const val = String(v.procedures || '').trim();
+    if (!val) return;
+    const dt = parseDate(val);
+    const t = dt ? dt.getTime() : 0;
+    if (t > bestT) { bestT = t; best = val; }
+  });
+  return best;
+}
 function renderDrivers() {
   const body = document.getElementById('drivers-body');
   if (!body) return;
@@ -3178,6 +3196,7 @@ function renderDrivers() {
       case 'licNum':  return d.licNum || '';
       case 'licExp':  return d.licenseExpiry || '';
       case 'traffic': return d.trafficRecord || '';
+      case 'proc':    return driverProcedures(k);
       case 'address': return d.address || '';
       case 'plates':  return driverVehicles(k).map(v => v.plate).join(' ');
       case 'birth':   return d.birthDate || '';
@@ -3189,7 +3208,7 @@ function renderDrivers() {
       default:        return '';
     }
   };
-  const COLS = ['name','lastname','dept','id','phone','email','licNum','licExp','traffic','address','plates','birth','dtype','trafficValid','health','status','code'];
+  const COLS = ['name','lastname','dept','id','phone','email','licNum','licExp','traffic','proc','address','plates','birth','dtype','trafficValid','health','status','code'];
   let keys = Object.keys(DRIVERS);
   // סינון פר-עמודה
   const _match = (val, f) => !f || String(val || '').toLowerCase().includes(String(f).toLowerCase());
@@ -3247,6 +3266,14 @@ function renderDrivers() {
       <td style="direction:ltr;font-size:0.73rem">${esc(d.licNum) || '—'}</td>
       <td>${alertCatOn('license') ? statusBadge(licDays) + '<br>' : ''}<span style="color:var(--muted);font-size:0.66rem">${esc(d.licenseExpiry) || '—'}</span></td>
       <td style="font-size:0.73rem">${esc(d.trafficRecord) || '—'}</td>
+      ${(() => {
+        const pr = driverProcedures(k);
+        if (!pr) return `<td class="cell-yellow"><span class="badge badge-yellow" style="background:#fefce8;color:#713f12;border:1px solid #fde68a">📝 למילוי</span><br><span style="color:#b45309;font-size:0.58rem">הנהג צריך לחתום</span></td>`;
+        const pd = daysUntil(dateAddYears(pr, 5));
+        // cellCls מוגדרת בתוך renderFleet ואינה זמינה כאן; אותה חלוקה בדיוק
+        const cls = pd === null ? '' : (pd < 0 ? 'cell-red' : (pd <= 14 ? 'cell-orange' : ''));
+        return `<td class="${cls}">${alertCatOn('procedures') ? statusBadge(pd) + '<br>' : ''}<span style="color:var(--muted);font-size:0.63rem">בוצע: ${esc(pr)}</span><br><span style="color:var(--muted);font-size:0.58rem">תוקף: ${dateAddYears(pr, 5) || '—'}</span></td>`;
+      })()}
       <td style="font-size:0.72rem">${esc(d.address) || '—'}</td>
       <td style="font-size:0.72rem;direction:ltr">${vs.length ? vs.map(v => esc(v.plate)).join('<br>') : '—'}</td>
       <td style="font-size:0.72rem">${esc(d.birthDate) || '—'}</td>
@@ -3266,7 +3293,7 @@ function renderDrivers() {
     </tr>`;
   }).join('');
   if (totalDrivers && !keys.length) {
-    body.innerHTML = `<tr><td colspan="11" style="text-align:center;color:var(--muted);padding:18px">
+    body.innerHTML = `<tr><td colspan="20" style="text-align:center;color:var(--muted);padding:18px">
       אין נהג שתואם את הסינון
       <button class="btn btn-gray" style="padding:3px 10px;font-size:0.72rem;margin-inline-start:8px" onclick="clearDrvFilters()">נקה סינון</button>
     </td></tr>`;
@@ -5207,12 +5234,12 @@ function buildDrvColFilterRow() {
   // נבנה פעם אחת בלבד — בנייה מחדש בכל הקלדה הורסת את הפוקוס
   if (row.querySelector('.col-filter-inp')) return;
   const ph = { name:'שם...', id:'ת.ז...', phone:'טלפון...', email:'מייל...', licNum:'רישיון...',
-               licExp:'תאריך...', traffic:'תאריך...', address:'כתובת...', plates:'רישוי...' };
+               licExp:'תאריך...', traffic:'תאריך...', proc:'תאריך...', address:'כתובת...', plates:'רישוי...' };
   const inp = c => `<th><input class="col-filter-inp" type="text" placeholder="${ph[c]}" value="${esc(drvColFilters[c]||'')}" oninput="setDrvColFilter('${c}',this.value)"></th>`;
   row.innerHTML = inp('name')
     + `<th class="col-lastname"><input class="col-filter-inp" type="text" placeholder="משפחה..." value="${esc(drvColFilters.lastname||'')}" oninput="setDrvColFilter('lastname',this.value)"></th>`
     + `<th class="col-dept"><input class="col-filter-inp" type="text" placeholder="מחלקה..." value="${esc(drvColFilters.dept||'')}" oninput="setDrvColFilter('dept',this.value)"></th>`
-    + ['id','phone','email','licNum','licExp','traffic','address','plates','birth','dtype','trafficValid','health','status','code'].map(inp).join('') + '<th></th>';
+    + ['id','phone','email','licNum','licExp','traffic','proc','address','plates','birth','dtype','trafficValid','health','status','code'].map(inp).join('') + '<th></th>';
 }
 
 function sortFleetCol(col) {
@@ -9499,11 +9526,11 @@ function exportSection(section) {
     headers = ['עובד','רישוי רכב','יצרן','דגם','מתאריך','עד תאריך','סיבת החזרה','הערות'];
     rows = RETURNS.map(r => [r.employee,r.plate,r.make,r.model,r.fromDate,r.toDate,r.reason,r.notes]);
   } else if (section === 'drivers') {
-    headers = ['שם הנהג','שיוך','מחלקה','ת.ז','טלפון','מייל','מס׳ רישיון','תוקף רישיון','עבר תעבורתי','כתובת','רכבים','הערות'];
+    headers = ['שם הנהג','שיוך','מחלקה','ת.ז','טלפון','מייל','מס׳ רישיון','תוקף רישיון','עבר תעבורתי','נהלים','כתובת','רכבים','הערות'];
     rows = Object.keys(DRIVERS).sort((a,b)=>a.localeCompare(b,'he')).map(k => {
       const d = DRIVERS[k] || {};
       return [k, d.affiliation||'', d.department||'', d.driverId||'', d.driverPhone||'', d.driverEmail||'',
-              d.licNum||'', d.licenseExpiry||'', d.trafficRecord||'', d.address||'',
+              d.licNum||'', d.licenseExpiry||'', d.trafficRecord||'', driverProcedures(k), d.address||'',
               driverVehicles(k).map(v=>v.plate).join(', '), d.notes||''];
     });
     // אצל לקוח שהמחלקה כבויה אצלו העמודה יורדת מהקובץ
