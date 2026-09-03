@@ -14010,7 +14010,7 @@ function openReplMail(idx) {
   const perm = VEHICLES.find(v => driverKey(v.driverName) === driverKey(r.employee));
   const permStr = perm ? `${((perm.make||'')+' '+(perm.model||'')).trim()} (${perm.plate})`.trim() : 'לא נמצא במערכת';
   _swapMailSubject = `רכב חליפי — ${emp || ''}: חליפי ${r.plate}${perm ? ' במקום ' + perm.plate : ''}`;
-  const body = `שלום,\n\nלידיעתכם, לעובד/ת ניתן רכב חליפי:\n\n• עובד/ת: ${emp || '—'}\n• רכב קבוע: ${permStr}\n• רכב חליפי: ${r.plate}${r.typeCompany ? ' ('+r.typeCompany+')' : ''}\n• מתאריך: ${r.fromDate || '—'}\n• ${r.toDate ? 'עד תאריך: ' + r.toDate : 'תאריך החזרה: טרם נקבע'}\n\nנא לעדכן בהתאם (שווי שימוש / שכר).\n\nתודה,\n${COMPANY_NAME || 'מחלקת הרכב'}`;
+  const body = `שלום,\n\nלידיעתכם, לעובד/ת ניתן רכב חליפי:\n\n• עובד/ת: ${emp || '—'}\n• רכב קבוע: ${permStr}\n• רכב חליפי: ${r.plate}${r.typeCompany ? ' ('+r.typeCompany+')' : ''}\n• מתאריך: ${r.fromDate || '—'}\n• ${r.toDate ? 'עד תאריך: ' + r.toDate : 'תאריך החזרה: טרם נקבע'}\n\nנא לעדכן בהתאם (שווי שימוש / שכר).\n\nתודה,\n${coSig()}`;
   document.getElementById('swm-to').value = '';
   document.getElementById('swm-body').value = body;
   _renderSwapGroups();
@@ -14575,18 +14575,20 @@ function removeReplacementRow(origIdx) {
 }
 
 // add a blank replacement row at the top and open it for filling in
+// שורה חדשה נוספת בסוף, לא בהתחלה — אחרת רשומה שנערכה כרגע קופצת
+// מעל רשומות ותיקות ולא יושבת איפה שרשומות חדשות אמורות להיות.
 function addReplacementRow() {
-  REPLACEMENTS.unshift({ employee: '', plate: '', typeCompany: '', fromDate: '', toDate: '', notes: '' });
+  REPLACEMENTS.push({ employee: '', plate: '', typeCompany: '', fromDate: '', toDate: '', notes: '' });
   try { localStorage.setItem('fleet_replacements', JSON.stringify(REPLACEMENTS)); saveToFirestore('replacements', REPLACEMENTS); } catch(e){}
   renderReturns();
-  openEditReplacement(0);
+  openEditReplacement(REPLACEMENTS.length - 1);
 }
-// add a blank holding-period row at the top and open it for filling in
+// אותו דבר: שורה חדשה בסוף, לא בהתחלה
 function addReturnRow() {
-  RETURNS.unshift({ employee: '', plate: '', make: '', model: '', fromDate: '', toDate: '', reason: '', notes: '' });
+  RETURNS.push({ employee: '', plate: '', make: '', model: '', fromDate: '', toDate: '', reason: '', notes: '' });
   try { localStorage.setItem('fleet_returns', JSON.stringify(RETURNS)); saveToFirestore('returns', RETURNS); } catch(e){}
   renderReturns();
-  openEditReturn(0);
+  openEditReturn(RETURNS.length - 1);
 }
 function openEditReplacement(origIdx) {
   const r = REPLACEMENTS[origIdx];
