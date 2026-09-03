@@ -1748,13 +1748,27 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
       <summary><span class="section-title">ביקורות שבוצעו</span><span class="count-badge" id="insp-count">0</span></summary>
       <div class="settings-body"><div id="insp-history"></div></div>
     </details>
-    <div class="section-hdr" style="margin-top:18px"><div style="display:flex;align-items:center;gap:8px"><span class="section-title" id="kmround-title">🛣️ סבב עדכון ק"מ</span><span class="count-badge" id="kmround-count">—</span></div>
-      <div style="display:flex;gap:6px">
-        <button class="btn btn-primary" style="padding:5px 12px;font-size:0.78rem" onclick="copyKmGroupMsg()">📋 העתק הודעה לקבוצה</button>
-        <button class="btn btn-secondary" style="padding:5px 12px;font-size:0.78rem" id="kmround-sent-btn" onclick="markKmRoundSent()">✔ סמן שנשלח</button>
+    <details class="settings-box" id="sec-kmround">
+      <summary><span class="section-title" id="kmround-title">🛣️ סבב עדכון ק"מ</span><span class="count-badge" id="kmround-count">—</span></summary>
+      <div class="settings-body">
+        <div style="display:flex;gap:6px;margin-bottom:10px">
+          <button class="btn btn-primary" style="padding:5px 12px;font-size:0.78rem" onclick="copyKmGroupMsg()">📋 העתק הודעה לקבוצה</button>
+          <button class="btn btn-secondary" style="padding:5px 12px;font-size:0.78rem" id="kmround-sent-btn" onclick="markKmRoundSent()">✔ סמן שנשלח</button>
+        </div>
+        <div id="kmround-panel"></div>
       </div>
-    </div>
-    <div id="kmround-panel"></div>
+    </details>
+
+    <details class="settings-box" id="sec-gendocs">
+      <summary><span class="section-title">📎 מסמכים כלליים</span><span class="count-badge" id="gendocs-count">0</span></summary>
+      <div class="settings-body">
+        <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;align-items:center">
+          <button class="btn btn-green" style="padding:5px 12px;font-size:0.78rem" onclick="openGeneralDocs()">📎 העלה מסמכים</button>
+          <span style="font-size:0.74rem;color:var(--muted)">אפשר לבחור כמה קבצים יחד — כל קובץ נשמר כמסמך נפרד עם שם משלו. אפשר לשייך לרכב או לנהג, או להשאיר ריק למסמך של החברה.</span>
+        </div>
+        <div id="gendocs-panel"></div>
+      </div>
+    </details>
 
     <details class="settings-box" id="sec-vdocs">
       <summary><span class="section-title">🚗 מסמכי רכב שהעלו נהגים</span><span class="count-badge" id="vdocs-count">0</span></summary>
@@ -3922,9 +3936,9 @@ function trafficDueStr(v) { return dateAddMonths(v && v.trafficRecord, FEATURES.
 // בלי ההבחנה הזו תאריך תוקף היה מקבל עוד שנה ומוצג כתקין בטעות.
 const EXTRA_CERTS = [
   { key:'winterCheck',    label:'בדיקת חורף',        icon:'❄️', mode:'done',   months:12 },
-  // busOnly: כיול טכוגרף ובדיקה פניאומטית נדרשים באוטובוסים בלבד —
-  // לא בכל רכב כבד. במשאית או בטרקטור הם אינם רלוונטיים, ולכן אין להם
-  // התראה והתא בטבלה מציג "לא נדרש".
+  // busOnly: כיול טכוגרף ובדיקה פניאומטית נדרשים באוטובוס, ובכל רכב
+  // מעל 19 טון — משאית כבדה עובדת על בלמי אוויר ונושאת טכוגרף בדיוק
+  // כמו אוטובוס. מתחת לזה אין להם התראה, והתא בטבלה מציג "לא נדרש".
   { key:'pneumaticChk',   label:'בדיקה פניאומטית',   icon:'💨', mode:'done',   months:12, busOnly:true },
   { key:'tachograph',     label:'כיול טכוגרף',       icon:'⏱️', mode:'expiry', busOnly:true },
   { key:'brakesCert',     label:'אישור בלמים',       icon:'🛑', mode:'done',   months:12 },
@@ -3950,9 +3964,21 @@ function isBus(v) {
   const seats = parseInt(String((v && v.seats) || '').replace(/\D/g, ''), 10);
   return seats >= 9;
 }
-function certApplies(v, c) {
-  if (c.busOnly) return isBus(v);
+// 19 טון: הגבול שממנו רכב נושא מערכת בלימה פניאומטית וטכוגרף גם אם
+// אינו מסווג אוטובוס.
+const BUSCERT_KG = 19000;
+function certAutoApplies(v, c) {
+  if (c.busOnly) return isBus(v) || vehWeightKg(v) >= BUSCERT_KG;
   return !c.heavyOnly || vehWeightKg(v) >= HEAVY_KG;
+}
+// הכלל האוטומטי נשען על נתוני משרד התחבורה, ואלה לא תמיד מדויקים או
+// מעודכנים. קביעה ידנית בכרטיס הרכב גוברת עליו — '1' נדרש, '0' לא
+// נדרש, ריק חוזר לאוטומטי.
+function certApplies(v, c) {
+  const ov = v && v.certReq ? v.certReq[c.key] : '';
+  if (ov === '1' || ov === 1) return true;
+  if (ov === '0' || ov === 0) return false;
+  return certAutoApplies(v, c);
 }
 function certDueStr(v, c) {
   const raw = v && v[c.key];
@@ -5634,7 +5660,7 @@ function renderFleet() {
       <td class="${yc(v.vehicleFrom)}" style="font-size:0.73rem;white-space:nowrap">${esc(v.vehicleFrom)||'—'}</td>
       ${EXTRA_CERTS.map(c => {
         if (!certApplies(v, c))
-          return `<td class="col-cert col-${c.key}" style="color:var(--muted);font-size:0.62rem;text-align:center" title="${c.busOnly ? 'נדרש באוטובוסים בלבד' : 'נדרש רק ברכב מעל ' + HEAVY_KG.toLocaleString('he-IL') + ' ק\"ג'}">לא נדרש</td>`;
+          return `<td class="col-cert col-${c.key}" style="color:var(--muted);font-size:0.62rem;text-align:center" title="${(c.busOnly ? 'נדרש באוטובוס או ברכב מעל ' + BUSCERT_KG.toLocaleString('he-IL') : 'נדרש רק ברכב מעל ' + HEAVY_KG.toLocaleString('he-IL')) + ' ק\"ג — אפשר לשנות בכרטיס הרכב'}">לא נדרש</td>`;
         const _dd = daysUntil(certDueStr(v, c));
         return `<td class="col-cert col-${c.key} ${isTrailer ? '' : yc(v[c.key], cellCls(_dd))}">${statusBadge(_dd)}<br><span style="color:var(--muted);font-size:0.6rem">${esc(v[c.key]) || '—'}</span></td>`;
       }).join('')}
@@ -6906,6 +6932,7 @@ function renderFormsTab() {
   loadInspectionHistory();
   loadDeclarations();
   loadVehicleDocs();
+  loadGeneralDocs();
   initOfficerSigPad();
   loadKmRound();
 }
@@ -9750,6 +9777,13 @@ function editVehicle(plate) {
   document.getElementById('m-traffic').value = v.trafficRecord||'';
   if (featureOn('extraCerts')) EXTRA_CERTS.forEach(c => {
     const el = document.getElementById('m-' + c.key); if (el) el.value = v[c.key] || '';
+    // "אוטומטי" מציג מה הכלל קובע ברכב הזה, כדי שהבחירה תהיה מודעת
+    const sel = document.getElementById('mreq-' + c.key);
+    if (sel) {
+      sel.options[0].textContent = 'אוטומטי — ' + (certAutoApplies(v, c) ? 'נדרש' : 'לא נדרש');
+      const ov = v.certReq ? v.certReq[c.key] : '';
+      sel.value = (ov === '1' || ov === 1) ? '1' : (ov === '0' || ov === 0) ? '0' : '';
+    }
   });
   document.getElementById('m-procedures').value = v.procedures||'';
   document.getElementById('m-notes').value = v.notes||'';
@@ -9875,10 +9909,16 @@ function saveVehicle() {
   };
   // אישורים נוספים נשמרים רק אצל לקוח שהוגדרו לו, אחרת השדות אינם
   // קיימים בטופס ושמירה הייתה מאפסת ערך קיים לריק
-  if (featureOn('extraCerts')) EXTRA_CERTS.forEach(c => {
-    const el = document.getElementById('m-' + c.key);
-    if (el) v[c.key] = el.value.trim();
-  });
+  if (featureOn('extraCerts')) {
+    const _req = {};
+    EXTRA_CERTS.forEach(c => {
+      const el = document.getElementById('m-' + c.key);
+      if (el) v[c.key] = el.value.trim();
+      const sel = document.getElementById('mreq-' + c.key);
+      if (sel && sel.value) _req[c.key] = sel.value;
+    });
+    v.certReq = _req;
+  }
   if (editingPlate) {
     const idx = VEHICLES.findIndex(x => vehKey(x.plate) === vehKey(editingPlate));
     if (idx>=0) VEHICLES[idx] = { ...VEHICLES[idx], ...v };
@@ -10762,6 +10802,48 @@ function _mdocBuildKinds(v) {
   sel.innerHTML = base + certs;
 }
 
+// העלאה שאינה מתוך תיק של רכב או נהג: הנושא נבחר בחלון עצמו, ואם לא
+// נבחר — המסמך נשמר כמסמך כללי של החברה.
+function openGeneralDocs() {
+  _MDOC = { kind: 'general', plate: '', driver: '', images: [], groups: [], standalone: true };
+  _mdocBuildKinds(null);
+  _mdocBuildTargetList();
+  const f = document.getElementById('mdoc-file'); f.value = ''; f.click();
+}
+function _mdocBuildTargetList() {
+  const dl = document.getElementById('mdoc-tolist');
+  if (!dl) return;
+  const opts = [];
+  (VEHICLES || []).forEach(v => { if (v.plate) opts.push(String(v.plate) + (v.driverName ? ' · ' + String(v.driverName).split('-')[0].trim() : '')); });
+  Object.keys(DRIVERS || {}).forEach(k => { const d = DRIVERS[k]; const nm = (d && (d.driverName || d.name)) || ''; if (nm) opts.push(nm); });
+  dl.innerHTML = [...new Set(opts)].map(x => `<option value="${esc(x)}">`).join('');
+}
+// הטקסט עשוי להיות רישוי, שם נהג, או שורה מהרשימה ("12345678 · דני").
+// רישוי גובר: הוא חד־ערכי, בעוד ששמות חוזרים.
+function _mdocResolveTarget(txt) {
+  const raw = String(txt || '').trim();
+  if (!raw) return { plate: '', driver: '', label: 'מסמך כללי של החברה' };
+  const digits = raw.replace(/\D/g, '');
+  if (digits.length >= 5) {
+    const v = (VEHICLES || []).find(x => _cpk2(x.plate) === digits);
+    if (v) return { plate: v.plate, driver: (v.driverName || '').split('-')[0].trim(), label: 'תיק הרכב ' + v.plate };
+    return { plate: '', driver: '', label: '', bad: 'לא נמצא רכב עם הרישוי הזה' };
+  }
+  const nm = raw.split('·')[0].trim();
+  const dk = (typeof driverKey === 'function') ? driverKey(nm) : nm.toLowerCase();
+  const hit = Object.keys(DRIVERS || {}).find(k => k === dk);
+  if (hit) return { plate: '', driver: (DRIVERS[hit].driverName || DRIVERS[hit].name || nm), label: 'תיק הנהג ' + nm };
+  const v2 = (VEHICLES || []).find(x => (typeof driverKey === 'function') && driverKey(x.driverName) === dk);
+  if (v2) return { plate: '', driver: (v2.driverName || '').split('-')[0].trim(), label: 'תיק הנהג ' + nm };
+  return { plate: '', driver: '', label: '', bad: 'לא נמצא נהג או רכב בשם הזה' };
+}
+function _mdocTargetHint() {
+  const el = document.getElementById('mdoc-tohint'); if (!el) return;
+  const t = _mdocResolveTarget(document.getElementById('mdoc-gento').value);
+  el.textContent = t.bad ? '⚠ ' + t.bad : '← ' + t.label;
+  el.style.color = t.bad ? '#b45309' : 'var(--muted)';
+}
+
 function openManualDoc(kind) {
   const plate = window._empdocsPlate || '';
   const v = plate ? VEHICLES.find(x => _cpk2(x.plate) === _cpk2(plate)) : null;
@@ -10827,8 +10909,18 @@ async function onManualDocFiles(input) {
   if (!files.length || !_MDOC) return;
   const anyPdf = files.some(f => f.type === 'application/pdf' || /\.pdf$/i.test(f.name || ''));
   toast(anyPdf ? 'ממיר את ה-PDF…' : 'מכווץ תמונות…');
-  for (const f of files.slice(0, 3)) {
-    try { (await _docFileToImages(f)).forEach(b => _MDOC.images.push(b)); }
+  _MDOC.groups = _MDOC.groups || [];
+  // מסמך יחיד (רישיון, ביטוח) הוא לכל היותר כמה עמודים של אותו דבר,
+  // ולכן נשארת שם המגבלה הישנה. מסמכים כלליים הם קבצים נפרדים, ושם
+  // המגבלה היא מספר הקבצים שאפשר להעלות בבת אחת.
+  const _cap = (_MDOC.kind === 'general') ? 12 : 3;
+  for (const f of files.slice(0, _cap)) {
+    try {
+      const imgs = await _docFileToImages(f);
+      imgs.forEach(b => _MDOC.images.push(b));
+      // שם הקובץ בלי הסיומת הוא ברירת המחדל לשם המסמך
+      if (imgs.length) _MDOC.groups.push({ name: String(f.name || '').replace(/\.[^.]+$/, '').trim(), images: imgs });
+    }
     catch(e) {
       console.log('mdoc read', f.name, e);
       const m = String(e && e.message || e);
@@ -10838,6 +10930,7 @@ async function onManualDocFiles(input) {
     }
   }
   if (!_MDOC.images.length) { toast('לא הצלחתי לקרוא את הקבצים', true); return; }
+  if (files.length > _cap) toast(`נקראו ${_cap} הקבצים הראשונים מתוך ${files.length} — העלה את השאר בסבב נוסף`, true);
 
   document.getElementById('mdoc-kind').value = _MDOC.kind;
   ['mdoc-plate','mdoc-reg','mdoc-ins','mdoc-licexp','mdoc-licnum'].forEach(id => document.getElementById(id).value = '');
@@ -10847,7 +10940,33 @@ async function onManualDocFiles(input) {
     `<img src="data:image/jpeg;base64,${b}" style="width:74px;height:74px;object-fit:cover;border-radius:8px;border:1px solid #e2e8f0">`).join('');
   _mdocFields();
   document.getElementById('mdoc-modal').classList.add('open');
-  _mdocScan();
+  // אין מה לחלץ ממסמך כללי — אין לו תאריך תוקף שהמערכת עוקבת אחריו,
+  // וסריקה כאן רק מבזבזת קריאה ל-API ומאטה את החלון.
+  if (_MDOC.kind !== 'general') _mdocScan();
+  else document.getElementById('mdoc-scan').textContent = '';
+}
+
+// שורת שם לכל קובץ. השם הוא מה שיוצג ברשימה, ולכן הוא נדרש — מסמך
+// בלי שם מחייב לפתוח אותו כדי לדעת מה הוא.
+function _mdocRenderMulti() {
+  const box = document.getElementById('mdoc-genmulti');
+  const one = document.getElementById('mdoc-genone');
+  if (!box || !one) return;
+  const gs = (_MDOC && _MDOC.groups) || [];
+  // הסוג נלקח מהבורר ולא מ-_MDOC: אפשר לשנות אותו אחרי שהקבצים נקראו,
+  // ואז רשימת השמות אינה רלוונטית עוד
+  const kEl = document.getElementById('mdoc-kind');
+  const isGen = !!(kEl && kEl.value === 'general');
+  const multi = isGen && gs.length > 1;
+  box.style.display = multi ? 'block' : 'none';
+  one.style.display = (isGen && !multi) ? '' : 'none';
+  if (!multi) { box.innerHTML = ''; return; }
+  box.innerHTML = `<div style="font-size:0.75rem;color:var(--muted);margin:6px 0">${gs.length} קבצים — כל אחד יישמר כמסמך נפרד:</div>` +
+    gs.map((g, i) => `<div style="display:flex;gap:6px;align-items:center;margin-bottom:6px">
+      <img src="data:image/jpeg;base64,${g.images[0]}" style="width:38px;height:38px;object-fit:cover;border-radius:7px;border:1px solid #e2e8f0;flex:0 0 auto">
+      <input id="mdoc-gn-${i}" type="text" list="gendoc-list" value="${esc(g.name)}" placeholder="שם המסמך" style="flex:1;min-width:0">
+      <span style="font-size:0.7rem;color:var(--muted);flex:0 0 auto">${g.images.length} עמ׳</span>
+    </div>`).join('');
 }
 
 // רישיון נהיגה ועבר תעבורתי שייכים לאדם; רישיון רכב וביטוח שייכים לרכב
@@ -10868,6 +10987,9 @@ function _mdocFields() {
     const dl = document.getElementById('gendoc-list');
     if (dl && !dl.children.length) dl.innerHTML = GENERAL_DOC_NAMES.map(x => `<option value="${esc(x)}">`).join('');
   }
+  const _gt = document.getElementById('mdoc-gentarget');
+  if (_gt) _gt.style.display = (k === 'general' && _MDOC && _MDOC.standalone) ? 'block' : 'none';
+  _mdocRenderMulti();
   const _c = certByKind(k);
   document.getElementById('mdoc-cert').style.display = _c ? 'block' : 'none';
   if (_c) document.getElementById('mdoc-certlbl').textContent = certFieldHint(_c);
@@ -11071,10 +11193,114 @@ async function _replaceOlderDocs(kind, plate, driver, keepDocId) {
   return removed;
 }
 
+// מסמך כללי אינו מזין שום תוקף בכרטיס הרכב ואינו מחליף מסמך קודם,
+// אבל הוא כן יכול להגיע כמה קבצים בבת אחת. שני ההבדלים האלה מצדיקים
+// מסלול משלו, במקום עוד ענפים בתוך saveManualDoc.
+async function _saveGeneralDocs() {
+  const btn = document.getElementById('mdoc-save');
+  const gs = (_MDOC.groups && _MDOC.groups.length) ? _MDOC.groups : [{ name: '', images: _MDOC.images }];
+  const multi = gs.length > 1;
+
+  let plate = _MDOC.plate || '', driver = _MDOC.driver || '';
+  if (_MDOC.standalone) {
+    const t = _mdocResolveTarget(document.getElementById('mdoc-gento').value);
+    if (t.bad) { toast(t.bad, true); return; }
+    plate = t.plate; driver = t.driver;
+  }
+
+  const names = gs.map((g, i) => {
+    const el = document.getElementById(multi ? 'mdoc-gn-' + i : 'mdoc-genname');
+    return ((el && el.value) || '').trim();
+  });
+  const miss = names.findIndex(x => !x);
+  if (miss >= 0) { toast('תן שם לכל מסמך, כדי שאפשר יהיה לזהות אותו ברשימה בלי לפתוח אותו', true); return; }
+  // המגבלה היא לכל מסמך בנפרד — כל אחד נשמר ברשומה משלו
+  const big = gs.findIndex(g => g.images.reduce((a, b) => a + b.length, 0) > 850000);
+  if (big >= 0) { toast('"' + names[big] + '" גדול מדי — צלם/י פחות עמודים', true); return; }
+
+  btn.disabled = true; btn.textContent = 'שומר…';
+  const created = Date.now();
+  // ללא רכב וללא נהג זהו מסמך של החברה, ולכן אוסף משלו שאינו מופיע
+  // בתיק של אף אחד
+  const type = plate ? 'vehicledocs' : (driver ? 'licensedocs' : 'gendocs');
+  try {
+    for (let i = 0; i < gs.length; i++) {
+      await fcol().doc('mdoc_' + created + '_' + i).set({
+        type, title: names[i], reqType: 'general', source: 'manual',
+        created: created + i, dateStr: new Date(created).toLocaleDateString('he-IL'),
+        plate, driver, licNum: '', images: gs[i].images,
+        scanned: true, applied: true
+      });
+    }
+    document.getElementById('mdoc-modal').classList.remove('open');
+    toast('✓ ' + (gs.length === 1 ? 'המסמך נשמר' : gs.length + ' מסמכים נשמרו')
+          + (plate ? ' בתיק הרכב ' + plate : driver ? ' בתיק של ' + driver : ' במסמכים הכלליים'));
+    if (typeof loadGeneralDocs === 'function') loadGeneralDocs();
+    if (window._empdocsPlate) openEmployeeDocs(window._empdocsPlate);
+    else if (window._empdocsDriver) openEmployeeDocs('', window._empdocsDriver);
+  } catch(e) {
+    toast('שגיאה בשמירה: ' + (e.code || e.message), true);
+    console.log('_saveGeneralDocs', e);
+  } finally { btn.disabled = false; btn.textContent = '💾 שמור בתיק'; }
+}
+
+// ══ המסמכים הכלליים של החברה ══
+// מה שאינו שייך לרכב מסוים ולא לנהג מסוים — נהלים, טפסי מוסך, אישורים.
+// מוצג בלשונית הטפסים ברובריקה מקופלת, כדי שלא יתפוס את המסך.
+async function loadGeneralDocs() {
+  const wrap = document.getElementById('gendocs-panel');
+  if (!wrap) return;
+  try {
+    const list = (await readDriverDocs('gendocs')).sort((a, b) => (b.created || 0) - (a.created || 0));
+    window._GENDOCS = list;
+    const cnt = document.getElementById('gendocs-count');
+    if (cnt) cnt.textContent = list.length;
+    if (!list.length) {
+      wrap.innerHTML = '<div style="color:var(--muted);font-size:0.8rem;padding:8px">אין עדיין מסמכים כלליים — "📎 העלה מסמכים" יוסיף לכאן</div>';
+      return;
+    }
+    wrap.innerHTML = list.map((r, i) => `<div class="insp-hist-row" style="flex-wrap:wrap">
+        <span style="font-weight:700;flex:1 1 140px;min-width:0">${esc(r.title || 'מסמך')}</span>
+        <span style="color:var(--muted);font-size:0.73rem">${esc(r.dateStr || '')}</span>
+        ${(r.images || []).map((b, fi) => `<button class="btn btn-gray" style="padding:3px 9px;font-size:0.68rem" onclick="_genView(${i},${fi})">🖼️ ${fi + 1}</button><button class="btn btn-gray" style="padding:3px 7px;font-size:0.68rem" title="הורד למחשב" onclick="_genDownload(${i},${fi})">⬇️</button>`).join('')}
+        <button class="btn btn-gray" style="padding:3px 8px;font-size:0.68rem" title="שנה שם" onclick="renameGenDoc(${i})">✏️</button>
+        <button class="btn" style="padding:3px 8px;font-size:0.68rem;background:#fee2e2;color:#b91c1c" title="מחק" onclick="deleteGenDoc(${i})">🗑️</button>
+      </div>`).join('');
+  } catch(e) {
+    wrap.innerHTML = '<div style="color:#dc2626;font-size:0.8rem;padding:8px">שגיאה בטעינה</div>';
+    console.log('loadGeneralDocs', e);
+  }
+}
+function _genView(i, fi) {
+  const r = (window._GENDOCS || [])[i]; const b = r && (r.images || [])[fi];
+  if (b) _viewB64(b, 'image/jpeg');
+}
+function _genDownload(i, fi) {
+  const r = (window._GENDOCS || [])[i]; const b = r && (r.images || [])[fi];
+  if (!b) return;
+  const nm = String(r.title || 'מסמך').replace(/[\\/:*?"<>|]/g, '-');
+  _downloadB64(b, nm + ((r.images || []).length > 1 ? '-' + (fi + 1) : '') + '.jpg', 'image/jpeg');
+}
+async function renameGenDoc(i) {
+  const r = (window._GENDOCS || [])[i]; if (!r || !r._ref) return;
+  const nm = prompt('שם המסמך:', r.title || '');
+  if (nm === null) return;
+  if (!nm.trim()) { toast('שם ריק אינו מזהה כלום', true); return; }
+  try { await r._ref.update({ title: nm.trim() }); toast('השם עודכן'); loadGeneralDocs(); }
+  catch(e) { toast('שגיאה בעדכון', true); console.log('renameGenDoc', e); }
+}
+async function deleteGenDoc(i) {
+  const r = (window._GENDOCS || [])[i]; if (!r || !r._ref) return;
+  if (!confirm('למחוק את "' + (r.title || 'המסמך') + '"?\nהפעולה אינה הפיכה.')) return;
+  try { await r._ref.delete(); toast('המסמך נמחק'); loadGeneralDocs(); }
+  catch(e) { toast('שגיאה במחיקה', true); console.log('deleteGenDoc', e); }
+}
+
 async function saveManualDoc() {
   if (!_MDOC || !_MDOC.images.length) return;
   const btn = document.getElementById('mdoc-save');
   const k = document.getElementById('mdoc-kind').value;
+  if (k === 'general') return _saveGeneralDocs();
   const plate = (document.getElementById('mdoc-plate').value || _MDOC.plate || '').trim();
   const bad = d => d && !parseDate(d);
   const reg = document.getElementById('mdoc-reg').value.trim();
@@ -11678,7 +11904,12 @@ function applyFeatureFlags() {
     if (box && featureOn('extraCerts') && !box.children.length) {
       box.innerHTML = EXTRA_CERTS.map(c =>
         `<div class="modal-row"><label>${c.icon} ${esc(c.label)} <span style="font-weight:400;color:#94a3b8;font-size:0.68rem">(${certFieldHint(c)}${c.heavyOnly ? ' · רק מעל ' + HEAVY_KG.toLocaleString('he-IL') + ' ק"ג' : ''})</span></label>
-         <input id="m-${c.key}" type="text" placeholder="יי.חח.שש" inputmode="numeric" oninput="dateAutoMask(this)"></div>`).join('');
+         <div style="display:flex;gap:6px">
+           <input id="m-${c.key}" type="text" placeholder="יי.חח.שש" inputmode="numeric" oninput="dateAutoMask(this)" style="flex:1;min-width:0">
+           ${(c.busOnly || c.heavyOnly) ? `<select id="mreq-${c.key}" title="האם האישור נדרש ברכב הזה" style="flex:0 0 auto;width:118px;font-size:0.76rem">
+             <option value="">אוטומטי</option><option value="1">נדרש</option><option value="0">לא נדרש</option>
+           </select>` : ''}
+         </div></div>`).join('');
     }
   }
 }
@@ -12316,7 +12547,7 @@ function guardTenantCache() {
 // שלוש הרשימות הארוכות בלשונית הטפסים מקופלות כברירת מחדל — הכותרת
 // והמונה מספיקים כדי לדעת אם יש שם משהו חדש. מי שפותח רובריקה, היא
 // נשארת פתוחה גם בכניסה הבאה.
-const _COLLAPSE_SECS = ['sec-insp', 'sec-vdocs', 'sec-decl'];
+const _COLLAPSE_SECS = ['sec-insp', 'sec-kmround', 'sec-gendocs', 'sec-vdocs', 'sec-decl'];
 function initCollapsibleSections() {
   _COLLAPSE_SECS.forEach(id => {
     const el = document.getElementById(id);
@@ -14658,10 +14889,22 @@ function renderAgentMsgs(showTyping = false) {
     <!-- מסמך נוסף: השם הוא כל מה שנשמר, והוא זה שמוצג ברשימה כדי
          שאפשר יהיה לדעת מה כל מסמך בלי לפתוח אותו -->
     <div id="mdoc-gen" style="display:none">
-      <div class="modal-row" style="margin-top:6px"><label>שם המסמך</label>
+      <!-- שיוך חופשי: הועלה מלשונית הטפסים ואין תיק פתוח שממנו יילקח
+           הנושא. ריק הוא בחירה לגיטימית — מסמך של החברה כולה. -->
+      <div id="mdoc-gentarget" style="display:none">
+        <div class="modal-row" style="margin-top:6px"><label>לשייך אל <span style="font-weight:400;color:#94a3b8;font-size:0.68rem">(מספר רישוי או שם נהג · ריק = מסמך כללי של החברה)</span></label>
+          <input id="mdoc-gento" type="text" list="mdoc-tolist" placeholder="ריק = מסמך כללי" oninput="_mdocTargetHint()">
+          <datalist id="mdoc-tolist"></datalist>
+          <div id="mdoc-tohint" style="font-size:0.72rem;color:var(--muted);margin-top:4px"></div>
+        </div>
+      </div>
+      <div id="mdoc-genone" class="modal-row" style="margin-top:6px"><label>שם המסמך</label>
         <input id="mdoc-genname" type="text" placeholder="למשל: טופס טיפול 60,000" list="gendoc-list">
         <datalist id="gendoc-list"></datalist>
       </div>
+      <!-- כמה קבצים יחד = כמה מסמכים נפרדים, שם לכל אחד. שם הקובץ הוא
+           ברירת המחדל, כדי שהעלאה של עשרה טפסים לא תדרוש עשר הקלדות. -->
+      <div id="mdoc-genmulti" style="display:none;max-height:34vh;overflow-y:auto"></div>
     </div>
     <div id="mdoc-cert" style="display:none">
       <div class="modal-row" style="margin-top:6px"><label id="mdoc-certlbl">תאריך</label><input id="mdoc-certdate" type="text" placeholder="dd/mm/yyyy" style="direction:ltr"></div>
