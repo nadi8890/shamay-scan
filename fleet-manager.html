@@ -14503,6 +14503,12 @@ function renderReturns() {
       if (!fm(r.notes, replColFilters.notes)) return false;
       return true;
     });
+    // מוינים לפי תאריך תחילת ההחלפה, לא לפי סדר ההוספה למערך — אחרת
+    // רשומה שנוספה לפני התיקון (unshift) נשארת תקועה למעלה לצמיתות,
+    // ורשומה בלי תאריך עדיין (שורה חדשה שממלאים כרגע) הכי הגיוני
+    // שתופיע למטה, איפה שמצפים לראות חדש.
+    const _replOrd = r => { const d = parseDate(r.fromDate); return d ? d.getTime() : Infinity; };
+    filteredRepl.sort((a, b) => _replOrd(a) - _replOrd(b));
     if (!filteredRepl.length) {
       rb.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:20px">${q ? 'לא נמצאו תוצאות' : 'אין רכבים חליפיים פעילים'}</td></tr>`;
     } else {
@@ -14544,6 +14550,9 @@ function renderReturns() {
       if (!fm(r.notes, retColFilters.notes)) return false;
       return true;
     });
+    // אותו מיון לפי תאריך תחילת ההחלפה — ר' ההערה בטבלת הרכבים החליפיים
+    const _retOrd = r => { const d = parseDate(r.fromDate); return d ? d.getTime() : Infinity; };
+    filteredRet.sort((a, b) => _retOrd(a) - _retOrd(b));
     if (!filteredRet.length) {
       retb.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:20px">${q ? 'לא נמצאו תוצאות' : 'אין רשומות היסטוריה'}</td></tr>`;
     } else {
