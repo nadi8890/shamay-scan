@@ -3943,7 +3943,12 @@ function vehWeightKg(v) {
 // לפי הטקסט בדגם וביצרן — רכב שטרם סונכרן אין לו סוג שמור.
 const BUS_WORDS = /אוטובוס|מיניבוס|מידיבוס|אוטובוס זעיר|minibus|autobus/i;
 function isBus(v) {
-  return BUS_WORDS.test([(v && v.vehicleType) || '', (v && v.model) || '', (v && v.make) || ''].join(' '));
+  if (BUS_WORDS.test([(v && v.vehicleType) || '', (v && v.model) || '', (v && v.make) || ''].join(' '))) return true;
+  // דרך שנייה, בלי תלות בטקסט: מיניבוס מתחיל ב-9 מקומות ומעלה. אוטובוס
+  // סקניה שדגמו "K360IB4X2NB" אינו מכיל שום מילה מזהה, ובלי זה הוא נראה
+  // כמו משאית.
+  const seats = parseInt(String((v && v.seats) || '').replace(/\D/g, ''), 10);
+  return seats >= 9;
 }
 function certApplies(v, c) {
   if (c.busOnly) return isBus(v);
@@ -13869,6 +13874,7 @@ async function syncVehicleFromGov(plate) {
   if (lookup.model && lookup.model!=='—') v.model = lookup.model;
   if (lookup.year && String(lookup.year)!=='—') v.year = String(lookup.year);
   if (lookup.vehicleTypeName) v.vehicleType = lookup.vehicleTypeName;
+  if (lookup.seatsCount) v.seats = String(lookup.seatsCount);
   if (lookup.tozeretCd && lookup.tozeretCd!=='—') v.tozeretCd = govPad4(lookup.tozeretCd);
   if (lookup.degemCd && lookup.degemCd!=='—') v.degemCd = govPad4(lookup.degemCd);
   if (lookup.weight && lookup.weight!=='—') v.weight = String(lookup.weight);
@@ -13907,7 +13913,7 @@ function _govCodeStale(v) {
 async function syncFleetFromGov() {
   const hasPlate = v => !v.noVehicle && String(v.plate || '').replace(/\D/g, '').length >= 6;
   const targets = VEHICLES.filter(v => hasPlate(v)
-    && (!v.tozeretCd || !v.degemCd || !v.weight
+    && (!v.tozeretCd || !v.degemCd || !v.weight || !v.vehicleType || !v.seats
         || !v.make || !v.model || !v.year || !v.registrationExpiry
         || _govCodeStale(v)));
   if (!targets.length) { toast('כל הרכבים כבר מסונכרנים ✓'); return; }
@@ -13970,6 +13976,7 @@ async function syncFleetFromGov() {
     };
     // נשמרים מרופדים לארבע ספרות, בדיוק כפי שהם מודפסים ברישיון הרכב
     put('vehicleType', nn.type);      // אוטובוס / משא / פרטי — קובע אילו אישורים נדרשים
+    put('seats', nn.seats);           // דרך זיהוי שנייה לאוטובוס, בלתי תלויה בטקסט
     put('tozeretCd', govPad4(nn.licCode));
     put('degemCd', govPad4(nn.modelCode));
     if (nn.weight && nn.weight !== '0') set('weight', nn.weight);
@@ -14171,6 +14178,7 @@ async function lookupVehicleGov(rawPlate) {
       engineCC: rec.engine_cc||'—',
       doors: rec.num_doors||'—',
       vehicleTypeName: gn.type||'',
+      seatsCount: gn.seats||'',
       tozeretCd: gn.licCode||'—',
       degemCd: gn.modelCode||'—',
       weight: (gn.weight && gn.weight!=='0') ? gn.weight : '—'
