@@ -5547,6 +5547,7 @@ function renderFleet() {
     });
   }
 
+  window._fleetFiltered = filtered;   // הייצוא מתבסס על מה שמוצג בפועל
   buildCompanyFilter();
   buildEntityFilter();
   buildColFilterRow(VEHICLES);
@@ -9503,11 +9504,29 @@ setTimeout(startMascot, 3000);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) refreshMascotMsgs(); });
 
 // ── EXPORT TO EXCEL (CSV with BOM) ──
+// היקף הייצוא לצי: מה שמסונן על המסך, או הכול. נשמר כדי ש-_exportScopeChanged
+// יוכל לבנות מחדש בלי לפתוח את החלון שוב.
+let _expSection = '', _expScope = 'filtered';
 function exportSection(section) {
+  _expSection = section;
+  const _filt = Array.isArray(window._fleetFiltered) ? window._fleetFiltered : VEHICLES;
+  // ברירת המחדל היא המסונן: מי שסינן ישות ואז לחץ ייצוא מתכוון לזו שסינן
+  _expScope = (section === 'fleet' && _filt.length < VEHICLES.length) ? 'filtered' : 'all';
+  _buildExport();
+}
+function _exportScopeChanged() {
+  const r = document.querySelector('input[name="exp-scope"]:checked');
+  _expScope = r ? r.value : 'all';
+  _buildExport();
+}
+function _buildExport() {
+  const section = _expSection;
+  const _filt = Array.isArray(window._fleetFiltered) ? window._fleetFiltered : VEHICLES;
+  const FLEET_SRC = (section === 'fleet' && _expScope === 'filtered') ? _filt : VEHICLES;
   let headers = [], rows = [];
   if (section === 'fleet') {
     headers = ['מס׳ רישוי','יצרן','דגם','שנה','קוד תוצר','קוד דגם','משקל כולל','נהג','מחלקה','סטטוס רכב','סטטוס משני','חברה','קוד רכב','תוקף רישוי','תוקף ביטוח','רישיון נהג','ק"מ נוכחי','ק"מ טיפול הבא','תאריך טיפול אחרון','ביקורת בטיחות','ילדים','רכב מתאריך','רישום תנועה','נהלים'];
-    rows = VEHICLES.map(v => [v.plate,v.make,v.model,v.year,v.tozeretCd||'',v.degemCd||'',v.weight||'',v.driverName,vehicleDept(v),v.vehStatus||'',v.vehStatus2||'',v.company,v.code||'',v.registrationExpiry,v.insuranceExpiry,v.licenseExpiry,v.currentKm,v.nextServiceKm,v.serviceDate||'',v.inspection,v.children||'',v.vehicleFrom||'',v.trafficRecord||'',v.procedures||'']);
+    rows = FLEET_SRC.map(v => [v.plate,v.make,v.model,v.year,v.tozeretCd||'',v.degemCd||'',v.weight||'',v.driverName,vehicleDept(v),v.vehStatus||'',v.vehStatus2||'',v.company,v.code||'',v.registrationExpiry,v.insuranceExpiry,v.licenseExpiry,v.currentKm,v.nextServiceKm,v.serviceDate||'',v.inspection,v.children||'',v.vehicleFrom||'',v.trafficRecord||'',v.procedures||'']);
     // עמודת המשקל יורדת מהקובץ אצל לקוח שהתכונה כבויה אצלו
     // מחלקה יושבת אחרי 'נהג' (אינדקס 8), והמשקל לפניו (6). מורידים
     // מהסוף להתחלה, אחרת הסרת המשקל מזיזה את המחלקה ונחתכת עמודה אחרת.
@@ -9550,6 +9569,18 @@ function exportSection(section) {
     if (!featureOn('dept')) { headers.splice(2,1); rows.forEach(r => r.splice(2,1)); }
   }
   // במקום להוריד מיד — פותחים חלון בחירת עמודות
+  // בורר ההיקף מוצג רק בצי, ורק כשיש בכלל סינון פעיל
+  const _box = document.getElementById('export-scope-box');
+  if (_box) {
+    const show = section === 'fleet' && _filt.length < VEHICLES.length;
+    _box.style.display = show ? '' : 'none';
+    if (show) {
+      document.getElementById('export-scope-filtered').textContent = `לפי הסינון הנוכחי (${_filt.length} רכבים)`;
+      document.getElementById('export-scope-all').textContent = `כל הצי (${VEHICLES.length} רכבים)`;
+      const r = document.querySelector(`input[name="exp-scope"][value="${_expScope}"]`);
+      if (r) r.checked = true;
+    }
+  }
   window._exportCtx = { section, headers, rows };
   const list = document.getElementById('export-cols');
   list.innerHTML = headers.map((h,i)=>`<label style="display:flex;align-items:center;gap:8px;padding:6px 4px;border-bottom:1px solid #f1f5f9;font-size:0.85rem;cursor:pointer"><input type="checkbox" class="exp-col" data-i="${i}" checked> ${esc(h)}</label>`).join('');
@@ -12292,6 +12323,30 @@ function initCollapsibleSections() {
     });
   });
 }
+// ── Enter שומר בחלונות ──
+// רק בטופס הרכב היה Enter מקושר לשמירה; בכל שאר החלונות הוא לא עשה כלום.
+// במקום למפות כל חלון לפונקציית השמירה שלו — מיפוי שנשבר בכל חלון חדש —
+// מחפשים בחלון הפתוח כפתור שכתוב בו "שמור".
+//
+// דווקא לא "הכפתור הראשי": בחלון שליחת הטפסים הוא שולח וואטסאפ לנהג,
+// בתיק המסמכים הוא שולח מייל לעובד, ובצפייה בביקורת הוא משתף. Enter
+// שמפעיל אחד מאלה בטעות הוא נזק שאי אפשר לבטל, ולכן הכלל צר בכוונה.
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Enter' || e.shiftKey || e.ctrlKey || e.metaKey || e.altKey) return;
+  if (e.defaultPrevented) return;          // חלון שכבר מטפל בעצמו (טופס הרכב)
+  const t = e.target;
+  if (!t || !t.closest) return;
+  const tag = (t.tagName || '').toUpperCase();
+  if (tag === 'TEXTAREA' || tag === 'BUTTON' || tag === 'SELECT' || t.isContentEditable) return;
+  const modal = t.closest('.modal-overlay.open');
+  if (!modal) return;
+  const btn = [...modal.querySelectorAll('button')]
+    .find(b => !b.disabled && b.offsetParent !== null && /שמור/.test(b.textContent || ''));
+  if (!btn) return;
+  e.preventDefault();
+  btn.click();
+});
+
 function bootApp() {
   loadUiPrefs();
   markMultiWindow();   // ההעדפות שייכות ללקוח, ולכן נטענות רק אחרי שהוא נפתר
@@ -14543,7 +14598,15 @@ function renderAgentMsgs(showTyping = false) {
 <div class="modal-overlay" id="export-modal" style="z-index:680">
   <div class="modal" style="max-width:420px">
     <h3>📥 ייצוא לאקסל — בחירת עמודות</h3>
-    <p style="font-size:0.78rem;color:var(--muted);margin-bottom:8px">סמן אילו עמודות לייצא (<span id="export-count">0</span> שורות). הכל מסומן = טבלה מלאה.</p>
+    <div id="export-scope-box" style="display:none;background:#f8fafc;border:1px solid var(--border);border-radius:9px;padding:8px 10px;margin-bottom:9px">
+        <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:0.82rem;font-weight:700">
+          <input type="radio" name="exp-scope" value="filtered" checked onchange="_exportScopeChanged()"><span id="export-scope-filtered">לפי הסינון הנוכחי</span>
+        </label>
+        <label style="display:flex;align-items:center;gap:7px;cursor:pointer;font-size:0.82rem;font-weight:700;margin-top:5px">
+          <input type="radio" name="exp-scope" value="all" onchange="_exportScopeChanged()"><span id="export-scope-all">כל הצי</span>
+        </label>
+      </div>
+      <p style="font-size:0.78rem;color:var(--muted);margin-bottom:8px">סמן אילו עמודות לייצא (<span id="export-count">0</span> שורות). הכל מסומן = טבלה מלאה.</p>
     <div style="margin-bottom:8px"><button class="btn btn-secondary" style="padding:5px 12px;font-size:0.8rem" onclick="toggleAllExportCols()">✓ בחר / בטל הכל</button></div>
     <div id="export-cols" style="max-height:46vh;overflow-y:auto;border:1px solid var(--border);border-radius:8px;padding:4px 10px"></div>
     <div class="btn-row">
