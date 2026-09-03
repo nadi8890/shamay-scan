@@ -10259,6 +10259,11 @@ const _REQ_TITLE = { insurance: 'תעודת ביטוח', registration: 'רישי
 // מ-EXTRA_CERTS ולא מוקלדת מחדש, כדי שאישור שיתווסף בעתיד יופיע כאן
 // מאליו — בטבלה, בהתראות ובמסמכים גם יחד.
 EXTRA_CERTS.forEach(c => { _REQ_TITLE[c.key] = c.label; });
+_REQ_TITLE.general = 'מסמך נוסף';
+// שמות נפוצים, כדי שהשני והלאה ייבחרו ולא יוקלדו מחדש — וכך לא ייווצרו
+// "טופס טיפול" ו"טיפול" כשני שמות שונים לאותו דבר
+const GENERAL_DOC_NAMES = ['טופס טיפול', 'אישור תיקון', 'חשבונית מוסך', 'אישור גרירה',
+  'דוח בדיקה', 'קבלה', 'אישור החזרת רכב', 'תמונות נזק'];
 function isCertKind(k) { return EXTRA_CERTS.some(c => c.key === k); }
 function certByKind(k) { return EXTRA_CERTS.find(c => c.key === k) || null; }
 // ביטוח ורישיון רכב מגיעים כשתי קריאות נפרדות. בחירת "הרשומה האחרונה"
@@ -10711,7 +10716,8 @@ function _mdocBuildKinds(v) {
   const base = `<option value="registration">🚗 רישיון רכב (טסט)</option>
         <option value="insurance">🛡️ תעודת ביטוח חובה</option>
         <option value="license">🪪 רישיון נהיגה</option>
-        <option value="traffic">📋 אישור עבר תעבורתי</option>`;
+        <option value="traffic">📋 אישור עבר תעבורתי</option>
+        <option value="general">📎 מסמך נוסף (טופס טיפול, אישור...)</option>`;
   const certs = featureOn('extraCerts')
     ? EXTRA_CERTS.filter(c => !v || certApplies(v, c))
         .map(c => `<option value="${c.key}">${c.icon} ${esc(c.label)}</option>`).join('')
@@ -10809,11 +10815,22 @@ async function onManualDocFiles(input) {
 
 // רישיון נהיגה ועבר תעבורתי שייכים לאדם; רישיון רכב וביטוח שייכים לרכב
 function _mdocIsDriverKind(k) { return k === 'license' || k === 'traffic'; }
+// מסמך נוסף נשמר על הרכב כשיש רכב, ועל הנהג כשאין — ולכן אינו מחייב רישוי
+function _mdocNeedsPlate(k) { return !_mdocIsDriverKind(k) && k !== 'general'; }
 function _mdocFields() {
   const k = document.getElementById('mdoc-kind').value;
-  document.getElementById('mdoc-veh').style.display = _mdocIsDriverKind(k) ? 'none' : 'block';
+  // במסמך נוסף אין משמעות לתוקף טסט או ביטוח; מספר הרישוי מגיע מהתיק
+  // הפתוח דרך _MDOC.plate, ולכן הסתרת הקבוצה אינה מאבדת אותו
+  document.getElementById('mdoc-veh').style.display =
+    (_mdocIsDriverKind(k) || k === 'general') ? 'none' : 'block';
   document.getElementById('mdoc-lic').style.display = (k === 'license') ? 'block' : 'none';
   document.getElementById('mdoc-trf').style.display = (k === 'traffic') ? 'block' : 'none';
+  const _gen = document.getElementById('mdoc-gen');
+  if (_gen) _gen.style.display = (k === 'general') ? 'block' : 'none';
+  if (k === 'general') {
+    const dl = document.getElementById('gendoc-list');
+    if (dl && !dl.children.length) dl.innerHTML = GENERAL_DOC_NAMES.map(x => `<option value="${esc(x)}">`).join('');
+  }
   const _c = certByKind(k);
   document.getElementById('mdoc-cert').style.display = _c ? 'block' : 'none';
   if (_c) document.getElementById('mdoc-certlbl').textContent = certFieldHint(_c);
@@ -10876,7 +10893,7 @@ function _vdocSub(r, kind, idxs) {
            title: kind ? (_REQ_TITLE[kind] || '') : (r.title || '') };
 }
 function vdocSplit(list) {
-  const reg = [], ins = [], un = [], certs = {};
+  const reg = [], ins = [], un = [], gen = [], certs = {};
   for (const r of (list || [])) {
     if (r.reqType === 'registration') { reg.push(r); continue; }
     if (r.reqType === 'insurance')    { ins.push(r); continue; }
@@ -10884,6 +10901,7 @@ function vdocSplit(list) {
     if (typeof isCertKind === 'function' && isCertKind(r.reqType)) {
       (certs[r.reqType] = certs[r.reqType] || []).push(r); continue;
     }
+    if (r.reqType === 'general') { gen.push(r); continue; }
     const ks = Array.isArray(r.imgKinds) ? r.imgKinds : [];
     const idxOf = f => (r.images || []).map((_, i) => i).filter(f);
     const ri = idxOf(i => ks[i] === 'registration');
@@ -10893,7 +10911,7 @@ function vdocSplit(list) {
     if (ii.length) ins.push(_vdocSub(r, 'insurance', ii));
     if (rest.length) un.push(_vdocSub(r, '', rest));
   }
-  return { reg, ins, un, certs };
+  return { reg, ins, un, gen, certs };
 }
 async function tagVdocImage(docId, imgIdx, kind) {
   if (!kind) return;
@@ -11028,7 +11046,9 @@ async function saveManualDoc() {
   const trf = document.getElementById('mdoc-trfdate').value.trim();
   const cert = document.getElementById('mdoc-certdate').value.trim();
   const certDef = certByKind(k);
-  if (!_mdocIsDriverKind(k) && !plate) { toast('חסר מספר רישוי', true); return; }
+  if (_mdocNeedsPlate(k) && !plate) { toast('חסר מספר רישוי', true); return; }
+  const genName = (document.getElementById('mdoc-genname').value || '').trim();
+  if (k === 'general' && !genName) { toast('תן שם למסמך, כדי שאפשר יהיה לזהות אותו ברשימה', true); return; }
   for (const [d, nm] of [[reg,'תוקף טסט'], [ins,'תוקף ביטוח'], [lex,'תוקף רישיון'], [trf,'תאריך העבר התעבורתי'], [cert, certDef ? certDef.label : 'תאריך האישור']])
     if (bad(d)) { toast(nm + ' אינו תאריך תקין', true); return; }
 
@@ -11039,7 +11059,10 @@ async function saveManualDoc() {
   const created = Date.now();
   try {
     await fcol().doc('mdoc_' + created).set({
-      type: _mdocIsDriverKind(k) ? 'licensedocs' : 'vehicledocs',
+      type: (_mdocIsDriverKind(k) || (k === 'general' && !plate)) ? 'licensedocs' : 'vehicledocs',
+      // imgRow מציג את title לפני התאריך, ולכן השם נשמר שם ומופיע מאליו
+      // בכל רובריקה שבה המסמך יוצג
+      title: k === 'general' ? genName : '',
       reqType: k, source: 'manual', created,
       dateStr: new Date(created).toLocaleDateString('he-IL'),
       plate, driver: _MDOC.driver || '',
@@ -11223,7 +11246,7 @@ async function openEmployeeDocs(plate, driverOnly){
     const _vall = byPlate(_m.vdocs);
     const _vs = vdocSplit(_vall);
     const D = window._EMPDOCS = { decls:byDriver(decls), vall:_vall,
-      vreg:_vs.reg, vins:_vs.ins, vun:_vs.un, vcerts:_vs.certs || {},
+      vreg:_vs.reg, vins:_vs.ins, vun:_vs.un, vgen:_vs.gen || [], vcerts:_vs.certs || {},
       ldocs:byDriver(_m.ldocs), reqs:reqSel, insps:byPlate(insps) };
     // כפתורי הצפייה וההורדה פונים ל-_EMPDOCS[cat], ולכן כל אישור נחשף
     // גם כמערך שטוח בשם vcert_<key> ולא רק בתוך vcerts
@@ -11296,6 +11319,8 @@ async function openEmployeeDocs(plate, driverOnly){
         + grp('driver', '👤',
             sec('🪪','רישיון נהיגה', D.ldocs.length, imgRow(D.ldocs,'ldocs'),
                 addBtn("openManualDoc('license')", 'העלה רישיון נהיגה'), 'driver')
+          + sec('📎','מסמכים נוספים', D.vgen.length, imgRow(D.vgen, 'vgen'),
+                addBtn("openManualDoc('general')", 'העלה מסמך נוסף'), 'driver')
           + '<div style="font-size:0.7rem;color:#7c3aed;opacity:.75">לנהג הזה אין רכב משויך, ולכן מוצגים מסמכי הנהג בלבד. מסמכי רכב ייווספו כשיוקצה לו רכב.</div>');
       return;
     }
@@ -11322,6 +11347,8 @@ async function openEmployeeDocs(plate, driverOnly){
                 return sec(c.icon, esc(c.label) + hint, list.length, imgRow(list, 'vcert_' + c.key),
                            addBtn("openManualDoc('" + c.key + "')", 'העלה ' + c.label), 'vehicle');
               }).join('') : '')
+          + sec('📎','מסמכים נוספים', D.vgen.length, imgRow(D.vgen, 'vgen'),
+                addBtn("openManualDoc('general')", 'העלה מסמך נוסף — טופס טיפול, אישור וכו׳'), 'vehicle')
           + sec('📎','קריאות / מסמכים שהתבקשו', D.reqs.length, reqHtml, '', 'vehicle')
           + `<div style="font-size:0.7rem;color:#0891b2;opacity:.75">נשארים עם הרכב — גם אם יוחלף הנהג</div>`);
   } catch(e){ body.innerHTML = '<div style="color:#dc2626;padding:12px">שגיאה בטעינת המסמכים</div>'; console.log('empdocs', e); }
@@ -14556,6 +14583,14 @@ function renderAgentMsgs(showTyping = false) {
     </div>
     <!-- אישור נוסף: התווית משתנה לפי סוג האישור — יש שנשמר בהם מועד
          הביצוע והתוקף נגזר ממנו, ויש שנשמר בהם התוקף עצמו. -->
+    <!-- מסמך נוסף: השם הוא כל מה שנשמר, והוא זה שמוצג ברשימה כדי
+         שאפשר יהיה לדעת מה כל מסמך בלי לפתוח אותו -->
+    <div id="mdoc-gen" style="display:none">
+      <div class="modal-row" style="margin-top:6px"><label>שם המסמך</label>
+        <input id="mdoc-genname" type="text" placeholder="למשל: טופס טיפול 60,000" list="gendoc-list">
+        <datalist id="gendoc-list"></datalist>
+      </div>
+    </div>
     <div id="mdoc-cert" style="display:none">
       <div class="modal-row" style="margin-top:6px"><label id="mdoc-certlbl">תאריך</label><input id="mdoc-certdate" type="text" placeholder="dd/mm/yyyy" style="direction:ltr"></div>
     </div>
