@@ -53,6 +53,7 @@ input{width:100%;border:1.5px solid #dde3ed;border-radius:10px;padding:12px;font
   <input id="plate-inp" inputmode="numeric" placeholder="12345678 או 050-0000000">
   <div style="font-size:0.76rem;color:#64748b;margin-top:4px">אפשר להזין את מה שנוח לזכור — לוחית הרישוי או הנייד שרשום במערכת</div>
   <div class="err" id="plate-err"></div>
+  <button class="btn" id="km-retry-btn" style="display:none;margin-top:8px;background:#2563eb" onclick="_kmRetry()">🔄 נסה שוב</button>
   <button class="btn" id="plate-go" style="margin-top:12px" onclick="findVehicle()" disabled>טוען רשימת רכבים…</button>
 </div>
 
@@ -136,7 +137,10 @@ let _kmLoadErr = null, _kmLoaded = false;
 // נטענה" או "לא נמצא", למרות שהרכב שלו קיים. שומרים את ההבטחה כדי
 // שאפשר יהיה להמתין לה במקום לענות תשובה שגויה.
 let _kmReady = null;
-_kmReady = (async function init() {
+// עטיפה שאפשר להריץ שוב בלחיצת כפתור, בלי לחייב את העובד לרענן את כל
+// הדף אם הרשת נכשלה או pubroster עדיין לא היה מסונכרן ברגע שהוא הגיע.
+_kmReady = _kmLoadFleet();
+async function _kmLoadFleet() {
   await ensureAnonAuth(); // must precede any read so the identity is in place
   try {
     let d = {};
@@ -150,7 +154,7 @@ _kmReady = (async function init() {
   if (_b) { _b.disabled = false; _b.textContent = 'המשך ←'; }
   if (urlPlate) selectVehicle(urlPlate);
   else document.getElementById('step-plate').style.display = 'block';
-})();
+}
 
 // אותה טביעת אצבע שנשמרת ב-pubroster בצד המנהל. המספר עצמו אינו
 // נשמר שם — רשימת הטלפונים של כל העובדים לא תיחשף בקישור ציבורי.
@@ -209,16 +213,37 @@ function _route(typed) {
   if (_looksLikePhone(typed)) { findByPhone(typed); return; }
   selectVehicle(typed);
 }
+// כשל טעינה חד-פעמי לא אמור להיות סוף הדרך. הכפתור טוען מחדש בלי לצאת
+// מהדף, ומריץ שוב בדיוק את מה שהעובד ניסה — מספר רכב שהקליד או שכבר
+// היה בקישור.
+let _kmLastTry = '';
+function _kmShowRetry(plateDigits) {
+  _kmLastTry = plateDigits || urlPlate || '';
+  const b = document.getElementById('km-retry-btn');
+  if (b) b.style.display = 'block';
+}
+async function _kmRetry() {
+  const b = document.getElementById('km-retry-btn');
+  const err = document.getElementById('plate-err');
+  if (b) { b.disabled = true; b.textContent = 'טוען…'; }
+  _kmLoadErr = null; _kmLoaded = false;
+  err.style.display = 'none';
+  await _kmLoadFleet();
+  if (b) { b.disabled = false; b.textContent = '🔄 נסה שוב'; b.style.display = 'none'; }
+  selectVehicle(_kmLastTry);
+}
 function selectVehicle(plateDigits) {
   const err = document.getElementById('plate-err');
   document.getElementById('step-plate').style.display = 'block';
   // אבחון: הבחנה בין כשל טעינה, רשימה ריקה, ומספר שלא קיים
   if (_kmLoadErr) {
     err.textContent = 'שגיאה בטעינת המערכת: ' + (_kmLoadErr.code || _kmLoadErr.message || 'נסה/י שוב') + '. בדוק/י חיבור לאינטרנט.';
+    _kmShowRetry(plateDigits);
     err.style.display = 'block'; return;
   }
   if (!FLEET.length) {
     err.textContent = 'רשימת הרכבים לא נטענה. ודא/י שהקישור מלא ונסה/י שוב, או פנה/י למחלקת הרכב.';
+    _kmShowRetry(plateDigits);
     err.style.display = 'block'; return;
   }
   VEH = FLEET.find(v => String(v.plate||'').replace(/\D/g,'') === plateDigits);  // String(): מספר רכב עשוי להיות מספר ולא מחרוזת
