@@ -5147,7 +5147,7 @@ function renderDashboard() {
 }
 
 // ── FLEET SORT/FILTER ──
-let fleetSort = { col: null, dir: 1 };
+let fleetSort = { col: 'plate', dir: 1 };
 let fleetColFilters = { plate:'', make:'', year:'', tozeretCd:'', degemCd:'', weight:'', driver:'', dept:'', vstatus:'', vstatus2:'', lastname:'', company:'', reg:'', ins:'', lic:'', km:'', insp:'', traffic:'', proc:'', from:'' };
 // הסינון נשמר בין רענונים. מאחר שהוא שורד, חייב להיות חיווי ברור שהוא
 // פעיל — אחרת טבלה מסוננת נראית כמו טבלה שנעלמו ממנה שורות.
@@ -5524,7 +5524,7 @@ function renderFleet() {
     filtered.sort((a,b) => {
       let va, vb;
       switch(fleetSort.col) {
-        case 'plate': va=a.plate||''; vb=b.plate||''; break;
+        case 'plate': va=_govNum(a.plate); vb=_govNum(b.plate); break;
         case 'make': va=(a.make||'')+(a.model||''); vb=(b.make||'')+(b.model||''); break;
         case 'year': va=_govNum(a.year); vb=_govNum(b.year); break;
         case 'tozeretCd': va=_govNum(a.tozeretCd); vb=_govNum(b.tozeretCd); break;
