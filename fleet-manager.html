@@ -8610,6 +8610,7 @@ function renderAlerts() {
     const hasInsp = g.alerts.some(a => String(a.type || '').includes('ביקורת'));
     const DOC_ALERT_TYPES = ['תוקף רישוי','תוקף ביטוח חובה','רישיון נהג'];
     const hasDoc = g.alerts.some(a => a.missing || DOC_ALERT_TYPES.includes(a.type));
+    const docsBtn = `<button class="btn btn-gray" style="padding:3px 9px;font-size:0.68rem" title="פתיחת תיק המסמכים — לצפייה, להעלאת מסמך ולתיקון תאריכים" onclick="event.stopPropagation();openEmployeeDocs('${esc(g.plate)}')">📁</button>`;
     const missBtn = hasDoc ? `<button class="btn" style="padding:3px 9px;font-size:0.68rem;background:#eef2ff;color:#4338ca" title="שליחת התראה על מסמכים חסרים/פגים לנציג שירות במייל" onclick="mailDocAlerts('${esc(g.plate)}')">📧 שליחה לנציג שירות</button>` : '';
     const hasKmService = g.alerts.some(a => String(a.type || '').includes('טיפול'));
     const kmBtn = hasKmService ? `<button class="btn" style="padding:3px 9px;font-size:0.68rem;background:#fef9c3;color:#854d0e" title="שלח לנהג תזכורת לתיאום טיפול לפי חברת הליסינג" onclick="remindServiceScheduling('${esc(g.plate)}')">🗓️ תזכורת תיאום טיפול</button>` : '';
@@ -8629,7 +8630,7 @@ function renderAlerts() {
       <td style="font-weight:700;color:var(--accent);direction:ltr;font-size:0.85rem;white-space:nowrap">${esc(g.plate)}</td>
       <td style="font-size:0.8rem;font-weight:600;white-space:nowrap">${esc(g.driver)}</td>
       <td style="padding:8px 13px">${g.alerts.map(alertBadge).join('')}</td>
-      <td><div style="display:flex;flex-wrap:wrap;gap:5px;align-items:center">${kmBtn}${reqBtn}${inspFixBtn}${missBtn}${inspBtns}</div></td>
+      <td><div style="display:flex;flex-wrap:wrap;gap:5px;align-items:center">${docsBtn}${kmBtn}${reqBtn}${inspFixBtn}${missBtn}${inspBtns}</div></td>
     </tr>`;
   }).join('');
 }
