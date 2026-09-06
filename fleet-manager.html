@@ -988,6 +988,13 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
     <div style="font-weight:800;font-size:0.9rem">🛣️ תחילת חודש — זמן לשלוח סבב עדכון ק"מ לנהגים!</div>
     <button class="btn" style="background:#fff;color:#4f46e5;padding:6px 14px;font-size:0.8rem;font-weight:800" onclick="sendKmRoundToDrivers()">📲 שלח לנהגים עכשיו</button>
   </div>
+  <div id="acc-banner" style="display:none;background:linear-gradient(135deg,#0f766e,#0891b2);color:#fff;border-radius:12px;padding:12px 16px;margin-bottom:14px;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+    <div style="font-weight:800;font-size:0.9rem">🚗 תחילת חודש — מצבת הרכבים להנהלת חשבונות</div>
+    <div style="display:flex;gap:7px;flex-wrap:wrap">
+      <button class="btn" style="background:#fff;color:#0f766e;padding:6px 14px;font-size:0.8rem;font-weight:800" onclick="openAccountingFleetMail()">📧 הכן מייל</button>
+      <button class="btn" style="background:rgba(255,255,255,.18);color:#fff;padding:6px 12px;font-size:0.78rem;font-weight:700" title="הסתר עד החודש הבא" onclick="markAccRoundSent()">✓ נשלח</button>
+    </div>
+  </div>
   <div id="pending-reqs" style="display:none;margin-bottom:14px;background:#f0fdf4;border:1.5px solid #86efac;border-radius:12px;padding:12px 14px">
     <div class="section-hdr" style="margin-bottom:8px"><div style="display:flex;align-items:center;gap:8px"><span class="section-title" style="color:#166534">📥 קריאות לאישור</span><span class="count-badge" id="pending-count" style="background:#16a34a">0</span></div>
       <button class="btn btn-gray" style="padding:3px 10px;font-size:0.7rem" onclick="loadPendingRequests()" title="רענן">🔄</button></div>
@@ -2499,6 +2506,7 @@ async function loadFromFirestore() {
         if (ALERT_CATS_OFF.indexOf('license') === -1) ALERT_CATS_OFF.push('license');
       }
       if (d.kmRound && typeof KMROUND !== 'undefined') { KMROUND = d.kmRound; }
+      if (d.accRound && typeof ACCROUND !== 'undefined') { ACCROUND = d.accRound; }
       if (d.costs && typeof COSTS !== 'undefined') { COSTS = d.costs; }
       if (d.serviceNotified) { SERVICE_NOTIFIED = d.serviceNotified; }
       if (d.drivers) { DRIVERS = d.drivers; }
@@ -2521,6 +2529,7 @@ async function loadFromFirestore() {
       if (d.contacts && typeof d.contacts === 'object') { window.CONTACTS = _ensureContacts({ list: d.contacts.list || [], emails: d.contacts.emails || [], byPlate: d.contacts.byPlate || {} }); try { localStorage.setItem('fleet_contacts', JSON.stringify(window.CONTACTS)); } catch(e){} const _cb = document.getElementById('contacts-list'); if (_cb) renderContacts(); }
       rebuildDriversDirectory();
       if (typeof updateKmBanner === 'function') updateKmBanner();
+      if (typeof updateAccBanner === 'function') updateAccBanner();
       if (typeof maybeSendKmReminder === 'function') maybeSendKmReminder();
       if (!ENTITIES.length) ENTITIES = defaultEntities();
     else {
@@ -3870,6 +3879,7 @@ function setupRealtimeSync() {
     if (Array.isArray(d.returns)) { RETURNS = d.returns; }
     if (d.mailSettings) { MAIL_SETTINGS = d.mailSettings; }
     if (d.kmRound && typeof KMROUND !== 'undefined') { KMROUND = d.kmRound; if (typeof updateKmBanner === 'function') updateKmBanner(); }
+    if (d.accRound && typeof ACCROUND !== 'undefined') { ACCROUND = d.accRound; if (typeof updateAccBanner === 'function') updateAccBanner(); }
     if (d.costs && typeof COSTS !== 'undefined') { COSTS = d.costs; if (typeof renderManagerDashboard === 'function') refreshDashboardIfOpen(); }
     if (d.serviceNotified) { SERVICE_NOTIFIED = d.serviceNotified; }
     if (d.drivers) { DRIVERS = d.drivers; }
@@ -7010,6 +7020,63 @@ function updateKmBanner() {
   const b = document.getElementById('km-banner');
   if (!b) return;
   b.style.display = KMROUND[kmMonthKey()] ? 'none' : 'flex';
+}
+
+// ═══ מצבת רכבים חודשית להנהלת חשבונות ═══
+// דוח שנשלח כל חודש ידנית הוא דוח שנשכח. אותו דפוס של סבב הק"מ: פס
+// בתחילת החודש, נעלם ברגע שסומן כנשלח, וחוזר מעצמו בחודש הבא.
+let ACCROUND = {};
+function updateAccBanner() {
+  const b = document.getElementById('acc-banner');
+  if (!b) return;
+  b.style.display = ACCROUND[kmMonthKey()] ? 'none' : 'flex';
+}
+async function markAccRoundSent() {
+  ACCROUND[kmMonthKey()] = Date.now();
+  saveToFirestore('accRound', ACCROUND);
+  toast('סומן שנשלח לחודש הנוכחי ✓');
+  updateAccBanner();
+}
+// הצי מקובץ לפי ישות, כי זו החלוקה שהנהלת חשבונות עובדת לפיה — לכל
+// ישות שם משפטי וח.פ. משלה, ורכב שאינו משויך חייב להיראות ולא להיעלם.
+function buildFleetByEntityMail() {
+  const NL = String.fromCharCode(10);
+  const active = (Array.isArray(VEHICLES) ? VEHICLES : []).filter(v => !v.noVehicle);
+  const groups = new Map();
+  active.forEach(v => {
+    const id = vehicleEntity(v) || '';
+    if (!groups.has(id)) groups.set(id, []);
+    groups.get(id).push(v);
+  });
+  const order = ENTITIES.map(e => e.id).filter(id => groups.has(id));
+  if (groups.has('')) order.push('');                       // "ללא שיוך" תמיד אחרון
+  const lines = ['שלום,', '', 'להלן מצבת הרכבים לחודש ' + kmMonthName() + ':', ''];
+  order.forEach(id => {
+    const ent = entityById(id);
+    const list = groups.get(id) || [];
+    const head = ent ? (ent.name + (ent.hp ? ' (ח.פ. ' + ent.hp + ')' : '')) : 'ללא שיוך לישות';
+    lines.push('■ ' + head + ' — ' + list.length + ' רכבים');
+    list.slice().sort((a, b) => String(a.plate).localeCompare(String(b.plate)))
+      .forEach(v => {
+        const desc = [(v.make || '') + ' ' + (v.model || ''), v.year].map(s => String(s || '').trim()).filter(Boolean).join(' ');
+        const drv = (v.driverName || '').split('-')[0].trim();
+        lines.push('   • ' + (v.plate || '—') + (desc ? ' · ' + desc : '') +
+                   (drv ? ' · ' + drv : ' · ללא נהג') +
+                   (v.company ? ' · ' + v.company : ''));
+      });
+    lines.push('');
+  });
+  lines.push('סה"כ ' + active.length + ' רכבים.', '', 'תודה,', coSig());
+  return lines.join(NL);
+}
+function openAccountingFleetMail() {
+  _swapMailSubject = 'מצבת רכבים — ' + kmMonthName() + (COMPANY_NAME ? ' · ' + COMPANY_NAME : '');
+  const t = document.getElementById('swm-title');
+  if (t) t.textContent = '🚗 מצבת רכבים חודשית להנהלת חשבונות';
+  document.getElementById('swm-to').value = (MAIL_SETTINGS && MAIL_SETTINGS.accountingEmail) || '';
+  document.getElementById('swm-body').value = buildFleetByEntityMail();
+  _renderSwapGroups();
+  document.getElementById('swap-mail-modal').classList.add('open');
 }
 async function loadKmRound() {
   const wrap = document.getElementById('kmround-panel');
@@ -14098,6 +14165,9 @@ function openReplMail(idx) {
   const perm = VEHICLES.find(v => driverKey(v.driverName) === driverKey(r.employee));
   const permStr = perm ? `${((perm.make||'')+' '+(perm.model||'')).trim()} (${perm.plate})`.trim() : 'לא נמצא במערכת';
   _swapMailSubject = `רכב חליפי — ${emp || ''}: חליפי ${r.plate}${perm ? ' במקום ' + perm.plate : ''}`;
+  // אותו חלון משמש גם למצבת הרכבים החודשית, ולכן הכותרת מוחזרת במפורש
+  const _t = document.getElementById('swm-title');
+  if (_t) _t.textContent = '🔄 עדכון הנהלת חשבונות — החלפת רכב';
   const body = `שלום,\n\nלידיעתכם, לעובד/ת ניתן רכב חליפי:\n\n• עובד/ת: ${emp || '—'}\n• רכב קבוע: ${permStr}\n• רכב חליפי: ${r.plate}${r.typeCompany ? ' ('+r.typeCompany+')' : ''}\n• מתאריך: ${r.fromDate || '—'}\n• ${r.toDate ? 'עד תאריך: ' + r.toDate : 'תאריך החזרה: טרם נקבע'}\n\nנא לעדכן בהתאם (שווי שימוש / שכר).\n\nתודה,\n${coSig()}`;
   document.getElementById('swm-to').value = '';
   document.getElementById('swm-body').value = body;
@@ -15080,7 +15150,7 @@ function renderAgentMsgs(showTyping = false) {
 <!-- ══ מייל להנהלת חשבונות על החלפת רכב ══ -->
 <div class="modal-overlay" id="swap-mail-modal">
   <div class="modal" style="max-width:520px">
-    <h3>🔄 עדכון הנהלת חשבונות — החלפת רכב</h3>
+    <h3 id="swm-title">🔄 עדכון הנהלת חשבונות — החלפת רכב</h3>
     <div class="modal-row"><label>אל<span style="font-weight:400;color:#94a3b8;font-size:0.7rem"> — אפשר כמה מיילים, מופרדים בפסיק</span></label><input id="swm-to" type="text" placeholder="accounting@company.co.il" style="direction:ltr"></div>
     <div id="swm-groups" style="margin:-4px 0 8px"></div>
     <div class="modal-row"><label>תוכן ההודעה (ניתן לערוך)</label><textarea id="swm-body" rows="10" style="width:100%;font-size:0.85rem;font-family:'Heebo',sans-serif;line-height:1.6"></textarea></div>
