@@ -908,9 +908,10 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
     <div style="font-size:2rem;margin-bottom:8px">📋</div>
     <div style="font-weight:700;margin-bottom:6px">כלי אומדן נזק</div>
     <div style="color:var(--muted);font-size:0.82rem;margin-bottom:14px">פתח את כלי אומדן הנזק המלא בחלון נפרד</div>
-    <a href="https://nadi8890.github.io/shamay-scan/vehicle-inspector-v4.html" target="_blank"
-       style="display:inline-block;background:var(--blue);color:#fff;padding:12px 24px;border-radius:10px;font-weight:700;text-decoration:none;font-size:0.9rem">
+    <button class="btn" onclick="openInspector()"
+       style="background:var(--blue);color:#fff;padding:12px 24px;border-radius:10px;font-weight:700;font-size:0.9rem;border:none;cursor:pointer">
       🔗 פתח כלי אומדן נזק
+    </button>
     </a>
   </div>
 </div>
@@ -7149,6 +7150,17 @@ function _entexpGo(i) {
 }
 // הבורר נפתח רק כשיש באמת במה לבחור. אצל לקוח בלי ישויות, או עם אחת
 // בלבד, שאלה כזו היא רק לחיצה מיותרת — ולכן הקובץ יורד ישר.
+// באפליקציה המותקנת לשונית חדשה יוצאת אל הדפדפן החיצוני — הקשר אחר,
+// ושם אין את ההתחברות של האפליקציה. כלי האומדן נפתח שם בלי משתמש
+// מחובר, ולכן אומדן שנבנה בטלפון לא הצליח לעבור לחוות דעת. באפליקציה
+// נשארים באותו חלון; בדפדפן רגיל לשונית חדשה נוחה יותר ואינה מזיקה.
+function openInspector() {
+  const url = 'vehicle-inspector-v4.html';   // יחסי, כדי להישאר בתחום האפליקציה
+  const standalone = (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches)
+                     || window.navigator.standalone === true;
+  if (standalone) location.href = url;
+  else window.open(url, '_blank');
+}
 function exportMonthlyPick() {
   if (typeof XLSX === 'undefined') { toast('הספרייה עדיין נטענת — נסה שוב', true); return; }
   const ents = (Array.isArray(ENTITIES) ? ENTITIES : []);

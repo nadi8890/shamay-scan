@@ -311,6 +311,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue)}
   </div>
 
   <button class="btn-sm btn-green" style="width:100%;padding:13px;font-size:0.95rem;border-radius:12px;margin-top:12px" onclick="saveRecord()" title="שומר לטבלת התיעוד ומכין להעברה לחוות דעת — בלחיצה אחת">✅ שמור אומדן והעבר לחוות דעת</button>
+  <div id="handoff-state" style="margin-top:8px;font-size:0.78rem;text-align:center;color:#94a3b8">בודק חיבור…</div>
 </div>
 
 <!-- AI PHOTO -->
@@ -1796,6 +1797,29 @@ async function _retryPendingHandoff() {
 // נטענת מהאחסון ובטלפון איטי היא מגיעה אחריו. לכן כל הופעה של משתמש
 // מחובר — ולא רק הראשונה — מפעילה שוב את ההעברה הממתינה, וכך גם חזרה
 // אל הלשונית אחרי שהמכשיר היה נעול.
+// עד כה מצב החיבור התגלה רק ברגע הכישלון — אחרי שהאומדן כבר נבנה,
+// וכשכבר מאוחר. שורה קבועה מתחת לכפתור מראה אותו מראש, כך שברור אם
+// ההעברה למחשב תעבוד לפני שמשקיעים עבודה באומדן.
+async function _paintHandoffState() {
+  const el = document.getElementById('handoff-state');
+  if (!el) return;
+  let u = null;
+  try { u = await _fbUser(); } catch(e) {}
+  if (!u || u.isAnonymous) {
+    el.style.color = '#f87171';
+    el.textContent = '⚠️ לא מחובר כאן — אומדן שיישמר לא יעבור למחשב. פתח את ניהול הצי באותו דפדפן והתחבר.';
+    return;
+  }
+  const tid = await _fbTenantId();
+  if (!tid) {
+    el.style.color = '#fbbf24';
+    el.textContent = '⚠️ מחובר, אך זיהוי החשבון נכשל כרגע — ננסה שוב.';
+    return;
+  }
+  el.style.color = '#4ade80';
+  el.textContent = '☁️ מחובר כ־' + (u.email || 'משתמש') + ' — האומדן יעבור לחוות דעת במחשב.';
+}
+
 let _retryBusy = false;
 async function _retryHandoffSafe() {
   if (_retryBusy) return;
@@ -1809,6 +1833,8 @@ async function _retryHandoffSafe() {
     try { app.auth().onAuthStateChanged(u => { if (u && !u.isAnonymous) _retryHandoffSafe(); }); }
     catch(e) { console.log('auth watch', e); }
   }
+  _paintHandoffState();
+  if (app) { try { app.auth().onAuthStateChanged(() => _paintHandoffState()); } catch(e) {} }
   document.addEventListener('visibilitychange', () => { if (!document.hidden) _retryHandoffSafe(); });
 })();
 </script>
