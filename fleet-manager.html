@@ -1731,6 +1731,13 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
             <div id="adm-status" style="font-size:0.76rem;color:#94a3b8;margin-top:8px"></div>
           </div>
         </div>
+        <div class="settings-grp">🩺 בדיקת תקינות</div>
+        <div style="max-width:420px;font-size:0.78rem;color:var(--muted);line-height:1.6;margin-bottom:8px">
+          סורקת את הנתונים שלך ומחפשת תקלות שקורות בשקט: סנכרון שנתקע לנהגים,
+          כפילויות בצי, תאריכים שהמערכת לא מצליחה לקרוא (ולכן אין עליהם התראה),
+          ורכבים ללא שיוך לישות. רצה מעצמה פעם ביום ומודיעה רק כשיש ממצא.
+        </div>
+        <button class="btn btn-secondary" style="margin-bottom:6px" onclick="runHealthCheck(true)">🩺 בדוק עכשיו</button>
         <div class="settings-grp">📧 מייל, טוקנים וחתימה קבועה</div>
     <div class="insp-section" style="max-width:420px;margin-top:18px">
       <div class="insp-section-hdr">⚙️ לאן נשלחות הביקורות במייל</div>
@@ -12207,6 +12214,117 @@ function tenantAlarm(reason) {
 }
 // עטיפה דקה, כדי שאפשר יהיה להריץ את הבדיקה מול משתמש מדומה בבדיקות
 function _authUser() { return auth.currentUser; }
+
+// ═══ בדיקת תקינות ═══
+// לא סורק קוד — סורק את הנתונים החיים של הלקוח הזה. הבדיקות נגזרו
+// מתקלות שקרו בפועל, וכולן שותקות כשהכול תקין:
+//   • pubroster לא מסונכרן → הנהגים לא מצליחים לעדכן ק"מ, בלי שאיש יידע.
+//   • כפילויות ורשומות ריקות בצי → שורות שלא נמחקות ודוחות שגויים.
+//   • תאריך שאינו נקרא → ההתראה עליו פשוט לא קיימת, והרכב נראה תקין.
+//   • רכב בלי ישות → נופל מהדוח החודשי להנהלת חשבונות.
+// הבדיקה קוראת בלבד. היא לעולם אינה מתקנת נתונים בעצמה.
+const HEALTH_LAST_KEY = 'healthLastRun';
+function _hDate(s) { return (typeof parseDate === 'function') ? parseDate(s) : null; }
+async function runHealthCheck(manual) {
+  const out = [];
+  const add = (level, title, detail) => out.push({ level, title, detail });
+  const active = (Array.isArray(VEHICLES) ? VEHICLES : []).filter(v => !v.noVehicle);
+
+  // 1. הסנכרון שהנהגים תלויים בו
+  try {
+    const snap = await fcol().doc('pubroster').get();
+    if (!snap.exists) {
+      add('bad', 'הנהגים לא יכולים לעדכן ק"מ', 'העותק לנהגים (pubroster) לא קיים בענן. פתיחה מחדש של המערכת יוצרת אותו.');
+    } else {
+      const d = snap.data() || {};
+      const n = Array.isArray(d.vehicles) ? d.vehicles.length : 0;
+      const days = d.updatedAt ? Math.floor((Date.now() - d.updatedAt) / 86400000) : null;
+      if (!n) add('bad', 'העותק לנהגים ריק', 'הנהגים יקבלו "רשימת הרכבים לא נטענה".');
+      else if (Math.abs(n - active.length) > 1)
+        add('warn', 'העותק לנהגים אינו מעודכן', 'בענן ' + n + ' רכבים, בצי ' + active.length + '. ייפתר בפתיחה מחדש של המערכת.');
+      if (days !== null && days > 7)
+        add('warn', 'העותק לנהגים ישן', 'עודכן לאחרונה לפני ' + days + ' ימים.');
+    }
+  } catch(e) { add('warn', 'לא ניתן לבדוק את העותק לנהגים', e.code || e.message); }
+
+  // 2. כפילויות ורשומות בלי מספר רישוי
+  const seen = new Map(), dups = [];
+  active.forEach(v => {
+    const k = String(v.plate || '').replace(/\D/g, '');
+    if (!k) return;
+    if (seen.has(k)) { if (dups.indexOf(k) < 0) dups.push(k); } else seen.set(k, v);
+  });
+  if (dups.length) add('bad', 'מספרי רישוי כפולים בצי', dups.slice(0, 8).join(', ') + (dups.length > 8 ? ' ועוד ' + (dups.length - 8) : ''));
+  const blank = active.filter(v => !String(v.plate || '').replace(/\D/g, ''));
+  if (blank.length) add('warn', 'רשומות ללא מספר רישוי', blank.length + ' שורות בצי בלי לוחית — הן לא יופיעו בדוחות ובהתראות.');
+
+  // 3. תאריכים שאינם נקראים — התראה שלא תופיע לעולם
+  const DF = [['registrationExpiry','תוקף רישוי'], ['insuranceExpiry','תוקף ביטוח'],
+              ['licenseExpiry','רישיון נהיגה'], ['inspection','ביקורת בטיחות']];
+  const badDates = [];
+  active.forEach(v => DF.forEach(([k, label]) => {
+    const raw = String(v[k] || '').trim();
+    if (raw && !_hDate(raw)) badDates.push((v.plate || '—') + ' · ' + label + ': "' + raw + '"');
+  }));
+  if (badDates.length)
+    add('bad', 'תאריכים שהמערכת לא מצליחה לקרוא', 'ההתראה עליהם לא תופיע. ' +
+        badDates.slice(0, 6).join(' | ') + (badDates.length > 6 ? ' ועוד ' + (badDates.length - 6) : ''));
+
+  // 4. שיוך לישות — משפיע ישירות על הדוח החודשי
+  if (Array.isArray(ENTITIES) && ENTITIES.length) {
+    const noEnt = active.filter(v => !vehicleEntity(v));
+    if (noEnt.length)
+      add('warn', 'רכבים ללא שיוך לישות', noEnt.length + ' רכבים ייכנסו לדוח החודשי תחת "ללא שיוך".');
+  }
+
+  // 5. הגדרות שבלעדיהן פיצ'רים שותקים
+  const ms = (typeof MAIL_SETTINGS !== 'undefined' && MAIL_SETTINGS) || {};
+  if (!ms.gasUrl) add('warn', 'שירות המייל לא מוגדר', 'התראות, טפסים וסריקת מסמכים לא יישלחו.');
+  if (!ms.recipient) add('warn', 'אין כתובת לקבלת ביקורות', 'ביקורות בטיחות לא יגיעו למייל.');
+
+  // 6. בידוד הלקוח — אותה בדיקה שרצה ברקע, כאן במפורש
+  try {
+    const main = await fcol().doc('main').get();
+    const st = main.exists ? (main.data() || {})._tenant : null;
+    if (st && st !== TENANT) add('bad', 'הנתונים שייכים ללקוח אחר', 'נמצאה חותמת של ' + st + '. אל תמשיך לעבוד — תתקשר אליי.');
+  } catch(e) {}
+
+  try { localStorage.setItem(HEALTH_LAST_KEY, String(Date.now())); } catch(e) {}
+  _renderHealth(out, manual);
+  return out;
+}
+function _renderHealth(list, manual) {
+  const bad = list.filter(x => x.level === 'bad').length;
+  const warn = list.filter(x => x.level === 'warn').length;
+  // כשהכול תקין הבדיקה האוטומטית שותקת. רק לחיצה ידנית מקבלת אישור.
+  if (!list.length && !manual) return;
+  if (!list.length) { toast('✓ בדיקת תקינות: הכול תקין'); return; }
+  const body = document.getElementById('health-body');
+  if (!body) return;
+  body.innerHTML =
+    '<div style="font-size:0.82rem;color:var(--muted);margin-bottom:10px">' +
+      (bad ? '<b style="color:#b91c1c">' + bad + ' דורשים טיפול</b>' : '') +
+      (bad && warn ? ' · ' : '') +
+      (warn ? '<b style="color:#b45309">' + warn + ' לתשומת לב</b>' : '') +
+    '</div>' +
+    list.map(x => {
+      const c = x.level === 'bad' ? { bar:'#dc2626', bg:'#fef2f2', head:'#991b1b', icon:'⛔' }
+                                  : { bar:'#f59e0b', bg:'#fffbeb', head:'#92400e', icon:'⚠️' };
+      return '<div style="background:' + c.bg + ';border:1px solid ' + c.bar + ';border-right:4px solid ' + c.bar +
+             ';border-radius:10px;padding:9px 11px;margin-bottom:8px">' +
+             '<div style="font-weight:800;font-size:0.84rem;color:' + c.head + '">' + c.icon + ' ' + esc(x.title) + '</div>' +
+             '<div style="font-size:0.78rem;color:#334155;margin-top:3px;line-height:1.55">' + esc(x.detail) + '</div></div>';
+    }).join('');
+  document.getElementById('health-modal').classList.add('open');
+}
+// רצה פעם ביום מעצמה. בדיקה שרצה בכל טעינה הופכת לרעש שמתעלמים ממנו.
+function _healthAuto() {
+  let last = 0;
+  try { last = Number(localStorage.getItem(HEALTH_LAST_KEY) || 0); } catch(e) {}
+  if (Date.now() - last < 24 * 3600 * 1000) return;
+  runHealthCheck(false).catch(e => console.log('health check', e));
+}
+
 async function auditTenantIsolation() {
   try {
     const u = _authUser();
@@ -12821,6 +12939,7 @@ function bootApp() {
     writePubRoster(); // כתיבת/רענון העותק המסונן לנהגים בכל פתיחת אפליקציה
     if (typeof loadAutoCosts === 'function') loadAutoCosts(); // קליטת עלויות שה-Apps Script כתב אוטומטית
     autoScanDriverDocs(); // auto-read expiry dates off any new driver-uploaded documents
+    setTimeout(_healthAuto, 6000);   // בדיקת תקינות יומית, אחרי שהנתונים כבר נטענו
     // notifyNewDeclarations() removed — the driver's own email (with the PDF) works again,
     // so the manager-side fallback was sending a duplicate (fileless) email.
   });
@@ -15190,6 +15309,16 @@ function renderAgentMsgs(showTyping = false) {
 </div>
 
 <!-- ══ מייל להנהלת חשבונות על החלפת רכב ══ -->
+<div class="modal-overlay" id="health-modal">
+  <div class="modal" style="max-width:520px">
+    <h3>🩺 בדיקת תקינות</h3>
+    <div id="health-body" style="max-height:60vh;overflow:auto"></div>
+    <div class="btn-row">
+      <button class="btn btn-gray" onclick="document.getElementById('health-modal').classList.remove('open')">סגור</button>
+      <button class="btn btn-secondary" onclick="runHealthCheck(true)">🔄 בדוק שוב</button>
+    </div>
+  </div>
+</div>
 <div class="modal-overlay" id="swap-mail-modal">
   <div class="modal" style="max-width:520px">
     <h3 id="swm-title">🔄 עדכון הנהלת חשבונות — החלפת רכב</h3>
