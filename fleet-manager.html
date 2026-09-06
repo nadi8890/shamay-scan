@@ -597,7 +597,7 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
       <button class="btn-export" id="btn-clean-blank" style="display:none" title="מחיקת שורות שאין בהן מספר רישוי תקין — שורות ריקות ושורות כותרת שנכנסו בייבוא" onclick="cleanupBlankRows()">🧹 נקה שורות ריקות</button>
       <button class="btn-export" title="משלים קוד תוצר, קוד דגם, משקל כולל ותוקף רישוי לרכבים שחסרים — רק שדות ריקים" onclick="syncFleetFromGov()">🏛️ סנכרן צי</button>
       <button class="btn-export" onclick="exportSection('fleet')">📥 ייצוא Excel</button>
-      <button class="btn-export" title="חוברת אקסל: גיליון לכל ישות, ולצידו החלופיים וההחזרות שלה בחודש הנוכחי" onclick="exportMonthlyWorkbook()">📊 דוח לפי ישויות</button>
+      <button class="btn-export" title="חוברת אקסל: גיליון לכל ישות, ולצידו החלופיים וההחזרות שלה בחודש הנוכחי" onclick="exportMonthlyPick()">📊 דוח לפי ישויות</button>
     </div>
   </div>
   <!-- בורר עמודות. הבחירה נשמרת מקומית למכשיר — זו העדפת תצוגה, לא נתון. -->
@@ -993,7 +993,7 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
     <div style="font-weight:800;font-size:0.9rem">🚗 תחילת חודש — מצבת הרכבים להנהלת חשבונות</div>
     <div style="display:flex;gap:7px;flex-wrap:wrap">
       <button class="btn" style="background:#fff;color:#0f766e;padding:6px 14px;font-size:0.8rem;font-weight:800" onclick="openAccountingFleetMail()">📧 הכן מייל</button>
-      <button class="btn" style="background:rgba(255,255,255,.18);color:#fff;padding:6px 12px;font-size:0.78rem;font-weight:700" title="הורדת המצבת כקובץ אקסל" onclick="exportMonthlyWorkbook()">📊 אקסל</button>
+      <button class="btn" style="background:rgba(255,255,255,.18);color:#fff;padding:6px 12px;font-size:0.78rem;font-weight:700" title="הורדת המצבת כקובץ אקסל" onclick="exportMonthlyPick()">📊 אקסל</button>
       <button class="btn" style="background:rgba(255,255,255,.18);color:#fff;padding:6px 12px;font-size:0.78rem;font-weight:700" title="הסתר עד החודש הבא" onclick="markAccRoundSent()">✓ נשלח</button>
     </div>
   </div>
@@ -7135,17 +7135,45 @@ function _replEntity(r) {
   const byPlate = _vehByPlate(r.plate || '');
   return byPlate ? (vehicleEntity(byPlate) || '') : '';
 }
-function exportMonthlyWorkbook() {
+// הבורר נפתח רק כשיש באמת במה לבחור. אצל לקוח בלי ישויות, או עם אחת
+// בלבד, שאלה כזו היא רק לחיצה מיותרת — ולכן הקובץ יורד ישר.
+function exportMonthlyPick() {
+  if (typeof XLSX === 'undefined') { toast('הספרייה עדיין נטענת — נסה שוב', true); return; }
+  const ents = (Array.isArray(ENTITIES) ? ENTITIES : []);
+  if (ents.length < 2) { exportMonthlyWorkbook(); return; }
+  const range = _monthRange();
+  const active = (Array.isArray(VEHICLES) ? VEHICLES : []).filter(v => !v.noVehicle);
+  const count = id => active.filter(v => (vehicleEntity(v) || '') === id).length;
+  const box = document.getElementById('entexp-body');
+  const btn = (id, label, n) =>
+    '<button class="btn btn-secondary" style="width:100%;margin-bottom:7px;text-align:right" ' +
+    'onclick="closeModal(\'entexp-modal\');exportMonthlyWorkbook(' + (id === null ? '' : JSON.stringify(id)) + ')">' +
+    esc(label) + (n === null ? '' : ' <span style="color:#94a3b8;font-weight:400">· ' + n + ' רכבים</span>') + '</button>';
+  let html = btn(null, '📚 כל הישויות — חוברת אחת', active.length);
+  html += '<div style="height:6px"></div>';
+  ents.forEach(e => { html += btn(e.id, '🏢 ' + e.name, count(e.id)); });
+  if (active.some(v => !vehicleEntity(v))) html += btn('', '❓ ללא שיוך לישות', count(''));
+  box.innerHTML = html;
+  document.getElementById('entexp-modal').classList.add('open');
+}
+// onlyId: מזהה ישות אחת לייצוא, או undefined לכולן. הנהלת חשבונות
+// מבקשת לעיתים את הישות הבודדת בלבד, ואז חוברת עם כל השאר רק מחייבת
+// אותה למחוק גיליונות לפני שהיא שולחת הלאה.
+function exportMonthlyWorkbook(onlyId) {
   if (typeof XLSX === 'undefined') { toast('הספרייה עדיין נטענת — נסה שוב', true); return; }
   const range = _monthRange();
   const active = (Array.isArray(VEHICLES) ? VEHICLES : []).filter(v => !v.noVehicle);
   const ents = (Array.isArray(ENTITIES) ? ENTITIES : []).slice();
   // דלי "ללא שיוך" נוסף רק אם יש בו משהו, כדי לא לייצר גיליון ריק
-  const buckets = ents.map(e => ({ id: e.id, name: e.name, hp: e.hp || '' }));
+  let buckets = ents.map(e => ({ id: e.id, name: e.name, hp: e.hp || '' }));
   const hasUnassigned = active.some(v => !vehicleEntity(v)) ||
                         (REPLACEMENTS || []).some(r => _inMonth(r, range) && !_replEntity(r)) ||
                         (RETURNS || []).some(r => _inMonth(r, range) && !_replEntity(r));
   if (hasUnassigned || !buckets.length) buckets.push({ id: '', name: 'ללא שיוך', hp: '' });
+  if (onlyId !== undefined && onlyId !== null) {
+    buckets = buckets.filter(b => b.id === onlyId);
+    if (!buckets.length) { toast('לא נמצאו נתונים לישות הזו', true); return; }
+  }
 
   const wb = XLSX.utils.book_new();
   const used = new Set();
@@ -7179,7 +7207,11 @@ function exportMonthlyWorkbook() {
   XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(summary), _sheetName('סיכום', used));
   wb.SheetNames.unshift(wb.SheetNames.pop());
 
-  const name = 'מצבת רכבים ' + kmMonthName() + (COMPANY_NAME ? ' - ' + COMPANY_NAME : '') + '.xlsx';
+  // שם הקובץ נושא את הישות כשמייצאים אחת בלבד — הקובץ נשלח הלאה
+  // להנהלת חשבונות, וצריך להיות ברור מתוכו על מה הוא מדבר.
+  const who = (onlyId !== undefined && onlyId !== null && buckets.length === 1)
+    ? buckets[0].name : (COMPANY_NAME || '');
+  const name = 'מצבת רכבים ' + kmMonthName() + (who ? ' - ' + who : '') + '.xlsx';
   XLSX.writeFile(wb, name);
   toast('📊 הקובץ הורד — גיליון לכל ישות + חלופיים');
 }
@@ -15433,6 +15465,16 @@ function renderAgentMsgs(showTyping = false) {
 </div>
 
 <!-- ══ מייל להנהלת חשבונות על החלפת רכב ══ -->
+<div class="modal-overlay" id="entexp-modal">
+  <div class="modal" style="max-width:420px">
+    <h3>📊 ייצוא מצבת רכבים</h3>
+    <div style="font-size:0.78rem;color:var(--muted);margin-bottom:10px">בחר מה לייצא. כל קובץ כולל גם את הרכבים החליפיים וההחזרות של אותה ישות בחודש הנוכחי.</div>
+    <div id="entexp-body"></div>
+    <div class="btn-row">
+      <button class="btn btn-gray" onclick="closeModal('entexp-modal')">ביטול</button>
+    </div>
+  </div>
+</div>
 <div class="modal-overlay" id="health-modal">
   <div class="modal" style="max-width:520px">
     <h3>🩺 בדיקת תקינות</h3>
@@ -15451,7 +15493,7 @@ function renderAgentMsgs(showTyping = false) {
     <div class="modal-row"><label>תוכן ההודעה (ניתן לערוך)</label><textarea id="swm-body" rows="10" style="width:100%;font-size:0.85rem;font-family:'Heebo',sans-serif;line-height:1.6"></textarea></div>
     <div class="btn-row">
       <button class="btn btn-gray" onclick="document.getElementById('swap-mail-modal').classList.remove('open')">סגור</button>
-      <button class="btn btn-secondary" id="swm-xls" style="display:none" onclick="exportMonthlyWorkbook()" title="הורדת המצבת כקובץ אקסל לצירוף">📊 אקסל</button>
+      <button class="btn btn-secondary" id="swm-xls" style="display:none" onclick="exportMonthlyPick()" title="הורדת המצבת כקובץ אקסל לצירוף">📊 אקסל</button>
       <button class="btn btn-secondary" onclick="copySwapMail()" title="העתק להדבקה בחשבון הנכון">📋 העתק</button>
       <button class="btn btn-green" onclick="sendSwapMail()">📧 פתח מייל</button>
     </div>
