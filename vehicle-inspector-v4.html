@@ -1706,18 +1706,29 @@ function _fbUser() {
   if (auth.currentUser) return Promise.resolve(auth.currentUser);
   return new Promise(res => {
     const off = auth.onAuthStateChanged(u => { off(); res(u || null); });
-    setTimeout(() => { try { off(); } catch(e) {} res(auth.currentUser || null); }, 4000);
+    setTimeout(() => { try { off(); } catch(e) {} res(auth.currentUser || null); }, 12000);
   });
 }
+// חשבון הבעלים קדם למבנה הרב־לקוחי ואין לו מסמך users/{uid}. ניהול הצי
+// מטפל בו כמקרה מיוחד ומכוון אותו אל tenants/nofar, וכאן זה נשמט — ולכן
+// האומדן נכתב אל tenants/<uid>, נתיב שהמחשב לעולם אינו קורא ממנו. זו
+// הסיבה שאומדן שנבנה בטלפון לא הופיע בחוות דעת שבמחשב.
+const NOFAR_OWNER_UID = 'HOv8iAHOEhYy5C4jgGR3PCnME012';
 async function _fbTenantId() {
   if (_fbTenant) return _fbTenant;
   const u = await _fbUser();
   if (!u || u.isAnonymous) return null;
+  if (u.uid === NOFAR_OWNER_UID) { _fbTenant = 'nofar'; return _fbTenant; }
   try {
     const snap = await _fbApp.firestore().collection('users').doc(u.uid).get();
     _fbTenant = (snap.exists && (snap.data() || {}).tenantId) || u.uid;
-  } catch(e) { _fbTenant = u.uid; }
-  return _fbTenant;
+    return _fbTenant;
+  } catch(e) {
+    // ניחוש כאן כותב לנתיב הלא נכון ומדווח על הצלחה. עדיף להישאר
+    // "ממתין" ולנסות שוב, מאשר לאבד את האומדן בשקט בנתיב זר.
+    console.log('tenant id', e);
+    return null;
+  }
 }
 // מחזירה סיבה ולא רק false. קודם היא נכשלה בשקט כשלא היה משתמש מחובר
 // בטלפון, והמסך בכל זאת הודיע "נשמר ומוכן לחוות דעת" — כך שאומדן שנבנה
@@ -1742,8 +1753,12 @@ async function _pushHandoffCloud(payload) {
 }
 // הודעה שאומרת מה קרה ומה לעשות, במקום כישלון שקט
 function _handoffMsg(reason) {
-  if (reason === 'nouser' || reason === 'anon' || reason === 'notenant')
+  if (reason === 'nouser' || reason === 'anon')
     return '⚠️ האומדן נשמר בטלפון בלבד — אינך מחובר כאן. התחבר למערכת בטלפון, וההעברה למחשב תקרה מעצמה.';
+  // זיהוי החשבון נכשל אף שהמשתמש מחובר — כמעט תמיד רשת. אמירה שהוא
+  // אינו מחובר הייתה שולחת אותו להתחבר שוב בלי צורך.
+  if (reason === 'notenant')
+    return '⚠️ האומדן נשמר בטלפון בלבד — לא הצלחנו לזהות את החשבון כרגע. ננסה שוב מעצמנו כשהחיבור יחזור.';
   return '⚠️ האומדן נשמר בטלפון בלבד — ההעברה למחשב נכשלה (' + reason + '). ננסה שוב בפתיחה הבאה.';
 }
 function pushToOpinion(record) {
@@ -1777,7 +1792,25 @@ async function _retryPendingHandoff() {
     toast('☁️ אומדן שהמתין הועבר למחשב — פתח "חוות דעת" ואשר ייבוא');
   }
 }
-setTimeout(_retryPendingHandoff, 2500);
+// ניסיון בודד 2.5 שניות אחרי הטעינה נכשל בדיוק כשהוא נחוץ: ההתחברות
+// נטענת מהאחסון ובטלפון איטי היא מגיעה אחריו. לכן כל הופעה של משתמש
+// מחובר — ולא רק הראשונה — מפעילה שוב את ההעברה הממתינה, וכך גם חזרה
+// אל הלשונית אחרי שהמכשיר היה נעול.
+let _retryBusy = false;
+async function _retryHandoffSafe() {
+  if (_retryBusy) return;
+  _retryBusy = true;
+  try { await _retryPendingHandoff(); } catch(e) { console.log(String(e)); }
+  _retryBusy = false;
+}
+(function () {
+  const app = _fbInit();
+  if (app) {
+    try { app.auth().onAuthStateChanged(u => { if (u && !u.isAnonymous) _retryHandoffSafe(); }); }
+    catch(e) { console.log('auth watch', e); }
+  }
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) _retryHandoffSafe(); });
+})();
 </script>
 </body>
 </html>
