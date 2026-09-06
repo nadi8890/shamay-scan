@@ -144,7 +144,11 @@ header{background:#1e40af;padding:9px 16px;display:flex;align-items:center;justi
 .tab-content{display:none;max-width:980px;margin:0 auto;padding:14px 12px}
 /* לשונית נהגים נשארה ברוחב 980 של תוכן רגיל, ועם 16 עמודות רוב הטבלה
    נדחסה לגלילה אופקית. היא טבלה, ולכן היא מקבלת את כל הרוחב כמו הצי. */
-#tab-fleet,#tab-drivers,#tab-alerts,#tab-violations,#tab-incidents{max-width:100%;padding:10px 6px}
+#tab-fleet,#tab-drivers,#tab-violations,#tab-incidents{max-width:100%;padding:10px 6px}
+/* ההתראות רחבות מתוכן רגיל אך לא על כל המסך: ברוחב מלא השורות נמתחו
+   יתר על המידה, והקצה הימני נכנס מתחת לדמות המונפשת. המרווח התחתון
+   שומר שהשורה האחרונה לא תסתתר מאחוריה. */
+#tab-alerts{max-width:1200px;padding:12px 10px 110px}
 .tab-content.active{display:block}
 /* Cards */
 .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:12px;box-shadow:var(--shadow)}
@@ -472,7 +476,9 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
 .mascot-bubble.show{opacity:1;transform:translateY(0) scale(1)}
 .mascot-bubble::after{content:'';position:absolute;right:22px;bottom:-11px;width:0;height:0;border:10px solid transparent;border-top-color:#1e3a8a;border-bottom:0}
 .mascot-bubble::before{content:'';position:absolute;right:24px;bottom:-7px;width:0;height:0;border:7px solid transparent;border-top-color:#fff;border-bottom:0;z-index:1}
-.mascot-body{animation:mascotBob 2.8s ease-in-out infinite;filter:drop-shadow(0 5px 8px rgba(0,0,0,.22));pointer-events:auto;cursor:pointer}
+/* touch-action:none — בלי זה גרירה בנייד מגלגלת את הדף במקום להזיז את הדמות */
+.mascot-body{animation:mascotBob 2.8s ease-in-out infinite;filter:drop-shadow(0 5px 8px rgba(0,0,0,.22));pointer-events:auto;cursor:grab;touch-action:none}
+.mascot-body:active{cursor:grabbing}
 /* ה-X יושב על פינת הדמות. המיכל של הדמות הוא pointer-events:none כדי שלא
    יחסום את המסך, ולכן הכפתור מחזיר לעצמו pointer-events במפורש. */
 .mascot-body-wrap{position:relative;pointer-events:none}
@@ -481,7 +487,7 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
 #mascot:hover .mascot-body{animation-duration:.7s}
 @keyframes mascotBob{0%,100%{transform:translateY(0) rotate(-2deg)}50%{transform:translateY(-6px) rotate(2deg)}}
 </style>
-<div id="mascot" onclick="showRemindersPopup(true)" title="לחץ לכל התזכורות">
+<div id="mascot" onclick="if(!this._suppressClick)showRemindersPopup(true)" title="לחץ לתזכורות · אפשר לגרור אותי">
   <div id="mascot-bubble" class="mascot-bubble"></div>
   <div class="mascot-body-wrap">
   <button id="mascot-x" onclick="event.stopPropagation();dismissMascot()" title="הסתר עד הכניסה הבאה">✕</button>
@@ -9521,6 +9527,66 @@ function dismissMascot(){
 function _mascotDismissed(){
   try { return sessionStorage.getItem('mascotHidden') === '1'; } catch(e) { return false; }
 }
+// ═══ גרירת הדמות ═══
+// הדמות יושבת מעל התוכן, ומה שהיא מסתירה משתנה ממסך למסך. במקום לנחש
+// פינה שתתאים לכולם — שיוכל לגרור אותה לאן שנוח לו. המיקום נשמר
+// למכשיר הזה (לא לחשבון): זו העדפת תצוגה של מי שיושב מול המסך.
+const MASCOT_POS_KEY = 'mascotPos';
+function _mascotApplyPos(x, y){
+  const m = document.getElementById('mascot'); if (!m) return;
+  const w = m.offsetWidth || 70, h = m.offsetHeight || 90;
+  // תמיד בתוך המסך — אחרת אפשר לגרור אותה אל מחוץ לתצוגה ולא להחזירה
+  const cx = Math.min(Math.max(0, x), Math.max(0, innerWidth  - w));
+  const cy = Math.min(Math.max(0, y), Math.max(0, innerHeight - h));
+  m.style.left = cx + 'px'; m.style.top = cy + 'px';
+  m.style.right = 'auto';   m.style.bottom = 'auto';
+}
+function _mascotRestorePos(){
+  try {
+    const p = JSON.parse(localStorage.getItem(MASCOT_POS_KEY) || 'null');
+    if (p && isFinite(p.x) && isFinite(p.y)) _mascotApplyPos(p.x, p.y);
+  } catch(e) {}
+}
+function _initMascotDrag(){
+  const m = document.getElementById('mascot');
+  const grip = m && m.querySelector('.mascot-body');
+  if (!m || !grip || grip._dragReady) return;
+  grip._dragReady = true;
+  let sx = 0, sy = 0, ox = 0, oy = 0, dragging = false, moved = false;
+  grip.addEventListener('pointerdown', e => {
+    dragging = true; moved = false;
+    sx = e.clientX; sy = e.clientY;
+    const r = m.getBoundingClientRect(); ox = r.left; oy = r.top;
+    try { grip.setPointerCapture(e.pointerId); } catch(err) {}
+  });
+  grip.addEventListener('pointermove', e => {
+    if (!dragging) return;
+    const dx = e.clientX - sx, dy = e.clientY - sy;
+    // סף קטן: לחיצה רגילה רועדת בכמה פיקסלים ואסור שתיחשב גרירה
+    if (!moved && (Math.abs(dx) + Math.abs(dy)) < 6) return;
+    moved = true;
+    _mascotApplyPos(ox + dx, oy + dy);
+    e.preventDefault();
+  });
+  const end = () => {
+    if (!dragging) return;
+    dragging = false;
+    if (!moved) return;
+    const r = m.getBoundingClientRect();
+    try { localStorage.setItem(MASCOT_POS_KEY, JSON.stringify({ x: Math.round(r.left), y: Math.round(r.top) })); } catch(e) {}
+    // סוף גרירה מייצר גם click; בלי זה כל הזזה הייתה פותחת את התזכורות
+    m._suppressClick = true;
+    setTimeout(() => { m._suppressClick = false; }, 0);
+  };
+  grip.addEventListener('pointerup', end);
+  grip.addEventListener('pointercancel', end);
+  // שינוי גודל חלון או סיבוב מכשיר יכולים להשאיר אותה מחוץ למסך
+  addEventListener('resize', () => {
+    if (!m.style.left) return;
+    const r = m.getBoundingClientRect();
+    _mascotApplyPos(r.left, r.top);
+  });
+}
 function showMascotBubble(){
   const m = document.getElementById('mascot'), bub = document.getElementById('mascot-bubble');
   if (!m || !bub) return;
@@ -9545,6 +9611,8 @@ function updateMascotForTab(name){
 }
 function startMascot(){
   if (_mascotStarted) return; _mascotStarted = true;
+  _initMascotDrag();
+  _mascotRestorePos();
   showMascotBubble();                                    // דמות מיד אם כבר מחובר
   refreshMascotMsgs().then(() => showMascotBubble());     // בועה ראשונה מיד כשההודעות מוכנות
   setInterval(showMascotBubble, 10000);
