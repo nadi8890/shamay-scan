@@ -12292,6 +12292,7 @@ function _authUser() { return auth.currentUser; }
 //   • כפילויות ורשומות ריקות בצי → שורות שלא נמחקות ודוחות שגויים.
 //   • תאריך שאינו נקרא → ההתראה עליו פשוט לא קיימת, והרכב נראה תקין.
 //   • רכב בלי ישות → נופל מהדוח החודשי להנהלת חשבונות.
+//   • פעולה שנשברת על נפח אמיתי → מייל שלא נפתח, דוח שלא יורד.
 // הבדיקה קוראת בלבד. היא לעולם אינה מתקנת נתונים בעצמה.
 const HEALTH_LAST_KEY = 'healthLastRun';
 function _hDate(s) { return (typeof parseDate === 'function') ? parseDate(s) : null; }
@@ -12357,6 +12358,37 @@ async function runHealthCheck(manual) {
     const main = await fcol().doc('main').get();
     const st = main.exists ? (main.data() || {})._tenant : null;
     if (st && st !== TENANT) add('bad', 'הנתונים שייכים ללקוח אחר', 'נמצאה חותמת של ' + st + '. אל תמשיך לעבוד — תתקשר אליי.');
+  } catch(e) {}
+
+  // 7. פעולות שנשברות רק על נפח אמיתי
+  // הבדיקות שמעל בוחנות נתונים. תקלת ה-400 בשליחת מצבת הרכבים לא נבעה
+  // מנתון שגוי אלא מפעולה שקרסה כשהצי גדל — היא עבדה מצוין על ארבעה
+  // רכבים ונשברה על מאה. לכן כאן מריצים את הפעולות עצמן, בלי לשלוח
+  // ובלי לשמור, ובודקים שהתוצאה עדיין שמישה.
+  try {
+    const body = buildFleetSummaryMail();
+    const url = 'https://outlook.office.com/mail/deeplink/compose?to=' +
+                encodeURIComponent((ms.accountingEmail || 'a@b.com')) +
+                '&subject=' + encodeURIComponent('מצבת רכבים') + '&body=' + encodeURIComponent(body);
+    if (url.length > 1900)
+      add('warn', 'מייל המצבת ארוך מדי לפתיחה אוטומטית',
+          'הכתובת שתיווצר היא ' + url.length + ' תווים. הטקסט יועתק ללוח במקום להיפתח מעצמו.');
+  } catch(e) { add('bad', 'בניית מייל המצבת נכשלת', e.message || String(e)); }
+
+  try {
+    if (typeof XLSX === 'undefined') add('warn', 'ספריית האקסל לא נטענה', 'הדוח לפי ישויות לא יוכל לרדת.');
+    else {
+      // בנייה בלבד — הקובץ לא יורד ולא נשמר
+      const used = new Set();
+      (Array.isArray(ENTITIES) ? ENTITIES : []).forEach(e => _sheetName(e.name, used));
+      _sheetName('סיכום', used);
+    }
+  } catch(e) { add('bad', 'הדוח לפי ישויות נכשל בבנייה', e.message || String(e)); }
+
+  // אומדן שנתקע בטלפון ולא הועבר למחשב
+  try {
+    const pend = localStorage.getItem('op_handoff_pending');
+    if (pend) add('warn', 'אומדן ממתין להעברה', 'אומדן שנבנה בכלי האומדן טרם הועבר. פתח את הכלי כשאתה מחובר והוא יישלח.');
   } catch(e) {}
 
   try { localStorage.setItem(HEALTH_LAST_KEY, String(Date.now())); } catch(e) {}
