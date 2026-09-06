@@ -473,11 +473,18 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
 .mascot-bubble::after{content:'';position:absolute;right:22px;bottom:-11px;width:0;height:0;border:10px solid transparent;border-top-color:#1e3a8a;border-bottom:0}
 .mascot-bubble::before{content:'';position:absolute;right:24px;bottom:-7px;width:0;height:0;border:7px solid transparent;border-top-color:#fff;border-bottom:0;z-index:1}
 .mascot-body{animation:mascotBob 2.8s ease-in-out infinite;filter:drop-shadow(0 5px 8px rgba(0,0,0,.22));pointer-events:auto;cursor:pointer}
+/* ה-X יושב על פינת הדמות. המיכל של הדמות הוא pointer-events:none כדי שלא
+   יחסום את המסך, ולכן הכפתור מחזיר לעצמו pointer-events במפורש. */
+.mascot-body-wrap{position:relative;pointer-events:none}
+#mascot-x{position:absolute;top:-2px;left:-6px;z-index:2;width:23px;height:23px;padding:0;display:flex;align-items:center;justify-content:center;border:1.5px solid #cbd5e1;border-radius:50%;background:#fff;color:#475569;font-size:0.7rem;font-weight:900;line-height:1;cursor:pointer;box-shadow:0 2px 7px rgba(0,0,0,.22);pointer-events:auto}
+#mascot-x:hover{background:#fee2e2;border-color:#fca5a5;color:#b91c1c}
 #mascot:hover .mascot-body{animation-duration:.7s}
 @keyframes mascotBob{0%,100%{transform:translateY(0) rotate(-2deg)}50%{transform:translateY(-6px) rotate(2deg)}}
 </style>
 <div id="mascot" onclick="showRemindersPopup(true)" title="לחץ לכל התזכורות">
   <div id="mascot-bubble" class="mascot-bubble"></div>
+  <div class="mascot-body-wrap">
+  <button id="mascot-x" onclick="event.stopPropagation();dismissMascot()" title="הסתר עד הכניסה הבאה">✕</button>
   <div class="mascot-body">
     <div id="mascot-cop">
       <svg width="60" height="76" viewBox="0 0 60 76" xmlns="http://www.w3.org/2000/svg">
@@ -555,6 +562,7 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
         <path d="M25.5 38 Q30 41 34.5 38" stroke="#8a4b2a" stroke-width="1.5" fill="none" stroke-linecap="round"/>
       </svg>
     </div>
+  </div>
   </div>
 </div>
 
@@ -9501,11 +9509,23 @@ async function _buildMascotMsgs(){
   return M;
 }
 async function refreshMascotMsgs(){ try { _mascotMsgs = await _buildMascotMsgs(); } catch(e){ _mascotMsgs = []; } }
+// סגירה לסשן הנוכחי בלבד. באפליקציה הדמות קופצת קדימה ומסתירה את המסך,
+// ורצוי שיהיה אפשר לסלק אותה — אבל לא לכבות אותה לתמיד בלחיצה אחת, כי
+// היא זו שמציגה את ההתראות. sessionStorage נמחק כשסוגרים את האפליקציה,
+// ולכן כניסה מחדש מחזירה אותה, בדיוק כפי שהתבקש.
+function dismissMascot(){
+  try { sessionStorage.setItem('mascotHidden', '1'); } catch(e) {}
+  const m = document.getElementById('mascot');
+  if (m) m.style.display = 'none';
+}
+function _mascotDismissed(){
+  try { return sessionStorage.getItem('mascotHidden') === '1'; } catch(e) { return false; }
+}
 function showMascotBubble(){
   const m = document.getElementById('mascot'), bub = document.getElementById('mascot-bubble');
   if (!m || !bub) return;
   const loggedIn = Array.isArray(VEHICLES) && VEHICLES.length;
-  if (!loggedIn || localStorage.getItem('fleet_mascot_off') === '1' || !_onAlertsTab()) { m.style.display = 'none'; return; }
+  if (!loggedIn || _mascotDismissed() || localStorage.getItem('fleet_mascot_off') === '1' || !_onAlertsTab()) { m.style.display = 'none'; return; }
   m.style.display = 'flex';                                   // הדמות מופיעה רק בלשונית ההתראות
   if (!_mascotMsgs.length) { refreshMascotMsgs(); return; }   // עוד אין הודעות — רענן וצא (הדמות כבר על המסך)
   if (_mascotIdx >= _mascotMsgs.length) _mascotIdx = 0;
