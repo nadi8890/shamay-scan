@@ -1431,6 +1431,10 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
         <label style="font-size:0.8rem;font-weight:600;color:var(--muted)">הצהרה משפטית <span style="font-weight:400;color:#94a3b8;font-size:0.68rem">ניתן לערוך; נשמר לפעם הבאה</span></label>
         <textarea id="op-declaration" rows="4" style="margin-top:5px"></textarea>
       </div>
+      <div class="btn-row" style="margin-top:13px;align-items:center;gap:9px;flex-wrap:wrap">
+        <button class="btn btn-secondary" onclick="opSaveProfileNow()">⚖️ שמור את פרטי השמאי</button>
+        <span style="font-size:0.74rem;color:var(--muted)">נשמרים לחשבון וימולאו מעצמם בכל תיק חדש</span>
+      </div>
     </div>
 
     <div class="btn-row" style="margin-bottom:24px;flex-wrap:wrap">
@@ -15788,6 +15792,18 @@ const OP_OFFICE_DEFAULT = 'ר.מ מרציאנו שמאות וסקרים';
 function opDefaultOffice() { return TENANT === 'nofar' ? OP_OFFICE_DEFAULT : ''; }
 
 let OP_PROFILE = {};   // פרטי השמאי — נשמרים ב-main.appraiser
+
+// עד כה פרטי השמאי נשמרו רק כתוצר לוואי של שמירת חוות דעת. מי שמילא
+// אותם — שם, מספר רישיון, השכלה, הצהרה — ויצא בלי לשמור תיק, איבד את
+// הכול והיה צריך להקליד מחדש. הם נתון של המשרד ולא של התיק, ולכן מגיע
+// להם כפתור שמירה משלהם.
+function opSaveProfileNow() {
+  if (READ_ONLY) return _roBlock();
+  const before = JSON.stringify(OP_PROFILE);
+  opSaveProfile();
+  if (JSON.stringify(OP_PROFILE) === before) { toast('פרטי השמאי כבר שמורים ✓'); return; }
+  toast('⚖️ פרטי השמאי נשמרו — הם ימולאו מעצמם בכל תיק חדש');
+}
 
 function opSaveProfile() {
   const prof = { appraiser: opVal('appraiser'), license: opVal('license'),
