@@ -9543,6 +9543,15 @@ function sendDocMail() {
 }
 
 // ═══ תזכורות (בוקר / צהריים / ערב) — התראות תוקף, נהלים לא חתומים, ק"מ שלא דווח ═══
+// רשת ביטחון: חלון תזכורות שנתקע פתוח חוסם את כל המסך ונראה כמו מערכת
+// מקולקלת. לחיצה על הרקע האפור סוגרת אותו. מוגבל לחלון הזה בלבד — בחלון
+// עריכה סגירה בטעות על הרקע מאבדת מה שהוקלד.
+document.addEventListener('DOMContentLoaded', () => {
+  const rm = document.getElementById('reminders-modal');
+  if (rm) rm.addEventListener('click', e => {
+    if (e.target === rm) rm.classList.remove('open');
+  });
+});
 function _remGo(tab){
   document.getElementById('reminders-modal').classList.remove('open');
   const b = document.querySelector(`.nav-btn[onclick*="'${tab}'"]`);
@@ -9684,6 +9693,13 @@ function toggleRemAuto(off) {
 
 async function maybeShowReminders(){
   if (localStorage.getItem('fleet_reminders_off') === '1') return;
+  // VEHICLES מאותחל עם נתוני הזרע כבר בטעינת הקובץ, ולכן "יש רכבים" אינו
+  // מעיד שהמשתמש מחובר. בלי הבדיקות האלה החלון נפתח על מסך ההתחברות,
+  // מוסתר מתחתיו — וברגע שההתחברות מצליחה והמסך יורד הוא נחשף מעל הכול
+  // וחוסם כל לחיצה. זה נראה בדיוק כמו מערכת תקועה.
+  if (!TENANT_RESOLVED || !_authUser()) return;
+  const _gate = document.getElementById('login-gate');
+  if (_gate && getComputedStyle(_gate).display !== 'none') return;
   if (!Array.isArray(VEHICLES) || !VEHICLES.length) return;   // עדיין לא מחובר / לא נטען
   const slot = _remSlot();
   if (_remShownToday().includes(slot)) return;                       // כבר הוצג בפרק הזמן הזה היום
