@@ -1807,7 +1807,10 @@ async function _paintHandoffState() {
   try { u = await _fbUser(); } catch(e) {}
   if (!u || u.isAnonymous) {
     el.style.color = '#f87171';
-    el.textContent = '⚠️ לא מחובר כאן — אומדן שיישמר לא יעבור למחשב. פתח את ניהול הצי באותו דפדפן והתחבר.';
+    // הפנייה למקום אחר בלי דרך להגיע אליו אינה הנחיה. הקישור פותח את
+    // ניהול הצי באותו דפדפן, ושם ההתחברות משחררת את האומדן מעצמה.
+    el.innerHTML = '⚠️ לא מחובר כאן — אומדן שיישמר לא יעבור למחשב.<br>' +
+      'שמור אותו, ואז <a href="fleet-manager.html" style="color:#93c5fd;font-weight:800">התחבר כאן</a> — והוא יישלח מעצמו.';
     return;
   }
   const tid = await _fbTenantId();

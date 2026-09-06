@@ -13267,6 +13267,21 @@ function _showLoginGate() {
 // רצף הכניסה עצמו. נקרא גם מהמאזין וגם מ-doLogin, כי כשכבר יש חיבור
 // שמור התחברות חוזרת של אותו משתמש לא תמיד מפעילה את המאזין מחדש.
 let _authBootRunning = false;
+// אומדן שנבנה בכלי האומדן באותו דפדפן לפני שהייתה שם התחברות נשאר
+// תקוע מקומית. עד כה בדיקת התקינות רק דיווחה עליו, והמשתמש היה צריך
+// לחזור אל הכלי כדי לשחרר אותו — צעד שאינו מובן מאליו. ההתחברות היא
+// בדיוק הרגע שבו נודע לאיזה חשבון האומדן שייך, ולכן הוא נשלח כאן.
+async function _flushPendingOpHandoff() {
+  let pend = null;
+  try { pend = JSON.parse(localStorage.getItem('op_handoff_pending') || 'null'); } catch(e) {}
+  if (!pend) return;
+  try {
+    await fcol().doc('ophandoff').set(Object.assign({ type: 'ophandoff' }, pend));
+    try { localStorage.removeItem('op_handoff_pending'); } catch(e) {}
+    toast('☁️ האומדן שהמתין נשלח — פתח "חוות דעת" במחשב ואשר ייבוא');
+  } catch(e) { console.log('flush handoff', e); }
+}
+
 async function _bootFromUser(user) {
   if (!user || _appBooted || _authBootRunning) return;
   _authBootRunning = true;
@@ -13282,6 +13297,7 @@ async function _bootFromUser(user) {
     _bootStage = 'טוען נתונים';
     clearTimeout(window._loginWatchdog);
     bootApp();
+    _flushPendingOpHandoff();
   } finally { _authBootRunning = false; }
 }
 
