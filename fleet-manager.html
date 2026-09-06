@@ -7048,6 +7048,26 @@ async function markAccRoundSent() {
 }
 // הצי מקובץ לפי ישות, כי זו החלוקה שהנהלת חשבונות עובדת לפיה — לכל
 // ישות שם משפטי וח.פ. משלה, ורכב שאינו משויך חייב להיראות ולא להיעלם.
+// גוף ההודעה הוא סיכום ולא הרשימה המלאה. הרשימה המלאה נשלחה קודם בגוף
+// המייל, ובצי אמיתי זה יצר כתובת compose של יותר מ-20,000 תווים —
+// אאוטלוק וג'ימייל מחזירים עליה שגיאה 400 ופשוט לא נפתחים. הפירוט
+// המלא יושב בחוברת האקסל שמצורפת, וזה גם ממילא מה שקוראים.
+function buildFleetSummaryMail() {
+  const NL = String.fromCharCode(10);
+  const active = (Array.isArray(VEHICLES) ? VEHICLES : []).filter(v => !v.noVehicle);
+  const counts = new Map();
+  active.forEach(v => { const id = vehicleEntity(v) || ''; counts.set(id, (counts.get(id) || 0) + 1); });
+  const lines = ['שלום,', '', 'מצבת הרכבים לחודש ' + kmMonthName() + ':', ''];
+  ENTITIES.forEach(e => {
+    if (!counts.has(e.id)) return;
+    lines.push('• ' + e.name + (e.hp ? ' (ח.פ. ' + e.hp + ')' : '') + ' — ' + counts.get(e.id) + ' רכבים');
+  });
+  if (counts.has('')) lines.push('• ללא שיוך לישות — ' + counts.get('') + ' רכבים');
+  lines.push('', 'סה"כ ' + active.length + ' רכבים.', '',
+             'הפירוט המלא — כולל רכבים חליפיים והחזרות — בקובץ המצורף.', '',
+             'תודה,', coSig());
+  return lines.join(NL);
+}
 function buildFleetByEntityMail() {
   const NL = String.fromCharCode(10);
   const active = (Array.isArray(VEHICLES) ? VEHICLES : []).filter(v => !v.noVehicle);
@@ -7170,7 +7190,7 @@ function openAccountingFleetMail() {
   if (t) t.textContent = '🚗 מצבת רכבים חודשית להנהלת חשבונות';
   const _x = document.getElementById('swm-xls'); if (_x) _x.style.display = '';
   document.getElementById('swm-to').value = (MAIL_SETTINGS && MAIL_SETTINGS.accountingEmail) || '';
-  document.getElementById('swm-body').value = buildFleetByEntityMail();
+  document.getElementById('swm-body').value = buildFleetSummaryMail();
   _renderSwapGroups();
   document.getElementById('swap-mail-modal').classList.add('open');
 }
@@ -14397,6 +14417,28 @@ function sendSwapMail() {
   if (provider === 'gmail') composeUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(to)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}${from ? '&authuser=' + encodeURIComponent(from) : ''}`;
   else if (provider === 'outlook') composeUrl = `https://outlook.office.com/mail/deeplink/compose?to=${encodeURIComponent(to)}&subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   else composeUrl = null;
+  // גוף ארוך מייצר כתובת ארוכה, ואאוטלוק/ג'ימייל מחזירים עליה 400 ופשוט
+  // לא נפתחים — בלי שיהיה ברור למה. במקרה כזה הטקסט עובר ללוח ונפתחת
+  // הודעה ריקה להדבקה, במקום כישלון שנראה כמו תקלה במערכת.
+  const TOO_LONG = 1900;
+  if ((composeUrl || mailtoUrl).length > TOO_LONG) {
+    const full = body;
+    const openEmpty = () => {
+      const short = provider === 'gmail'
+        ? `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(to)}&su=${encodeURIComponent(subject)}`
+        : provider === 'outlook'
+          ? `https://outlook.office.com/mail/deeplink/compose?to=${encodeURIComponent(to)}&subject=${encodeURIComponent(subject)}`
+          : `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}`;
+      const w = window.open(short, '_blank');
+      if (!w) window.location.href = short;
+      document.getElementById('swap-mail-modal').classList.remove('open');
+      toast('ההודעה ארוכה מדי לפתיחה אוטומטית — הועתקה ללוח, הדבק בגוף המייל 📋');
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText)
+      navigator.clipboard.writeText(full).then(openEmpty).catch(() => _fallbackCopy(full, openEmpty));
+    else _fallbackCopy(full, openEmpty);
+    return;
+  }
   if (composeUrl) { const w = window.open(composeUrl, '_blank'); if (!w) window.location.href = mailtoUrl; }
   else window.location.href = mailtoUrl;
   document.getElementById('swap-mail-modal').classList.remove('open');
