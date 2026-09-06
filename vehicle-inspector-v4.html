@@ -1107,9 +1107,12 @@ function saveRecord() {
   const full = persistRecord(record);
   const sentOk = pushToOpinion(record);
   newInspection();
+  // ההודעה על ההעברה למחשב מגיעה מ-pushToOpinion עצמה, אחרי שהענן עונה.
+  // כאן מדווחים רק על השמירה המקומית — קודם נכתב כאן "מוכן לחוות דעת"
+  // גם כשההעברה נכשלה, וזה מה שהסתיר את התקלה.
   toast(!full ? '⚠️ אומדן נשמר ללא תמונה (אחסון מלא)'
-    : sentOk ? '✅ אומדן נשמר בטבלה ומוכן לחוות דעת! 🧠'
-             : '✅ אומדן נשמר! (ההעברה לחוות דעת לא הצליחה)');
+    : sentOk ? '✅ אומדן נשמר בטבלה'
+             : '⚠️ אומדן נשמר, אך ההעברה לחוות דעת לא הצליחה');
 }
 
 async function syncToSheets(record) {
@@ -1716,28 +1719,65 @@ async function _fbTenantId() {
   } catch(e) { _fbTenant = u.uid; }
   return _fbTenant;
 }
+// מחזירה סיבה ולא רק false. קודם היא נכשלה בשקט כשלא היה משתמש מחובר
+// בטלפון, והמסך בכל זאת הודיע "נשמר ומוכן לחוות דעת" — כך שאומדן שנבנה
+// בטלפון פשוט לא הגיע למחשב, בלי שום סימן שמשהו השתבש.
 async function _pushHandoffCloud(payload) {
+  const app = _fbInit();
+  if (!app) return { ok: false, reason: 'init' };
+  const u = await _fbUser();
+  if (!u) return { ok: false, reason: 'nouser' };
+  if (u.isAnonymous) return { ok: false, reason: 'anon' };
   try {
     const tid = await _fbTenantId();
-    if (!tid) return false;
-    await _fbApp.firestore().collection('tenants').doc(tid)
+    if (!tid) return { ok: false, reason: 'notenant' };
+    await app.firestore().collection('tenants').doc(tid)
       .collection('data').doc(OP_HANDOFF_DOC)
       .set(Object.assign({ type: 'ophandoff' }, payload));
-    return true;
-  } catch(e) { console.log('cloud handoff failed', e); return false; }
+    return { ok: true };
+  } catch(e) {
+    console.log('cloud handoff failed', e);
+    return { ok: false, reason: e.code || e.message || 'error' };
+  }
+}
+// הודעה שאומרת מה קרה ומה לעשות, במקום כישלון שקט
+function _handoffMsg(reason) {
+  if (reason === 'nouser' || reason === 'anon' || reason === 'notenant')
+    return '⚠️ האומדן נשמר בטלפון בלבד — אינך מחובר כאן. התחבר למערכת בטלפון, וההעברה למחשב תקרה מעצמה.';
+  return '⚠️ האומדן נשמר בטלפון בלבד — ההעברה למחשב נכשלה (' + reason + '). ננסה שוב בפתיחה הבאה.';
 }
 function pushToOpinion(record) {
   const payload = opinionPayloadFrom(record);
   let ok = false;
   try { localStorage.setItem('op_handoff', JSON.stringify(payload)); ok = true; }
   catch(e) { console.log('pushToOpinion', e); }
-  // לא ממתינים לענן — הכפתור לא צריך להיתקע על הרשת. אם הכתיבה תיכשל,
-  // ההעברה עדיין עובדת באותו מכשיר דרך localStorage.
-  _pushHandoffCloud(payload).then(cloudOk => {
-    if (cloudOk) toast('☁️ האומדן זמין גם במחשב — פתח "חוות דעת" ואשר ייבוא');
+  // נשמר כ"ממתין" עד שהענן מאשר, כדי שאומדן שנבנה בלי חיבור או לפני
+  // התחברות יישלח מעצמו בפתיחה הבאה במקום להישאר תקוע בטלפון.
+  try { localStorage.setItem('op_handoff_pending', JSON.stringify(payload)); } catch(e) {}
+  // לא ממתינים לענן — הכפתור לא צריך להיתקע על הרשת.
+  _pushHandoffCloud(payload).then(res => {
+    if (res.ok) {
+      try { localStorage.removeItem('op_handoff_pending'); } catch(e) {}
+      toast('☁️ האומדן זמין גם במחשב — פתח "חוות דעת" ואשר ייבוא');
+    } else {
+      toast(_handoffMsg(res.reason), true);
+    }
   });
   return ok;
 }
+// ניסיון חוזר בפתיחת הכלי: אומדן שלא הועבר עולה לענן ברגע שיש משתמש
+// מחובר ורשת, בלי שצריך לבנות אותו מחדש.
+async function _retryPendingHandoff() {
+  let pending = null;
+  try { pending = JSON.parse(localStorage.getItem('op_handoff_pending') || 'null'); } catch(e) {}
+  if (!pending) return;
+  const res = await _pushHandoffCloud(pending);
+  if (res.ok) {
+    try { localStorage.removeItem('op_handoff_pending'); } catch(e) {}
+    toast('☁️ אומדן שהמתין הועבר למחשב — פתח "חוות דעת" ואשר ייבוא');
+  }
+}
+setTimeout(_retryPendingHandoff, 2500);
 </script>
 </body>
 </html>
