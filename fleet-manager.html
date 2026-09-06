@@ -16445,7 +16445,9 @@ function opHtml() {
     (c.ratioBase ? '<div style="margin-top:12px;font-size:11.5px;line-height:1.8">בהתאם לתקנות התעבורה, אומדן נזק זה מהווה <b>' + c.ratio.toFixed(2) + '%</b> מערך הרכב.</div>' : '')
   );
 
-  // 6+ — תמונות, שש בעמוד
+  // התמונות הן נספח חזותי וסוגרות את הדוח, ולכן הן נאספות כאן
+  // ומצטרפות בסוף, אחרי ההצהרה ודרישת שכר הטרחה. שש תמונות בעמוד.
+  const photoPages = [];
   const ph = r.photos || [];
   for (let i = 0; i < ph.length; i += 6) {
     const chunk = ph.slice(i, i + 6);
@@ -16457,7 +16459,7 @@ function opHtml() {
       if (j % 3 === 2) grid += '</tr><tr>';
     });
     grid += '</tr></table>';
-    pages.push(_opHead(r, i === 0 ? 'תמונות' : 'תמונות — המשך') + grid);
+    photoPages.push(_opHead(r, i === 0 ? 'תמונות' : 'תמונות — המשך') + grid);
   }
 
   // שבירה לפני כל קטע (חוץ מהראשון) במקום גובה עמוד קשיח. כפיית
@@ -16502,6 +16504,7 @@ function opHtml() {
   if (pgValue) pages.splice(2, 0, pgValue);   // מיד אחרי פרטי התיק
   if (pgAppraiser) pages.push(pgAppraiser);   // ההצהרה חותמת את חוות הדעת
   if (pgFee) pages.push(pgFee);               // דרישת שכר הטרחה היא נספח, ולכן אחריה
+  photoPages.forEach(h => pages.push(h));   // התמונות אחרונות בדוח
 
   return pages.map((html, i) =>
     '<section class="' + (i ? 'op-pg op-brk' : 'op-pg') + '" style="' + PAGE +
