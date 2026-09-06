@@ -16274,11 +16274,20 @@ const OP_DECLARATION =
   'כאשר היא חתומה על ידי, כדין עדות בבית המשפט.';
 
 // הכותרת של חוות הדעת היא משרד השמאות — לא חברת הצי שמנוהלת במערכת.
+// לוגו ר.מזור בראש כל עמוד. SVG מוטבע ולא קובץ חיצוני: הוא נשאר חד
+// בכל הגדלה, ואינו תלוי בטעינת רשת ברגע ההדפסה — תמונה שלא הספיקה
+// להיטען הייתה יוצאת כריבוע ריק על מסמך משפטי.
+const OP_LOGO = '<svg viewBox="0 0 48 48" width="34" height="34" style="flex-shrink:0"><rect x="15" y="3" width="18" height="42" rx="8" fill="#0f172a"/><circle cx="24" cy="13" r="4.6" fill="#ef4444"/><circle cx="24" cy="24" r="4.6" fill="#fbbf24"/><circle cx="24" cy="35" r="4.6" fill="#22c55e"/></svg>';
 function _opHead(rec, title) {
-  return '<div style="border-bottom:1.5px solid #1e3a8a;padding-bottom:6px;margin-bottom:12px;font-size:10.5px;color:#334155;display:flex;justify-content:space-between;gap:10px">' +
-      '<div><b style="font-size:12.5px;color:#0f172a">' + _nb(rec.office || rec.appraiser || '') + '</b><br>' +
-        (rec.appraiserPhone ? 'טל: ' + esc(rec.appraiserPhone) + ' · ' : '') + esc(rec.appraiserMail || '') + '</div>' +
-      '<div style="text-align:left">תאריך: <b>' + esc(rec.dateHe || '') + '</b><br>מס׳ תיק: <b>' + esc(rec.case || '') + '</b></div>' +
+  const contact = [rec.appraiserPhone ? 'טל: ' + esc(rec.appraiserPhone) : '',
+                   esc(rec.appraiserMail || '')].filter(Boolean).join(' · ');
+  return '<div style="border-bottom:2px solid #1e3a8a;padding-bottom:8px;margin-bottom:12px;display:flex;justify-content:space-between;align-items:flex-start;gap:12px">' +
+      '<div style="display:flex;align-items:center;gap:9px">' + OP_LOGO +
+        '<div><div style="font-size:21px;font-weight:900;letter-spacing:.3px;color:#0f172a;line-height:1.15">ר.מזור</div>' +
+        '<div style="font-size:11px;font-weight:700;color:#0f172a">' + _nb(rec.office || rec.appraiser || '') + '</div>' +
+        (contact ? '<div style="font-size:10px;color:#475569">' + contact + '</div>' : '') +
+        '</div></div>' +
+      '<div style="text-align:left;font-size:10.5px;color:#334155">תאריך: <b>' + esc(rec.dateHe || '') + '</b><br>מס׳ תיק: <b>' + esc(rec.case || '') + '</b></div>' +
     '</div>' +
     '<div style="text-align:center;font-weight:900;font-size:15px;margin-bottom:10px">' + _nb(title) + '</div>';
 }
@@ -16452,8 +16461,47 @@ function opHtml() {
   // לפי A4, יצרה עמודים ריקים ותוכן חתוך.
   // המחלקה op-brk מסומנת רק מהקטע השני. סימון הראשון גם הוא גרם
   // ל-html2pdf לפתוח עמוד ריק לפני שהתחיל התוכן.
+  // נספח: דרישת שכר טרחה. שכר הטרחה נרשם בתיק אך מעולם לא הופיע
+  // במסמך, ולכן היה צריך להוציא אותו בנפרד. נבנה רק כשנרשם סכום.
+  let pgFee = '';
+  {
+    const feeGross = _caseNum(r.fee);
+    if (feeGross > 0) {
+      const paid = _caseNum(r.feepaid);
+      const vp = c.vatPct || 0;
+      // השדה בטופס הוא "כולל מע״מ", ולכן מחלצים ממנו אחורה
+      const feeNet = vp ? feeGross / (1 + vp / 100) : feeGross;
+      const feeVat = feeGross - feeNet;
+      const due = feeGross - paid;
+      const fr = (lbl, val, strong) =>
+        '<tr><td style="' + (strong ? 'border:1px solid #cbd5e1;padding:5px 8px;background:#eff6ff;font-weight:800' : 'border:1px solid #cbd5e1;padding:5px 8px;background:#f8fafc;font-weight:700') + ';width:60%">' + _nb(lbl) + '</td>' +
+        '<td style="border:1px solid #cbd5e1;padding:5px 8px;text-align:left' + (strong ? ';font-weight:800' : '') + '">' + val + '</td></tr>';
+      pgFee = _opHead(r, 'דרישת שכר טרחה') +
+        (r.client ? '<div style="font-size:11.5px;margin-bottom:10px">לכבוד<br><b>' + esc(r.client) + '</b></div>' : '') +
+        _opSection('פרטי התיק', _opTable([
+          ['מס׳ תיק', r.case], ['מספר רישוי', r.plate], ['דגם הרכב', r.model],
+          ['בעל הרכב', r.owner], ['תאריך הבדיקה', heDate(r.inspdate)]
+        ])) +
+        _opSection('חשבון שכר טרחה',
+          '<table style="width:100%;border-collapse:collapse;font-size:11.5px">' +
+          fr('שכר טרחה לפני מע״מ', opILS(feeNet)) +
+          fr('מע״מ ' + vp + '%', opILS(feeVat)) +
+          fr('סה״כ לתשלום', opILS(feeGross), true) +
+          (paid > 0 ? fr('שולם', opILS(paid)) + fr('יתרה לתשלום', opILS(due), true) : '') +
+          '</table>') +
+        '<div style="margin-top:12px;font-size:11px;color:#475569;line-height:1.8">' +
+          'שכר הטרחה הוא בגין עריכת חוות דעת זו, ואינו חלק מאומדן הנזק.' +
+        '</div>' +
+        '<table style="width:100%;font-size:11.5px;margin-top:26px"><tr>' +
+          '<td><b>' + esc(r.appraiser) + '</b>' + (r.license ? ' (' + esc(r.license) + ')' : '') + '<br>שמאי רכב</td>' +
+          '<td style="text-align:left">' + (window.OFFICER_SIGNATURE ? '<img src="' + window.OFFICER_SIGNATURE + '" style="width:150px;border-bottom:1px solid #0f172a">' : '') + '</td>' +
+        '</tr></table>';
+    }
+  }
+
   if (pgValue) pages.splice(2, 0, pgValue);   // מיד אחרי פרטי התיק
-  if (pgAppraiser) pages.push(pgAppraiser);   // תמיד אחרון
+  if (pgAppraiser) pages.push(pgAppraiser);   // ההצהרה חותמת את חוות הדעת
+  if (pgFee) pages.push(pgFee);               // דרישת שכר הטרחה היא נספח, ולכן אחריה
 
   return pages.map((html, i) =>
     '<section class="' + (i ? 'op-pg op-brk' : 'op-pg') + '" style="' + PAGE +
