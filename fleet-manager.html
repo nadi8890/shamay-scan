@@ -295,12 +295,18 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
    משפטית מסמך שהוא תמונה גם אינו ניתן לחיפוש ואינו נקרא במערכות. */
 #op-print{display:none}
 @media print{
+  /* הדף עצמו חייב לזרום: גובה קבוע או גלילה חסומה על html/body גורמים
+     לדפדפן לצייר עמוד אחד ולחתוך את השאר — וזה בדיוק מה שקרה. */
+  html,body{height:auto!important;min-height:0!important;overflow:visible!important}
+  body.op-printing{margin:0!important;padding:0!important;background:#fff!important;
+    -webkit-print-color-adjust:exact;print-color-adjust:exact}
   body.op-printing>*:not(#op-print){display:none!important}
-  body.op-printing #op-print{display:block!important}
-  body.op-printing .op-pg{break-after:page;page-break-after:always}
+  body.op-printing #op-print{display:block!important;position:static!important;
+    height:auto!important;max-height:none!important;overflow:visible!important}
+  body.op-printing .op-pg{break-after:page;page-break-after:always;
+    break-inside:auto;page-break-inside:auto;overflow:visible!important;height:auto!important}
   body.op-printing .op-pg:last-child{break-after:auto;page-break-after:auto}
   body.op-printing table,body.op-printing tr,body.op-printing img{break-inside:avoid;page-break-inside:avoid}
-  body.op-printing{-webkit-print-color-adjust:exact;print-color-adjust:exact;background:#fff}
   @page{size:A4;margin:12mm 10mm}
 }
 .toast{position:fixed;bottom:82px;left:12px;right:12px;margin-inline:auto;width:max-content;transform:scale(.92);background:#059669;color:#fff;padding:12px 28px;border-radius:18px;font-weight:700;font-size:0.92rem;opacity:0;transition:opacity .25s,transform .25s;z-index:999;white-space:normal;max-width:min(90vw,460px);text-align:center;line-height:1.5;pointer-events:none;box-shadow:0 6px 20px rgba(0,0,0,.22)}
@@ -16291,6 +16297,10 @@ function opHtml() {
     "font-family:Arial,'Segoe UI','Arial Hebrew','Heebo',sans-serif;" +
     "letter-spacing:normal;word-spacing:normal;color:#0f172a;box-sizing:border-box;direction:rtl";
   const pages = [];
+  // שני עמודים נבנים כאן אך משובצים בסוף, כדי שסדר המסמך יהיה סדר
+  // חוות דעת ולא סדר הקוד: סיכום, פרטי התיק, תחשיב הערך, אומדן הנזק,
+  // תמונות — וההצהרה החתומה אחרונה.
+  let pgAppraiser = '', pgValue = '';
 
   // 1 — סיכום
   pages.push(
@@ -16310,8 +16320,8 @@ function opHtml() {
     (r.attached ? '<div style="margin-top:10px;font-size:11px;color:#475569">לוטה בזאת: ' + esc(r.attached) + '</div>' : '')
   );
 
-  // 2 — השמאי והצהרה
-  pages.push(
+  // ההצהרה והחתימה הן סוף המסמך בחוות דעת משפטית, ולא עמוד שני.
+  pgAppraiser = (
     _opHead(r, 'פרטי השמאי והצהרה') +
     _opSection('פרטי השמאי', _opTable([
       ['שם השמאי', r.appraiser], ['מקום עבודתו', r.office]
@@ -16334,7 +16344,7 @@ function opHtml() {
              '<td style="border:1px solid #cbd5e1;padding:4px 8px;text-align:center">' + (isNaN(pct) ? '' : pct + '%') + '</td>' +
              '<td style="border:1px solid #cbd5e1;padding:4px 8px;text-align:left">' + opILS(val) + '</td></tr>';
     }).join('');
-    pages.push(
+    pgValue = (
       _opHead(r, 'תחשיב ערך הרכב') +
       _opSection('פרטים כלליים', _opTable([
         ['בעל הרכב', r.owner], ['דגם הרכב', r.model], ['מספר רישוי', r.plate], ['מחירון', r.pricelist]
@@ -16423,6 +16433,9 @@ function opHtml() {
   // לפי A4, יצרה עמודים ריקים ותוכן חתוך.
   // המחלקה op-brk מסומנת רק מהקטע השני. סימון הראשון גם הוא גרם
   // ל-html2pdf לפתוח עמוד ריק לפני שהתחיל התוכן.
+  if (pgValue) pages.splice(2, 0, pgValue);   // מיד אחרי פרטי התיק
+  if (pgAppraiser) pages.push(pgAppraiser);   // תמיד אחרון
+
   return pages.map((html, i) =>
     '<section class="' + (i ? 'op-pg op-brk' : 'op-pg') + '" style="' + PAGE +
     (i ? ';page-break-before:always' : '') +
