@@ -7135,20 +7135,34 @@ function _replEntity(r) {
   const byPlate = _vehByPlate(r.plate || '');
   return byPlate ? (vehicleEntity(byPlate) || '') : '';
 }
+// מזהה הישות אינו נכתב אל תוך ה-onclick כטקסט. כשהוא כן נכתב שם, המירכאות
+// שעוטפות אותו סוגרות את התכונה עצמה, הדפדפן קוטע את הפקודה, והכפתור של
+// הישות הבודדת פשוט מפסיק לעבוד — בדיוק מה שקרה כאן: רק "כל הישויות",
+// שאינו מעביר ערך כלל, המשיך לפעול. הכפתור נושא עכשיו מספר סידורי בלבד,
+// והערך נשלף מהמערך.
+let _entexpChoices = [];
+function _entexpGo(i) {
+  const c = _entexpChoices[i];
+  if (!c) return;
+  closeModal('entexp-modal');
+  exportMonthlyWorkbook(c.id);
+}
 // הבורר נפתח רק כשיש באמת במה לבחור. אצל לקוח בלי ישויות, או עם אחת
 // בלבד, שאלה כזו היא רק לחיצה מיותרת — ולכן הקובץ יורד ישר.
 function exportMonthlyPick() {
   if (typeof XLSX === 'undefined') { toast('הספרייה עדיין נטענת — נסה שוב', true); return; }
   const ents = (Array.isArray(ENTITIES) ? ENTITIES : []);
   if (ents.length < 2) { exportMonthlyWorkbook(); return; }
-  const range = _monthRange();
   const active = (Array.isArray(VEHICLES) ? VEHICLES : []).filter(v => !v.noVehicle);
   const count = id => active.filter(v => (vehicleEntity(v) || '') === id).length;
   const box = document.getElementById('entexp-body');
-  const btn = (id, label, n) =>
-    '<button class="btn btn-secondary" style="width:100%;margin-bottom:7px;text-align:right" ' +
-    'onclick="closeModal(\'entexp-modal\');exportMonthlyWorkbook(' + (id === null ? '' : JSON.stringify(id)) + ')">' +
-    esc(label) + (n === null ? '' : ' <span style="color:#94a3b8;font-weight:400">· ' + n + ' רכבים</span>') + '</button>';
+  _entexpChoices = [];
+  const btn = (id, label, n) => {
+    const i = _entexpChoices.push({ id: id }) - 1;
+    return '<button class="btn btn-secondary" style="width:100%;margin-bottom:7px;text-align:right" ' +
+      'onclick="_entexpGo(' + i + ')">' + esc(label) +
+      (n === null ? '' : ' <span style="color:#94a3b8;font-weight:400">· ' + n + ' רכבים</span>') + '</button>';
+  };
   let html = btn(null, '📚 כל הישויות — חוברת אחת', active.length);
   html += '<div style="height:6px"></div>';
   ents.forEach(e => { html += btn(e.id, '🏢 ' + e.name, count(e.id)); });
