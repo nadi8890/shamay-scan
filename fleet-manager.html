@@ -992,6 +992,7 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
     <div style="font-weight:800;font-size:0.9rem">🚗 תחילת חודש — מצבת הרכבים להנהלת חשבונות</div>
     <div style="display:flex;gap:7px;flex-wrap:wrap">
       <button class="btn" style="background:#fff;color:#0f766e;padding:6px 14px;font-size:0.8rem;font-weight:800" onclick="openAccountingFleetMail()">📧 הכן מייל</button>
+      <button class="btn" style="background:rgba(255,255,255,.18);color:#fff;padding:6px 12px;font-size:0.78rem;font-weight:700" title="הורדת המצבת כקובץ אקסל" onclick="exportFleetByEntityCsv()">📊 אקסל</button>
       <button class="btn" style="background:rgba(255,255,255,.18);color:#fff;padding:6px 12px;font-size:0.78rem;font-weight:700" title="הסתר עד החודש הבא" onclick="markAccRoundSent()">✓ נשלח</button>
     </div>
   </div>
@@ -7069,10 +7070,48 @@ function buildFleetByEntityMail() {
   lines.push('סה"כ ' + active.length + ' רכבים.', '', 'תודה,', coSig());
   return lines.join(NL);
 }
+// אותה מצבת רכבים כקובץ אקסל. בגיליון הישות היא עמודה ולא כותרת של
+// קבוצה — כך אפשר למיין, לסנן ולעשות טבלת ציר, וזה מה שהנהלת חשבונות
+// באמת עושה עם הקובץ. הסיכום שבגוף המייל נשאר לקריאה מהירה.
+function fleetByEntityRows() {
+  const active = (Array.isArray(VEHICLES) ? VEHICLES : []).filter(v => !v.noVehicle);
+  const rank = new Map(ENTITIES.map((e, i) => [e.id, i]));
+  return active.slice().sort((a, b) => {
+    const ea = vehicleEntity(a) || '', eb = vehicleEntity(b) || '';
+    // רכב ללא שיוך יורד לסוף, כמו במייל
+    const ra = ea ? (rank.has(ea) ? rank.get(ea) : 998) : 999;
+    const rb = eb ? (rank.has(eb) ? rank.get(eb) : 998) : 999;
+    if (ra !== rb) return ra - rb;
+    return String(a.plate || '').localeCompare(String(b.plate || ''));
+  }).map(v => {
+    const ent = entityById(vehicleEntity(v));
+    return [ ent ? ent.name : 'ללא שיוך', ent ? (ent.hp || '') : '',
+             v.plate || '', v.make || '', v.model || '', v.year || '',
+             (v.driverName || '').split('-')[0].trim(), v.company || '' ];
+  });
+}
+function exportFleetByEntityCsv() {
+  const headers = ['ישות','ח.פ.','מס׳ רישוי','יצרן','דגם','שנה','נהג','חברה'];
+  const rows = fleetByEntityRows();
+  if (!rows.length) { toast('אין רכבים לייצוא', true); return; }
+  const bom = '﻿';   // בלי זה אקסל פותח עברית כג'יבריש
+  const csv = bom + [headers, ...rows]
+    .map(row => row.map(c => '"' + String(c == null ? '' : c).replace(/"/g, '""') + '"').join(','))
+    .join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'מצבת רכבים ' + kmMonthName() + (COMPANY_NAME ? ' - ' + COMPANY_NAME : '') + '.csv';
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 3000);
+  toast('📊 קובץ אקסל הורד — צרף אותו למייל');
+}
 function openAccountingFleetMail() {
   _swapMailSubject = 'מצבת רכבים — ' + kmMonthName() + (COMPANY_NAME ? ' · ' + COMPANY_NAME : '');
   const t = document.getElementById('swm-title');
   if (t) t.textContent = '🚗 מצבת רכבים חודשית להנהלת חשבונות';
+  const _x = document.getElementById('swm-xls'); if (_x) _x.style.display = '';
   document.getElementById('swm-to').value = (MAIL_SETTINGS && MAIL_SETTINGS.accountingEmail) || '';
   document.getElementById('swm-body').value = buildFleetByEntityMail();
   _renderSwapGroups();
@@ -9792,7 +9831,9 @@ function doExportSelected(){
   const blob = new Blob([csv], {type:'text/csv;charset=utf-8'});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a'); a.href = url;
-  a.download = `נופר-${ctx.section}-${new Date().toLocaleDateString('he-IL').replace(/\//g,'-')}.csv`;
+  // שם הקובץ נשא "נופר" קבוע, ולכן ייצוא אצל לקוח אחר ירד בשם של חברה
+  // אחרת לגמרי — מבלבל, ובקובץ שנשלח הלאה גם נראה שגוי.
+  a.download = `${COMPANY_NAME || 'צי'}-${ctx.section}-${new Date().toLocaleDateString('he-IL').replace(/\//g,'-')}.csv`;
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
   setTimeout(() => URL.revokeObjectURL(url), 3000);
   document.getElementById('export-modal').classList.remove('open');
@@ -14168,6 +14209,7 @@ function openReplMail(idx) {
   // אותו חלון משמש גם למצבת הרכבים החודשית, ולכן הכותרת מוחזרת במפורש
   const _t = document.getElementById('swm-title');
   if (_t) _t.textContent = '🔄 עדכון הנהלת חשבונות — החלפת רכב';
+  const _x2 = document.getElementById('swm-xls'); if (_x2) _x2.style.display = 'none';
   const body = `שלום,\n\nלידיעתכם, לעובד/ת ניתן רכב חליפי:\n\n• עובד/ת: ${emp || '—'}\n• רכב קבוע: ${permStr}\n• רכב חליפי: ${r.plate}${r.typeCompany ? ' ('+r.typeCompany+')' : ''}\n• מתאריך: ${r.fromDate || '—'}\n• ${r.toDate ? 'עד תאריך: ' + r.toDate : 'תאריך החזרה: טרם נקבע'}\n\nנא לעדכן בהתאם (שווי שימוש / שכר).\n\nתודה,\n${coSig()}`;
   document.getElementById('swm-to').value = '';
   document.getElementById('swm-body').value = body;
@@ -15156,6 +15198,7 @@ function renderAgentMsgs(showTyping = false) {
     <div class="modal-row"><label>תוכן ההודעה (ניתן לערוך)</label><textarea id="swm-body" rows="10" style="width:100%;font-size:0.85rem;font-family:'Heebo',sans-serif;line-height:1.6"></textarea></div>
     <div class="btn-row">
       <button class="btn btn-gray" onclick="document.getElementById('swap-mail-modal').classList.remove('open')">סגור</button>
+      <button class="btn btn-secondary" id="swm-xls" style="display:none" onclick="exportFleetByEntityCsv()" title="הורדת המצבת כקובץ אקסל לצירוף">📊 אקסל</button>
       <button class="btn btn-secondary" onclick="copySwapMail()" title="העתק להדבקה בחשבון הנכון">📋 העתק</button>
       <button class="btn btn-green" onclick="sendSwapMail()">📧 פתח מייל</button>
     </div>
