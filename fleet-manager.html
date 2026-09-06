@@ -15819,12 +15819,30 @@ let OP_PROFILE = {};   // פרטי השמאי — נשמרים ב-main.appraiser
 // אותם — שם, מספר רישיון, השכלה, הצהרה — ויצא בלי לשמור תיק, איבד את
 // הכול והיה צריך להקליד מחדש. הם נתון של המשרד ולא של התיק, ולכן מגיע
 // להם כפתור שמירה משלהם.
-function opSaveProfileNow() {
+async function opSaveProfileNow() {
   if (READ_ONLY) return _roBlock();
-  const before = JSON.stringify(OP_PROFILE);
-  opSaveProfile();
-  if (JSON.stringify(OP_PROFILE) === before) { toast('פרטי השמאי כבר שמורים ✓'); return; }
-  toast('⚖️ פרטי השמאי נשמרו — הם ימולאו מעצמם בכל תיק חדש');
+  const prof = { appraiser: opVal('appraiser'), license: opVal('license'),
+                 office: opVal('office'), education: OP_EDU.filter(Boolean),
+                 declaration: opVal('declaration') };
+  if (!prof.appraiser && !prof.license && !prof.office) {
+    toast('מלא/י לפחות שם שמאי או מספר רישיון', true); return;
+  }
+  try {
+    await fcol().doc('main').set({ appraiser: prof }, { merge: true });
+    // קריאה חוזרת מהשרת. כתיבה שנכשלת בשקט נראית בדיוק כמו הצלחה,
+    // ובלי הבדיקה הזו ההודעה "נשמרו" הייתה משקרת — וזה מה שקרה.
+    const snap = await fcol().doc('main').get();
+    const back = (snap.exists && (snap.data() || {}).appraiser) || {};
+    if ((back.appraiser || '') !== prof.appraiser || (back.license || '') !== prof.license) {
+      toast('השמירה לא נקלטה בשרת — נסה/י שוב', true);
+      return;
+    }
+    OP_PROFILE = prof;
+    toast('⚖️ פרטי השמאי נשמרו — הם ימולאו מעצמם בכל תיק חדש');
+  } catch (err) {
+    console.log('opSaveProfileNow', err);
+    toast('השמירה נכשלה: ' + (err.code || err.message || 'שגיאה'), true);
+  }
 }
 
 function opSaveProfile() {
@@ -15833,7 +15851,8 @@ function opSaveProfile() {
                  declaration: opVal('declaration') };
   if (JSON.stringify(prof) === JSON.stringify(OP_PROFILE)) return;
   OP_PROFILE = prof;
-  try { fcol().doc('main').set({ appraiser: prof }, { merge: true }); } catch(e) {}
+  fcol().doc('main').set({ appraiser: prof }, { merge: true })
+    .catch(err => console.log('opSaveProfile', err));
 }
 
 async function opGovLookup() {
