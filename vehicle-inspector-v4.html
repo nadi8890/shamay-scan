@@ -108,7 +108,7 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--blue)}
 .rec-del:hover{color:var(--red)}
 .empty{text-align:center;padding:24px;color:var(--muted);font-size:0.85rem}
 /* Toast */
-.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--green);color:#fff;padding:11px 22px;border-radius:99px;font-weight:700;font-size:0.88rem;opacity:0;transition:opacity .3s;z-index:999;white-space:nowrap}
+.toast{position:fixed;bottom:24px;left:12px;right:12px;margin-inline:auto;width:max-content;background:var(--green);color:#fff;padding:11px 22px;border-radius:18px;font-weight:700;font-size:0.88rem;opacity:0;transition:opacity .3s;z-index:999;white-space:normal;max-width:min(90vw,460px);text-align:center;line-height:1.5;}
 .toast.show{opacity:1}.toast.err{background:var(--red)}
 /* Print: show only PDF overlay */
 @media print{

@@ -287,8 +287,8 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
 .task-check{width:18px;height:18px;flex-shrink:0;margin-top:1px;cursor:pointer;accent-color:var(--green)}
 .task-done{text-decoration:line-through;color:var(--muted)}
 /* Toast */
-.toast{position:fixed;bottom:82px;left:50%;transform:translateX(-50%) scale(.92);background:#059669;color:#fff;padding:12px 28px;border-radius:99px;font-weight:700;font-size:0.92rem;opacity:0;transition:opacity .25s,transform .25s;z-index:999;white-space:nowrap;pointer-events:none;box-shadow:0 6px 20px rgba(0,0,0,.22)}
-.toast.show{opacity:1;transform:translateX(-50%) scale(1)}
+.toast{position:fixed;bottom:82px;left:12px;right:12px;margin-inline:auto;width:max-content;transform:scale(.92);background:#059669;color:#fff;padding:12px 28px;border-radius:18px;font-weight:700;font-size:0.92rem;opacity:0;transition:opacity .25s,transform .25s;z-index:999;white-space:normal;max-width:min(90vw,460px);text-align:center;line-height:1.5;pointer-events:none;box-shadow:0 6px 20px rgba(0,0,0,.22)}
+.toast.show{opacity:1;transform:scale(1)}
 .toast.err{background:#dc2626}
 /* Save indicator in header */
 #save-indicator{font-size:0.68rem;color:rgba(255,255,255,0.7);transition:color .3s;white-space:nowrap}
