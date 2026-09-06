@@ -1461,7 +1461,7 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
 
     <div class="btn-row" style="margin-bottom:24px;flex-wrap:wrap">
       <button class="btn btn-gray" onclick="opSave()">💾 שמור</button>
-      <button class="btn btn-secondary" onclick="opExportPdf()" title="מוריד קובץ PDF מוכן">📄 ייצא PDF</button><button class="btn btn-gray" onclick="opPdf()" title="פותח חלון הדפסה — אפשר גם לשמור כ-PDF">🖨️ הדפסה</button>
+      <button class="btn btn-secondary" onclick="opPdfImage()" title="מוריד קובץ מיד. הטקסט בו מצויר כתמונה">📄 ייצא PDF</button><button class="btn btn-gray" onclick="opPdf()" title="פותח חלון הדפסה — אפשר גם לשמור כ-PDF">🖨️ הדפסה</button>
       <button class="btn btn-primary" onclick="opMail()">📤 שלח</button>
     </div>
   </div>
@@ -16584,58 +16584,6 @@ async function opPdfImage() {
     toast('חוות הדעת נוצרה ✓' + (removed ? ' (הוסרו ' + removed + ' עמודים ריקים)' : ''));
   } catch(e) { console.log('opPdf', e); toast('שגיאה ביצירת PDF', true); }
   finally { document.body.removeChild(holder); }
-}
-
-// ═══ ייצוא חוות דעת לקובץ PDF ═══
-// ההמרה נעשית בשירות של גוגל שכבר משמש את המערכת למייל ולסריקה, ולא
-// בדפדפן. ספריות הדפדפן מציירות את המסמך כתמונה — וזה בדיוק מה שייצר
-// את המילים המחוברות והנקודתיים שקפצו. כאן חוזר PDF עם טקסט אמיתי.
-function opPrintableDoc() {
-  const title = 'חוות דעת ' + (opVal('case') || opVal('plate') || '').trim();
-  return '<!doctype html><html lang="he" dir="rtl"><head><meta charset="utf-8">' +
-    '<title>' + esc(title) + '</title><style>' +
-    '@page{size:A4;margin:12mm 10mm}' +
-    'body{margin:0;direction:rtl;font-family:Arial,"Segoe UI","Arial Hebrew",sans-serif}' +
-    '.op-pg{page-break-after:always;break-after:page}' +
-    '.op-pg:last-child{page-break-after:auto;break-after:auto}' +
-    'table,tr,img{page-break-inside:avoid;break-inside:avoid}' +
-    '</style></head><body dir="rtl">' + opHtml() + '</body></html>';
-}
-// הורדה מתוך base64 שחוזר מהשירות
-function _dlB64Pdf(b64, name) {
-  const bin = atob(b64);
-  const buf = new Uint8Array(bin.length);
-  for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
-  const url = URL.createObjectURL(new Blob([buf], { type: 'application/pdf' }));
-  const a = document.createElement('a');
-  a.href = url; a.download = name + '.pdf';
-  document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 4000);
-}
-async function opExportPdf() {
-  if (!opVal('plate') && !opVal('case')) { toast('הזן מספר רישוי או מספר תיק', true); return; }
-  const ms = (typeof MAIL_SETTINGS !== 'undefined' && MAIL_SETTINGS) || {};
-  if (!ms.gasUrl) {
-    // בלי השירות אין המרה. במקום להיכשל, פותחים את מסלול ההדפסה —
-    // הוא מייצר בדיוק את אותו מסמך, בלחיצה אחת נוספת.
-    toast('שירות הייצוא לא מוגדר — הקובץ יורד בגרסת תמונה. תגיד לי ואחבר את השירות', true);
-    return opPdfImage();
-  }
-  const name = 'חוות דעת ' + (opVal('case') || opVal('plate') || '').trim();
-  toast('מכין את הקובץ…');
-  try {
-    const resp = await fetch(ms.gasUrl, { method: 'POST', headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ action: 'htmlToPdf', token: ms.gasToken || '',
-                             filename: name, html: opPrintableDoc() }) });
-    const data = await resp.json();
-    if (!data.ok || !data.b64) throw new Error(data.error || 'ההמרה נכשלה');
-    _dlB64Pdf(data.b64, name);
-    toast('📄 הקובץ הורד');
-  } catch (err) {
-    console.log('opExportPdf', err);
-    toast('הייצוא נכשל (' + (err.message || 'שגיאה') + ') — יורד בגרסת תמונה', true);
-    opPdfImage();
-  }
 }
 
 async function opPdf() {
