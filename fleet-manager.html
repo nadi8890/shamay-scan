@@ -16332,10 +16332,10 @@ function opHtml() {
   // שני עמודים נבנים כאן אך משובצים בסוף, כדי שסדר המסמך יהיה סדר
   // חוות דעת ולא סדר הקוד: סיכום, פרטי התיק, תחשיב הערך, אומדן הנזק,
   // תמונות — וההצהרה החתומה אחרונה.
-  let pgAppraiser = '', pgValue = '';
+  let pgSummary = '', pgCase = '', pgValue = '', pgDamage = '', pgAppraiser = '';
 
   // 1 — סיכום
-  pages.push(
+  pgSummary = (
     _opHead(r, 'סיכום חוות הדעת') +
     (r.owner || r.address ? '<div style="font-size:11.5px;margin-bottom:10px">לכבוד<br><b>' + esc(r.owner) + '</b>' + (r.address ? '<br>' + esc(r.address) : '') + '</div>' : '') +
     _opSection('פרטים כלליים', _opTable([
@@ -16396,7 +16396,7 @@ function opHtml() {
   }
 
   // 4 — פרטי התיק
-  pages.push(
+  pgCase = (
     _opHead(r, 'פרטי התיק') +
     _opSection('פרטי הרכב', _opTable([
       ['מספר רישוי', r.plate], ['דגם הרכב', r.model], ['סוג רכב', r.vtype],
@@ -16426,7 +16426,7 @@ function opHtml() {
   const workRow = (lbl, v) => v ? '<tr><td style="border:1px solid #cbd5e1;padding:4px 8px">עב׳</td>' +
     '<td style="border:1px solid #cbd5e1;padding:4px 8px" colspan="2">' + lbl + '</td>' +
     '<td style="border:1px solid #cbd5e1;padding:4px 8px;text-align:left">' + opILS(v) + '</td></tr>' : '';
-  pages.push(
+  pgDamage = (
     _opHead(r, 'אומדן הנזק') +
     (r.focus ? '<div style="font-weight:800;font-size:12px;margin-bottom:6px">מוקד: ' + esc(r.focus) + '</div>' : '') +
     '<table style="width:100%;border-collapse:collapse;font-size:11.5px">' +
@@ -16501,10 +16501,11 @@ function opHtml() {
     }
   }
 
-  if (pgValue) pages.splice(2, 0, pgValue);   // מיד אחרי פרטי התיק
-  if (pgAppraiser) pages.push(pgAppraiser);   // ההצהרה חותמת את חוות הדעת
-  if (pgFee) pages.push(pgFee);               // דרישת שכר הטרחה היא נספח, ולכן אחריה
-  photoPages.forEach(h => pages.push(h));   // התמונות אחרונות בדוח
+  // סדר המסמך נקבע על ידי השמאי, ולכן הוא מוצהר כאן במפורש במקום
+  // להיגזר מסדר הכתיבה בקוד. עמוד שאין לו תוכן פשוט נופל מהרשימה.
+  [pgCase, pgAppraiser, pgValue, pgDamage, pgSummary, pgFee]
+    .forEach(h => { if (h) pages.push(h); });
+  photoPages.forEach(h => pages.push(h));   // התמונות סוגרות את הדוח
 
   return pages.map((html, i) =>
     '<section class="' + (i ? 'op-pg op-brk' : 'op-pg') + '" style="' + PAGE +
