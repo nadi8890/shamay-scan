@@ -992,7 +992,7 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
     <div style="font-weight:800;font-size:0.9rem">🚗 תחילת חודש — מצבת הרכבים להנהלת חשבונות</div>
     <div style="display:flex;gap:7px;flex-wrap:wrap">
       <button class="btn" style="background:#fff;color:#0f766e;padding:6px 14px;font-size:0.8rem;font-weight:800" onclick="openAccountingFleetMail()">📧 הכן מייל</button>
-      <button class="btn" style="background:rgba(255,255,255,.18);color:#fff;padding:6px 12px;font-size:0.78rem;font-weight:700" title="הורדת המצבת כקובץ אקסל" onclick="exportFleetByEntityCsv()">📊 אקסל</button>
+      <button class="btn" style="background:rgba(255,255,255,.18);color:#fff;padding:6px 12px;font-size:0.78rem;font-weight:700" title="הורדת המצבת כקובץ אקסל" onclick="exportMonthlyWorkbook()">📊 אקסל</button>
       <button class="btn" style="background:rgba(255,255,255,.18);color:#fff;padding:6px 12px;font-size:0.78rem;font-weight:700" title="הסתר עד החודש הבא" onclick="markAccRoundSent()">✓ נשלח</button>
     </div>
   </div>
@@ -7077,43 +7077,92 @@ function buildFleetByEntityMail() {
   lines.push('סה"כ ' + active.length + ' רכבים.', '', 'תודה,', coSig());
   return lines.join(NL);
 }
-// אותה מצבת רכבים כקובץ אקסל. בגיליון הישות היא עמודה ולא כותרת של
-// קבוצה — כך אפשר למיין, לסנן ולעשות טבלת ציר, וזה מה שהנהלת חשבונות
-// באמת עושה עם הקובץ. הסיכום שבגוף המייל נשאר לקריאה מהירה.
-function fleetByEntityRows() {
+
+// ═══ ייצוא חודשי: גיליון לכל ישות + גיליון חלופיים לאותה ישות ═══
+// קובץ אקסל אמיתי ולא CSV, כי CSV אינו יודע גיליונות. SheetJS כבר טעון
+// במערכת בשביל הייבוא, ולכן אין תלות חדשה.
+function _sheetName(base, used) {
+  // אקסל: עד 31 תווים, ובלי : \\ / ? * [ ]
+  let n = String(base || 'גיליון').replace(/[:\\\/?*\[\]]/g, ' ').trim().slice(0, 31) || 'גיליון';
+  let i = 2, out = n;
+  while (used.has(out)) { const suf = ' (' + i++ + ')'; out = n.slice(0, 31 - suf.length) + suf; }
+  used.add(out);
+  return out;
+}
+// חודש נוכחי כטווח, להצלבה מול תקופת ההחזקה של רכב חליפי
+function _monthRange() {
+  const n = new Date();
+  return { from: new Date(n.getFullYear(), n.getMonth(), 1).getTime(),
+           to:   new Date(n.getFullYear(), n.getMonth() + 1, 0, 23, 59, 59).getTime() };
+}
+// רשומה שייכת לחודש אם תקופת ההחזקה שלה חופפת לו — כולל כזו שנפתחה
+// לפני החודש ועדיין פתוחה, שהיא בדיוק מה שרוצים לראות בדוח חודשי.
+function _inMonth(r, range) {
+  const f = parseDate(r.fromDate), t = parseDate(r.toDate);
+  const start = f ? f.getTime() : null, end = t ? t.getTime() : null;
+  if (start === null && end === null) return true;   // בלי תאריכים — לא מסתירים
+  if (start !== null && start > range.to) return false;
+  if (end !== null && end < range.from) return false;
+  return true;
+}
+// הישות של רכב חליפי נגזרת מהעובד: הרכב החליפי עצמו לרוב שכור ואינו
+// בצי, ולכן אין לו שיוך משלו.
+function _replEntity(r) {
+  const dk = driverKey(r.employee || '');
+  const own = dk ? VEHICLES.find(v => driverKey(v.driverName) === dk) : null;
+  if (own) return vehicleEntity(own) || '';
+  const byPlate = _vehByPlate(r.plate || '');
+  return byPlate ? (vehicleEntity(byPlate) || '') : '';
+}
+function exportMonthlyWorkbook() {
+  if (typeof XLSX === 'undefined') { toast('הספרייה עדיין נטענת — נסה שוב', true); return; }
+  const range = _monthRange();
   const active = (Array.isArray(VEHICLES) ? VEHICLES : []).filter(v => !v.noVehicle);
-  const rank = new Map(ENTITIES.map((e, i) => [e.id, i]));
-  return active.slice().sort((a, b) => {
-    const ea = vehicleEntity(a) || '', eb = vehicleEntity(b) || '';
-    // רכב ללא שיוך יורד לסוף, כמו במייל
-    const ra = ea ? (rank.has(ea) ? rank.get(ea) : 998) : 999;
-    const rb = eb ? (rank.has(eb) ? rank.get(eb) : 998) : 999;
-    if (ra !== rb) return ra - rb;
-    return String(a.plate || '').localeCompare(String(b.plate || ''));
-  }).map(v => {
-    const ent = entityById(vehicleEntity(v));
-    return [ ent ? ent.name : 'ללא שיוך', ent ? (ent.hp || '') : '',
-             v.plate || '', v.make || '', v.model || '', v.year || '',
-             (v.driverName || '').split('-')[0].trim(), v.company || '' ];
+  const ents = (Array.isArray(ENTITIES) ? ENTITIES : []).slice();
+  // דלי "ללא שיוך" נוסף רק אם יש בו משהו, כדי לא לייצר גיליון ריק
+  const buckets = ents.map(e => ({ id: e.id, name: e.name, hp: e.hp || '' }));
+  const hasUnassigned = active.some(v => !vehicleEntity(v)) ||
+                        (REPLACEMENTS || []).some(r => _inMonth(r, range) && !_replEntity(r)) ||
+                        (RETURNS || []).some(r => _inMonth(r, range) && !_replEntity(r));
+  if (hasUnassigned || !buckets.length) buckets.push({ id: '', name: 'ללא שיוך', hp: '' });
+
+  const wb = XLSX.utils.book_new();
+  const used = new Set();
+  const summary = [['ישות', 'ח.פ.', 'רכבים', 'חליפיים/החזרות בחודש']];
+
+  buckets.forEach(b => {
+    const veh = active.filter(v => (vehicleEntity(v) || '') === b.id)
+      .sort((a, c) => String(a.plate || '').localeCompare(String(c.plate || '')));
+    const repl = (REPLACEMENTS || []).filter(r => _inMonth(r, range) && _replEntity(r) === b.id)
+      .map(r => ['רכב חליפי', r.employee || '', r.plate || '', r.typeCompany || '',
+                 r.fromDate || '', r.toDate || '', r.notes || '']);
+    const rets = (RETURNS || []).filter(r => _inMonth(r, range) && _replEntity(r) === b.id)
+      .map(r => ['הוחזר', r.employee || '', r.plate || '',
+                 ((r.make || '') + ' ' + (r.model || '')).trim(),
+                 r.fromDate || '', r.toDate || '', [r.reason, r.notes].filter(Boolean).join(' · ')]);
+
+    const vehAoa = [['מס׳ רישוי','יצרן','דגם','שנה','נהג','חברה','תוקף רישוי','תוקף ביטוח','ק"מ נוכחי']]
+      .concat(veh.map(v => [v.plate || '', v.make || '', v.model || '', v.year || '',
+                            (v.driverName || '').split('-')[0].trim(), v.company || '',
+                            v.registrationExpiry || '', v.insuranceExpiry || '', v.currentKm || '']));
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(vehAoa), _sheetName(b.name, used));
+
+    const rAoa = [['סוג','עובד','מס׳ רישוי','רכב/חברה','מתאריך','עד תאריך','הערות']].concat(repl, rets);
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rAoa), _sheetName(b.name + ' - חלופיים', used));
+
+    summary.push([b.name, b.hp, veh.length, repl.length + rets.length]);
   });
+
+  summary.push([], ['הופק', new Date().toLocaleDateString('he-IL'), 'חודש', kmMonthName()]);
+  // גיליון הסיכום ראשון — הוא מה שרוצים לראות בפתיחה
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(summary), _sheetName('סיכום', used));
+  wb.SheetNames.unshift(wb.SheetNames.pop());
+
+  const name = 'מצבת רכבים ' + kmMonthName() + (COMPANY_NAME ? ' - ' + COMPANY_NAME : '') + '.xlsx';
+  XLSX.writeFile(wb, name);
+  toast('📊 הקובץ הורד — גיליון לכל ישות + חלופיים');
 }
-function exportFleetByEntityCsv() {
-  const headers = ['ישות','ח.פ.','מס׳ רישוי','יצרן','דגם','שנה','נהג','חברה'];
-  const rows = fleetByEntityRows();
-  if (!rows.length) { toast('אין רכבים לייצוא', true); return; }
-  const bom = '﻿';   // בלי זה אקסל פותח עברית כג'יבריש
-  const csv = bom + [headers, ...rows]
-    .map(row => row.map(c => '"' + String(c == null ? '' : c).replace(/"/g, '""') + '"').join(','))
-    .join('\n');
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'מצבת רכבים ' + kmMonthName() + (COMPANY_NAME ? ' - ' + COMPANY_NAME : '') + '.csv';
-  document.body.appendChild(a); a.click(); document.body.removeChild(a);
-  setTimeout(() => URL.revokeObjectURL(url), 3000);
-  toast('📊 קובץ אקסל הורד — צרף אותו למייל');
-}
+
 function openAccountingFleetMail() {
   _swapMailSubject = 'מצבת רכבים — ' + kmMonthName() + (COMPANY_NAME ? ' · ' + COMPANY_NAME : '');
   const t = document.getElementById('swm-title');
@@ -15327,7 +15376,7 @@ function renderAgentMsgs(showTyping = false) {
     <div class="modal-row"><label>תוכן ההודעה (ניתן לערוך)</label><textarea id="swm-body" rows="10" style="width:100%;font-size:0.85rem;font-family:'Heebo',sans-serif;line-height:1.6"></textarea></div>
     <div class="btn-row">
       <button class="btn btn-gray" onclick="document.getElementById('swap-mail-modal').classList.remove('open')">סגור</button>
-      <button class="btn btn-secondary" id="swm-xls" style="display:none" onclick="exportFleetByEntityCsv()" title="הורדת המצבת כקובץ אקסל לצירוף">📊 אקסל</button>
+      <button class="btn btn-secondary" id="swm-xls" style="display:none" onclick="exportMonthlyWorkbook()" title="הורדת המצבת כקובץ אקסל לצירוף">📊 אקסל</button>
       <button class="btn btn-secondary" onclick="copySwapMail()" title="העתק להדבקה בחשבון הנכון">📋 העתק</button>
       <button class="btn btn-green" onclick="sendSwapMail()">📧 פתח מייל</button>
     </div>
