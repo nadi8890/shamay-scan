@@ -1462,7 +1462,6 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
     <div class="btn-row" style="margin-bottom:24px;flex-wrap:wrap">
       <button class="btn btn-gray" onclick="opSave()">💾 שמור</button>
       <button class="btn btn-secondary" onclick="opPdf()" title="טקסט אמיתי — אפשר לחפש ולהעתיק. בחלון שנפתח בחר &quot;שמור כ-PDF&quot;">📄 צור PDF</button>
-      <button class="btn btn-gray" onclick="opPdfImage()" title="יורד מיד בלי חלון, אבל הטקסט בקובץ מצויר כתמונה">⚡ הורדה מיידית</button>
       <button class="btn btn-primary" onclick="opMail()">📤 שלח</button>
     </div>
   </div>
@@ -16543,49 +16542,6 @@ function _pdfDropBlankPages(pdf, canvas, usableWmm, usableHmm) {
   return blanks.length;
 }
 
-// עד כה: html2canvas צילם את המסמך ו-jsPDF הדביק את הצילום. התוצאה
-// הייתה ארבעה עמודים שכל אחד מהם תמונה אחת, בלי שכבת טקסט כלל.
-// עכשיו מדפיסים את ה-HTML עצמו. המשתמש בוחר "שמור כ-PDF" בחלון
-// ההדפסה — צעד אחד נוסף, ובתמורה מסמך משפטי אמיתי.
-// המסלול הישן, שנשמר כרשת ביטחון: html2canvas מצלם את המסמך ו-jsPDF
-// מדביק את הצילום. הקובץ יורד מיד ובלי תלות בשום שירות — אבל התוצר
-// הוא תמונה: אי אפשר לחפש בו, אי אפשר להעתיק ממנו, והעברית נשברת בו.
-// משתמשים בו רק כשאין דרך טובה יותר, ואומרים למשתמש למה.
-async function opPdfImage() {
-  if (!opVal('plate') && !opVal('case')) { toast('הזן מספר רישוי או מספר תיק', true); return; }
-  // html2canvas מצלם ריק כשמעבירים לו אלמנט שהוא עצמו position:absolute
-  // מחוץ למסך. לכן המעטפת מוסתרת, והמסמך עצמו הוא ילד רגיל בזרימה —
-  // בדיוק הדפוס שעובד בשאר הדוחות במערכת.
-  // אלמנט שממוקם ב--9999px מאלץ את html2canvas לחשב היסטים בעצמו, ושם
-  // נוצר החיתוך בקצה. שקוף ובתוך המסך — אותה תוצאה, בלי חישוב היסטים.
-  const holder = document.createElement('div');
-  holder.style.cssText = 'position:fixed;left:0;top:0;width:760px;background:#fff;opacity:0;z-index:-1;pointer-events:none';
-  const doc = document.createElement('div');
-  doc.setAttribute('dir', 'rtl');
-  doc.style.cssText = "width:720px;background:#fff;overflow:hidden;letter-spacing:normal;word-spacing:normal;" +
-    "font-family:Arial,'Segoe UI','Arial Hebrew','Heebo',sans-serif";
-  doc.innerHTML = opHtml();
-  holder.appendChild(doc);
-  document.body.appendChild(holder);
-  toast('מכין את חוות הדעת…');
-  try {
-    await (document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve());
-    const worker = html2pdf().set({
-      margin: [12, 10, 12, 10],
-      image: { type: 'jpeg', quality: 0.92 },
-      // בלי כפיית width/windowWidth — html2canvas מודד את האלמנט עצמו,
-      // ולכן אין פער בין מה שנמדד למה שצולם.
-      html2canvas: { scale: 2, backgroundColor: '#ffffff' },
-      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-      pagebreak: { mode: ['css', 'legacy'], before: '.op-brk', avoid: ['tr', 'img'] }
-    }).from(doc).toPdf();
-    const pdf = await worker.get('pdf');
-    const removed = _pdfDropBlankPages(pdf, await worker.get('canvas'), 190, 273);
-    pdf.save('חוות דעת ' + (opVal('case') || opVal('plate')) + '.pdf');
-    toast('חוות הדעת נוצרה ✓' + (removed ? ' (הוסרו ' + removed + ' עמודים ריקים)' : ''));
-  } catch(e) { console.log('opPdf', e); toast('שגיאה ביצירת PDF', true); }
-  finally { document.body.removeChild(holder); }
-}
 
 async function opPdf() {
   if (!opVal('plate') && !opVal('case')) { toast('הזן מספר רישוי או מספר תיק', true); return; }
