@@ -287,6 +287,22 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
 .task-check{width:18px;height:18px;flex-shrink:0;margin-top:1px;cursor:pointer;accent-color:var(--green)}
 .task-done{text-decoration:line-through;color:var(--muted)}
 /* Toast */
+/* ── הדפסת חוות דעת ──
+   מנוע ההדפסה של הדפדפן מייצר את ה-PDF, ולכן הטקסט נשאר טקסט: נבחר,
+   נחפש, מועתק, והעברית מסודרת נכון. html2canvas צייר את המסמך כתמונה,
+   ובדרך הוא פירק את השורות בעצמו — משם המילים המחוברות והנקודתיים
+   שקפצו ממקומן, ומשם גם הרווח הענק בראש העמוד הראשון. בחוות דעת
+   משפטית מסמך שהוא תמונה גם אינו ניתן לחיפוש ואינו נקרא במערכות. */
+#op-print{display:none}
+@media print{
+  body.op-printing>*:not(#op-print){display:none!important}
+  body.op-printing #op-print{display:block!important}
+  body.op-printing .op-pg{break-after:page;page-break-after:always}
+  body.op-printing .op-pg:last-child{break-after:auto;page-break-after:auto}
+  body.op-printing table,body.op-printing tr,body.op-printing img{break-inside:avoid;page-break-inside:avoid}
+  body.op-printing{-webkit-print-color-adjust:exact;print-color-adjust:exact;background:#fff}
+  @page{size:A4;margin:12mm 10mm}
+}
 .toast{position:fixed;bottom:82px;left:12px;right:12px;margin-inline:auto;width:max-content;transform:scale(.92);background:#059669;color:#fff;padding:12px 28px;border-radius:18px;font-weight:700;font-size:0.92rem;opacity:0;transition:opacity .25s,transform .25s;z-index:999;white-space:normal;max-width:min(90vw,460px);text-align:center;line-height:1.5;pointer-events:none;box-shadow:0 6px 20px rgba(0,0,0,.22)}
 .toast.show{opacity:1;transform:scale(1)}
 .toast.err{background:#dc2626}
@@ -16188,6 +16204,13 @@ async function opImportHandoff() {
     OP_DMG = h.items.map(x => ({ kind: x.kind || 'תק׳', desc: x.desc || '', sku: '', cost: x.cost || '' }));
     opRenderDmg();
   }
+  // תמונות מצורפות ולא מחליפות: תיק שכבר נפתחו בו תמונות ידנית לא
+  // מאבד אותן, ותמונה שכבר נקלטה אינה נכפלת בייבוא חוזר.
+  (h.photos || []).forEach(ph => {
+    if (ph && ph.b64 && !OP_PHOTOS.some(x => x.b64 === ph.b64))
+      OP_PHOTOS.push({ b64: ph.b64, caption: ph.caption || '' });
+  });
+  if ((h.photos || []).length) opRenderPhotos();
   if (h.paint) set('paint', h.paint);
   if (h.panel) set('panel', h.panel);
   opCalc();
@@ -16439,40 +16462,35 @@ function _pdfDropBlankPages(pdf, canvas, usableWmm, usableHmm) {
   return blanks.length;
 }
 
+// עד כה: html2canvas צילם את המסמך ו-jsPDF הדביק את הצילום. התוצאה
+// הייתה ארבעה עמודים שכל אחד מהם תמונה אחת, בלי שכבת טקסט כלל.
+// עכשיו מדפיסים את ה-HTML עצמו. המשתמש בוחר "שמור כ-PDF" בחלון
+// ההדפסה — צעד אחד נוסף, ובתמורה מסמך משפטי אמיתי.
 async function opPdf() {
   if (!opVal('plate') && !opVal('case')) { toast('הזן מספר רישוי או מספר תיק', true); return; }
-  // html2canvas מצלם ריק כשמעבירים לו אלמנט שהוא עצמו position:absolute
-  // מחוץ למסך. לכן המעטפת מוסתרת, והמסמך עצמו הוא ילד רגיל בזרימה —
-  // בדיוק הדפוס שעובד בשאר הדוחות במערכת.
-  // אלמנט שממוקם ב--9999px מאלץ את html2canvas לחשב היסטים בעצמו, ושם
-  // נוצר החיתוך בקצה. שקוף ובתוך המסך — אותה תוצאה, בלי חישוב היסטים.
-  const holder = document.createElement('div');
-  holder.style.cssText = 'position:fixed;left:0;top:0;width:760px;background:#fff;opacity:0;z-index:-1;pointer-events:none';
-  const doc = document.createElement('div');
-  doc.setAttribute('dir', 'rtl');
-  doc.style.cssText = "width:720px;background:#fff;overflow:hidden;letter-spacing:normal;word-spacing:normal;" +
-    "font-family:Arial,'Segoe UI','Arial Hebrew','Heebo',sans-serif";
-  doc.innerHTML = opHtml();
-  holder.appendChild(doc);
-  document.body.appendChild(holder);
-  toast('מכין את חוות הדעת…');
-  try {
-    await (document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve());
-    const worker = html2pdf().set({
-      margin: [12, 10, 12, 10],
-      image: { type: 'jpeg', quality: 0.92 },
-      // בלי כפיית width/windowWidth — html2canvas מודד את האלמנט עצמו,
-      // ולכן אין פער בין מה שנמדד למה שצולם.
-      html2canvas: { scale: 2, backgroundColor: '#ffffff' },
-      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
-      pagebreak: { mode: ['css', 'legacy'], before: '.op-brk', avoid: ['tr', 'img'] }
-    }).from(doc).toPdf();
-    const pdf = await worker.get('pdf');
-    const removed = _pdfDropBlankPages(pdf, await worker.get('canvas'), 190, 273);
-    pdf.save('חוות דעת ' + (opVal('case') || opVal('plate')) + '.pdf');
-    toast('חוות הדעת נוצרה ✓' + (removed ? ' (הוסרו ' + removed + ' עמודים ריקים)' : ''));
-  } catch(e) { console.log('opPdf', e); toast('שגיאה ביצירת PDF', true); }
-  finally { document.body.removeChild(holder); }
+  let box = document.getElementById('op-print');
+  if (!box) {
+    box = document.createElement('div');
+    box.id = 'op-print';
+    box.setAttribute('dir', 'rtl');
+    document.body.appendChild(box);
+  }
+  box.innerHTML = opHtml();
+  await (document.fonts && document.fonts.ready ? document.fonts.ready : Promise.resolve());
+  document.body.classList.add('op-printing');
+  let cleaned = false;
+  const done = () => {
+    if (cleaned) return;
+    cleaned = true;
+    document.body.classList.remove('op-printing');
+    box.innerHTML = '';
+    window.removeEventListener('afterprint', done);
+  };
+  window.addEventListener('afterprint', done);
+  toast('בחלון ההדפסה בחר "שמור כ-PDF"');
+  try { window.print(); } catch(err) { console.log('opPdf', err); done(); toast('לא ניתן לפתוח את חלון ההדפסה', true); return; }
+  // רשת ביטחון: בדפדפנים מסוימים afterprint אינו נורה כשמבטלים
+  setTimeout(done, 120000);
 }
 
 function opMail() {

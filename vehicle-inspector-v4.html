@@ -1671,6 +1671,11 @@ function opinionPayloadFrom(record) {
     insurance: record.insurance, date: record.date, incidentDate: record.incidentDate,
     location: record.location, notes: record.notes,
     items: (record.items || []).map(r => ({ desc: r.part, kind: r.type || 'תק׳', cost: r.parts })),
+    // תמונת הנזק לא נסעה עם ההעברה, ולכן התיק בחוות דעת נפתח בלי
+    // תמונות — ובחוות דעת משפטית התיעוד הוויזואלי הוא חלק מהמסמך.
+    // התמונה כבר דחוסה ל-900 פיקסל ו-JPEG 0.72 בעת הצילום, ולכן היא
+    // נכנסת בנוחות במגבלת המסמך בענן.
+    photos: (record.photo && record.photo.data) ? [{ b64: record.photo.data, caption: '' }] : [],
     paint: (record.works || {}).paint || 0,
     panel: ((record.works || {}).body || 0) + ((record.works || {}).electric || 0) + ((record.works || {}).extra || 0)
   };
