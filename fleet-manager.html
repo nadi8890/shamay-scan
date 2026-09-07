@@ -1418,7 +1418,7 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
       <div class="op-grid" style="margin-top:11px">
         <div class="modal-row"><label>עבודות צביעה (₪)</label><input id="op-paint" type="number" oninput="opCalc()"></div>
         <div class="modal-row"><label>עבודות פחחות (₪)</label><input id="op-panel" type="number" oninput="opCalc()"></div>
-        <div class="modal-row"><label>מע״מ (%)</label><input id="op-vat" type="number" step="0.01" value="18" oninput="opCalc()"></div>
+        <div class="modal-row"><label>מע״מ (%)</label><div style="display:flex;align-items:center;gap:10px"><input id="op-vat" type="number" step="0.01" value="18" oninput="opCalc()" style="flex:1;min-width:0"><label style="display:flex;align-items:center;gap:5px;font-weight:600;font-size:0.78rem;white-space:nowrap;cursor:pointer"><input id="op-novat" type="checkbox" onchange="opNoVat()" style="width:16px;height:16px"> ללא מע״מ</label></div></div>
       </div>
       <div id="op-total" class="op-total"></div>
     </div>
@@ -1427,6 +1427,7 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
       <div class="card-title">📝 הערות חוות הדעת</div>
       <div id="op-note-rows" class="op-rows"></div>
       <button class="btn btn-gray" style="margin-top:7px" onclick="opAddNote()">+ פסקה</button>
+      <button class="btn btn-gray" style="margin-top:7px" onclick="opOpenParagraphs()" title="פסקאות שנשמרו לשימוש חוזר">📚 פסקאות שמורות</button>
       <div class="modal-row" style="margin-top:9px"><label>לוטה בזאת</label><input id="op-attached" type="text" value="תמונות נזק, צילום רישיון רכב, שכ״ט שמאי"></div>
     </div>
 
@@ -1443,6 +1444,9 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
         <div class="modal-row"><label>שם השמאי</label><input id="op-appraiser" type="text"></div>
         <div class="modal-row"><label>מס׳ רישיון שמאי</label><input id="op-license" type="text" style="direction:ltr"></div>
         <div class="modal-row" style="grid-column:1/-1"><label>מקום עבודה</label><input id="op-office" type="text"></div>
+        <div class="modal-row"><label>טלפון</label><input id="op-aphone" type="tel" inputmode="tel" style="direction:ltr"></div>
+        <div class="modal-row"><label>דוא״ל</label><input id="op-amail" type="email" inputmode="email" style="direction:ltr"></div>
+        <div class="modal-row" style="grid-column:1/-1"><label>כתובת המשרד</label><input id="op-aaddr" type="text"></div>
       </div>
       <div style="margin-top:11px">
         <label style="font-size:0.8rem;font-weight:600;color:var(--muted)">השכלה וניסיון</label>
@@ -15559,6 +15563,16 @@ function renderAgentMsgs(showTyping = false) {
     </div>
   </div>
 </div>
+<div class="modal-overlay" id="op-para-modal">
+  <div class="modal" style="max-width:560px">
+    <h3>📚 פסקאות שמורות</h3>
+    <p style="font-size:0.8rem;color:var(--muted);margin:6px 0 10px">פסקאות שאתה משתמש בהן שוב ושוב. לחיצה על "הוסף" מכניסה את הפסקה לחוות הדעת הפתוחה. כדי לשמור פסקה חדשה — כתוב אותה בהערות ולחץ על 💾 שלידה.</p>
+    <div id="op-para-body" style="max-height:56vh;overflow:auto"></div>
+    <div class="btn-row">
+      <button class="btn btn-gray" onclick="closeModal('op-para-modal')">סגור</button>
+    </div>
+  </div>
+</div>
 <div class="modal-overlay" id="health-modal">
   <div class="modal" style="max-width:520px">
     <h3>🩺 בדיקת תקינות</h3>
@@ -15659,7 +15673,7 @@ const OP_FIELDS = ['case','date','casetype','damagetype','eventdate','inspdate',
                    'owner','phone','address','client','claim',
                    'plate','model','vtype','regdate','km','vin','modelcode','liccode','specs',
                    'basevalue','pricelist','ratiobase','focus','paint','panel','vat',
-                   'attached','appraiser','license','office','declaration',
+                   'attached','appraiser','license','office','declaration','aphone','amail','aaddr',
                    // מעקב עסקי: מצב התיק ושכר הטרחה. בלעדיהם אין דרך לדעת
                    // מה פתוח ומה טרם שולם, וזה בדיוק מה שחסר בשמאית.
                    'status','fee','feepaid','delivered'];
@@ -15690,12 +15704,65 @@ function opRenderNotes() {
   const box = document.getElementById('op-note-rows');
   if (!box) return;
   box.innerHTML = OP_NOTES.map((t, i) =>
-    '<div class="op-line" style="grid-template-columns:1fr 34px;align-items:start">' +
+    '<div class="op-line" style="grid-template-columns:1fr 34px 34px;align-items:start">' +
       '<textarea rows="2" style="border:1px solid var(--border);border-radius:7px;padding:6px 8px;' +
         'font-family:Heebo,sans-serif;font-size:0.8rem;background:var(--card);color:var(--text);resize:vertical" ' +
         'oninput="OP_NOTES[' + i + ']=this.value">' + esc(t) + '</textarea>' +
+      '<button class="op-x" type="button" title="שמור את הפסקה לשימוש חוזר" onclick="opSaveParagraph(' + i + ')">💾</button>' +
       '<button class="op-x" type="button" onclick="OP_NOTES.splice(' + i + ',1);opRenderNotes()">✕</button>' +
     '</div>').join('');
+}
+
+// ── פסקאות שמורות ──
+// פסקה שחוזרת בכל חוות דעת נכתבה עד כה מחדש בכל פעם. הספרייה נשמרת עם
+// פרטי השמאי, כלומר ברמת החשבון ולא ברמת התיק, ולכן היא זמינה בכל תיק.
+function opParagraphs() { return (OP_PROFILE && OP_PROFILE.paragraphs) || []; }
+async function _opSaveParagraphs(list) {
+  if (READ_ONLY) return _roBlock();
+  const prof = Object.assign({}, OP_PROFILE, { paragraphs: list });
+  try {
+    await fcol().doc('main').set({ appraiser: prof }, { merge: true });
+    OP_PROFILE = prof;
+    return true;
+  } catch (err) { console.log('paragraphs', err); toast('השמירה נכשלה: ' + (err.code || err.message || 'שגיאה'), true); return false; }
+}
+async function opSaveParagraph(i) {
+  const t = String(OP_NOTES[i] || '').trim();
+  if (!t) { toast('הפסקה ריקה', true); return; }
+  const list = opParagraphs().slice();
+  if (list.indexOf(t) > -1) { toast('הפסקה כבר שמורה ✓'); return; }
+  list.push(t);
+  if (await _opSaveParagraphs(list)) toast('📚 הפסקה נשמרה — תמצא אותה ב"פסקאות שמורות"');
+}
+function opOpenParagraphs() {
+  const box = document.getElementById('op-para-body');
+  const list = opParagraphs();
+  box.innerHTML = list.length
+    ? list.map((t, i) =>
+        '<div style="border:1px solid var(--border);border-radius:9px;padding:9px 11px;margin-bottom:8px">' +
+          '<div style="font-size:0.82rem;line-height:1.6;margin-bottom:7px">' + esc(t) + '</div>' +
+          '<div style="display:flex;gap:6px">' +
+            '<button class="btn btn-secondary" style="padding:4px 12px;font-size:0.76rem" onclick="opInsertParagraph(' + i + ')">הוסף לחוות הדעת</button>' +
+            '<button class="btn btn-gray" style="padding:4px 12px;font-size:0.76rem" onclick="opDeleteParagraph(' + i + ')">מחק</button>' +
+          '</div></div>').join('')
+    : '<div style="color:var(--muted);font-size:0.85rem">עדיין לא שמרת פסקאות. כתוב פסקה בהערות ולחץ על 💾 שלידה.</div>';
+  document.getElementById('op-para-modal').classList.add('open');
+}
+function opInsertParagraph(i) {
+  const t = opParagraphs()[i];
+  if (!t) return;
+  if (OP_NOTES.indexOf(t) > -1) { toast('הפסקה כבר נמצאת בחוות הדעת', true); return; }
+  OP_NOTES.push(t);
+  opRenderNotes();
+  closeModal('op-para-modal');
+  toast('הפסקה נוספה ✓');
+}
+async function opDeleteParagraph(i) {
+  const list = opParagraphs().slice();
+  if (i < 0 || i >= list.length) return;
+  if (!confirm('למחוק את הפסקה מהספרייה?\n\nחוות דעת שכבר נכתבו לא ישתנו.')) return;
+  list.splice(i, 1);
+  if (await _opSaveParagraphs(list)) { opOpenParagraphs(); toast('הפסקה נמחקה'); }
 }
 
 function opRenderAdj() {
@@ -15799,6 +15866,11 @@ function opNew() {
   // הכניסה "נופר אנרגיה" לכותרת של כל חוות דעת.
   if (opEl('office'))    opEl('office').value    = OP_PROFILE.office || opDefaultOffice();
   if (opEl('declaration')) opEl('declaration').value = OP_PROFILE.declaration || OP_DECLARATION;
+  if (opEl('aphone')) opEl('aphone').value = OP_PROFILE.phone || '';
+  if (opEl('amail'))  opEl('amail').value  = OP_PROFILE.mail  || '';
+  if (opEl('aaddr'))  opEl('aaddr').value  = OP_PROFILE.addr  || '';
+  if (opEl('novat')) opEl('novat').checked = false;
+  if (opEl('vat')) opEl('vat').disabled = false;
   OP_EDU   = (OP_PROFILE.education && OP_PROFILE.education.length) ? OP_PROFILE.education.slice() : OP_EDU_DEFAULT.slice();
   OP_NOTES = OP_NOTE_DEFAULT.slice();
   const g = opEl('gov'); if (g) g.textContent = '';
@@ -15821,9 +15893,10 @@ let OP_PROFILE = {};   // פרטי השמאי — נשמרים ב-main.appraiser
 // להם כפתור שמירה משלהם.
 async function opSaveProfileNow() {
   if (READ_ONLY) return _roBlock();
-  const prof = { appraiser: opVal('appraiser'), license: opVal('license'),
-                 office: opVal('office'), education: OP_EDU.filter(Boolean),
-                 declaration: opVal('declaration') };
+  const prof = Object.assign({}, OP_PROFILE, {
+    appraiser: opVal('appraiser'), license: opVal('license'), office: opVal('office'),
+    phone: opVal('aphone'), mail: opVal('amail'), addr: opVal('aaddr'),
+    education: OP_EDU.filter(Boolean), declaration: opVal('declaration') });
   if (!prof.appraiser && !prof.license && !prof.office) {
     toast('מלא/י לפחות שם שמאי או מספר רישיון', true); return;
   }
@@ -15845,10 +15918,30 @@ async function opSaveProfileNow() {
   }
 }
 
+// תיק פטור ממע״מ. סימון התיבה מאפס את השיעור ונועל את השדה, כדי שלא
+// יישאר בו ערך שנראה פעיל אך אינו מחושב. הסרת הסימון מחזירה 18%.
+let _opVatBefore = null;
+function opNoVat() {
+  const box = opEl('novat'), f = opEl('vat');
+  if (!box || !f) return;
+  if (box.checked) {
+    _opVatBefore = f.value;
+    f.value = '0';
+    f.disabled = true;
+  } else {
+    f.value = (_opVatBefore && _opVatBefore !== '0') ? _opVatBefore : '18';
+    f.disabled = false;
+  }
+  opCalc();
+}
+
+// הפרופיל נבנה מעל הקיים ולא מאפס: הוא מחזיק גם את ספריית הפסקאות,
+// ואובייקט חדש היה מוחק אותה בכל שמירה של פרטי השמאי.
 function opSaveProfile() {
-  const prof = { appraiser: opVal('appraiser'), license: opVal('license'),
-                 office: opVal('office'), education: OP_EDU.filter(Boolean),
-                 declaration: opVal('declaration') };
+  const prof = Object.assign({}, OP_PROFILE, {
+    appraiser: opVal('appraiser'), license: opVal('license'), office: opVal('office'),
+    phone: opVal('aphone'), mail: opVal('amail'), addr: opVal('aaddr'),
+    education: OP_EDU.filter(Boolean), declaration: opVal('declaration') });
   if (JSON.stringify(prof) === JSON.stringify(OP_PROFILE)) return;
   OP_PROFILE = prof;
   fcol().doc('main').set({ appraiser: prof }, { merge: true })
@@ -16356,7 +16449,8 @@ function opHtml() {
   pgAppraiser = (
     _opHead(r, 'פרטי השמאי והצהרה') +
     _opSection('פרטי השמאי', _opTable([
-      ['שם השמאי', r.appraiser], ['מקום עבודתו', r.office]
+      ['שם השמאי', r.appraiser], ['מס׳ רישיון', r.license], ['מקום עבודתו', r.office],
+      ['כתובת', r.aaddr], ['טלפון', r.aphone], ['דוא״ל', r.amail]
     ]) + ((r.edu||[]).length ? '<div style="margin-top:7px;font-size:11.5px;line-height:1.9"><b>השכלתו וניסיונו:</b><br>' +
        r.edu.map(t => '• ' + esc(t)).join('<br>') + '</div>' : '')) +
     _opSection('הצהרה משפטית', '<div style="font-size:11.5px;line-height:1.85">' + esc(r.declaration || OP_DECLARATION) + '</div>') +
