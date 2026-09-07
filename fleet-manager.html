@@ -11802,7 +11802,7 @@ async function saveManualDoc() {
 // שם הקובץ נבנה מהמסמך עצמו: סוג · רכב · תאריך · מספר סידורי
 // כותרת המסמך אינה תמיד שמורה ברשומה: היא קיימת רק בתצוגה מפוצלת.
 // לכן היא נגזרת מסוג הרשומה, ובאין כזה — מהמגירה שממנה ההורדה יצאה.
-const _CAT_TITLE = { vreg: 'רישיון רכב', vins: 'תעודת ביטוח', ldocs: 'רישיון נהיגה',
+const _CAT_TITLE = { vreg: 'רישיון רכב', vins: 'תעודת ביטוח', ldocs: 'רישיון נהיגה', ltraffic: 'אישור עבר תעבורתי',
                      vun: 'מסמך רכב', reqs: 'מסמך שהתבקש' };
 function _empDocName(doc, fi, ext, cat) {
   const title = doc.title || (doc.reqType && _REQ_TITLE[doc.reqType]) ||
@@ -11887,7 +11887,12 @@ async function openEmployeeDocs(plate, driverOnly){
     const _vs = vdocSplit(_vall);
     const D = window._EMPDOCS = { decls:byDriver(decls), vall:_vall,
       vreg:_vs.reg, vins:_vs.ins, vun:_vs.un, vgen:_vs.gen || [], vcerts:_vs.certs || {},
-      ldocs:byDriver(_m.ldocs), reqs:reqSel, insps:byPlate(insps) };
+      // אישור עבר תעבורתי הוא מסמך של הנהג, כמו רישיון הנהיגה, ולכן הוא
+      // נשמר עם הנהג ועובר איתו מרכב לרכב. עד כה הוא נערם בתוך רובריקת
+      // רישיון הנהיגה ולא היה לו מקום משלו.
+      ldocs:byDriver(_m.ldocs).filter(r => r.reqType !== 'traffic'),
+      ltraffic:byDriver(_m.ldocs).filter(r => r.reqType === 'traffic'),
+      reqs:reqSel, insps:byPlate(insps) };
     // כפתורי הצפייה וההורדה פונים ל-_EMPDOCS[cat], ולכן כל אישור נחשף
     // גם כמערך שטוח בשם vcert_<key> ולא רק בתוך vcerts
     Object.keys(D.vcerts || {}).forEach(k => { D['vcert_' + k] = D.vcerts[k]; });
@@ -11959,6 +11964,8 @@ async function openEmployeeDocs(plate, driverOnly){
         + grp('driver', '👤',
             sec('🪪','רישיון נהיגה', D.ldocs.length, imgRow(D.ldocs,'ldocs'),
                 addBtn("openManualDoc('license')", 'העלה רישיון נהיגה'), 'driver')
+          + sec('📋','אישור עבר תעבורתי', D.ltraffic.length, imgRow(D.ltraffic,'ltraffic'),
+                addBtn("openManualDoc('traffic')", 'העלה אישור עבר תעבורתי'), 'driver')
           + sec('📎','מסמכים נוספים', D.vgen.length, imgRow(D.vgen, 'vgen'),
                 addBtn("openManualDoc('general')", 'העלה מסמך נוסף'), 'driver')
           + '<div style="font-size:0.7rem;color:#7c3aed;opacity:.75">לנהג הזה אין רכב משויך, ולכן מוצגים מסמכי הנהג בלבד. מסמכי רכב ייווספו כשיוקצה לו רכב.</div>');
@@ -11971,6 +11978,8 @@ async function openEmployeeDocs(plate, driverOnly){
       + grp('driver', '👤',
             sec('🪪','רישיון נהיגה', D.ldocs.length, imgRow(D.ldocs,'ldocs'),
                 addBtn("openManualDoc('license')", 'העלה רישיון נהיגה'), 'driver')
+          + sec('📋','אישור עבר תעבורתי', D.ltraffic.length, imgRow(D.ltraffic,'ltraffic'),
+                addBtn("openManualDoc('traffic')", 'העלה אישור עבר תעבורתי'), 'driver')
           + `<div style="font-size:0.7rem;color:#7c3aed;opacity:.75">עוברים עם העובד — גם אם יחליף רכב</div>`)
       + grp('vehicle', '🚗',
             sec('🚗','רישיון רכב (טסט)', D.vreg.length, imgRow(D.vreg,'vreg'),
