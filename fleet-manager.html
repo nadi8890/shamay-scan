@@ -13310,6 +13310,82 @@ let _authBootRunning = false;
 // תקוע מקומית. עד כה בדיקת התקינות רק דיווחה עליו, והמשתמש היה צריך
 // לחזור אל הכלי כדי לשחרר אותו — צעד שאינו מובן מאליו. ההתחברות היא
 // בדיוק הרגע שבו נודע לאיזה חשבון האומדן שייך, ולכן הוא נשלח כאן.
+// ═══ קליטת דיווחים מהבוט ═══
+// העובד מדווח בבוט על רכב חליפי, על החזרתו, או על קריאה למוסך. הבוט
+// אינו כותב לנתוני החברה — הוא מגיש בקשה בודדת, וכאן היא נקלטת אל
+// הטבלה הנכונה ונמחקת. כך העובד אינו יכול לגעת בשום דבר קיים, ובכל
+// זאת הדיווח מגיע מעצמו בלי שאיש יקליד אותו מחדש.
+//
+// כל שורה שנוצרת מדיווח מסומנת במקור, כדי שיהיה ברור מאין היא הגיעה
+// וכדי שאפשר יהיה לבדוק מולה חשבונית.
+let _ingestRunning = false;
+async function ingestDriverRequests() {
+  if (_ingestRunning || READ_ONLY || !TENANT_RESOLVED) return 0;
+  _ingestRunning = true;
+  let applied = 0;
+  try {
+    const snap = await fcol().where('type', '==', 'driverreq').get();
+    if (snap.empty) return 0;
+    const rows = [];
+    snap.forEach(d => rows.push({ id: d.id, ref: d.ref, r: d.data() || {} }));
+    rows.sort((a, b) => (a.r.created || 0) - (b.r.created || 0));
+    for (const it of rows) {
+      const r = it.r;
+      const who = String(r.driver || '').trim();
+      const plate = String(r.plate || '').replace(/\D/g, '');
+      if (!plate) { await it.ref.delete(); continue; }
+
+      if (r.kind === 'replacement') {
+        // שורה חדשה יורדת לתחתית, כמו כל שורה שנוספת ידנית
+        REPLACEMENTS.push({
+          employee: who, plate: r.plate || '', typeCompany: r.company || '',
+          fromDate: r.fromDate || '', toDate: '',
+          notes: 'דווח בבוט ' + (r.dateStr || ''), source: 'bot'
+        });
+        applied++;
+
+      } else if (r.kind === 'return') {
+        // סוגרים את השורה הפתוחה של אותו עובד ואותו רכב. אם אין כזו,
+        // נרשמת שורה חדשה — עדיף תיעוד חלקי מאשר דיווח שנעלם.
+        const i = (REPLACEMENTS || []).map((x, k) => ({ x, k }))
+          .filter(o => String(o.x.plate || '').replace(/\D/g, '') === plate && !String(o.x.toDate || '').trim())
+          .map(o => o.k).pop();
+        if (i != null) {
+          REPLACEMENTS[i].toDate = r.toDate || '';
+          REPLACEMENTS[i].notes = [REPLACEMENTS[i].notes, 'הוחזר לפי דיווח הנהג'].filter(Boolean).join(' · ');
+        } else {
+          REPLACEMENTS.push({
+            employee: who, plate: r.plate || '', typeCompany: '',
+            fromDate: '', toDate: r.toDate || '',
+            notes: 'החזרה שדווחה בבוט ' + (r.dateStr || ''), source: 'bot'
+          });
+        }
+        applied++;
+
+      } else if (r.kind === 'garage') {
+        const nextId = (INVOICES || []).reduce((m, x) => Math.max(m, Number(x.id) || 0), 0) + 1;
+        INVOICES.push({
+          id: nextId, plate: r.plate || '', garage: r.garage || '',
+          date: r.toDate || r.fromDate || r.dateStr || '',
+          workType: r.workType || '', driver: who, source: 'bot'
+        });
+        applied++;
+      }
+      await it.ref.delete();
+    }
+    if (applied) {
+      await saveToFirestore('replacements', REPLACEMENTS);
+      await saveToFirestore('returns', RETURNS);
+      await saveToFirestore('invoices', INVOICES);
+      try { renderReturns(); } catch (e) {}   // מרנדר את שתי הטבלאות
+      try { renderInvoices(); } catch (e) {}
+      toast('📥 נקלטו ' + applied + ' דיווחים מהנהגים');
+    }
+  } catch (e) { console.log('ingest driver requests', e); }
+  finally { _ingestRunning = false; }
+  return applied;
+}
+
 async function _flushPendingOpHandoff() {
   let pend = null;
   try { pend = JSON.parse(localStorage.getItem('op_handoff_pending') || 'null'); } catch(e) {}
@@ -13337,6 +13413,9 @@ async function _bootFromUser(user) {
     clearTimeout(window._loginWatchdog);
     bootApp();
     _flushPendingOpHandoff();
+    ingestDriverRequests();
+    // דיווח שנשלח בזמן שהמערכת פתוחה ייקלט בלי שצריך לרענן
+    setInterval(ingestDriverRequests, 120000);
   } finally { _authBootRunning = false; }
 }
 
