@@ -15176,8 +15176,64 @@ function openEditReplacement(origIdx) {
   document.getElementById('re-fromDate').value = r.fromDate||'';
   document.getElementById('re-toDate').value = r.toDate||'';
   document.getElementById('re-notes').value = r.notes||'';
+  _replFillLists();   // רשימות ההשלמה נבנות בפתיחה, כדי לשקף את המצב העדכני
   document.getElementById('repl-edit-modal').classList.add('open');
 }
+// ═══ השלמה הדדית: עובד ↔ רישוי ═══
+// אותו עובד ואותו רכב חליפי חוזרים שוב ושוב — הארכה, החזרה, תיקון
+// תאריך — ובכל פעם הכל הוקלד מחדש. עכשיו הקלדה של אחד מהם משלימה את
+// השני ואת פרטי הרכב, מתוך מה שכבר רשום במערכת.
+//
+// סדר החיפוש: קודם רשומות חליפיים והחזרות, כי שם יושב הרכב החליפי
+// עצמו, ורק אחר כך הצי — הרכב החליפי לרוב שכור ואינו בצי כלל.
+// שדה שכבר הוקלד לעולם אינו נדרס.
+function _replSources() {
+  const out = [];
+  (REPLACEMENTS || []).forEach(r => out.push({ employee: r.employee, plate: r.plate,
+    company: r.typeCompany, make: '', model: '' }));
+  (RETURNS || []).forEach(r => out.push({ employee: r.employee, plate: r.plate,
+    company: '', make: r.make, model: r.model }));
+  (VEHICLES || []).forEach(v => out.push({ employee: v.driverName, plate: v.plate,
+    company: v.company, make: v.make, model: v.model }));
+  return out;
+}
+function _replFillLists() {
+  const emps = new Set(), plates = new Set();
+  _replSources().forEach(s => {
+    const e = String(s.employee || '').trim();
+    const pl = String(s.plate || '').trim();
+    if (e) emps.add(e);
+    if (pl) plates.add(pl);
+  });
+  const put = (id, set) => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = [...set].sort().map(v => '<option value="' + esc(v) + '">').join('');
+  };
+  put('repl-emps', emps);
+  put('repl-plates', plates);
+}
+function replLink(form, from) {
+  const pre = form === 'ret' ? 'rete-' : 're-';
+  const g = k => document.getElementById(pre + k);
+  const setIfEmpty = (k, v) => { const el = g(k); if (el && !el.value.trim() && v) el.value = String(v).trim(); };
+  const src = _replSources();
+  let hit = null;
+  if (from === 'plate') {
+    const pd = String((g('plate') || {}).value || '').replace(/D/g, '');
+    if (pd.length < 5) return;
+    hit = src.find(s => String(s.plate || '').replace(/D/g, '') === pd);
+    if (hit) setIfEmpty('employee', driverKey(hit.employee));
+  } else {
+    const dk = driverKey((g('employee') || {}).value || '');
+    if (dk.length < 2) return;
+    hit = src.find(s => driverKey(s.employee) === dk);
+    if (hit) setIfEmpty('plate', hit.plate);
+  }
+  if (!hit) return;
+  if (form === 'ret') { setIfEmpty('make', hit.make); setIfEmpty('model', hit.model); }
+  else setIfEmpty('typeCompany', hit.company);
+}
+
 function saveEditReplacement() {
   const idx = parseInt(document.getElementById('repl-edit-idx').value);
   if (isNaN(idx) || !REPLACEMENTS[idx]) return;
@@ -15211,6 +15267,7 @@ function openEditReturn(origIdx) {
   document.getElementById('rete-toDate').value = r.toDate||'';
   document.getElementById('rete-reason').value = r.reason||'';
   document.getElementById('rete-notes').value = r.notes||'';
+  _replFillLists();   // רשימות ההשלמה נבנות בפתיחה, כדי לשקף את המצב העדכני
   document.getElementById('ret-edit-modal').classList.add('open');
 }
 function saveEditReturn() {
@@ -15285,8 +15342,8 @@ function renderAgentMsgs(showTyping = false) {
 <h3>✏️ ערוך רכב חליפי</h3>
 <input type="hidden" id="repl-edit-idx">
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-<div class="modal-row"><label>עובד</label><input id="re-employee" type="text"></div>
-<div class="modal-row"><label>רישוי רכב חליפי</label><input id="re-plate" type="text"></div>
+<div class="modal-row"><label>עובד</label><input id="re-employee" type="text" list="repl-emps" autocomplete="off" oninput="replLink('repl','employee')"></div>
+<div class="modal-row"><label>רישוי רכב חליפי</label><input id="re-plate" type="text" list="repl-plates" autocomplete="off" oninput="replLink('repl','plate')"></div>
 <div class="modal-row"><label>סוג / חברה</label><input id="re-typeCompany" type="text"></div>
 <div class="modal-row"><label>מתאריך</label><input id="re-fromDate" type="text"></div>
 <div class="modal-row"><label>עד תאריך</label><input id="re-toDate" type="text"></div>
@@ -15305,8 +15362,10 @@ function renderAgentMsgs(showTyping = false) {
 <h3>✏️ ערוך רשומת אחזקה</h3>
 <input type="hidden" id="ret-edit-idx">
 <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
-<div class="modal-row"><label>עובד</label><input id="rete-employee" type="text"></div>
-<div class="modal-row"><label>רישוי רכב</label><input id="rete-plate" type="text"></div>
+<div class="modal-row"><label>עובד</label><input id="rete-employee" type="text" list="repl-emps" autocomplete="off" oninput="replLink('ret','employee')"></div>
+<div class="modal-row"><label>רישוי רכב</label><input id="rete-plate" type="text" list="repl-plates" autocomplete="off" oninput="replLink('ret','plate')"></div>
+<datalist id="repl-emps"></datalist>
+<datalist id="repl-plates"></datalist>
 <div class="modal-row"><label>יצרן</label><input id="rete-make" type="text"></div>
 <div class="modal-row"><label>דגם</label><input id="rete-model" type="text"></div>
 <div class="modal-row"><label>מתאריך</label><input id="rete-fromDate" type="text"></div>
