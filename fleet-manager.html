@@ -5279,19 +5279,39 @@ function sortDrvCol(col) {
 }
 // בורר עמודות לטבלת הנהגים — אותה גישה כמו בטבלת הצי: הסתרה לפי
 // מיקום העמודה, כדי שכותרת, שורת סינון ושורות יישארו מיושרות.
+// הרשימה הזו חייבת לשקף את הטבלה עמודה בעמודה: ההסתרה עובדת לפי מספר
+// מיקום. שתי עמודות — מחלקה ונהלים — נוספו לטבלה ולא נרשמו כאן, ולכן
+// כל מספר מ-3 והלאה הצביע על העמודה הלא נכונה: לחיצה על "סטטוס"
+// הסתירה את "תוקף מידע תעבורתי", והסטטוס נשאר על המסך.
 const DRV_COLS = [
   { i:1,  label:'שם הנהג' },
   { i:2,  label:'משפחה', feat:'splitName' },
-  { i:3,  label:'ת.ז' },         { i:4,  label:'טלפון' },
-  { i:5,  label:'מייל' },        { i:6,  label:'מס׳ רישיון' },
-  { i:7,  label:'תוקף רישיון' }, { i:8,  label:'עבר תעבורתי' },
-  { i:9,  label:'כתובת' },       { i:10, label:'רכבים' },
-  { i:11, label:'תאריך לידה' },  { i:12, label:'סוג נהג' },
-  { i:13, label:'תוקף מידע תעבורתי' }, { i:14, label:'תוקף הצהרת בריאות' },
-  { i:15, label:'סטטוס' },       { i:16, label:'קוד אישי' }
+  { i:3,  label:'מחלקה', feat:'dept' },
+  { i:4,  label:'ת.ז' },         { i:5,  label:'טלפון' },
+  { i:6,  label:'מייל' },        { i:7,  label:'מס׳ רישיון' },
+  { i:8,  label:'תוקף רישיון' }, { i:9,  label:'עבר תעבורתי' },
+  { i:10, label:'נהלים' },       { i:11, label:'כתובת' },
+  { i:12, label:'רכבים' },       { i:13, label:'תאריך לידה' },
+  { i:14, label:'סוג נהג' },     { i:15, label:'תוקף מידע תעבורתי' },
+  { i:16, label:'תוקף הצהרת בריאות' },
+  { i:17, label:'סטטוס' },       { i:18, label:'קוד אישי' }
 ];
 let DRV_HIDDEN_COLS = [];
 try { DRV_HIDDEN_COLS = JSON.parse(localStorage.getItem('fleet_drvHiddenCols')) || []; } catch(e) {}
+// בחירות שנשמרו לפי המספור הישן מצביעות עכשיו על עמודה אחרת. ההסטה
+// מתקנת אותן פעם אחת: מחלקה נכנסה במקום 3, ונהלים במקום 10.
+try {
+  if (Number(localStorage.getItem('fleet_drvColsVer') || 1) < 2) {
+    DRV_HIDDEN_COLS = DRV_HIDDEN_COLS.map(n => {
+      n = Number(n);
+      if (n >= 9) return n + 2;
+      if (n >= 3) return n + 1;
+      return n;
+    });
+    localStorage.setItem('fleet_drvHiddenCols', JSON.stringify(DRV_HIDDEN_COLS));
+    localStorage.setItem('fleet_drvColsVer', '2');
+  }
+} catch(e) {}
 function applyDrvColVisibility() {
   let st = document.getElementById('drv-col-vis-style');
   if (!st) { st = document.createElement('style'); st.id = 'drv-col-vis-style'; document.head.appendChild(st); }
