@@ -13330,7 +13330,8 @@ function _showDriverInbox(list) {
     'border-right:4px solid #2563eb;border-radius:10px;padding:10px 12px;margin-bottom:8px">' +
       '<div style="font-size:1.1rem;line-height:1.3">' + x.icon + '</div>' +
       '<div style="flex:1;min-width:0">' +
-        '<div style="font-weight:800;font-size:0.86rem">' + esc(x.who || 'עובד') + '</div>' +
+        '<div style="font-weight:800;font-size:0.86rem">' + esc(x.who || 'עובד') +
+          (x.unverified ? ' <span style="font-weight:700;font-size:0.68rem;color:#b45309;background:#fef3c7;border-radius:999px;padding:1px 7px">⚠️ שם לא מזוהה</span>' : '') + '</div>' +
         '<div style="font-size:0.8rem;color:#334155;line-height:1.55">' + esc(x.what) + '</div>' +
         (x.when ? '<div style="font-size:0.72rem;color:var(--muted);margin-top:2px">' + esc(x.when) + '</div>' : '') +
       '</div></div>').join('');
@@ -13362,7 +13363,7 @@ async function ingestDriverRequests() {
           fromDate: r.fromDate || '', toDate: '',
           notes: 'דווח בבוט ' + (r.dateStr || ''), source: 'bot'
         });
-        inbox.push({ icon: '🚙', who: who, what: 'קיבל רכב חליפי ' + (r.plate || '') + (r.company || '' ? ' מ' + r.company : ''), when: r.fromDate || '' });
+        inbox.push({ icon: '🚙', who: who, what: 'קיבל רכב חליפי ' + (r.plate || '') + (r.company || '' ? ' מ' + r.company : ''), unverified: r.verified === false, when: r.fromDate || '' });
         applied++;
 
       } else if (r.kind === 'return') {
@@ -13381,7 +13382,7 @@ async function ingestDriverRequests() {
             notes: 'החזרה שדווחה בבוט ' + (r.dateStr || ''), source: 'bot'
           });
         }
-        inbox.push({ icon: '↩️', who: who, what: 'החזיר את הרכב החליפי ' + (r.plate || ''), when: r.toDate || '' });
+        inbox.push({ icon: '↩️', who: who, what: 'החזיר את הרכב החליפי ' + (r.plate || ''), unverified: r.verified === false, when: r.toDate || '' });
         applied++;
 
       } else if (r.kind === 'garage') {
@@ -13391,7 +13392,7 @@ async function ingestDriverRequests() {
           date: r.toDate || r.fromDate || r.dateStr || '',
           workType: r.workType || '', driver: who, source: 'bot'
         });
-        inbox.push({ icon: '🔧', who: who, what: 'פתח קריאה לרכב ' + (r.plate || '') + ': ' + (r.workType || ''), when: r.dateStr || '' });
+        inbox.push({ icon: '🔧', who: who, what: 'פתח קריאה לרכב ' + (r.plate || '') + ': ' + (r.workType || ''), unverified: r.verified === false, when: r.dateStr || '' });
         applied++;
       }
       await it.ref.delete();
