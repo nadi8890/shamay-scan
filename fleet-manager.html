@@ -13675,6 +13675,12 @@ ${VEHICLES.map(v=>`• ${v.plate} | ${v.make} ${v.model} ${v.year||''} | נהג:
 התראות באיחור: ${expiredAlerts.map(a=>`${a.plate}/${a.driver}/${a.type}`).join(', ')||'אין'}
 התראות דחופות: ${soonAlerts.map(a=>`${a.plate}/${a.driver}/${a.daysLeft} ימים`).join(', ')||'אין'}
 
+═══ חשוב מאוד ═══
+שינויי נתונים כבויים. אינך יכול להוסיף, לעדכן, למחוק או להחליף דבר.
+אל תשתמש בתגי ACTION שמשנים נתונים — הם ייחסמו.
+כשמבקשים ממך שינוי: אמור שהשינוי מבוצע ידנית בטבלה, ופרט בדיוק
+אילו שורות לשנות ומה בכל אחת. מותר לך לנווט, לחפש ולייצא.
+
 ═══ פעולות זמינות ═══
 השתמש בתגי ACTION בתגובה (אפשר מספר בו-זמנית). בצע מיד ללא בקשת אישור.
 
@@ -14458,7 +14464,24 @@ async function _agSnapshot(what) {
   } catch (e) { console.log('agent snapshot', e); }
 }
 
+// ═══ מתג ראשי לשינויי נתונים של הסוכן ═══
+// כובה אחרי שהסוכן מחק נהגים, עדכן שדות לא נכונים, וביצע חלק משרשרת
+// החלפות ועצר באמצע — כל אחד מאלה משאיר את הצי במצב שגוי שקשה לאתר.
+// כשהמתג כבוי הסוכן ממשיך לענות, לחפש, לנווט ולייצא; הוא פשוט אינו
+// נוגע בנתונים. להחזרה: להחליף ל-true.
+const AGENT_CAN_WRITE = false;
+const AGENT_WRITE_ACTIONS = [
+  'addVehicle', 'deleteVehicle', 'updateVehicle', 'syncVehicle',
+  'swapDrivers', 'moveDriver', 'detachDriver', 'addEmployeeNoVehicle',
+  'addIncident', 'deleteIncident', 'addViolation', 'deleteViolation', 'violationStatus'
+];
+
 function agentExecAction(action, param) {
+  if (!AGENT_CAN_WRITE && AGENT_WRITE_ACTIONS.indexOf(action) > -1) {
+    toast('הסוכן במצב קריאה בלבד — השינוי לא בוצע', true);
+    return { type:'blocked', action: action,
+             detail: 'שינויי נתונים דרך הסוכן כבויים. בצע את השינוי בטבלה.' };
+  }
   const saveVehicles = () => { localStorage.setItem('fleet_vehicles', JSON.stringify(VEHICLES)); localStorage.setItem('fleet_vehicles_version', VEHICLES_VERSION); saveToFirestore('vehicles', VEHICLES); };
   const saveTasks = () => { try { localStorage.setItem('fleet_tasks', JSON.stringify(TASKS)); saveToFirestore('tasks', TASKS); } catch(e){} };
   const saveIncidents = () => { try { localStorage.setItem('fleet_incidents', JSON.stringify(INCIDENTS)); saveToFirestore('incidents', INCIDENTS); } catch(e){} };
