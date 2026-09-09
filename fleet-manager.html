@@ -10326,6 +10326,10 @@ function saveVehicle() {
   autoSyncEmployee(v);   // ברקע — לא מעכב את השמירה
   // החלפת נהג ברכב: המייל של הקודם לא עובר לחדש
   if (_prevV) {
+    // אותו כלל בעריכה ידנית: שינוי שם הנהג מחייב חתימה מחדש
+    if (driverKey(_prevV.driverName) !== driverKey(v.driverName)) {
+      v.procedures = '';
+    }
     const _prevDk = driverKey(_prevV.driverName);
     const _newDk  = driverKey(v.driverName);
     if (_prevDk && _newDk && _prevDk !== _newDk) {
@@ -14487,6 +14491,10 @@ function _applyBundle(v, b) {
   Object.keys(b || {}).forEach(k => {
     if (b[k] !== undefined && b[k] !== null && b[k] !== '') v[k] = b[k];
   });
+  // נהלים אינם של הנהג ואינם של הרכב — הם של המפגש ביניהם. עובד שעבר
+  // רכב חייב לחתום מחדש על הרכב החדש, ולכן התאריך אינו נוסע איתו
+  // ואינו נשאר על הרכב לנהג הבא. מחיקתו מדליקה את ההתראה שתזכיר לחתום.
+  delete v.procedures;
 }
 
 function _agVeh(plate) {
@@ -14575,7 +14583,8 @@ function agentExecAction(action, param) {
         const _nv = VEHICLES[VEHICLES.length - 1];
         const _b = _driverBundle(_prev);
         Object.keys(_b).forEach(k => {
-          if (_b[k] !== undefined && _b[k] !== null && _b[k] !== '' &&
+          // נהלים נחתמים מול רכב מסוים, ולכן גם רכב חדש מתחיל בלעדיהם
+          if (k !== 'procedures' && _b[k] !== undefined && _b[k] !== null && _b[k] !== '' &&
               (_nv[k] === undefined || _nv[k] === '')) _nv[k] = _b[k];
         });
       }
@@ -14968,12 +14977,24 @@ function openReplMail(idx) {
   const emp = (r.employee || '').split('-')[0].trim();
   const perm = VEHICLES.find(v => driverKey(v.driverName) === driverKey(r.employee));
   const permStr = perm ? `${((perm.make||'')+' '+(perm.model||'')).trim()} (${perm.plate})`.trim() : 'לא נמצא במערכת';
+  // שווי שימוש נגזר משנתון ומקודי היצרן והדגם, ולכן הנהלת חשבונות חזרה
+  // ושאלה עליהם בכל הודעה. שורת זיהוי אחת לכל רכב חוסכת את הסבב.
+  const _vid = v => {
+    if (!v) return '';
+    const parts = [];
+    if (v.year) parts.push('שנתון ' + v.year);
+    if (v.tozeretCd) parts.push('קוד יצרן ' + v.tozeretCd);
+    if (v.degemCd) parts.push('קוד דגם ' + v.degemCd);
+    return parts.length ? ' · ' + parts.join(', ') : '';
+  };
+  // הרכב החליפי לרוב שכור ואינו בצי; אם הוא כן — נמשכים גם פרטיו
+  const _replV = (typeof _vehByPlate === 'function') ? _vehByPlate(r.plate) : null;
   _swapMailSubject = `רכב חליפי — ${emp || ''}: חליפי ${r.plate}${perm ? ' במקום ' + perm.plate : ''}`;
   // אותו חלון משמש גם למצבת הרכבים החודשית, ולכן הכותרת מוחזרת במפורש
   const _t = document.getElementById('swm-title');
   if (_t) _t.textContent = '🔄 עדכון הנהלת חשבונות — החלפת רכב';
   const _x2 = document.getElementById('swm-xls'); if (_x2) _x2.style.display = 'none';
-  const body = `שלום,\n\nלידיעתכם, לעובד/ת ניתן רכב חליפי:\n\n• עובד/ת: ${emp || '—'}\n• רכב קבוע: ${permStr}\n• רכב חליפי: ${r.plate}${r.typeCompany ? ' ('+r.typeCompany+')' : ''}\n• מתאריך: ${r.fromDate || '—'}\n• ${r.toDate ? 'עד תאריך: ' + r.toDate : 'תאריך החזרה: טרם נקבע'}\n\nנא לעדכן בהתאם (שווי שימוש / שכר).\n\nתודה,\n${coSig()}`;
+  const body = `שלום,\n\nלידיעתכם, לעובד/ת ניתן רכב חליפי:\n\n• עובד/ת: ${emp || '—'}\n• רכב קבוע: ${permStr}${_vid(perm)}\n• רכב חליפי: ${r.plate}${r.typeCompany ? ' ('+r.typeCompany+')' : ''}${_vid(_replV)}\n• מתאריך: ${r.fromDate || '—'}\n• ${r.toDate ? 'עד תאריך: ' + r.toDate : 'תאריך החזרה: טרם נקבע'}\n\nנא לעדכן בהתאם (שווי שימוש / שכר).\n\nתודה,\n${coSig()}`;
   document.getElementById('swm-to').value = '';
   document.getElementById('swm-body').value = body;
   _renderSwapGroups();
