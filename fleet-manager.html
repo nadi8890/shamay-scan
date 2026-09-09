@@ -13672,6 +13672,23 @@ ${rulesBlock}
 רשימת רכבים מלאה:
 ${VEHICLES.map(v=>`• ${v.plate} | ${v.make} ${v.model} ${v.year||''} | נהג: ${v.driverName} | ${v.company} | רישוי: ${v.registrationExpiry} | ביטוח: ${v.insuranceExpiry} | רישיון נהג: ${v.licenseExpiry||'—'} | ביקורת: ${v.inspection||'—'} | ק"מ: ${v.currentKm||'—'}`).join('\n')}
 
+
+מפתח זיהוי — נהג אל מספר רישוי. זה המקור המחייב לזיהוי רכב.
+אל תסרוק את הרשימה למעלה כדי למצוא רכב של עובד; חפש כאן.
+עובד שאינו מופיע כאן — אינו קיים בצי, ואל תמציא לו רכב.
+${(() => {
+  const rows = (VEHICLES || []).map(v => {
+    const n = (typeof driverKey === 'function' ? driverKey(v.driverName) : (v.driverName || '')).trim();
+    if (!n) return null;
+    return n + ' → ' + (v.noVehicle ? 'ללא רכב' : v.plate);
+  }).filter(Boolean).sort();
+  return rows.length ? rows.join(String.fromCharCode(10)) : '(אין נהגים משויכים)';
+})()}
+
+רכבים ללא נהג (פנויים להקצאה):
+${(VEHICLES || []).filter(v => !v.noVehicle && !String(v.driverName || '').trim())
+  .map(v => v.plate).join(', ') || 'אין'}
+
 התראות באיחור: ${expiredAlerts.map(a=>`${a.plate}/${a.driver}/${a.type}`).join(', ')||'אין'}
 התראות דחופות: ${soonAlerts.map(a=>`${a.plate}/${a.driver}/${a.daysLeft} ימים`).join(', ')||'אין'}
 
@@ -14546,6 +14563,24 @@ function agentExecAction(action, param) {
     const _t = new Date();
     const _today = ('0'+_t.getDate()).slice(-2)+'/'+('0'+(_t.getMonth()+1)).slice(-2)+'/'+_t.getFullYear();
     VEHICLES.push({ plate, make:make||'', model:model||'', year:year||'', driverName:driverName||'', company:company||'נופר אנרגי', registrationExpiry:registrationExpiry||'', insuranceExpiry:insuranceExpiry||'', licenseExpiry:licenseExpiry||'', inspection:inspection||_today, vehicleFrom:_today, currentKm:currentKm||'0', nextServiceKm:nextServiceKm||String(_km+15000) });
+    // רכב חדש נוצר עד כה עם השם בלבד, ולכן עובד ותיק שקיבל רכב חדש
+    // הופיע בו בלי טלפון, מייל, תוקף רישיון, עבר תעבורתי, נהלים וישות —
+    // וכל ההתראות עליו נעלמו. אם העובד כבר קיים בצי, פרטיו נמשכים
+    // מהשורה שלו אל הרכב החדש. השורה הישנה נשארת כפי שהיא; בשרשרת
+    // החלפות היא ממילא נכתבת מחדש בצעד הבא.
+    if (String(driverName || '').trim()) {
+      const _dk = driverKey(driverName);
+      const _prev = VEHICLES.find(x => x.plate !== plate && driverKey(x.driverName) === _dk);
+      if (_prev) {
+        const _nv = VEHICLES[VEHICLES.length - 1];
+        const _b = _driverBundle(_prev);
+        Object.keys(_b).forEach(k => {
+          if (_b[k] !== undefined && _b[k] !== null && _b[k] !== '' &&
+              (_nv[k] === undefined || _nv[k] === '')) _nv[k] = _b[k];
+        });
+      }
+      rebuildDriversDirectory();
+    }
     saveVehicles(); renderFleet(); renderDashboard(); renderAlerts(); loadKmRound();
     toast(`✓ רכב ${plate} נוסף`);
     return { type:'vehicle', action:'נוסף', plate, driver:driverName, make, model };
