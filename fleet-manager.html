@@ -13696,6 +13696,18 @@ ${VEHICLES.map(v=>`• ${v.plate} | ${v.make} ${v.model} ${v.year||''} | נהג:
 דוגמה: [[ACTION:addVehicle:12345678|טויוטה|קורולה|1.24|ישראל ישראלי|נופר אנרגי|31/12/2026|30/06/2026|||0|15000]]
 (שדות לא ידועים — השאר ריק)
 
+החלפת רכבים בין שני עובדים — תמיד בפעולה הזו, לעולם לא בעדכון שם נהג:
+[[ACTION:swapDrivers:רישוי_א|רישוי_ב]]
+העברת נהג לרכב אחר, כשהרכב הישן נשאר בלי נהג:
+[[ACTION:moveDriver:מהרישוי|לרישוי]]
+
+כלל קריטי: בשורת הרכב יש נתונים של הנהג ונתונים של הרכב.
+של הנהג — שם, טלפון, מייל, רישיון נהיגה, עבר תעבורתי, נהלים, מחלקה.
+של הרכב — טסט, ביטוח, ביקורת בטיחות, ק"מ, טיפולים, יצרן, דגם.
+כשנהג עובר רכב, נתוני הנהג עוברים איתו ונתוני הרכב נשארים במקומם.
+עדכון שם הנהג בלבד משאיר את רישיון הנהיגה והנהלים של הקודם על הרכב,
+ולכן הוא אסור להחלפות. השתמש ב-swapDrivers או ב-moveDriver.
+
 מחיקת רכב:
 [[ACTION:deleteVehicle:מספר_רישוי]]
 
@@ -14380,6 +14392,35 @@ async function agentSend() {
 //   • והוספה לא זיהתה שהרכב כבר קיים ויצרה כפילות.
 // בהחלפת רכבים בין נהגים די בכך שצד אחד נכשל כדי ששני נהגים יישבו על
 // אותו רכב, או שנהג יישאר בלי רכב. ההשוואה עוברת לספרות בלבד.
+// ═══ מה שייך לנהג ומה שייך לרכב ═══
+// בשורת הרכב יושבים שני סוגי נתונים. אלה שלמטה מתארים את הנהג — רישיון
+// הנהיגה שלו, העבר התעבורתי שלו, הנהלים שהוא חתם עליהם, הטלפון והמייל
+// שלו. כשנהג עובר לרכב אחר הם עוברים איתו.
+//
+// כל השאר — טסט, ביטוח, ביקורת בטיחות, ק"מ, טיפולים, יצרן ודגם —
+// מתאר את הרכב עצמו ונשאר במקומו.
+//
+// עד כה החלפת נהגים נעשתה בעדכון שם הנהג בלבד, ולכן רישיון הנהיגה,
+// הנהלים והעבר התעבורתי של הנהג הקודם נשארו על הרכב והוצמדו לנהג
+// החדש. מכאן ההתראות השגויות אחרי כל החלפה.
+const DRIVER_FIELDS = [
+  'driverName', 'lastname', 'driverId', 'driverPhone', 'driverEmail',
+  'licNum', 'licenseExpiry', 'trafficRecord', 'trafficValid', 'healthValid',
+  'procedures', 'birthDate', 'driverType', 'address', 'department', 'dept', 'entity'
+];
+// מוציא את חבילת הנהג מרכב, ומחזיר עותק
+function _driverBundle(v) {
+  const out = {};
+  DRIVER_FIELDS.forEach(k => { out[k] = v[k]; });
+  return out;
+}
+function _applyBundle(v, b) {
+  DRIVER_FIELDS.forEach(k => {
+    if (b[k] === undefined || b[k] === null || b[k] === '') delete v[k];
+    else v[k] = b[k];
+  });
+}
+
 function _agVeh(plate) {
   const k = _cpk(plate);
   if (!k) return null;
@@ -14440,6 +14481,35 @@ function agentExecAction(action, param) {
     saveVehicles(); renderFleet(); renderDashboard(); renderAlerts(); loadKmRound();
     toast(`✓ רכב ${plate} נוסף`);
     return { type:'vehicle', action:'נוסף', plate, driver:driverName, make, model };
+
+  } else if (action === 'swapDrivers') {
+    // החלפה בין שני רכבים: חבילת הנהג עוברת שלמה, ופרטי הרכב נשארים.
+    const [pa, pb] = param.split('|').map(s => s.trim());
+    const va = _agVeh(pa), vb = _agVeh(pb);
+    if (!va || !vb) return { type:'vehicle', action:'לא נמצא', plate: !va ? pa : pb };
+    _agSnapshot('החלפת נהגים ' + pa + ' ↔ ' + pb);
+    const ba = _driverBundle(va), bb = _driverBundle(vb);
+    _applyBundle(va, bb);
+    _applyBundle(vb, ba);
+    rebuildDriversDirectory();
+    saveVehicles(); renderFleet(); renderDashboard(); renderAlerts(); loadKmRound();
+    toast('✓ ' + (ba.driverName || '') + ' ↔ ' + (bb.driverName || '') + ' הוחלפו');
+    return { type:'swap', plateA: va.plate, plateB: vb.plate,
+             driverA: bb.driverName || '', driverB: ba.driverName || '' };
+
+  } else if (action === 'moveDriver') {
+    // העברת נהג לרכב אחר בלי בן-זוג להחלפה. הרכב שהתפנה נשאר בלי נהג.
+    const [pa, pb] = param.split('|').map(s => s.trim());
+    const va = _agVeh(pa), vb = _agVeh(pb);
+    if (!va || !vb) return { type:'vehicle', action:'לא נמצא', plate: !va ? pa : pb };
+    _agSnapshot('העברת נהג ' + pa + ' ← ' + pb);
+    const b = _driverBundle(va);
+    DRIVER_FIELDS.forEach(k => { delete va[k]; });
+    _applyBundle(vb, b);
+    rebuildDriversDirectory();
+    saveVehicles(); renderFleet(); renderDashboard(); renderAlerts(); loadKmRound();
+    toast('✓ ' + (b.driverName || '') + ' הועבר ל-' + vb.plate);
+    return { type:'move', from: va.plate, to: vb.plate, driver: b.driverName || '' };
 
   } else if (action === 'deleteVehicle') {
     const plate = param.trim();
