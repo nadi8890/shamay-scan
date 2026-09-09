@@ -14385,10 +14385,35 @@ async function agentSend() {
     agentMessages.push({ role:'assistant', content: text });
     const actions = [...text.matchAll(/\[\[ACTION:(\w+):([^\]]*)\]\]/g)];
     const updates = [];
+    // שרשרת החלפות היא הכל או כלום. עד כה כל פעולה בוצעה ונשמרה בנפרד,
+    // ולכן שרשרת שנכשלה באמצע — רכב שלא נמצא, מחיקה שנחסמה — השאירה את
+    // הצי במצב ביניים: נהג אחד כבר עבר, השני לא, ושניים על אותו רכב.
+    // זה בדיוק מה שהפך את הצי. עכשיו נשמר עותק לפני, וכשל מחזיר הכול.
+    const _writeActs = actions.filter(a => AGENT_WRITE_ACTIONS.indexOf(a[1]) > -1);
+    const _before = _writeActs.length ? JSON.parse(JSON.stringify(VEHICLES)) : null;
+    let _failed = null;
     for (const [, action, param] of actions) {
       const result = await agentExecActionAsync(action, param.trim());
       if (result) updates.push(result);
+      // תוצאה שמעידה על כשל עוצרת את השרשרת מיד
+      const bad = result && (result.type === 'blocked' ||
+        /לא נמצא|לא נמחק|בוטל|שגיאה|אין נהג/.test(String(result.action || '')));
+      if (bad && _writeActs.length) { _failed = result; break; }
     }
+    if (_failed && _before) {
+      VEHICLES.length = 0;
+      _before.forEach(v => VEHICLES.push(v));
+      try {
+        localStorage.setItem('fleet_vehicles', JSON.stringify(VEHICLES));
+        await saveToFirestore('vehicles', VEHICLES);
+      } catch (e) { console.log('rollback save', e); }
+      try { rebuildDriversDirectory(); renderFleet(); renderAlerts(); renderDashboard(); } catch (e) {}
+      updates.length = 0;
+      updates.push({ type: 'rolled', detail: 'השרשרת בוטלה במלואה — ' +
+        (_failed.action || 'פעולה נכשלה') + (_failed.plate ? ' (' + _failed.plate + ')' : '') });
+      toast('⛔ השרשרת בוטלה — שום שינוי לא נשמר', true);
+    }
+
     if (updates.length) agentMessages[agentMessages.length-1]._updates = updates;
 
   } catch (e) {
@@ -14469,7 +14494,7 @@ async function _agSnapshot(what) {
 // החלפות ועצר באמצע — כל אחד מאלה משאיר את הצי במצב שגוי שקשה לאתר.
 // כשהמתג כבוי הסוכן ממשיך לענות, לחפש, לנווט ולייצא; הוא פשוט אינו
 // נוגע בנתונים. להחזרה: להחליף ל-true.
-const AGENT_CAN_WRITE = false;
+const AGENT_CAN_WRITE = true;
 const AGENT_WRITE_ACTIONS = [
   'addVehicle', 'deleteVehicle', 'updateVehicle', 'syncVehicle',
   'swapDrivers', 'moveDriver', 'detachDriver', 'addEmployeeNoVehicle',
