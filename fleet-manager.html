@@ -15593,12 +15593,14 @@ function addReplacementRow() {
   renderReturns();
   openEditReplacement(REPLACEMENTS.length - 1);
 }
-// אותו דבר: שורה חדשה בסוף, לא בהתחלה
+// בניגוד לרכבים חליפיים, שורה חדשה בתיעוד אחזקה נכנסת לראש הטבלה:
+// היא החדשה ביותר, וזה המקום שבו מחפשים אותה. גם רשומה שנרשמת
+// אוטומטית מהחלפת רכב או מהחזרה נכנסת לראש, ולכן שתי הדרכים זהות.
 function addReturnRow() {
-  RETURNS.push({ employee: '', plate: '', make: '', model: '', fromDate: '', toDate: '', reason: '', notes: '' });
+  RETURNS.unshift({ employee: '', plate: '', make: '', model: '', fromDate: '', toDate: '', reason: '', notes: '' });
   try { localStorage.setItem('fleet_returns', JSON.stringify(RETURNS)); saveToFirestore('returns', RETURNS); } catch(e){}
   renderReturns();
-  openEditReturn(RETURNS.length - 1);
+  openEditReturn(0);
 }
 function openEditReplacement(origIdx) {
   const r = REPLACEMENTS[origIdx];
