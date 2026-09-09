@@ -11076,12 +11076,27 @@ async function diagnoseBackups(){
   for(const id of ids){
     try { const s=await fcol().doc(id).get(); if(s.exists){ const vs=(s.data()||{}).vehicles||[]; const counts=_BK_FIELDS.map(k=>vs.filter(x=>String(x[k]||'').trim()).length); rows.push({date:id.replace('backup_',''), id, n:vs.length, counts, tot:counts.reduce((a,b)=>a+b,0)}); } } catch(e){}
   }
+  // תמונות שנשמרות לפני כל שינוי שהסוכן עושה בצי. הגיבוי היומי מחזיר
+  // ליום שלם אחורה; אלה מחזירות לרגע שלפני הפעולה עצמה.
+  try {
+    const us = await fcol().where('type','==','agentundo').get();
+    const undo = [];
+    us.forEach(d => {
+      const x = d.data() || {}, vs = x.vehicles || [];
+      undo.push({ icon: String.fromCodePoint(0x1F916),
+        date: (x.dateStr || '') + ' · ' + (x.what || 'שינוי מהסוכן'),
+        id: d.id, n: vs.length, at: x.at || 0,
+        counts: _BK_FIELDS.map(k => vs.filter(y => String(y[k]||'').trim()).length) });
+    });
+    undo.sort((a,b) => (b.at||0) - (a.at||0));
+    rows.unshift(...undo.slice(0, 12));
+  } catch(e) { console.log('agentundo list', e); }
   const cur = _BK_FIELDS.map(k=>(VEHICLES||[]).filter(x=>String(x[k]||'').trim()).length);
   const fld = (label,i,arr)=>`<span style="white-space:nowrap">${label}:<b>${arr[i]}</b></span>`;
   const line = (title,n,arr,btn)=>`<div style="font-size:0.72rem;padding:5px 0;border-bottom:1px solid #f1f5f9;display:flex;flex-wrap:wrap;gap:7px;align-items:center"><b style="min-width:90px">${title}</b><span style="color:#64748b">(${n} רכבים)</span> ${_BK_FIELDS.map((k,i)=>fld({vehicleFrom:'קבלה',inspection:'ביקורת',registrationExpiry:'רישוי',insuranceExpiry:'ביטוח',licenseExpiry:'רישיון',procedures:'נהלים',currentKm:'ק"מ',nextServiceKm:'טיפול'}[k]||k,i,arr)).join('')} ${btn||''}</div>`;
   if(!rows.length){ body.innerHTML='<div style="padding:12px;color:#dc2626">לא נמצאו גיבויים</div>'; return; }
   body.innerHTML = line('📍 עכשיו', VEHICLES.length, cur, '') + '<div style="height:6px"></div>'
-    + rows.map(r=>line('📅 '+r.date, r.n, r.counts, `<button class="btn btn-gray" style="padding:2px 8px;font-size:0.64rem" onclick="restoreFromBackup('${r.id}')">מלא ריקים</button> <button class="btn" style="padding:2px 9px;font-size:0.64rem;background:#b45309;color:#fff" onclick="restoreFullFromBackup('${r.id}')">♻️ שחזר הכל</button>`)).join('');
+    + rows.map(r=>line((r.icon || String.fromCodePoint(0x1F4C5)) + ' ' + r.date, r.n, r.counts, `<button class="btn btn-gray" style="padding:2px 8px;font-size:0.64rem" onclick="restoreFromBackup('${r.id}')">מלא ריקים</button> <button class="btn" style="padding:2px 9px;font-size:0.64rem;background:#b45309;color:#fff" onclick="restoreFullFromBackup('${r.id}')">♻️ שחזר הכל</button>`)).join('');
 }
 async function restoreFromBackup(id){
   try {
@@ -14323,6 +14338,30 @@ async function agentSend() {
   renderAgentMsgs();
 }
 
+// ═══ רשת ביטחון לפעולות הסוכן על הצי ═══
+// מספר רישוי הושווה עד כה כמחרוזת מדויקת. הרכבים שמורים כספרות בלבד,
+// אבל המודל כותב לפעמים "83-945-203" או עם רווח — ואז:
+//   • עדכון "לא מצא" את הרכב ולא עשה כלום, בשקט;
+//   • והוספה לא זיהתה שהרכב כבר קיים ויצרה כפילות.
+// בהחלפת רכבים בין נהגים די בכך שצד אחד נכשל כדי ששני נהגים יישבו על
+// אותו רכב, או שנהג יישאר בלי רכב. ההשוואה עוברת לספרות בלבד.
+function _agVeh(plate) {
+  const k = _cpk(plate);
+  if (!k) return null;
+  return VEHICLES.find(v => _cpk(v.plate) === k) || null;
+}
+// תמונת מצב לפני כל שינוי שהסוכן עושה בצי. המחיקה הידנית כבר שמרה
+// תמונה כזו; פעולות הסוכן לא — ולכן לא הייתה דרך לחזור אחורה.
+async function _agSnapshot(what) {
+  try {
+    await fcol().doc('agentundo_' + Date.now()).set({
+      type: 'agentundo', what: String(what || ''), at: Date.now(),
+      dateStr: new Date().toLocaleString('he-IL'),
+      vehicles: JSON.parse(JSON.stringify(VEHICLES))
+    });
+  } catch (e) { console.log('agent snapshot', e); }
+}
+
 function agentExecAction(action, param) {
   const saveVehicles = () => { localStorage.setItem('fleet_vehicles', JSON.stringify(VEHICLES)); localStorage.setItem('fleet_vehicles_version', VEHICLES_VERSION); saveToFirestore('vehicles', VEHICLES); };
   const saveTasks = () => { try { localStorage.setItem('fleet_tasks', JSON.stringify(TASKS)); saveToFirestore('tasks', TASKS); } catch(e){} };
@@ -14357,7 +14396,8 @@ function agentExecAction(action, param) {
     const p = param.split('|').map(s=>s.trim());
     const [plate,make,model,year,driverName,company,registrationExpiry,insuranceExpiry,licenseExpiry,inspection,currentKm,nextServiceKm] = p;
     if (!plate) return null;
-    if (VEHICLES.find(v=>v.plate===plate)) return { type:'vehicle', action:'כבר קיים', plate };
+    _agSnapshot('הוספת רכב ' + plate);
+    if (_agVeh(plate)) return { type:'vehicle', action:'כבר קיים', plate };
     const _km = parseInt(currentKm)||0;
     const _t = new Date();
     const _today = ('0'+_t.getDate()).slice(-2)+'/'+('0'+(_t.getMonth()+1)).slice(-2)+'/'+_t.getFullYear();
@@ -14368,7 +14408,16 @@ function agentExecAction(action, param) {
 
   } else if (action === 'deleteVehicle') {
     const plate = param.trim();
-    const idx = VEHICLES.findIndex(v=>v.plate===plate);
+    const _dv = _agVeh(plate);
+    const idx = _dv ? VEHICLES.indexOf(_dv) : -1;
+    // מחיקת רכב היא הפעולה היחידה שאי אפשר להסתכל עליה ולתקן אחר כך,
+    // ולכן היא היחידה שנעצרת לאישור. השאר ממשיך מיד כמקודם.
+    if (idx > -1 && !confirm('הסוכן מבקש למחוק את רכב ' + plate +
+        ((_dv.driverName || '') ? ' (' + _dv.driverName + ')' : '') + '.' +
+        String.fromCharCode(10,10) + 'למחוק?')) {
+      return { type:'vehicle', action:'המחיקה בוטלה', plate };
+    }
+    if (idx > -1) _agSnapshot('מחיקת רכב ' + plate);
     if (idx<0) return { type:'vehicle', action:'לא נמצא', plate };
     VEHICLES.splice(idx,1);
     saveVehicles(); renderFleet(); renderDashboard(); renderAlerts(); loadKmRound();
@@ -14379,7 +14428,8 @@ function agentExecAction(action, param) {
     const parts = param.split('|');
     if (parts.length < 3) return null;
     const [plate, field, value] = parts.map(s => s.trim());
-    const vehicle = VEHICLES.find(v => v.plate === plate);
+    const vehicle = _agVeh(plate);
+    if (vehicle) _agSnapshot('עדכון ' + plate + ' · ' + field);
     if (!vehicle) return { type:'vehicle', action:'לא נמצא', plate };
     const fieldLabels = {
       registrationExpiry:'תוקף רישוי', insuranceExpiry:'תוקף ביטוח',
