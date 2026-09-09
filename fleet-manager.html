@@ -13696,6 +13696,12 @@ ${VEHICLES.map(v=>`• ${v.plate} | ${v.make} ${v.model} ${v.year||''} | נהג:
 דוגמה: [[ACTION:addVehicle:12345678|טויוטה|קורולה|1.24|ישראל ישראלי|נופר אנרגי|31/12/2026|30/06/2026|||0|15000]]
 (שדות לא ידועים — השאר ריק)
 
+העברת עובד לשורה ללא רכב, עם כל הפרטים שלו:
+[[ACTION:detachDriver:מספר_רישוי]]
+זו הפעולה הנכונה ל"תעביר את X לשורה ללא רכב" או "X החזיר את הרכב".
+היא מעבירה שם, טלפון, מייל, רישיון נהיגה, עבר תעבורתי, נהלים ומחלקה.
+אל תשתמש בהוספת עובד חדש למי שכבר קיים בצי — היא מאבדת פרטים.
+
 החלפת רכבים בין שני עובדים — תמיד בפעולה הזו, לעולם לא בעדכון שם נהג:
 [[ACTION:swapDrivers:רישוי_א|רישוי_ב]]
 העברת נהג לרכב אחר, כשהרכב הישן נשאר בלי נהג:
@@ -14392,32 +14398,42 @@ async function agentSend() {
 //   • והוספה לא זיהתה שהרכב כבר קיים ויצרה כפילות.
 // בהחלפת רכבים בין נהגים די בכך שצד אחד נכשל כדי ששני נהגים יישבו על
 // אותו רכב, או שנהג יישאר בלי רכב. ההשוואה עוברת לספרות בלבד.
-// ═══ מה שייך לנהג ומה שייך לרכב ═══
-// בשורת הרכב יושבים שני סוגי נתונים. אלה שלמטה מתארים את הנהג — רישיון
-// הנהיגה שלו, העבר התעבורתי שלו, הנהלים שהוא חתם עליהם, הטלפון והמייל
-// שלו. כשנהג עובר לרכב אחר הם עוברים איתו.
-//
-// כל השאר — טסט, ביטוח, ביקורת בטיחות, ק"מ, טיפולים, יצרן ודגם —
-// מתאר את הרכב עצמו ונשאר במקומו.
-//
-// עד כה החלפת נהגים נעשתה בעדכון שם הנהג בלבד, ולכן רישיון הנהיגה,
-// הנהלים והעבר התעבורתי של הנהג הקודם נשארו על הרכב והוצמדו לנהג
-// החדש. מכאן ההתראות השגויות אחרי כל החלפה.
-const DRIVER_FIELDS = [
-  'driverName', 'lastname', 'driverId', 'driverPhone', 'driverEmail',
-  'licNum', 'licenseExpiry', 'trafficRecord', 'trafficValid', 'healthValid',
-  'procedures', 'birthDate', 'driverType', 'address', 'department', 'dept', 'entity'
+// ═══ מה שייך לרכב, ומה שייך לעובד ═══
+// ההפרדה מוגדרת הפוך ממה שנראה טבעי: מפורטים כאן שדות הרכב, וכל השאר
+// שייך לעובד. הסיבה מעשית — רשימה של שדות עובד הייתה משאירה מאחור כל
+// שדה שלא חשבתי עליו, כולל עמודות שהגיעו מייבוא אקסל אצל לקוח מסוים,
+// והעובד היה מגיע לרכב החדש בלי חלק מהפרטים שלו. בשיטה הזו שדה לא
+// מוכר נוסע עם העובד, וזו הטעות הפחות מזיקה מבין השתיים.
+const VEHICLE_FIELDS = [
+  'plate', 'noVehicle', 'id', 'make', 'model', 'year', 'tozeretCd', 'degemCd',
+  'weight', 'vin', 'color', 'vtype', 'company', 'leaseCompany',
+  'registrationExpiry', 'insuranceExpiry', 'inspection', 'inspectionScheduled',
+  'inspectionFindings', 'inspectionFindingsDate', 'inspectionFindingsItems',
+  'currentKm', 'nextServiceKm', 'serviceDate', 'vehicleFrom', 'regDate',
+  'vehStatus', 'vehStatus2', 'specs', 'notes', 'docs', 'fuelCard',
+  // אישורים שנבדקים על הרכב עצמו
+  'winterCheck', 'pneumaticChk', 'tachograph', 'brakesCert',
+  'transportLic', 'childAlertCert', 'fireExtCert'
 ];
-// מוציא את חבילת הנהג מרכב, ומחזיר עותק
+function _isVehicleField(k) {
+  if (VEHICLE_FIELDS.indexOf(k) > -1) return true;
+  // שדות הנלווים לאישורי הרכב — "נדרש/לא נדרש" ותאריכים נגזרים
+  return /^(req_|cert_)/.test(k) || /Cert$|Chk$|Check$/.test(k);
+}
+// חבילת העובד: כל מה שאינו של הרכב
 function _driverBundle(v) {
   const out = {};
-  DRIVER_FIELDS.forEach(k => { out[k] = v[k]; });
+  Object.keys(v || {}).forEach(k => { if (!_isVehicleField(k)) out[k] = v[k]; });
   return out;
 }
+// מחיקת חבילת העובד מרכב — משאירה את פרטי הרכב בדיוק כפי שהם
+function _clearDriver(v) {
+  Object.keys(v || {}).forEach(k => { if (!_isVehicleField(k)) delete v[k]; });
+}
 function _applyBundle(v, b) {
-  DRIVER_FIELDS.forEach(k => {
-    if (b[k] === undefined || b[k] === null || b[k] === '') delete v[k];
-    else v[k] = b[k];
+  _clearDriver(v);
+  Object.keys(b || {}).forEach(k => {
+    if (b[k] !== undefined && b[k] !== null && b[k] !== '') v[k] = b[k];
   });
 }
 
@@ -14482,6 +14498,30 @@ function agentExecAction(action, param) {
     toast(`✓ רכב ${plate} נוסף`);
     return { type:'vehicle', action:'נוסף', plate, driver:driverName, make, model };
 
+  } else if (action === 'detachDriver') {
+    // "תעביר את X לשורה ללא רכב" — הפעולה שהייתה חסרה. עד כה הסוכן
+    // השתמש בהוספת עובד חדש, שמכירה חמישה שדות בלבד, ולכן המייל,
+    // הנהלים, המחלקה והת.ז פשוט נעלמו. כאן עוברת חבילת הנהג כולה.
+    const va = _agVeh(param.trim());
+    if (!va) return { type:'vehicle', action:'לא נמצא', plate: param.trim() };
+    if (va.noVehicle) return { type:'employee', action:'כבר ללא רכב', driver: va.driverName || '' };
+    _agSnapshot('ניתוק נהג מרכב ' + va.plate);
+    const b = _driverBundle(va);
+    if (!String(b.driverName || '').trim()) return { type:'vehicle', action:'אין נהג לנתק', plate: va.plate };
+    // שורת העובד יורשת את חבילת הנהג במלואה; הרכב מתרוקן ממנה בלבד
+    const emp = { noVehicle: true, plate: 'emp_' + Date.now(), id: Date.now(),
+                  company: va.company || '', make: '', model: '', year: '',
+                  registrationExpiry: '', insuranceExpiry: '', inspection: '',
+                  vehicleFrom: '', currentKm: '', nextServiceKm: '', notes: '' };
+    _applyBundle(emp, b);
+    _clearDriver(va);
+    VEHICLES.unshift(emp);
+    rebuildDriversDirectory();
+    saveVehicles(); renderFleet(); renderDashboard(); renderAlerts(); loadKmRound();
+    toast('✓ ' + (b.driverName || '') + ' הועבר לשורה ללא רכב, עם כל הפרטים');
+    return { type:'detach', driver: b.driverName || '', fromPlate: va.plate,
+             kept: Object.keys(b).length };
+
   } else if (action === 'swapDrivers') {
     // החלפה בין שני רכבים: חבילת הנהג עוברת שלמה, ופרטי הרכב נשארים.
     const [pa, pb] = param.split('|').map(s => s.trim());
@@ -14504,7 +14544,7 @@ function agentExecAction(action, param) {
     if (!va || !vb) return { type:'vehicle', action:'לא נמצא', plate: !va ? pa : pb };
     _agSnapshot('העברת נהג ' + pa + ' ← ' + pb);
     const b = _driverBundle(va);
-    DRIVER_FIELDS.forEach(k => { delete va[k]; });
+    _clearDriver(va);
     _applyBundle(vb, b);
     rebuildDriversDirectory();
     saveVehicles(); renderFleet(); renderDashboard(); renderAlerts(); loadKmRound();
