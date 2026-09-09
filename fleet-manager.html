@@ -11096,8 +11096,43 @@ async function diagnoseBackups(){
   const line = (title,n,arr,btn)=>`<div style="font-size:0.72rem;padding:5px 0;border-bottom:1px solid #f1f5f9;display:flex;flex-wrap:wrap;gap:7px;align-items:center"><b style="min-width:90px">${title}</b><span style="color:#64748b">(${n} רכבים)</span> ${_BK_FIELDS.map((k,i)=>fld({vehicleFrom:'קבלה',inspection:'ביקורת',registrationExpiry:'רישוי',insuranceExpiry:'ביטוח',licenseExpiry:'רישיון',procedures:'נהלים',currentKm:'ק"מ',nextServiceKm:'טיפול'}[k]||k,i,arr)).join('')} ${btn||''}</div>`;
   if(!rows.length){ body.innerHTML='<div style="padding:12px;color:#dc2626">לא נמצאו גיבויים</div>'; return; }
   body.innerHTML = line('📍 עכשיו', VEHICLES.length, cur, '') + '<div style="height:6px"></div>'
-    + rows.map(r=>line((r.icon || String.fromCodePoint(0x1F4C5)) + ' ' + r.date, r.n, r.counts, `<button class="btn btn-gray" style="padding:2px 8px;font-size:0.64rem" onclick="restoreFromBackup('${r.id}')">מלא ריקים</button> <button class="btn" style="padding:2px 9px;font-size:0.64rem;background:#b45309;color:#fff" onclick="restoreFullFromBackup('${r.id}')">♻️ שחזר הכל</button>`)).join('');
+    + rows.map(r=>line((r.icon || String.fromCodePoint(0x1F4C5)) + ' ' + r.date, r.n, r.counts, `<button class="btn btn-gray" style="padding:2px 8px;font-size:0.64rem" onclick="peekBackup('${r.id}')">👁️ מי היה על מה</button> <button class="btn btn-gray" style="padding:2px 8px;font-size:0.64rem" onclick="restoreFromBackup('${r.id}')">מלא ריקים</button> <button class="btn" style="padding:2px 9px;font-size:0.64rem;background:#b45309;color:#fff" onclick="restoreFullFromBackup('${r.id}')">♻️ שחזר הכל</button>`)).join('');
 }
+// שחזור מלא מחזיר הכל, וגם דורס שינויים תקינים שנעשו מאז. כשהתקלה היא
+// בשורה או שתיים, עדיף לראות מה היה ולתקן ידנית — בלי לגעת בשאר.
+// כאן פשוט קוראים את הגיבוי ומציגים מי היה משויך לאיזה רכב.
+async function peekBackup(id) {
+  const body = document.getElementById('bkdiag-body');
+  try {
+    const s = await fcol().doc(id).get();
+    if (!s.exists) { toast('גיבוי לא נמצא', true); return; }
+    const vs = (s.data() || {}).vehicles || [];
+    // משווים לצי הנוכחי, כדי שיהיה ברור מה השתנה
+    const now = {};
+    (VEHICLES || []).forEach(v => { const k = _cpk(v.plate); if (k) now[k] = (v.driverName || '').trim(); });
+    const rows = vs.map(v => {
+      const k = _cpk(v.plate);
+      const was = (v.driverName || '').trim();
+      const is  = now[k] === undefined ? null : now[k];
+      return { plate: v.plate, was, is, changed: is !== null && is !== was, gone: is === null };
+    });
+    const diff = rows.filter(r => r.changed || r.gone);
+    const title = id.replace('backup_', '').replace('agentundo_', 'תמונת סוכן ');
+    body.innerHTML = '<div style="font-size:0.8rem;font-weight:800;margin-bottom:8px">👁️ ' + esc(title) + '</div>' +
+      (diff.length
+        ? '<div style="font-size:0.76rem;color:#b45309;font-weight:700;margin-bottom:6px">' +
+          diff.length + ' רכבים שונים מהמצב הנוכחי</div>' +
+          diff.map(r =>
+            '<div style="font-size:0.76rem;padding:5px 0;border-bottom:1px solid #f1f5f9">' +
+            '<b>' + esc(r.plate) + '</b> · אז: <b style="color:#166534">' + esc(r.was || '—') + '</b>' +
+            (r.gone ? ' · <span style="color:#b91c1c">הרכב אינו בצי כרגע</span>'
+                    : ' · עכשיו: <b style="color:#b91c1c">' + esc(r.is || '—') + '</b>') +
+            '</div>').join('')
+        : '<div style="font-size:0.8rem;color:#166534">אין הבדל בין הגיבוי הזה למצב הנוכחי.</div>') +
+      '<div style="margin-top:12px"><button class="btn btn-gray" onclick="diagnoseBackups()">← חזרה לרשימה</button></div>';
+  } catch (e) { console.log('peekBackup', e); toast('שגיאה בקריאת הגיבוי', true); }
+}
+
 async function restoreFromBackup(id){
   try {
     const s = await fcol().doc(id).get();
