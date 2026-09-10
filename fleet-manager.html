@@ -1092,6 +1092,15 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
   font-family:'Heebo',sans-serif;font-size:0.8rem;background:var(--card);color:var(--text);min-width:0}
 .op-x{border:none;background:#fef2f2;color:#b91c1c;border-radius:7px;cursor:pointer;
   font-size:0.85rem;padding:6px 0;font-family:'Heebo',sans-serif}
+.insp-save{border:1px solid var(--border);background:var(--card);color:var(--accent);border-radius:8px;
+  padding:0 12px;font-family:'Heebo',sans-serif;font-size:0.8rem;font-weight:600;cursor:pointer;white-space:nowrap}
+.insp-names{display:flex;flex-wrap:wrap;gap:6px;margin-top:7px}
+.insp-names:empty{display:none}
+.insp-name{display:inline-flex;align-items:stretch;border:1px solid var(--border);border-radius:999px;
+  background:var(--card);overflow:hidden;max-width:100%}
+.insp-name button{border:none;background:none;cursor:pointer;font-family:'Heebo',sans-serif;font-size:0.8rem;
+  color:var(--text);padding:5px 11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.insp-name button.x{color:#b91c1c;padding:5px 9px;border-inline-start:1px solid var(--border);flex-shrink:0}
 .op-row{display:flex;align-items:center;gap:9px;padding:9px 4px;border-bottom:1px solid var(--border);cursor:pointer}
 .op-row:last-child{border-bottom:none}
 </style>
@@ -1855,7 +1864,7 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
         <div class="modal-row"><label>סוג ביקורת</label><select id="if-type"><option>חודשית</option><option>רבעונית</option><option selected>חציונית</option></select></div>
         <div class="modal-row"><label>סוג רכב</label><input id="if-model" type="text"></div>
         <div class="modal-row"><label>קריאת מד אוץ (ק"מ)</label><input id="if-km" type="number" inputmode="numeric" placeholder="52336"></div>
-        <div class="modal-row" style="grid-column:1/-1"><label>שם הבוחן</label><input id="if-inspector" type="text"></div>
+        <div class="modal-row" style="grid-column:1/-1"><label>שם הבוחן</label><div style="display:flex;gap:6px;align-items:stretch"><input id="if-inspector" type="text" style="flex:1;min-width:0" placeholder="כתוב שם ולחץ שמור"><button type="button" class="insp-save" onclick="inspSaveName('if')">💾 שמור</button></div><div id="if-insp-names" class="insp-names"></div></div>
       </div>
       <div id="if-driver-line" style="padding:0 10px 10px;font-size:0.85rem;color:var(--muted)">👤 מחזיק הרכב: <b id="if-driver-name" style="color:var(--text,#1e293b)">—</b></div>
     </div>
@@ -2566,6 +2575,8 @@ async function loadFromFirestore() {
       }
       if (d.orgInfo && typeof d.orgInfo === 'object') { ORG_INFO = { name: d.orgInfo.name || '', hp: d.orgInfo.hp || '' }; }
       if (d.officerInfo && typeof d.officerInfo === 'object') { window.OFFICER_INFO = d.officerInfo; try { localStorage.setItem('fleet_officerInfo', JSON.stringify(d.officerInfo)); } catch(e){} }
+      // שמות הבוחנים השמורים — של הלקוח הזה בלבד
+      if (Array.isArray(d.inspectorNames)) { window.INSPECTOR_NAMES = d.inspectorNames.filter(x => typeof x === 'string' && x.trim()).slice(0, 30); if (typeof inspRenderNames === 'function') inspRenderNames(); }
       if (d.contacts && typeof d.contacts === 'object') { window.CONTACTS = _ensureContacts({ list: d.contacts.list || [], emails: d.contacts.emails || [], byPlate: d.contacts.byPlate || {} }); try { localStorage.setItem('fleet_contacts', JSON.stringify(window.CONTACTS)); } catch(e){} const _cb = document.getElementById('contacts-list'); if (_cb) renderContacts(); }
       rebuildDriversDirectory();
       if (typeof updateKmBanner === 'function') updateKmBanner();
@@ -8188,11 +8199,14 @@ function muniRenderFields() {
       ctl = '<input id="' + id + '" type="text" inputmode="numeric" style="direction:ltr" ' + on + '>';
     } else if (f.t === 'plate') {
       ctl = '<input id="' + id + '" type="text" style="direction:ltr" oninput="muniFillFromPlate();muniProgress()">';
+    } else if (f.k === 'inspector') {
+      ctl = inspNameCtl('mf', on);
     } else {
       ctl = '<input id="' + id + '" type="text" ' + on + '>';
     }
     return '<div class="modal-row"><label>' + esc(f.label) + ' <span style="color:#dc2626">*</span></label>' + ctl + '</div>';
   }).join('');
+  inspRenderNames();
 }
 function muniVal(k) {
   const el = document.getElementById('mf-' + k);
@@ -8236,7 +8250,7 @@ function openMuniForm() {
   const set = (k, val) => { const el = document.getElementById('mf-' + k); if (el) el.value = val; };
   set('date', p2(n.getDate()) + '/' + p2(n.getMonth() + 1) + '/' + n.getFullYear());
   set('time', p2(n.getHours()) + ':' + p2(n.getMinutes()));
-  set('inspector', (window.OFFICER_INFO && OFFICER_INFO.name) || '');
+  set('inspector', inspNames()[0] || (window.OFFICER_INFO && OFFICER_INFO.name) || '');
   document.getElementById('mf-notes').value = '';
   muniInitSig();
   muniProgress();
@@ -8298,6 +8312,7 @@ async function submitMuniForm() {
   };
   try {
     await fcol().doc('insp_' + rec.created).set(rec);
+    _inspRemember(rec.inspector);
     // הבדיקה מתועדת גם על הרכב, אם הוא בצי
     const v = VEHICLES.find(x => String(x.plate).replace(/\D/g,'') === String(rec.plate).replace(/\D/g,''));
     if (v) {
@@ -8368,15 +8383,98 @@ async function muniSendMail(r) {
   } catch(e) { console.log('muni mail failed', e); }
 }
 
+// ═══ שמות בוחנים שמורים ═══
+// רשימה נפרדת לכל לקוח, במסמך main שלו ולא בזיכרון הדפדפן, כך ששם של
+// לקוח אחד לא יכול להופיע אצל לקוח אחר. הראשון ברשימה נכנס לטופס מעצמו.
+// null = הלקוח עוד לא שמר רשימה.
+window.INSPECTOR_NAMES = window.INSPECTOR_NAMES || null;
+function inspNames() {
+  if (Array.isArray(window.INSPECTOR_NAMES)) return window.INSPECTOR_NAMES.slice();
+  // חשבון הבעלים לפני ששמר רשימה — השם שהופיע עד היום
+  return TENANT === 'nofar' ? ['נדב מרציאנו'] : [];
+}
+async function _inspSaveNames(list, quiet) {
+  if (READ_ONLY) { if (!quiet) _roBlock(); return false; }
+  try {
+    await fcol().doc('main').set({ inspectorNames: list }, { merge: true });
+    window.INSPECTOR_NAMES = list;
+    return true;
+  } catch (err) {
+    console.log('inspector names', err);
+    if (!quiet) toast('השמירה נכשלה: ' + (err.code || err.message || 'שגיאה'), true);
+    return false;
+  }
+}
+// השדה עם כפתור השמירה, לטופס שנבנה בקוד (בדיקת חברת הסעות)
+function inspNameCtl(pre, extra) {
+  return '<div style="display:flex;gap:6px;align-items:stretch">' +
+    '<input id="' + pre + '-inspector" type="text" style="flex:1;min-width:0" placeholder="כתוב שם ולחץ שמור" ' + (extra || '') + '>' +
+    '<button type="button" class="insp-save" onclick="inspSaveName(\'' + pre + '\')">💾 שמור</button>' +
+    '</div><div id="' + pre + '-insp-names" class="insp-names"></div>';
+}
+function inspRenderNames() {
+  const list = inspNames();
+  ['if', 'mf'].forEach(pre => {
+    const box = document.getElementById(pre + '-insp-names');
+    if (!box) return;
+    box.innerHTML = list.map((n, i) =>
+      '<span class="insp-name">' +
+        '<button type="button" title="הכנס לטופס" onclick="inspPickName(\'' + pre + '\',' + i + ')">' + esc(n) + '</button>' +
+        '<button type="button" class="x" title="הסר מהשמות השמורים" onclick="inspRemoveName(' + i + ')">✕</button>' +
+      '</span>').join('');
+  });
+}
+function inspPickName(pre, i) {
+  const n = inspNames()[i], el = document.getElementById(pre + '-inspector');
+  if (n === undefined || !el) return;
+  el.value = n;
+  if (pre === 'mf' && typeof muniProgress === 'function') muniProgress();
+}
+async function inspSaveName(pre) {
+  const el = document.getElementById(pre + '-inspector');
+  const n = String((el && el.value) || '').trim().replace(/\s+/g, ' ');
+  if (!n) { toast('כתוב קודם את שם הבוחן', true); if (el) el.focus(); return; }
+  const list = inspNames().filter(x => x !== n);
+  list.unshift(n);
+  if (await _inspSaveNames(list.slice(0, 30))) {
+    el.value = n;
+    inspRenderNames();
+    toast('💾 ' + n + ' נשמר — ייכנס אוטומטית בביקורת הבאה');
+  }
+}
+async function inspRemoveName(i) {
+  const list = inspNames();
+  const n = list[i];
+  if (n === undefined) return;
+  if (!confirm('להסיר את "' + n + '" מהשמות השמורים?\n\nביקורות שכבר נשמרו לא ישתנו.')) return;
+  list.splice(i, 1);
+  if (await _inspSaveNames(list)) {
+    ['if', 'mf'].forEach(pre => {
+      const el = document.getElementById(pre + '-inspector');
+      if (el && el.value.trim() === n) el.value = '';
+    });
+    inspRenderNames();
+    toast('השם הוסר');
+  }
+}
+// בוחן שמור שחתם על ביקורת עולה לראש הרשימה, כדי שייכנס גם בפעם הבאה.
+// שם שלא נשמר לא מתווסף מעצמו — הוספה היא רק בלחיצה על שמור.
+function _inspRemember(name) {
+  const n = String(name || '').trim();
+  const list = inspNames();
+  if (!n || READ_ONLY || list.indexOf(n) <= 0) return;
+  _inspSaveNames([n].concat(list.filter(x => x !== n)), true);
+}
+
 function openInspectionForm(prefillPlate, forceBus) {
   _inspForceBus = !!forceBus;
   document.getElementById('forms-menu').style.display = 'none';
   document.getElementById('inspection-form').style.display = '';
   ['if-plate','if-model','if-km','if-notes'].forEach(id => document.getElementById(id).value = '');
-  // שם הבוחן נלקח מקצין הבטיחות של הלקוח הנוכחי. עד כה הוא היה כתוב
-  // בקוד כ"נדב מרציאנו", ולכן הופיע בכל ביקורת של כל לקוח.
+  // שם הבוחן: הראשון ברשימת השמות השמורים של הלקוח (inspNames)
   document.getElementById('if-inspector').value =
-    ((window.OFFICER_INFO && OFFICER_INFO.name) || (TENANT === 'nofar' ? 'נדב מרציאנו' : ''));
+    (inspNames()[0] || (window.OFFICER_INFO && OFFICER_INFO.name) || '');
+  inspRenderNames();
   document.getElementById('if-driver-name').textContent = '—';
   initSignaturePad();
   // checklist — everything starts as תקין, tap to change
@@ -8603,6 +8701,7 @@ async function submitInspection() {
   try {
     // 1. save the inspection to the cloud (own doc — synced everywhere)
     await fcol().doc('insp_' + rec.created).set(rec);
+    _inspRemember(rec.inspector);
     // 2. update the vehicle file: inspection date + current km
     const v = VEHICLES.find(x => x.plate === plate);
     if (v) {
@@ -13123,6 +13222,7 @@ function wipeSeedData() {
   window.CONTACTS = { list: [], emails: [], byPlate: {} };
   // docsId חי בתוך DRIVERS שכבר מתאפס למעלה — אין צורך בטיפול נפרד
   window.OFFICER_INFO = null;
+  window.INSPECTOR_NAMES = null;
   window.OFFICER_SIGNATURE = '';
   ['fleet_vehicles','fleet_incidents','fleet_violations','fleet_replacements','fleet_returns',
    'fleet_tasks','fleet_mailSettings','fleet_invoices',
