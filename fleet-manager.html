@@ -5917,15 +5917,19 @@ async function maybeApplyIncidentReport(doc) {
   const r = doc.data(); if (r.applied) return;
   if (INCIDENTS.some(x => x._increpId === doc.id)) { try { await doc.ref.set({ applied: true }, { merge: true }); } catch(e) {} return; }
   const tp = [r.tpName && ('שם: ' + r.tpName), r.tpPlate && ('רכב: ' + r.tpPlate), r.tpPhone && ('טל: ' + r.tpPhone), r.tpInsurance && ('ביטוח: ' + r.tpInsurance)].filter(Boolean).join(', ');
-  const notes = [r.description, r.cause && ('גורם: ' + r.cause), r.fault && ('אשם: ' + r.fault), r.injuries && ('נפגעים בגוף: ' + r.injuries), r.police && ('משטרה: ' + r.police), r.location && ('מיקום: ' + r.location), tp && ("צד ג': " + tp), '📷 דיווח נהג'].filter(Boolean).join(' | ');
+  // רכב שאינו בצי מתקבל (רכב חליפי, שכור, עובד בלי רכב) ומסומן כך. דיווח
+  // ישן בלי שם נהג מקבל את הנהג הרשום על הרכב, אם יש.
+  const _veh = _vehByPlate(r.plate);
+  const _drv = String(r.driver || (_veh ? String(_veh.driverName || '').split('-')[0] : '')).trim();
+  const notes = [r.description, r.cause && ('גורם: ' + r.cause), r.fault && ('אשם: ' + r.fault), r.injuries && ('נפגעים בגוף: ' + r.injuries), r.police && ('משטרה: ' + r.police), r.location && ('מיקום: ' + r.location), tp && ("צד ג': " + tp), (r.plate && !_veh) && '🚗 רכב שלא מופיע בצי', '📷 דיווח נהג'].filter(Boolean).join(' | ');
   const id = INCIDENTS.reduce((m, x) => Math.max(m, +x.id || 0), 0) + 1;
-  INCIDENTS.unshift({ id, plate: r.plate || '', driver: r.driver || '', date: r.date || '', insurance: 'ביטוח', reportNum: '', damage: '', deductible: '', notes, _increpId: doc.id, _driverReported: true });
+  INCIDENTS.unshift({ id, plate: r.plate || '', driver: _drv, date: r.date || '', insurance: 'ביטוח', reportNum: '', damage: '', deductible: '', notes, _increpId: doc.id, _driverReported: true });
   try { localStorage.setItem('fleet_incidents', JSON.stringify(INCIDENTS)); } catch(e) {}
   saveToFirestore('incidents', INCIDENTS);
   try { await doc.ref.set({ applied: true }, { merge: true }); } catch(e) {}
   if (typeof renderIncidents === 'function') renderIncidents();
   if (typeof renderDashboard === 'function') renderDashboard();
-  toast(`💥 דיווח נזק חדש מ-${r.driver || r.plate} נכנס ללשונית אירועים`, false);
+  toast(`💥 דיווח נזק חדש מ-${_drv || r.plate} נכנס ללשונית אירועים`, false);
 }
 let _incPhotoBusy = false;
 async function viewIncidentPhotos(increpId) {
@@ -5956,16 +5960,25 @@ function shareDamageLink() {
   if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(msg).then(done).catch(() => _fallbackCopy(msg, done));
   else _fallbackCopy(msg, done);
 }
-// קישור דיווח נזק לרכב ספציפי (מכפתור 💥 בשורת הצי) — מס' הרכב כבר ממולא, נשלח ישירות לנהג בוואטסאפ
+// קישור דיווח נזק מחלון שליחת הטפסים. עם רכב מהצי — מס' הרכב ממולא
+// ונשלח לנהג שלו. עובד בלי רכב בצי (לשונית נהגים, רכב חליפי) קיבל עד כה
+// "הרכב לא נמצא"; עכשיו הקישור נשלח אליו בלי רכב, או עם המספר שיש, והוא
+// מזין בדף את הרכב שנסע בו ואת שמו. רכב שאינו בצי מתקבל.
 function shareDamageLinkFor(plate) {
-  const v = VEHICLES.find(x => x.plate === plate);
-  if (!v) { toast('הרכב לא נמצא', true); return; }
-  const nm = (v.driverName || '').split('-')[0].trim();
-  const link = `https://nadi8890.github.io/shamay-scan/driver-damage.html?t=${tid()}&plate=${encodeURIComponent(v.plate)}`;
-  const msg = `היי ${nm} 👋\nלדיווח נזק / תאונה לרכב ${v.plate} — מלא/י את הפרטים וצרף/י תמונות של הנזק (כולל רכב צד ג' אם יש):\n${link}\n\n${typeof coSig === 'function' ? coSig() : ''}`;
-  const digits = driverPhoneOf(v).replace(/\D/g, '');
-  if (digits) {
-    const intl = digits.startsWith('972') ? digits : '972' + digits.replace(/^0/, '');
+  const v = plate ? VEHICLES.find(x => x.plate === plate) : null;
+  const nm = v ? (v.driverName || '').split('-')[0].trim() : String(window._declDriver || '').trim();
+  const link = `https://nadi8890.github.io/shamay-scan/driver-damage.html?t=${tid()}` + (plate ? `&plate=${encodeURIComponent(plate)}` : '');
+  const msg = `היי${nm ? ' ' + nm : ''} 👋\n` +
+    (plate ? `לדיווח נזק / תאונה לרכב ${plate} — מלא/י את הפרטים` : 'לדיווח נזק / תאונה — רשום/י את מספר הרכב שבו נסעת, מלא/י את הפרטים') +
+    ` וצרף/י תמונות של הנזק (כולל רכב צד ג' אם יש):\n${link}\n\n${typeof coSig === 'function' ? coSig() : ''}`;
+  let intl = '';
+  if (v) {
+    const digits = driverPhoneOf(v).replace(/\D/g, '');
+    if (digits) intl = digits.startsWith('972') ? digits : '972' + digits.replace(/^0/, '');
+  } else {
+    intl = window._declIntl || '';   // הטלפון מרשומת הנהג, כפי שנמצא בפתיחת החלון
+  }
+  if (intl) {
     window.open('https://wa.me/' + intl + '?text=' + encodeURIComponent(msg), '_blank');
   } else {
     try { if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(msg); } catch(e) {}

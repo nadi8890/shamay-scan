@@ -58,6 +58,11 @@ textarea{resize:vertical}
     <div class="veh" id="veh-info"></div>
     <label>מספר רכב *</label>
     <input id="f-plate" inputmode="numeric" placeholder="12345678" onblur="lookupPlate()">
+    <div class="hint" id="plate-note" style="display:none;color:#047857;font-weight:600">הרכב לא מופיע ברשימת הצי — אין בעיה, אפשר להמשיך ✓</div>
+    <div id="name-wrap" style="display:none">
+      <label>שם מלא *</label>
+      <input id="f-name" type="text" autocomplete="name" placeholder="השם שלך">
+    </div>
     <div class="grid2">
       <div><label>תאריך האירוע</label><input id="f-date" type="text" inputmode="numeric" placeholder="יי.חח.שש"></div>
       <div><label>מיקום (אופציונלי)</label><input id="f-location" type="text" placeholder="עיר / כביש"></div>
@@ -138,7 +143,7 @@ if (!TENANT) {
 }
 const fcol = () => db.collection('tenants').doc(TENANT).collection('data');
 const urlPlate = (params.get('plate') || '').trim();
-let FLEET = [], MAIL = {}, VEH = null;
+let FLEET = [], MAIL = {}, VEH = null, FLEET_READY = false;
 const OWN = [], TP = []; // {kind,name,mime,data,preview}
 const MAX_TOTAL = 950 * 1024;
 
@@ -151,6 +156,7 @@ function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&am
   const t = new Date();
   document.getElementById('f-date').value = ('0'+t.getDate()).slice(-2)+'.'+('0'+(t.getMonth()+1)).slice(-2)+'.'+String(t.getFullYear()).slice(-2);
   if (urlPlate) document.getElementById('f-plate').value = urlPlate;
+  document.getElementById('name-wrap').style.display = urlPlate ? 'none' : 'block';
   try {
     await ensureAnonAuth();
     let d = {};
@@ -158,19 +164,28 @@ function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&am
     if (!Array.isArray(d.vehicles)) { try { const s = await fcol().doc('main').get(); d = s.data() || {}; } catch(e) {} }
     FLEET = d.vehicles || [];
     MAIL = d.mailSettings || {};
-    if (urlPlate) lookupPlate();
+    FLEET_READY = true;
+    lookupPlate();   // גם למספר שהנהג הקליד לפני שהצי נטען
   } catch(e) { console.log('load failed', e.code || e.message); }
 })();
 
+// שם הנהג נלקח מהרכב רק כשהקישור נשלח לרכב מסוים מהצי שרשום עליו נהג.
+// בכל מקרה אחר — עובד בלי רכב, רכב חליפי, רכב שאינו בצי, קישור כללי —
+// הנהג רושם את שמו, כי הנהג הרשום על רכב אינו בהכרח מי שנסע בו.
+function needName(){ return !urlPlate || !VEH || !String(VEH.driverName||'').trim(); }
+function _nameState(){ document.getElementById('name-wrap').style.display = needName() ? 'block' : 'none'; }
 function lookupPlate(){
   const pd = (document.getElementById('f-plate').value || '').replace(/\D/g,'');
-  VEH = FLEET.find(v => String(v.plate||'').replace(/\D/g,'') === pd) || null;
+  VEH = pd ? (FLEET.find(v => String(v.plate||'').replace(/\D/g,'') === pd) || null) : null;
   const box = document.getElementById('veh-info');
   if (VEH){
     const drv = (VEH.driverName||'').split('-')[0].trim();
     box.innerHTML = `🚗 <b>${esc(VEH.make||'')} ${esc(VEH.model||'')}</b> · <span dir="ltr">${esc(VEH.plate)}</span>${drv?`<br>נהג/ת: <b>${esc(drv)}</b>`:''}`;
     box.style.display = 'block';
   } else { box.style.display = 'none'; }
+  // רכב שאינו בצי מתקבל — רק אומרים לנהג שזה בסדר
+  document.getElementById('plate-note').style.display = (!VEH && pd.length >= 5 && FLEET_READY) ? 'block' : 'none';
+  _nameState();
 }
 
 function totalBytes(){ return [...OWN, ...TP].reduce((s,f)=> s + Math.ceil(f.data.length*0.75), 0); }
@@ -271,11 +286,14 @@ async function submitDamage(){
   const plate = (document.getElementById('f-plate').value || '').trim();
   const desc = (document.getElementById('f-desc').value || '').trim();
   if (!plate){ showErr('נא להזין מספר רכב'); return; }
+  lookupPlate();
+  const typedName = (document.getElementById('f-name').value || '').trim();
+  if (needName() && !typedName){ showErr('נא לרשום שם מלא'); document.getElementById('f-name').focus(); return; }
   if (!desc){ showErr('נא לתאר את האירוע'); return; }
   if (!OWN.length){ showErr('נא לצרף לפחות תמונה אחת של הנזק ברכב שלך'); return; }
   if (totalBytes() > MAX_TOTAL){ showErr('התמונות גדולות מדי — הסר/י כמה או צלם/י באיכות נמוכה יותר'); return; }
   const btn = document.getElementById('send-btn'); btn.disabled = true; btn.textContent = 'שולח…';
-  const drv = VEH ? (VEH.driverName||'').split('-')[0].trim() : '';
+  const drv = needName() ? typedName : (VEH.driverName||'').split('-')[0].trim();
   const created = Date.now();
   const rec = {
     type: 'incidentreport',
