@@ -1586,6 +1586,7 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
     .insp-opt.sel-ok{background:#dcfce7;border-color:#22c55e;font-weight:700}
     .insp-opt.sel-bad{background:#fee2e2;border-color:#ef4444;font-weight:700}
     .insp-opt.sel-fixed{background:#dbeafe;border-color:#3b82f6;font-weight:700}
+    .insp-opt.sel-na{background:#e2e8f0;color:#334155;border-color:#94a3b8;font-weight:700}
     .insp-section{background:#fff;border:1.5px solid #e2e8f0;border-radius:12px;margin-bottom:12px;overflow:hidden}
     .insp-section-hdr{background:#f8fafc;padding:9px 12px;font-weight:800;font-size:0.85rem;border-bottom:1px solid #e2e8f0}
     .form-card{background:#fff;border:1.5px solid #e2e8f0;border-radius:14px;padding:16px;cursor:pointer;box-shadow:0 1px 5px rgba(0,0,0,.06);display:flex;align-items:center;gap:12px;max-width:420px}
@@ -1631,6 +1632,11 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
       <span style="font-size:2.2rem">🏛️</span>
       <div><div style="font-weight:800;color:#fff;font-size:1rem">בדיקת חברת הסעות</div>
       <div style="font-size:0.75rem;color:#d1fae5">טופס הרשות — נשמר בביקורות שבוצעו ונשלח למייל</div></div>
+    </div>
+    <div class="form-card" id="tractor-insp-card" style="display:none;background:linear-gradient(135deg,#78350f,#b45309);border-color:#78350f" onclick="openInspectionForm('', 'tractor')">
+      <span style="font-size:2.2rem">🚜</span>
+      <div><div style="font-weight:800;color:#fff;font-size:1rem">ביקורת טרקטור</div>
+      <div style="font-size:0.75rem;color:#fde68a">ביקורת בטיחות לטרקטור וכלים נלווים — נשמרת בביקורות שבוצעו ונשלחת למייל</div></div>
     </div>
     <div class="form-card" id="bus-insp-card" style="display:none;background:linear-gradient(135deg,#7c2d12,#c2410c);border-color:#7c2d12" onclick="openInspectionForm('', true)">
       <span style="font-size:2.2rem">🚌</span>
@@ -1741,6 +1747,9 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
               </label>
               <label style="display:flex;align-items:center;gap:6px;cursor:pointer" title="טופס בדיקת חברת הסעות של הרשות — 22 בדיקות שכולן חובה">
                 <input id="adm-muniform" type="checkbox" style="width:16px;height:16px"><span>🏛️ טופס בדיקת חברת הסעות</span>
+              </label>
+              <label style="display:flex;align-items:center;gap:6px;cursor:pointer" title="ביקורת בטיחות לטרקטור — ברירת מחדל: כמו טופס ההסעות">
+                <input id="adm-tractorform" type="checkbox" style="width:16px;height:16px"><span>🚜 ביקורת טרקטור</span>
               </label>
             </div>
             <div style="display:flex;gap:12px;margin-bottom:12px;flex-wrap:wrap;align-items:flex-end">
@@ -1859,7 +1868,7 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
   <!-- inspection form -->
   <div id="inspection-form" style="display:none;max-width:640px">
     <div class="section-hdr">
-      <span class="section-title">🛡️ ביקורת קצין בטיחות</span>
+      <span class="section-title" id="if-title">🛡️ ביקורת קצין בטיחות</span>
       <button class="btn btn-secondary" onclick="closeInspectionForm()">→ חזרה</button>
     </div>
     <div class="insp-section">
@@ -1868,7 +1877,7 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
         <div class="modal-row"><label>מספר רכב</label><input id="if-plate" type="text" inputmode="numeric" autocomplete="off" placeholder="12345678" oninput="inspFillFromPlate()"></div>
         <div class="modal-row"><label>סוג ביקורת</label><select id="if-type"><option>חודשית</option><option>רבעונית</option><option selected>חציונית</option></select></div>
         <div class="modal-row"><label>סוג רכב</label><input id="if-model" type="text"></div>
-        <div class="modal-row"><label>קריאת מד אוץ (ק"מ)</label><input id="if-km" type="number" inputmode="numeric" placeholder="52336"></div>
+        <div class="modal-row"><label id="if-km-label">קריאת מד אוץ (ק"מ)</label><input id="if-km" type="number" inputmode="numeric" placeholder="52336"></div>
         <div class="modal-row" style="grid-column:1/-1"><label>שם הבוחן</label><div style="display:flex;gap:6px;align-items:stretch"><input id="if-inspector" type="text" style="flex:1;min-width:0" placeholder="כתוב שם ולחץ שמור"><button type="button" class="insp-save" onclick="inspSaveName('if')">💾 שמור</button></div><div id="if-insp-names" class="insp-names"></div></div>
       </div>
       <div id="if-driver-line" style="padding:0 10px 10px;font-size:0.85rem;color:var(--muted)">👤 מחזיק הרכב: <b id="if-driver-name" style="color:var(--text,#1e293b)">—</b></div>
@@ -7023,15 +7032,92 @@ const BUS_INSPECTION_SECTIONS = [
   { title: 'רישיונות ומסמכים', items: ['רישיונות ושאר מסמכים בתוקף'] },
   { title: 'נסיעת מבחן', items: ['ביצוע נסיעת מבחן לרכב'] }
 ];
+// ביקורת בטיחות לטרקטור (חקלאי / עירוני, כולל מעמיס וכלים נלווים). הטופס
+// הרגיל בנוי לרכב פרטי ואינו מכסה את מה שמסכן מפעיל טרקטור: התהפכות, ציר
+// כוח (PTO), מערכת הידראולית וכלים נגררים.
+const TRACTOR_INSPECTION_SECTIONS = [
+  { title: 'מסמכים ורישוי', items: [
+    'רישיון רכב בתוקף',
+    'תעודת ביטוח חובה בתוקף',
+    'רישיון נהיגה מתאים לטרקטור (דרגה 1) בתוקף',
+    'המפעיל הודרך על הטרקטור ועל הכלים הנלווים'] },
+  { title: 'הגנת המפעיל', items: [
+    'מערכת הגנה מפני התהפכות (מסגרת / תא) — שלמה, ללא סדקים וריתוכים חריגים',
+    'חגורת בטיחות קיימת ותקינה',
+    'מושב הנהג מקובע ותקין',
+    'מדרגות עלייה וידיות אחיזה — תקינות ונקיות',
+    'שמשות ומראות — שלמות ונקיות',
+    'מגבים ומתז מים'] },
+  { title: 'תאורה ואיתות', items: [
+    'פנסים קדמיים — אור נמוך וגבוה',
+    'פנסים אחוריים ואורות בלימה',
+    'פנסי איתות ומהבהבים',
+    'פנס מהבהב צהוב על הגג',
+    'מחזירי אור',
+    'צופר',
+    'זמזם נסיעה לאחור'] },
+  { title: 'בלמים והיגוי', items: [
+    'בלם שירות — בלימה שווה בשני הצדדים, ודוושות הבלם נעולות יחד לנסיעה בכביש',
+    'בלם חניה',
+    'מערכת היגוי — ללא חופש חריג ורעידות'] },
+  { title: 'צמיגים וגלגלים', items: [
+    'צמיגים קדמיים — ללא קרעים, בליטות ושחיקה חריגה',
+    'צמיגים אחוריים — ללא קרעים, בליטות ושחיקה חריגה',
+    'אומי גלגלים מהודקים',
+    'משקולות נגד מקובעות'] },
+  { title: 'מנוע ומערכת הידראולית', items: [
+    'ללא נזילות שמן, סולר או נוזל קירור',
+    'מפלסי שמן מנוע, נוזל קירור ושמן הידראולי',
+    'צינורות ומחברים הידראוליים — ללא דליפות, סדקים ושפשוף',
+    'מצבר מקובע וקטבים מכוסים',
+    'מערכת פליטה תקינה',
+    'לוח שעונים ונורות אזהרה'] },
+  { title: 'ציר כוח וכלים נלווים', items: [
+    'מגן ציר הכוח (PTO) בטרקטור — קיים ותקין',
+    'מגן גל ההינע (קרדן) של הכלי הנגרר — קיים ותקין',
+    'התקן גרירה, פינים ונצרות — תקינים ונעולים',
+    'כף / מזלג / כלי עבודה — ללא סדקים, פינים ונצרות במקום',
+    'חיבור תאורה ובלמים לנגרר'] },
+  { title: 'ציוד בטיחות', items: [
+    'מטף כיבוי אש בתוקף ומקובע',
+    'ערכת עזרה ראשונה',
+    'אפוד זוהר ומשולש אזהרה',
+    'תא הנהג נקי, ללא חפצים רופפים ליד הדוושות'] },
+  { title: 'נסיעת מבחן', items: [
+    'התנעה, בלימה, היגוי והרמה הידראולית — תקינים בהפעלה'] }
+];
+// הסעיפים של ביקורת שמורה נקבעים לפי סוג הטופס שנשמר בה, ולא לפי הטופס
+// שפתוח כרגע. אחרת צפייה בביקורת אוטובוס, אחרי שנפתח טופס רגיל, הציגה
+// סעיפים שאינם ברשומה והשמיטה את אלה שנבדקו.
+function inspSectionsFor(r) {
+  const k = r && r.formKind;
+  if (k === 'tractor') return TRACTOR_INSPECTION_SECTIONS;
+  if (k === 'bus') return BUS_INSPECTION_SECTIONS;
+  if (k === 'private') return INSPECTION_SECTIONS;
+  return inspSections();
+}
+// בטרקטור יש סעיפים שאינם קיימים בכל כלי (מעמיס, נגרר, תא סגור), ולכן
+// נוספת תשובת "לא רלוונטי" — במקום לסמן "תקין" על מה שלא נבדק.
+function inspOptsFor(kind) {
+  return kind === 'tractor' ? ['תקין', 'לא תקין', 'טופל', 'לא רלוונטי'] : ['תקין', 'לא תקין', 'טופל'];
+}
+function _inspSet(si, ii, opt) {
+  const s = inspSections()[si];
+  const it = s && s.items[ii];
+  if (!it) return;
+  inspAnswers[it] = opt;
+  renderInspSections();
+}
 // איזה טופס פותחים: הדגל מופעל ללקוח, והבחירה בפועל היא לפי משקל הרכב.
 // לחברת הסעות יש גם רכבים קטנים, ולכפות עליהם טופס אוטובוס היה מייצר
 // ביקורת מלאה בסעיפים שאינם קיימים ברכב.
 // ביקורת שנפתחה במפורש כביקורת אוטובוס נשארת כזו גם אם מספר הרכב אינו
 // מוכר במערכת — זה בדיוק המקרה של בדיקה לאוטובוס של גורם אחר.
-let _inspForceBus = false;
+let _inspForceBus = false, _inspForceTractor = false;
 function inspSections() {
   // אצל מפעיל הסעות הטופס הציבורי חל על כל הצי, גם על רכב קטן: הנוסעים
   // והאחריות זהים, ותנאי משקל היה מפצל את אותה חברה לשני טפסים.
+  if (_inspForceTractor) return TRACTOR_INSPECTION_SECTIONS;   // נפתח במפורש כביקורת טרקטור
   if (featureOn('busForm') || _inspForceBus) return BUS_INSPECTION_SECTIONS;
   return INSPECTION_SECTIONS;
 }
@@ -8243,6 +8329,7 @@ async function loadInspectionHistory() {
       return `<div class="insp-hist-row" onclick="viewInspection(${i})">
         <span style="font-weight:700;color:var(--accent);direction:ltr">${esc(r.plate)}</span>
         ${_isMuni ? '<span class="badge" style="background:#ede9fe;color:#5b21b6;border:1px solid #ddd6fe">🏛️ הסעות</span>' : ''}
+        ${r.formKind === 'tractor' ? '<span class="badge" style="background:#fef3c7;color:#92400e;border:1px solid #fde68a">🚜 טרקטור</span>' : ''}
         <span>${esc(r.driver||'')}</span>
         <span style="color:var(--muted)">${esc(r.dateStr||'')}</span>
         ${bad ? `<span class="badge badge-red">${bad} לא תקין</span>` : '<span class="badge badge-green">✓ תקין</span>'}
@@ -8571,7 +8658,12 @@ function _inspRemember(name) {
 }
 
 function openInspectionForm(prefillPlate, forceBus) {
-  _inspForceBus = !!forceBus;
+  _inspForceTractor = forceBus === 'tractor';
+  _inspForceBus = !!forceBus && forceBus !== 'tractor';
+  const _tt = document.getElementById('if-title');
+  if (_tt) _tt.textContent = _inspForceTractor ? '🚜 ביקורת טרקטור' : '🛡️ ביקורת קצין בטיחות';
+  const _kl = document.getElementById('if-km-label');
+  if (_kl) _kl.textContent = _inspForceTractor ? 'מד שעות מנוע / ק"מ' : 'קריאת מד אוץ (ק"מ)';
   document.getElementById('forms-menu').style.display = 'none';
   document.getElementById('inspection-form').style.display = '';
   ['if-plate','if-model','if-km','if-notes'].forEach(id => document.getElementById(id).value = '');
@@ -8599,14 +8691,17 @@ function inspectFromModal() {
 }
 
 function renderInspSections() {
-  const cls = v => v==='תקין' ? 'sel-ok' : v==='לא תקין' ? 'sel-bad' : 'sel-fixed';
-  document.getElementById('if-sections').innerHTML = inspSections().map(s => `
+  const cls = v => v==='תקין' ? 'sel-ok' : v==='לא תקין' ? 'sel-bad' : v==='לא רלוונטי' ? 'sel-na' : 'sel-fixed';
+  const opts = inspOptsFor(_inspForceTractor ? 'tractor' : '');
+  // הכפתור מזהה סעיף לפי מיקומו ולא לפי שמו, כך ששם סעיף עם מירכאות או גרש
+  // לא יכול לשבור את ה-onclick (esc אינו מקודד מירכאות)
+  document.getElementById('if-sections').innerHTML = inspSections().map((s, si) => `
     <div class="insp-section">
       <div class="insp-section-hdr">${esc(s.title)}</div>
-      ${s.items.map(it => `<div class="insp-item">
+      ${s.items.map((it, ii) => `<div class="insp-item">
         <span class="insp-item-name">${esc(it)}</span>
-        <span class="insp-opts">${['תקין','לא תקין','טופל'].map(opt =>
-          `<button class="insp-opt ${inspAnswers[it]===opt ? cls(opt) : ''}" onclick="inspAnswers['${esc(it).replace(/'/g,"\\'")}']='${opt}';renderInspSections()">${opt}</button>`).join('')}
+        <span class="insp-opts">${opts.map(opt =>
+          `<button class="insp-opt ${inspAnswers[it]===opt ? cls(opt) : ''}" onclick="_inspSet(${si},${ii},'${opt}')">${opt}</button>`).join('')}
         </span>
       </div>`).join('')}
     </div>`).join('');
@@ -8619,7 +8714,7 @@ function inspFillFromPlate() {
   document.getElementById('if-driver-name').textContent = v.driverName || '—';
   if (v.currentKm) document.getElementById('if-km').value = v.currentKm;
   // הרכב נבחר — ייתכן שסוג הטופס השתנה (אוטובוס מול רכב רגיל)
-  if (featureOn('busForm') && !_inspForceBus) { inspSeedAnswers(); renderInspSections(); }
+  if (featureOn('busForm') && !_inspForceBus && !_inspForceTractor) { inspSeedAnswers(); renderInspSections(); }
 }
 
 // ── signature pad ──
@@ -8650,16 +8745,16 @@ function clearSignature() {
 
 function buildInspectionText(r) {
   const lines = [];
-  lines.push(`ביקורת קצין בטיחות ${r.inspType||''} — רכב ${r.plate}`);
+  lines.push(`${r.formKind === 'tractor' ? 'ביקורת טרקטור' : 'ביקורת קצין בטיחות'} ${r.inspType||''} — רכב ${r.plate}`);
   lines.push(`תאריך: ${r.dateStr}`);
   lines.push(`סוג רכב: ${r.model||'-'} | מחזיק: ${r.driver||'-'}`);
-  lines.push(`קריאת מד אוץ: ${r.km||'-'} ק"מ`);
+  lines.push(r.formKind === 'tractor' ? `מד שעות מנוע / ק"מ: ${r.km||'-'}` : `קריאת מד אוץ: ${r.km||'-'} ק"מ`);
   lines.push('');
-  inspSections().forEach(s => {
+  inspSectionsFor(r).forEach(s => {
     lines.push(`◼ ${s.title}`);
     s.items.forEach(it => {
       const val = (r.items||{})[it] || '-';
-      const mark = val==='תקין' ? '✓' : val==='לא תקין' ? '✗' : '🔧';
+      const mark = val==='תקין' ? '✓' : val==='לא תקין' ? '✗' : val==='לא רלוונטי' ? '—' : '🔧';
       lines.push(`   ${mark} ${it}: ${val}`);
     });
   });
@@ -8672,31 +8767,30 @@ function buildInspectionText(r) {
 
 // ── inspection PDF ──
 function buildInspectionPdfHtml(r) {
-  const rows = inspSections().map(s => `
+  const _opts = inspOptsFor(r && r.formKind);
+  const rows = inspSectionsFor(r).map(s => `
     <tr><td colspan="4" style="background:#eef2f7;font-weight:800;padding:6px 10px;border:1px solid #cbd5e1">${esc(s.title)}</td></tr>
     ${s.items.map(it => {
       const val = (r.items||{})[it] || '';
       const cell = o => `<td style="text-align:center;border:1px solid #cbd5e1;width:60px;font-size:15px">${val===o ? '✔' : ''}</td>`;
-      return `<tr><td style="padding:5px 10px;border:1px solid #cbd5e1">${esc(it)}</td>${cell('תקין')}${cell('לא תקין')}${cell('טופל')}</tr>`;
+      return `<tr><td style="padding:5px 10px;border:1px solid #cbd5e1">${esc(it)}</td>${_opts.map(cell).join('')}</tr>`;
     }).join('')}`).join('');
   return `
   <div dir="rtl" style="font-family:Arial,'Segoe UI','Arial Hebrew','Heebo',sans-serif;color:#0f172a;width:760px;padding:24px;background:#fff">
-    <div style="text-align:center;font-size:20px;font-weight:900;margin-bottom:4px">ביקורת קצין בטיחות ${esc(r.inspType||'')} — מלאה</div>
+    <div style="text-align:center;font-size:20px;font-weight:900;margin-bottom:4px">${r.formKind === 'tractor' ? 'ביקורת בטיחות לטרקטור' : 'ביקורת קצין בטיחות'} ${esc(r.inspType||'')} — מלאה</div>
     <div style="text-align:center;font-size:12px;color:#475569;margin-bottom:14px">${esc(COMPANY_NAME||'')} — מחלקת רכב | ${esc(r.dateStr||'')}</div>
     <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:12px">
       <tr>
         <td style="border:1px solid #cbd5e1;padding:6px 10px"><b>מספר רכב:</b> <span dir="ltr">${esc(r.plate||'')}</span></td>
         <td style="border:1px solid #cbd5e1;padding:6px 10px"><b>סוג רכב:</b> ${esc(r.model||'')}</td>
         <td style="border:1px solid #cbd5e1;padding:6px 10px"><b>מחזיק רכב:</b> ${esc(r.driver||'')}</td>
-        <td style="border:1px solid #cbd5e1;padding:6px 10px"><b>מד אוץ:</b> ${esc(r.km||'')} ק"מ</td>
+        <td style="border:1px solid #cbd5e1;padding:6px 10px">${r.formKind === 'tractor' ? '<b>מד שעות / ק"מ:</b> ' + esc(r.km||'') : '<b>מד אוץ:</b> ' + esc(r.km||'') + ' ק"מ'}</td>
       </tr>
     </table>
     <table style="width:100%;border-collapse:collapse;font-size:13px">
       <tr style="background:#1e3a8a;color:#fff">
         <th style="padding:6px 10px;border:1px solid #1e3a8a;text-align:right">סעיף בדיקה</th>
-        <th style="padding:6px;border:1px solid #1e3a8a">תקין</th>
-        <th style="padding:6px;border:1px solid #1e3a8a">לא תקין</th>
-        <th style="padding:6px;border:1px solid #1e3a8a">טופל</th>
+        ${_opts.map(o => '<th style="padding:6px;border:1px solid #1e3a8a">' + o + '</th>').join('')}
       </tr>
       ${rows}
     </table>
@@ -8749,7 +8843,7 @@ async function inspPdfDownload(r) {
     const blob = await inspPdfBlob(r);
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = (r.formKind === 'municipal' ? 'בדיקת הסעות ' : 'ביקורת בטיחות ') + r.plate + '.pdf';
+    a.download = (r.formKind === 'municipal' ? 'בדיקת הסעות ' : r.formKind === 'tractor' ? 'ביקורת טרקטור ' : 'ביקורת בטיחות ') + r.plate + '.pdf';
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 5000);
   } catch(e) { toast('שגיאה ביצירת PDF', true); }
@@ -8760,7 +8854,7 @@ async function inspImgDownload(r) {
     const blob = await inspImgBlob(r);
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `ביקורת בטיחות ${r.plate}.png`;
+    a.download = `${r.formKind === 'tractor' ? 'ביקורת טרקטור' : 'ביקורת בטיחות'} ${r.plate}.png`;
     a.click();
     setTimeout(() => URL.revokeObjectURL(a.href), 5000);
   } catch(e) { toast('שגיאה ביצירת התמונה', true); }
@@ -8769,9 +8863,9 @@ async function inspImgShare(r) {
   if (!r) { toast('זמין רק לביקורות', true); return; }
   try {
     const blob = await inspImgBlob(r);
-    const file = new File([blob], `ביקורת בטיחות ${r.plate}.png`, { type: 'image/png' });
+    const file = new File([blob], `${r.formKind === 'tractor' ? 'ביקורת טרקטור' : 'ביקורת בטיחות'} ${r.plate}.png`, { type: 'image/png' });
     if (navigator.canShare && navigator.canShare({ files: [file] })) {
-      await navigator.share({ files: [file], title: `ביקורת בטיחות למספר רכב ${r.plate}` });
+      await navigator.share({ files: [file], title: `${r.formKind === 'tractor' ? 'ביקורת טרקטור' : 'ביקורת בטיחות'} למספר רכב ${r.plate}` });
     } else {
       inspImgDownload(r);
     }
@@ -8793,7 +8887,7 @@ async function submitInspection() {
     dateStr,
     plate,
     inspType: document.getElementById('if-type').value,
-    formKind: (_inspForceBus || inspSections() === BUS_INSPECTION_SECTIONS) ? 'bus' : 'private',
+    formKind: _inspForceTractor ? 'tractor' : (_inspForceBus || inspSections() === BUS_INSPECTION_SECTIONS) ? 'bus' : 'private',
     model: document.getElementById('if-model').value.trim(),
     driver: (VEHICLES.find(x => x.plate === plate) || {}).driverName || '',
     km: document.getElementById('if-km').value.trim(),
@@ -8823,7 +8917,7 @@ async function submitInspection() {
       if (_kmForRound) recordKmReport(v, _kmForRound, _prevKmForRound);
     }
     // 3. email a copy — Web3Forms auto-send if configured, FormSubmit second, mail-app dialog as last resort
-    const subject = `ביקורת בטיחות למספר רכב ${plate}`;
+    const subject = `${rec.formKind === 'tractor' ? 'ביקורת טרקטור' : 'ביקורת בטיחות'} למספר רכב ${plate}`;
     const bodyText = buildInspectionText(rec);
     // כתובת הגיבוי היא המייל האישי של הבעלים. לקוח שלא הגדיר כתובת קבלה
     // נפל עד כה אליה — וביקורות הבטיחות שלו, עם שמות נהגים ומספרי רכב,
@@ -8842,8 +8936,8 @@ async function submitInspection() {
         });
         const [imgBlob, pdfBlob] = await Promise.all([inspImgBlob(rec), inspPdfBlob(rec)]);
         const files = [
-          { base64: await toB64(pdfBlob), mimeType: 'application/pdf', filename: `ביקורת בטיחות ${plate}.pdf` },
-          { base64: await toB64(imgBlob), mimeType: 'image/png', filename: `ביקורת בטיחות ${plate}.png` }
+          { base64: await toB64(pdfBlob), mimeType: 'application/pdf', filename: `${rec.formKind === 'tractor' ? 'ביקורת טרקטור' : 'ביקורת בטיחות'} ${plate}.pdf` },
+          { base64: await toB64(imgBlob), mimeType: 'image/png', filename: `${rec.formKind === 'tractor' ? 'ביקורת טרקטור' : 'ביקורת בטיחות'} ${plate}.png` }
         ];
         await fetch(MAIL_SETTINGS.gasUrl, {
           method: 'POST', mode: 'no-cors',
@@ -8919,7 +9013,7 @@ function viewInspection(i) {
   // ברשומה והשדות שמולאו לא הופיעו.
   const _muni = r.formKind === 'municipal';
   document.getElementById('iv-title').textContent =
-    (_muni ? 'בדיקת חברת הסעות — ' : 'ביקורת בטיחות — ') + r.plate;
+    (_muni ? 'בדיקת חברת הסעות — ' : r.formKind === 'tractor' ? 'ביקורת טרקטור — ' : 'ביקורת בטיחות — ') + r.plate;
   document.getElementById('iv-body').textContent = _muni ? muniText(r) : buildInspectionText(r);
   const sw = document.getElementById('iv-sig-wrap');
   if (r.signature) { sw.style.display = ''; document.getElementById('iv-sig').src = r.signature; }
@@ -12570,7 +12664,7 @@ function sysAllowed(name) { return SYS_ENABLED[name] !== false; }
 // העמודה, ובצי של נופר היא מיותרת. הנתון נשלף בסנכרון ממילא, ולכן
 // עדיף שלקוח יראה אותו בלי להיות תלוי בסימון ידני שלי. כיבוי ללקוח
 // מסוים נעשה בפאנל ונשמר שם כ-false מפורש.
-let FEATURES = { dept: true, vehStatus: true, weight: true, drivers: false, extraCerts: false, trafficMonths: 36, inspectionMonths: 0, serviceKmAlert: 1000, singleSession: false, busForm: false, yearCol: false, municipalForm: false, splitName: false };
+let FEATURES = { dept: true, vehStatus: true, weight: true, drivers: false, extraCerts: false, trafficMonths: 36, inspectionMonths: 0, serviceKmAlert: 1000, singleSession: false, busForm: false, yearCol: false, municipalForm: false, tractorForm: false, splitName: false };
 function featureOn(name) { return FEATURES[name] === true; }
 // עמודת הטבלה מוסתרת ב-CSS ולא נמחקת מה-DOM, כדי שמספר התאים בכותרת,
 // בשורת הסינון ובשורות יישאר זהה — טבלה שיוצאת מיישור היא באג שקט.
@@ -12598,6 +12692,8 @@ function applyFeatureFlags() {
   if (_bc) _bc.style.display = featureOn('busForm') ? '' : 'none';
   const _mc = document.getElementById('muni-insp-card');
   if (_mc) _mc.style.display = featureOn('municipalForm') ? '' : 'none';
+  const _tc = document.getElementById('tractor-insp-card');
+  if (_tc) _tc.style.display = featureOn('tractorForm') ? '' : 'none';
   const _dh = document.getElementById('drv-hdr-name');
   if (_dh) _dh.textContent = featureOn('splitName') ? 'שם פרטי' : 'שם הנהג';
   const _hd = document.getElementById('hdr-driver');
@@ -12953,6 +13049,7 @@ async function resolveTenant(user) {
                    busForm: _f.busForm === true,
                    yearCol: _f.yearCol === true,
                    municipalForm: _f.municipalForm === true,
+                   tractorForm: _f.tractorForm === true || (_f.tractorForm === undefined && _f.municipalForm === true),
                    splitName: _f.splitName === true };
       return;
     }
@@ -17520,6 +17617,7 @@ async function adminLoadClient() {
     document.getElementById('adm-busform').checked = _af.busForm === true;
     document.getElementById('adm-yearcol').checked = _af.yearCol === true;
     document.getElementById('adm-muniform').checked = _af.municipalForm === true;
+    document.getElementById('adm-tractorform').checked = _af.tractorForm === true || (_af.tractorForm === undefined && _af.municipalForm === true);
     _admLoadedUid = uid;
     st.textContent = '✓ נטען'; st.style.color = '#86efac';
   } catch(e) { st.textContent = _admPermErr(e); st.style.color = '#fca5a5'; console.log('adminLoadClient', e); }
@@ -17572,6 +17670,8 @@ async function adminViewAsClient() {
                  inspectionMonths: parseInt(_f.inspectionMonths) || 0,
                    serviceKmAlert: parseInt(_f.serviceKmAlert) || 1000,
                  singleSession: false,           // צפייה שלך אינה תופסת נעילה ללקוח
+                 municipalForm: _f.municipalForm === true,
+                 tractorForm: _f.tractorForm === true || (_f.tractorForm === undefined && _f.municipalForm === true),
                  splitName: _f.splitName === true };
     const sys = d.systems || {};
     SYS_ENABLED = { fleet: !!sys.fleet, shamai: !!sys.shamai, garage: !!sys.garage };
@@ -17699,7 +17799,8 @@ async function adminSaveClient() {
       vehStatus: !!document.getElementById('adm-vstatus').checked,
       busForm: !!document.getElementById('adm-busform').checked,
       yearCol: !!document.getElementById('adm-yearcol').checked,
-      municipalForm: !!document.getElementById('adm-muniform').checked
+      municipalForm: !!document.getElementById('adm-muniform').checked,
+      tractorForm: !!document.getElementById('adm-tractorform').checked
     }
   };
   st.textContent = 'שומר…'; st.style.color = '#94a3b8';
