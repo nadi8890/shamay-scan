@@ -1642,6 +1642,11 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
       <div><div style="font-weight:800;color:#fff;font-size:1rem">קישור לבוט נדי (לנהגים)</div>
       <div style="font-size:0.75rem;color:#e0e7ff">לחץ להעתקת קישור הבוט של החברה — שלח לנהגים בוואטסאפ</div></div>
     </div>
+    <div class="form-card" onclick="copyWinterLink()" style="background:linear-gradient(135deg,#0369a1,#0ea5e9);border-color:#0369a1;margin-top:10px">
+      <span style="font-size:2.2rem">❄️</span>
+      <div><div style="font-weight:800;color:#fff;font-size:1rem">לומדת נהיגה בטוחה בחורף</div>
+      <div style="font-size:0.75rem;color:#e0f2fe">לחץ להעתקת קישור לכל הנהגים — 10 שאלות, ציון עובר 80, נשמר בתיק הנהג</div></div>
+    </div>
     <div class="form-card" onclick="openContactsView()" style="background:linear-gradient(135deg,#0891b2,#0e7490);border-color:#0891b2;margin-top:10px">
       <span style="font-size:2.2rem">👥</span>
       <div><div style="font-weight:800;color:#fff;font-size:1rem">אנשי קשר</div>
@@ -2085,6 +2090,7 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
     <button class="btn btn-green" style="width:100%;margin-bottom:7px" onclick="sendDeclForm('family')">💬 👨‍👩‍👧 הצהרת בני משפחה</button>
     <button class="btn btn-green" style="width:100%;margin-bottom:7px" onclick="sendDeclForm('traffic')">💬 🚔 אישור עבר תעבורתי</button>
     <button class="btn btn-green" style="width:100%;margin-bottom:7px" onclick="sendDeclForm('testdrive')">💬 🚙 מבחן נהיגה מעשי (נסיעת מבחן)</button>
+    <button class="btn" style="width:100%;margin-bottom:7px;background:#0369a1;color:#fff" onclick="sendDeclForm('winter')">💬 ❄️ לומדת נהיגה בטוחה בחורף (10 שאלות)</button>
     <button class="btn btn-secondary" style="width:100%;margin-bottom:10px" onclick="declCopyLink()">📋 העתק קישור כללי</button>
     <div id="dsm-vehicle-only" style="border-top:1px dashed var(--border);padding-top:10px;margin-bottom:2px">
       <button class="btn" style="width:100%;background:#dc2626;color:#fff;margin-bottom:7px" onclick="shareDamageLinkFor(window._declPlate)">💬 💥 דיווח נזק</button>
@@ -2125,6 +2131,19 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
       <button class="btn btn-secondary" id="iv-pdf" onclick="ivPdf()">📄 PDF</button>
       <button class="btn btn-secondary" id="iv-img" onclick="ivImg()">🖼️ תמונה</button>
       <button class="btn btn-primary" id="iv-share" onclick="ivShare()">📤 שתף</button>
+    </div>
+  </div>
+</div>
+
+<!-- טופס חתום כמסמך: התמונה של המסמך עצמו, עם הורדה כ-PDF או כתמונה -->
+<div class="modal-overlay" id="decldoc-modal" style="z-index:680">
+  <div class="modal" style="max-width:820px">
+    <h3 id="decldoc-title">📄 טופס חתום</h3>
+    <div id="decldoc-body" style="max-height:66vh;overflow:auto;background:#f1f5f9;border-radius:10px;padding:8px;text-align:center"></div>
+    <div class="btn-row">
+      <button class="btn btn-secondary" onclick="document.getElementById('decldoc-modal').classList.remove('open')">סגור</button>
+      <button class="btn btn-secondary" onclick="declDocDownload(window._declDocRec,'img')">🖼️ הורד תמונה</button>
+      <button class="btn btn-primary" onclick="declDocDownload(window._declDocRec,'pdf')">📄 הורד PDF</button>
     </div>
   </div>
 </div>
@@ -7094,6 +7113,15 @@ function copyBotLink() {
     navigator.clipboard.writeText(link).then(done).catch(() => _fallbackCopy(link, done));
   } else _fallbackCopy(link, done);
 }
+// קישור כללי ללומדת החורף, לשליחה לכל הנהגים (למשל בקבוצת וואטסאפ). כל נהג
+// ממלא את פרטיו, והלומדה שעבר נשמרת בתיק שלו לפי השם.
+function copyWinterLink() {
+  const link = 'https://nadi8890.github.io/shamay-scan/driver-forms.html?plate=' + tParam('&') + '&form=winter';
+  const msg = `❄️ לומדת נהיגה בטוחה בחורף\nלימוד קצר ומבחן של 10 שאלות (ציון עובר 80). נא למלא את הפרטים ולעבור את המבחן:\n${link}\n\n${coSig()}`;
+  const done = () => toast('קישור הלומדה הועתק ✓ — שלח לנהגים בוואטסאפ');
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(msg).then(done).catch(() => _fallbackCopy(msg, done));
+  else _fallbackCopy(msg, done);
+}
 async function markKmRoundSent() {
   KMROUND[kmMonthKey()] = Date.now();
   saveToFirestore('kmRound', KMROUND);
@@ -7445,6 +7473,7 @@ const DECL_FORM_META = {
   family:     { label: '👨‍👩‍👧 בני משפחה', msgName: 'הצהרת שימוש בני משפחה ברכב' },
   traffic:    { label: '🚔 עבר תעבורתי', msgName: 'אישור בדיקת עבר תעבורתי' },
   testdrive:  { label: '🚙 מבחן נהיגה מעשי', msgName: 'טופס מבחן נהיגה מעשי (נסיעת מבחן — תקנה 25)' },
+  winter:     { label: '❄️ לומדת חורף', msgName: 'לומדת נהיגה בטוחה בחורף — לימוד קצר ומבחן של 10 שאלות (ציון עובר 80)' },
   accident:   { label: '🚧 תחקיר תאונה', msgName: 'תחקיר תאונת דרכים (למילוי לאחר אירוע)' }
 };
 // driverName נמסר כשאין רכב — הטפסים האישיים (נהלים, בני משפחה, עבר
@@ -7484,7 +7513,7 @@ function openDeclShare(plate, driverName) {
 function sendDeclForm(formKey) {
   const meta = DECL_FORM_META[formKey];
   const link = `${window._declLink}&form=${formKey}`;
-  const msg = `שלום ${window._declDriver || ''},\nנא למלא ולחתום על ${meta.msgName}${window._declPlate ? ' עבור רכב ' + window._declPlate : ''} בקישור:\n${link}\n\nלוקח 2 דקות בטלפון. תודה!\n${coSig()}`;
+  const msg = `שלום ${window._declDriver || ''},\nנא למלא ולחתום על ${meta.msgName}${window._declPlate ? ' עבור רכב ' + window._declPlate : ''} בקישור:\n${link}\n\n${formKey === 'winter' ? 'לוקח כ-10 דקות' : 'לוקח 2 דקות'} בטלפון. תודה!\n${coSig()}`;
   const url = window._declIntl
     ? `https://wa.me/${window._declIntl}?text=${encodeURIComponent(msg)}`
     : 'https://wa.me/?text=' + encodeURIComponent(msg);
@@ -7937,6 +7966,7 @@ async function loadDeclarations() {
         ${r.photosCount ? `<span class="badge badge-orange">📷 ${r.photosCount}</span>` : ''}
         ${r.docsCount ? `<span class="badge badge-orange" title="ביטוח חובה / רישיון רכב">🚗 ${r.docsCount}</span>` : ''}
         <span class="badge badge-green">✓ נחתם</span>
+        ${declDocBtns('forms', i)}
         <button class="btn btn-secondary" style="padding:3px 8px;font-size:0.72rem" title="שלח שוב במייל" onclick="event.stopPropagation();resendDeclarationMail(${i})">🔁</button>
         <button class="btn btn-secondary" style="padding:3px 8px;font-size:0.72rem" onclick="event.stopPropagation();deleteDeclaration(${i})">🗑️</button>
       </div>`).join('');
@@ -7958,7 +7988,9 @@ function buildDeclText(r) {
   const titles = {
     procedures: ['✓ הצהרה והתחייבות מחזיק/ה ברכב — אושר', '✓ אישור אחריות אישית בגין עבירות — אושר'],
     family: ['✓ הצהרת שימוש בני משפחה — אושר'],
-    traffic: ['✓ אישור בדיקת עבר תעבורתי (תקנה 585א) — אושר']
+    traffic: ['✓ אישור בדיקת עבר תעבורתי (תקנה 585א) — אושר'],
+    testdrive: ['✓ מבחן נהיגה מעשי — הדרכת תפעול רכב (תקנה 25) — בוצע'],
+    winter: [r.quiz ? ('✓ לומדת נהיגה בטוחה בחורף — עבר/ה בציון ' + r.quiz.score + ' (ציון עובר ' + (r.quiz.passMark || 80) + ')') : '✓ לומדת נהיגה בטוחה בחורף']
   };
   const hdr = r.formType && DECL_FORM_META[r.formType] ? DECL_FORM_META[r.formType].label.replace(/^[^\s]+\s/, '') : 'טפסי קבלת רכב';
   L.push(`${hdr} — ${r.dateStr||''}`);
@@ -7989,7 +8021,7 @@ function buildDeclText(r) {
 // ולכן בניית עותק כאן הייתה מחייבת להעתיק את כל הנוסח המשפטי פעם
 // נוספת — וכל תיקון עתידי בו היה נשכח משם. במקום זה, docToPdfBlob
 // של אותו דף נקרא ישירות מתוך iframe נסתר באותו דומיין.
-async function _renderDeclPdf(rec) {
+async function _renderDeclDoc(rec, kind) {
   return new Promise((resolve, reject) => {
     const ifr = document.createElement('iframe');
     ifr.style.cssText = 'position:fixed;left:-9999px;top:0;width:800px;height:600px;border:0';
@@ -8001,16 +8033,18 @@ async function _renderDeclPdf(rec) {
       try {
         await new Promise(r => setTimeout(r, 500)); // לתת לסקריפט של הדף להשלים אתחול
         const w = ifr.contentWindow;
-        if (!w || typeof w.docToPdfBlob !== 'function') throw new Error('docToPdfBlob not available');
-        const blob = await w.docToPdfBlob(rec);
+        const fn = w && (kind === 'img' ? w.docToImageBlob : w.docToPdfBlob);
+        if (typeof fn !== 'function') throw new Error('doc renderer not available');
+        const blob = await fn(rec);
         if (done) return; done = true;
         clearTimeout(timer); cleanup(); resolve(blob);
       } catch(e) { if (done) return; done = true; clearTimeout(timer); cleanup(); reject(e); }
     };
-    ifr.src = 'driver-forms.html?t=' + tid();
+    ifr.src = 'driver-forms.html?t=' + tid() + '&v=doc2';   // גרסה, כדי שלא ייטען עותק ישן בלי ייצוא התמונה
     document.body.appendChild(ifr);
   });
 }
+function _renderDeclPdf(rec) { return _renderDeclDoc(rec, 'pdf'); }
 
 // שליחה חוזרת של טופס שכבר התקבל — לשחזור הודעות שהטוקן החדש חסם
 // בשקט לפני התיקון. מצרפת את החתימה, ואם נשמרו גם צילומי המסמכים
@@ -8059,8 +8093,7 @@ async function resendDeclarationMail(i) {
 function _ivButtons(kind) {
   const set = (id, show) => { const b = document.getElementById(id); if (b) b.style.display = show ? '' : 'none'; };
   set('iv-pdf', true);
-  // לטופס חתום אין מסלול רינדור לתמונה, ולכן הכפתור יורד במקום להיכשל
-  set('iv-img', kind === 'insp');
+  set('iv-img', true);
   set('iv-share', true);
 }
 async function ivPdf() {
@@ -8079,7 +8112,7 @@ async function ivPdf() {
 }
 function ivImg() {
   if (window._viewInspRec) return inspImgDownload(window._viewInspRec);
-  toast('לטופס חתום יש מסמך PDF בלבד', true);
+  return declDocDownload(window._viewDeclRec, 'img');
 }
 async function ivShare() {
   if (window._viewInspRec) return inspImgShare(window._viewInspRec);
@@ -8107,6 +8140,64 @@ function _declFileName(r) {
   const title = (r.formType && typeof DECL_FORM_META !== 'undefined' && DECL_FORM_META[r.formType])
     ? String(DECL_FORM_META[r.formType].label).replace(/^\S+\s/, '') : 'טופס נהג';
   return `${title} - ${r.name || ''} ${r.plate || ''}`.trim();
+}
+
+// ═══ צפייה והורדה של טופס חתום ═══
+// המסמך נבנה מחדש מהרשומה ע"י דף הטפסים עצמו (_renderDeclDoc), ולכן הוא
+// זהה למה שהנהג חתם עליו. צפייה = המסמך כתמונה בתוך המערכת, שנפתחת גם
+// בנייד; הורדה = PDF או JPG.
+let _declDocImgCache = { rec: null, blob: null };
+function _declList(src) {
+  const E = window._EMPDOCS || {};
+  return src === 'emp' ? (E.decls || []) : src === 'winter' ? (E.winter || []) : (window._DECLS || []);
+}
+async function _declImgBlob(r) {
+  if (_declDocImgCache.rec === r && _declDocImgCache.blob) return _declDocImgCache.blob;
+  const blob = await _renderDeclDoc(r, 'img');
+  _declDocImgCache = { rec: r, blob };
+  return blob;
+}
+async function openDeclDoc(src, i) {
+  const r = _declList(src)[i];
+  if (!r) return;
+  window._declDocRec = r;
+  document.getElementById('decldoc-title').textContent = '📄 ' + _declFileName(r);
+  const body = document.getElementById('decldoc-body');
+  body.innerHTML = '<div style="padding:30px;color:var(--muted)">מכין את המסמך…</div>';
+  document.getElementById('decldoc-modal').classList.add('open');
+  try {
+    const blob = await _declImgBlob(r);
+    if (window._declDocRec !== r) return;   // בינתיים נפתח מסמך אחר
+    const img = new Image();
+    img.src = URL.createObjectURL(blob);
+    img.alt = _declFileName(r);
+    img.style.cssText = 'width:100%;max-width:760px;background:#fff;border-radius:6px;box-shadow:0 1px 6px rgba(0,0,0,.12)';
+    body.innerHTML = '';
+    body.appendChild(img);
+  } catch (e) {
+    console.log('decl view', e);
+    body.innerHTML = '<div style="padding:24px;color:#dc2626">לא הצלחתי להכין את המסמך. נסה/י שוב.</div>';
+  }
+}
+async function declDocDownload(r, kind) {
+  if (!r) { toast('אין מסמך להורדה', true); return; }
+  toast('מכין קובץ…');
+  try {
+    const blob = kind === 'img' ? await _declImgBlob(r) : await _renderDeclDoc(r, 'pdf');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `${_declFileName(r)}.${kind === 'img' ? 'jpg' : 'pdf'}`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  } catch (e) { console.log('decl download', e); toast('שגיאה ביצירת הקובץ', true); }
+}
+function declDocDownloadAt(src, i, kind) { declDocDownload(_declList(src)[i], kind); }
+// כפתורי צפייה והורדה לשורת טופס ברשימה
+function declDocBtns(src, i) {
+  const b = (ic, t, fn) => `<button class="btn btn-secondary" style="padding:3px 8px;font-size:0.72rem" title="${t}" onclick="event.stopPropagation();${fn}">${ic}</button>`;
+  return b('👁️', 'צפייה במסמך', `openDeclDoc('${src}',${i})`) +
+         b('📄', 'הורד PDF', `declDocDownloadAt('${src}',${i},'pdf')`) +
+         b('🖼️', 'הורד תמונה', `declDocDownloadAt('${src}',${i},'img')`);
 }
 
 function viewDeclaration(i) {
@@ -12089,6 +12180,7 @@ async function openEmployeeDocs(plate, driverOnly){
     // כפתורי הצפייה וההורדה פונים ל-_EMPDOCS[cat], ולכן כל אישור נחשף
     // גם כמערך שטוח בשם vcert_<key> ולא רק בתוך vcerts
     Object.keys(D.vcerts || {}).forEach(k => { D['vcert_' + k] = D.vcerts[k]; });
+    D.winter = D.decls.filter(r => r.formType === 'winter');   // לומדת חורף — מוצגת גם במסמכי הנהג
     // כפתור ההוספה יושב בכותרת הרובריקה שאליה הוא שייך, ולא בשורה
     // נפרדת מעליהן — פחות מקום, ובלי לבחור סוג פעמיים.
     // הפרדה ויזואלית בין מסמכי נהג למסמכי רכב: לא עוד תווית טקסט קטנה
@@ -12123,9 +12215,15 @@ async function openEmployeeDocs(plate, driverOnly){
       <div>🚗 תוקף רישוי (טסט): <b>${esc(v.registrationExpiry||'—')}</b></div>
       <div>🛡️ תוקף ביטוח: <b>${esc(v.insuranceExpiry||'—')}</b></div>
       <div>🪪 תוקף רישיון נהיגה: <b>${esc(v.licenseExpiry||'—')}</b></div></div>`;
-    const declHtml = D.decls.map((r,i)=>`<div class="insp-hist-row" onclick="_empViewDecl(${i})" style="cursor:pointer">
+    const declHtml = D.decls.map((r,i)=>`<div class="insp-hist-row" onclick="openDeclDoc('emp',${i})" style="cursor:pointer" title="צפייה במסמך">
       <span style="font-weight:700">${r.formType && typeof DECL_FORM_META!=='undefined' && DECL_FORM_META[r.formType] ? DECL_FORM_META[r.formType].label : '📋 טפסים'}</span>
-      <span style="color:var(--muted)">${esc(r.dateStr||'')}</span><span class="badge badge-green">✓ נחתם</span></div>`).join('');
+      <span style="color:var(--muted)">${esc(r.dateStr||'')}</span><span class="badge badge-green">✓ נחתם</span>${r.quiz ? `<span class="badge badge-green">ציון ${esc(r.quiz.score)}</span>` : ''}
+      <span style="margin-inline-start:auto;display:inline-flex;gap:4px">${declDocBtns('emp', i)}</span></div>`).join('');
+    // לומדת החורף היא הסמכה של הנהג, ולכן היא מופיעה גם במסמכי הנהג
+    const winterHtml = D.winter.map((r,i)=>`<div class="insp-hist-row" onclick="openDeclDoc('winter',${i})" style="cursor:pointer" title="צפייה במסמך">
+      <span style="color:var(--muted)">${esc(r.dateStr||'')}</span>
+      <span class="badge badge-green">✓ עבר/ה${r.quiz ? ' · ציון ' + esc(r.quiz.score) : ''}</span>
+      <span style="margin-inline-start:auto;display:inline-flex;gap:4px">${declDocBtns('winter', i)}</span></div>`).join('');
     const imgRow = (arr, cat) => arr.map((r,di)=>`<div style="margin-bottom:5px;font-size:0.74rem;display:flex;align-items:center;gap:4px;flex-wrap:wrap"><span style="color:#64748b">${esc(r.title||'')}${r.title?' · ':''}${esc(r.dateStr||'')}${r.licNum?' · רישיון '+esc(r.licNum):''}</span> ${(r.images||[]).map((b,fi)=>`<button class="btn btn-gray" style="padding:3px 9px;font-size:0.68rem;margin:2px" onclick="_empView('${cat}',${di},${fi})">🖼️ ${fi+1}</button><button class="btn btn-gray" style="padding:3px 7px;font-size:0.68rem;margin:2px 0" title="הורד למחשב" onclick="_empDownload('${cat}',${di},${fi})">⬇️</button>`).join('')}<button class="btn" style="padding:3px 8px;font-size:0.68rem;margin:2px;background:#fee2e2;color:#b91c1c" title="מחק מסמך" onclick="deleteEmpDoc('${cat}',${di})">🗑️</button></div>`).join('');
     // צילום שאינו מסווג: כפתור צפייה + בורר. הבחירה מעבירה אותו למגירה.
     const unRow = arr => arr.map((r,di)=>`<div style="margin-bottom:6px;font-size:0.74rem;display:flex;align-items:center;gap:4px;flex-wrap:wrap">
@@ -12159,6 +12257,7 @@ async function openEmployeeDocs(plate, driverOnly){
                 addBtn("openManualDoc('license')", 'העלה רישיון נהיגה'), 'driver')
           + sec('📋','אישור עבר תעבורתי', D.ltraffic.length, imgRow(D.ltraffic,'ltraffic'),
                 addBtn("openManualDoc('traffic')", 'העלה אישור עבר תעבורתי'), 'driver')
+          + sec('❄️','לומדת נהיגה בטוחה בחורף', D.winter.length, winterHtml, '', 'driver')
           + sec('📎','מסמכים נוספים', D.vgen.length, imgRow(D.vgen, 'vgen'),
                 addBtn("openManualDoc('general')", 'העלה מסמך נוסף'), 'driver')
           + '<div style="font-size:0.7rem;color:#7c3aed;opacity:.75">לנהג הזה אין רכב משויך, ולכן מוצגים מסמכי הנהג בלבד. מסמכי רכב ייווספו כשיוקצה לו רכב.</div>');
@@ -12173,6 +12272,7 @@ async function openEmployeeDocs(plate, driverOnly){
                 addBtn("openManualDoc('license')", 'העלה רישיון נהיגה'), 'driver')
           + sec('📋','אישור עבר תעבורתי', D.ltraffic.length, imgRow(D.ltraffic,'ltraffic'),
                 addBtn("openManualDoc('traffic')", 'העלה אישור עבר תעבורתי'), 'driver')
+          + sec('❄️','לומדת נהיגה בטוחה בחורף', D.winter.length, winterHtml, '', 'driver')
           + `<div style="font-size:0.7rem;color:#7c3aed;opacity:.75">עוברים עם העובד — גם אם יחליף רכב</div>`)
       + grp('vehicle', '🚗',
             sec('🚗','רישיון רכב (טסט)', D.vreg.length, imgRow(D.vreg,'vreg'),

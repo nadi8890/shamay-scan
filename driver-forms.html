@@ -60,6 +60,16 @@ canvas.sig{width:100%;height:130px;border:1.5px dashed #94a3b8;border-radius:10p
 .thumb{position:relative;width:74px;height:74px;border-radius:10px;overflow:hidden;border:1.5px solid #dde3ed}
 .thumb img{width:100%;height:100%;object-fit:cover}
 .thumb .rm{position:absolute;top:2px;left:2px;background:rgba(220,38,38,.9);color:#fff;border:none;border-radius:50%;width:20px;height:20px;font-size:.7rem;cursor:pointer;line-height:1}
+/* לומדת חורף */
+.wl{background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;padding:10px 12px;margin-bottom:9px}
+.wl-t{font-weight:800;color:#075985;font-size:0.88rem;margin-bottom:5px}
+.wl ul{margin:0;padding-inline-start:18px}
+.wl li{font-size:0.83rem;line-height:1.6;color:#334155;margin-bottom:4px}
+.q{border:1.5px solid #e2e8f0;border-radius:11px;padding:10px 12px;margin-bottom:10px}
+.q-t{font-weight:800;font-size:0.88rem;margin-bottom:4px;line-height:1.5}
+.q-o{display:flex;align-items:flex-start;gap:8px;border:1.5px solid #e2e8f0;border-radius:9px;padding:9px 10px;margin-top:6px;cursor:pointer;font-size:0.85rem;line-height:1.5}
+.q-o input{width:18px;height:18px;flex-shrink:0;margin-top:2px}
+.q-o:has(input:checked){border-color:#2563eb;background:#eff6ff}
 .back-btn{background:none;border:none;color:#2563eb;font-family:'Heebo',sans-serif;font-weight:800;font-size:0.85rem;cursor:pointer;padding:4px 0;margin-bottom:8px}
 </style>
 </head>
@@ -210,6 +220,66 @@ canvas.sig{width:100%;height:130px;border:1.5px dashed #94a3b8;border-radius:10p
     </div>
   </div>
 
+  <!-- ═ winter driving course (standalone, not in the menu) ═ -->
+  <div class="card only-winter">
+    <div class="card-hdr">📘 לימוד קצר — נהיגה בטוחה בחורף</div>
+    <div class="card-body" id="sec-winter">
+      <div class="clause" style="font-weight:700">קרא/י בעיון. אחרי הלימוד יש מבחן של 10 שאלות, וציון עובר הוא 80.</div>
+      <div class="wl">
+        <div class="wl-t">🔧 לפני שיוצאים לדרך</div>
+        <ul>
+          <li>צמיגים: עומק החריץ לא יפחת מ-1.6 מ"מ, ולחץ האוויר לפי הוראות היצרן. צמיג שחוק מאבד אחיזה בכביש רטוב.</li>
+          <li>מגבים ונוזל לשמשות תקינים, כל הפנסים דולקים והבלמים עובדים כראוי.</li>
+          <li>השמשות נקיות ובלי אדים: מפעילים מיזוג על השמשה הקדמית ואת חימום השמשה האחורית.</li>
+        </ul>
+      </div>
+      <div class="wl">
+        <div class="wl-t">🌧️ כביש רטוב</div>
+        <ul>
+          <li>בגשם הראשון של העונה הכביש חלקלק במיוחד: שמן ואבק שהצטברו בקיץ מתערבבים במים.</li>
+          <li>על כביש רטוב דרך הבלימה ארוכה יותר. מאטים ושומרים רווח של לפחות 4 שניות מהרכב שלפנים, כפול מהרגיל.</li>
+          <li>נמנעים מבלימות חדות, מהאצות פתאומיות ומפניות חדות.</li>
+          <li>ברכב עם ABS בולמים בחירום בלחיצה חזקה ורציפה על הדוושה וממשיכים לנווט. לא "מפמפמים".</li>
+        </ul>
+      </div>
+      <div class="wl">
+        <div class="wl-t">🌊 החלקת מים</div>
+        <ul>
+          <li>במהירות גבוהה על שכבת מים הצמיגים עלולים לאבד מגע עם הכביש, וההגה נעשה "קל".</li>
+          <li>מה עושים: מרפים מדוושת הגז, מחזיקים את ההגה ישר ולא בולמים בחוזקה, עד שהצמיגים חוזרים לאחוז בכביש.</li>
+        </ul>
+      </div>
+      <div class="wl">
+        <div class="wl-t">🌫️ ראות ואורות</div>
+        <ul>
+          <li>מ-1 בנובמבר ועד 31 במרץ חובה לנסוע בדרך שאינה עירונית עם אורות דלוקים, גם ביום.</li>
+          <li>בערפל נוסעים באורות נמוכים ובפנסי ערפל. אורות גבוהים מסנוורים ומקשים לראות.</li>
+        </ul>
+      </div>
+      <div class="wl">
+        <div class="wl-t">⚠️ שיטפונות וסערות</div>
+        <ul>
+          <li>לא נכנסים לכביש מוצף או לנחל זורם. מים בגובה של כ-30 ס"מ עלולים לסחוף רכב פרטי. מחכים או בוחרים דרך אחרת.</li>
+          <li>אם הרכב נתקע במים שעולים: יוצאים מהרכב מיד, עולים לשטח גבוה ומזעיקים עזרה (100 / 102).</li>
+          <li>ברוח חזקה אוחזים בהגה בשתי ידיים, ולא חונים מתחת לעצים, לעמודים או לשלטים.</li>
+        </ul>
+      </div>
+      <label class="agree"><input type="checkbox" id="agree-winter"><span>קראתי והבנתי את חומר הלימוד</span></label>
+    </div>
+  </div>
+  <div class="card only-winter">
+    <div class="card-hdr">📝 מבחן — 10 שאלות <span style="font-size:0.75rem;color:#64748b;font-weight:700">ציון עובר: 80</span></div>
+    <div class="card-body"><div id="quiz-box"></div></div>
+  </div>
+  <div class="card only-winter" id="quiz-fail" style="display:none;border-color:#fca5a5">
+    <div class="card-body" style="text-align:center;padding:18px 14px">
+      <div style="font-size:2.2rem">📚</div>
+      <div id="quiz-fail-score" style="font-weight:900;font-size:1.15rem;color:#b91c1c;margin-top:4px"></div>
+      <div style="font-size:0.86rem;color:#475569;line-height:1.6;margin:6px 0 12px">הלומדה <b>לא נשלחה</b>. יש לעבור שוב על חומר הלימוד ולענות מחדש. אפשר לנסות כמה פעמים שצריך.</div>
+      <button type="button" class="btn btn-green" onclick="quizRetry()">🔁 ללמוד שוב ולנסות מחדש</button>
+    </div>
+  </div>
+
   <!-- ═ accident investigation (standalone, not in the menu) ═ -->
   <div class="card only-accident">
     <div class="card-hdr">🚧 תחקיר תאונת דרכים</div>
@@ -339,6 +409,7 @@ const FORMS = {
   family:     { title: 'הצהרת שימוש בני משפחה', doc: 'הצהרה בדבר שימוש בני משפחה ברכב', agrees: ['agree-family'], secs: [['sec-family','הצהרה בדבר שימוש בני משפחה ברכב']], cls: 'only-family', extraDriver: true, photos: true, photoHint: 'צרף/י צילום רישיון נהיגה של בן/בת המשפחה שנוהג/ת ברכב (אפשר כמה תמונות)' },
   traffic:    { title: 'אישור בדיקת עבר תעבורתי', doc: 'אישור בדיקת רישיון נהיגה — מידע תעבורתי (תקנה 585א)', agrees: ['agree-traffic'], secs: [['sec-traffic','אישור בדיקת רישיון נהיגה — מידע תעבורתי (תקנה 585א)']], cls: 'only-traffic' },
   testdrive:  { title: 'מבחן נהיגה מעשי', doc: 'מבחן נהיגה מעשי — הדרכת תפעול רכב (תקנה 25)', agrees: ['agree-testdrive'], secs: [['sec-testdrive','מבחן נהיגה מעשי']], cls: 'only-testdrive', officerSig: true },
+  winter:     { title: 'לומדת נהיגה בטוחה בחורף', doc: 'לומדת נהיגה בטוחה בחורף — לימוד ומבחן', agrees: ['agree-winter'], secs: [], cls: 'only-winter', isQuiz: true, hideFromMenu: true },
   accident:   { title: 'תחקיר תאונת דרכים', doc: 'תחקיר תאונת דרכים — קצין בטיחות בתעבורה', agrees: [], secs: [], cls: 'only-accident', isAccident: true, hideFromMenu: true }
 };
 
@@ -376,12 +447,94 @@ const FORMS = {
   }
 })();
 
+// ═══ לומדת נהיגה בטוחה בחורף ═══
+// המבחן נבדק כאן, בדפדפן של הנהג. מתחת לציון העובר שום דבר לא נשמר ולא
+// נשלח: הנהג חוזר לחומר הלימוד ומנסה שוב, כמה פעמים שצריך. רק מבחן שעבר
+// נשמר, יחד עם הציון והתשובות, ומגיע לתיק הנהג.
+const QUIZ_PASS = 80;
+// התשובה הנכונה היא תמיד הראשונה ברשימה; בתצוגה סדר השאלות והתשובות מעורבב
+const WINTER_QUIZ = [
+  { q: 'מה הרווח המומלץ מהרכב שלפניך בכביש רטוב?', a: ['לפחות 4 שניות, כפול מהרגיל', 'שנייה אחת', 'שתי שניות, כמו בכביש יבש', 'אין צורך לשנות את הרווח'] },
+  { q: 'מתי הכביש חלקלק במיוחד?', a: ['בגשם הראשון של העונה', 'אחרי שבוע של גשמים רצופים', 'ביום שמשי שאחרי הגשם', 'בלילה יבש וקר'] },
+  { q: 'הרכב נכנס להחלקת מים וההגה נעשה "קל". מה נכון לעשות?', a: ['להרפות מהגז, להחזיק את ההגה ישר ולא לבלום בחוזקה', 'לבלום בחוזקה מיד', 'לסובב את ההגה חזק הצידה', 'ללחוץ על הגז כדי לצאת מהמים'] },
+  { q: 'הגעת לכביש מוצף ואינך יודע/ת מה עומק המים. מה עושים?', a: ['לא נכנסים. מחכים או בוחרים דרך אחרת', 'עוברים לאט ובזהירות', 'עוברים מהר כדי לא להיתקע', 'נוסעים אחרי רכב שעבר לפניך'] },
+  { q: 'באיזה גובה מים רכב פרטי כבר עלול להיסחף?', a: ['כ-30 ס"מ', 'רק מעל מטר', 'רק מעל 2 מטרים', 'רכב פרטי אינו נסחף'] },
+  { q: 'באילו אורות נוסעים בערפל כבד?', a: ['אורות נמוכים ופנסי ערפל', 'אורות גבוהים', 'בלי אורות, כדי לא לסנוור', 'אורות מצוקה בלבד, תוך כדי נסיעה'] },
+  { q: 'מה עומק החריץ המינימלי המותר בצמיגים של רכב פרטי?', a: ['1.6 מ"מ', '0.5 מ"מ', '5 מ"מ', 'אין דרישה בחוק'] },
+  { q: 'איך בולמים בחירום בכביש רטוב ברכב עם ABS?', a: ['לחיצה חזקה ורציפה על הבלם, תוך המשך ניווט', 'לחיצות קצרות ומהירות ("פמפום")', 'משיכת בלם היד', 'העברה לניוטרל בלי לבלום'] },
+  { q: 'נוסעים ביום בדרך בין-עירונית בחודש ינואר. מה נכון לגבי האורות?', a: ['חובה לנסוע עם אורות דלוקים', 'אין צורך באורות ביום', 'רק כשיורד גשם', 'רק אחרי השקיעה'] },
+  { q: 'הרכב נתקע בתוך מים שהולכים ועולים. מה עושים?', a: ['יוצאים מיד, עולים לשטח גבוה ומזעיקים עזרה', 'נשארים ברכב ומחכים שהמים ירדו', 'מנסים להתניע שוב ושוב', 'יוצאים ודוחפים את הרכב החוצה'] }
+];
+let QUIZ_ORDER = [], QUIZ_ATTEMPTS = 0, QUIZ_LAST = '';
+function _qe(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+function _shuffle(arr) {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+  return a;
+}
+function renderQuiz() {
+  QUIZ_LAST = '';
+  QUIZ_ORDER = _shuffle(WINTER_QUIZ.map((_, i) => i))
+    .map(qi => ({ qi, opts: _shuffle(WINTER_QUIZ[qi].a.map((_, ai) => ai)) }));
+  document.getElementById('quiz-box').innerHTML = QUIZ_ORDER.map((it, n) => {
+    const Q = WINTER_QUIZ[it.qi];
+    return `<div class="q"><div class="q-t">${n + 1}. ${_qe(Q.q)}</div>` +
+      it.opts.map(ai => `<label class="q-o"><input type="radio" name="wq${n}" value="${ai}"><span>${_qe(Q.a[ai])}</span></label>`).join('') +
+      '</div>';
+  }).join('');
+  document.getElementById('quiz-fail').style.display = 'none';
+}
+function quizResult() {
+  let answered = 0, correct = 0;
+  const answers = QUIZ_ORDER.map((it, n) => {
+    const Q = WINTER_QUIZ[it.qi];
+    const sel = document.querySelector(`input[name="wq${n}"]:checked`);
+    if (!sel) return null;
+    answered++;
+    const ai = +sel.value;
+    if (ai === 0) correct++;
+    return { q: Q.q, a: Q.a[ai], ok: ai === 0 };
+  });
+  const total = QUIZ_ORDER.length;
+  return { answered, total, score: Math.round(correct * 100 / (total || 1)), answers };
+}
+function showQuizFail(score) {
+  document.getElementById('quiz-fail-score').textContent = `הציון שלך: ${score} · נדרש ${QUIZ_PASS} לפחות`;
+  const box = document.getElementById('quiz-fail');
+  box.style.display = '';
+  box.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+// חזרה ללימוד: אישור הקריאה מתאפס, והשאלות והתשובות מתערבבות מחדש
+function quizRetry() {
+  document.getElementById('agree-winter').checked = false;
+  renderQuiz();
+  document.getElementById('sec-winter').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+// חלק המבחן במסמך החתום: אישור הלימוד, הציון, וכל שאלה עם התשובה שנבחרה
+function _quizDocHtml(r) {
+  const z = r.quiz || {};
+  const th = 'border:1px solid #64748b;padding:6px 8px;background:#e0e7ff';
+  const td = 'border:1px solid #cbd5e1;padding:6px 8px';
+  return `<div style="page-break-inside:avoid;border:1px solid #cbd5e1;border-radius:8px;padding:14px 16px;margin-top:14px">
+      <div style="font-weight:800;font-size:14px;border-bottom:2px solid #1e3a8a;padding-bottom:6px;margin-bottom:8px;color:#1e3a8a">1. חומר הלימוד <span style="float:left;color:#047857;font-size:12px">✔ קראתי והבנתי</span></div>
+      <p style="margin:0;font-size:11.5px;line-height:1.6;color:#1e293b">לפני שיוצאים לדרך · כביש רטוב · החלקת מים · ראות ואורות · שיטפונות וסערות</p>
+    </div>
+    <div style="page-break-inside:avoid;border:2px solid #059669;border-radius:8px;padding:12px 16px;margin-top:14px;background:#ecfdf5;text-align:center">
+      <div style="font-size:22px;font-weight:900;color:#047857">עבר/ה בהצלחה · ציון ${_qe(z.score)}</div>
+      <div style="font-size:12px;color:#065f46;margin-top:3px">ציון עובר ${_qe(z.passMark)} · ${_qe(z.total)} שאלות · ניסיון מס' ${_qe(z.attempts)}</div>
+    </div>
+    <table style="width:100%;border-collapse:collapse;font-size:11.5px;margin-top:14px">
+      <tr><th style="${th};width:6%">#</th><th style="${th}">שאלה</th><th style="${th};width:36%">התשובה שנבחרה</th><th style="${th};width:8%"></th></tr>
+      ${(z.answers || []).map((x, i) => `<tr><td style="${td};text-align:center">${i + 1}</td><td style="${td}">${_qe(x && x.q)}</td><td style="${td}">${_qe(x && x.a)}</td><td style="${td};text-align:center;font-weight:800;color:${x && x.ok ? '#047857' : '#b91c1c'}">${x && x.ok ? '✓' : '✗'}</td></tr>`).join('')}
+    </table>`;
+}
+
 function openForm(key) {
   CURRENT = key;
   document.getElementById('menu').style.display = 'none';
   document.getElementById('done').style.display = 'none';
   document.getElementById('form-wrap').style.display = 'block';
-  document.querySelectorAll('.only-procedures,.only-family,.only-traffic,.only-testdrive,.only-accident').forEach(el => el.style.display = 'none');
+  document.querySelectorAll('.only-procedures,.only-family,.only-traffic,.only-testdrive,.only-accident,.only-winter').forEach(el => el.style.display = 'none');
   document.querySelectorAll('.' + FORMS[key].cls).forEach(el => el.style.display = '');
   // attachments: each form starts clean and explains what to attach
   licPhotos = []; licPhotosSmall = []; docPhotos = []; docPhotosSmall = [];
@@ -397,6 +550,14 @@ function openForm(key) {
   if (_sigHdr)   _sigHdr.textContent   = _isFamily ? '✍️ חתימת בן/בת המשפחה' : '✍️ חתימת העובד/ת';
   if (_sigClause)_sigClause.textContent= _isFamily ? 'הנני, בן/בת המשפחה הנוהג/ת ברכב, מצהיר/ה כי כל הפרטים לעיל נכונים.' : 'הנני מצהיר/ה בזאת כי כל הצהרותיי לעיל אמת.';
   if (_sigNote)  _sigNote.textContent  = _isFamily ? 'החתימה של בן/בת המשפחה — לא של העובד/ת. חתום/חתמי עם האצבע' : 'חתום/חתמי עם האצבע';
+  // לומדה: הצהרה משלה, אישור קריאה מאופס וסדר שאלות חדש בכל פתיחה
+  if (FORMS[key].isQuiz) {
+    if (_sigClause) _sigClause.textContent = 'הנני מאשר/ת כי קראתי את חומר הלימוד ועניתי על המבחן בעצמי.';
+    document.getElementById('agree-winter').checked = false;
+    QUIZ_ATTEMPTS = 0;
+    renderQuiz();
+  }
+  document.getElementById('submit-btn').textContent = FORMS[key].isQuiz ? '✅ בדיקת המבחן ושליחה' : '✅ אישור ושליחת הטופס';
   const _famFields = document.getElementById('fam-sig-fields');
   if (_famFields) _famFields.style.display = _isFamily ? '' : 'none';
   const _fn = document.getElementById('fam-name'), _fr = document.getElementById('fam-rel');
@@ -589,6 +750,7 @@ function buildDocHtml(r) {
       ${r.address ? `<tr><td colspan="3" style="border:1px solid #cbd5e1;padding:6px 10px"><b>כתובת:</b> ${r.address}</td></tr>` : ''}
     </table>
     ${secs}
+    ${r.quiz ? _quizDocHtml(r) : ''}
     ${r.testDrive ? `
     <table style="width:100%;border-collapse:collapse;font-size:12.5px;margin-top:14px">
       <tr><th colspan="2" style="border:1px solid #64748b;padding:7px;background:#e0e7ff;text-align:center">מבחן מעשי</th></tr>
@@ -599,7 +761,7 @@ function buildDocHtml(r) {
       ${r.testDrive.notes ? `<tr><td colspan="2" style="border:1px solid #64748b;padding:7px 10px"><b>הערות קצין הבטיחות:</b> ${r.testDrive.notes}</td></tr>` : ''}
     </table>` : ''}
     <div style="page-break-inside:avoid;margin-top:18px;border-top:2px solid #1e3a8a;padding-top:12px">
-      <p style="font-size:13px;font-weight:800;margin:0 0 8px">${r.testDrive ? 'מצהיר/ה בזאת כי עברתי הדרכה הכוללת תפעול הרכב, ואני בקיא/ה בהפעלתו.' : r.formType === 'family' ? 'הנני, בן/בת המשפחה הנוהג/ת ברכב, מצהיר/ה כי כל הפרטים לעיל נכונים.' : 'הנני מצהיר/ה בזאת כי כל הצהרותיי לעיל אמת.'}</p>
+      <p style="font-size:13px;font-weight:800;margin:0 0 8px">${r.testDrive ? 'מצהיר/ה בזאת כי עברתי הדרכה הכוללת תפעול הרכב, ואני בקיא/ה בהפעלתו.' : r.formType === 'family' ? 'הנני, בן/בת המשפחה הנוהג/ת ברכב, מצהיר/ה כי כל הפרטים לעיל נכונים.' : r.quiz ? 'הנני מאשר/ת כי קראתי את חומר הלימוד ועניתי על המבחן בעצמי.' : 'הנני מצהיר/ה בזאת כי כל הצהרותיי לעיל אמת.'}</p>
       <table style="width:100%;font-size:12px"><tr>
         <td><b>שם:</b> ${r.name}<br><br><b>תאריך:</b> ${r.dateStr}</td>
         <td style="text-align:left">${r.familyMember ? `<div style="font-size:11px;color:#475569">בן/בת המשפחה: <b>${r.familyMember.name}</b>${r.familyMember.relation ? ` · קרבה לעובד/ת: ${r.familyMember.relation}` : ''}</div>` : ''}<div style="font-size:11px;color:#475569">${r.formType === 'family' ? 'חתימת בן/בת המשפחה:' : 'חתימת העובד/ת:'}</div><img src="${r.signature}" style="width:190px;border-bottom:1.5px solid #0f172a"></td>
@@ -612,7 +774,7 @@ function buildDocHtml(r) {
   </div>`;
 }
 
-async function docToPdfBlob(rec) {
+async function _docCanvas(rec) {
   const holder = document.createElement('div');
   holder.style.cssText = 'position:absolute;left:-9999px;top:0';
   holder.innerHTML = buildDocHtml(rec);
@@ -637,6 +799,15 @@ async function docToPdfBlob(rec) {
   let nonWhite = 0;
   for (let i = 0; i < probe.length; i += 4) { if (probe[i] < 245 || probe[i+1] < 245 || probe[i+2] < 245) nonWhite++; }
   if (nonWhite < 50) throw new Error('blank render');
+  return { full, W, H, cuts, scale };
+}
+// אותו מסמך כתמונה אחת — לצפייה מתוך המערכת ולהורדה כ-JPG
+async function docToImageBlob(rec) {
+  const { full } = await _docCanvas(rec);
+  return await new Promise((res, rej) => full.toBlob(b => b ? res(b) : rej(new Error('image failed')), 'image/jpeg', 0.9));
+}
+async function docToPdfBlob(rec) {
+  const { full, W, H, cuts, scale } = await _docCanvas(rec);
   const pagePx = Math.floor(W * 277 / 194);
   const pages = [];
   let start = 0;
@@ -698,6 +869,7 @@ function buildSummaryText(r) {
   L.push(`עובד/ת: ${r.name} | ת.ז: ${r.idNum} | טלפון: ${r.phone||'-'} | רישיון: ${r.licNum||'-'}`);
   if (r.familyMember) L.push(`בן/בת המשפחה (החותם/ת): ${r.familyMember.name} | קרבה לעובד/ת: ${r.familyMember.relation||'-'}`);
   F.secs.forEach(s => L.push(`✓ ${s[1]} — אושר`));
+  if (r.quiz) L.push('✓ לומדת נהיגה בטוחה בחורף — עבר/ה בציון ' + r.quiz.score + ' (ציון עובר ' + r.quiz.passMark + ', ניסיון ' + r.quiz.attempts + ')');
   if (r.testDrive) {
     L.push('');
     L.push('סעיפי המבדק המעשי:');
@@ -736,6 +908,18 @@ async function submitForm() {
     if (!val('fam-name')) return fail('נא למלא שם מלא של בן/בת המשפחה');
     if (!val('fam-rel'))  return fail('נא למלא קרבה לעובד/ת');
   }
+  // לומדה: המבחן נבדק לפני החתימה. מתחת לציון העובר לא נשמר ולא נשלח דבר,
+  // והנהג חוזר ללמוד. ניסיון נספר רק כשהתשובות השתנו.
+  let _quiz = null;
+  if (F.isQuiz) {
+    const res = quizResult();
+    if (res.answered < res.total) return fail('נא לענות על כל ' + res.total + ' השאלות (נענו ' + res.answered + ')');
+    const qk = res.answers.map(x => x.a).join('|');
+    if (qk !== QUIZ_LAST) { QUIZ_ATTEMPTS++; QUIZ_LAST = qk; }
+    if (res.score < QUIZ_PASS) { err.style.display = 'none'; showQuizFail(res.score); return; }
+    document.getElementById('quiz-fail').style.display = 'none';
+    _quiz = { score: res.score, passMark: QUIZ_PASS, total: res.total, attempts: QUIZ_ATTEMPTS, answers: res.answers };
+  }
   if (!sigDrawn) return fail('חסרה חתימה — חתום/חתמי בריבוע');
   if (F.officerSig && !sig2Drawn) return fail('חסרה חתימת קצין הבטיחות בתעבורה');
 
@@ -761,6 +945,7 @@ async function submitForm() {
     docsCount: docPhotos.length, // insurance + vehicle licence photos
     signature: document.getElementById('sig').toDataURL('image/png')
   };
+  if (_quiz) rec.quiz = _quiz;
   if (F.officerSig) {
     rec.officerSignature = document.getElementById('sig2').toDataURL('image/png');
     rec.testDrive = {
@@ -867,13 +1052,14 @@ async function submitForm() {
     document.getElementById('form-wrap').style.display = 'none';
     document.getElementById('done').style.display = 'block';
     celebrate(rec.name, F.title);
+    if (rec.quiz) { const _ch = document.getElementById('done-chip'); if (_ch) _ch.textContent = '✓ עברת בציון ' + rec.quiz.score + ' · נשמר בתיק הנהג'; }
     if (F.photos) { licPhotos = []; licPhotosSmall = []; renderThumbs(); }
     docPhotos = []; docPhotosSmall = []; renderDocThumbs();
     window.scrollTo(0, 0);
   } catch(e) {
     fail('שגיאה בשליחה — בדוק/י חיבור לאינטרנט ונסה/י שוב');
   }
-  btn.disabled = false; btn.textContent = '✅ אישור ושליחת הטופס';
+  btn.disabled = false; btn.textContent = F.isQuiz ? '✅ בדיקת המבחן ושליחה' : '✅ אישור ושליחת הטופס';
 }
 
 // ═══ הודעת מערכת חגיגית לעובד בסיום מילוי טופס/נוהל ═══
