@@ -1855,7 +1855,7 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
         <div class="modal-row"><label>סוג ביקורת</label><select id="if-type"><option>חודשית</option><option>רבעונית</option><option selected>חציונית</option></select></div>
         <div class="modal-row"><label>סוג רכב</label><input id="if-model" type="text"></div>
         <div class="modal-row"><label>קריאת מד אוץ (ק"מ)</label><input id="if-km" type="number" inputmode="numeric" placeholder="52336"></div>
-        <div class="modal-row" style="grid-column:1/-1"><label>שם הבוחן</label><input id="if-inspector" type="text" value="נדב מרציאנו"></div>
+        <div class="modal-row" style="grid-column:1/-1"><label>שם הבוחן</label><input id="if-inspector" type="text"></div>
       </div>
       <div id="if-driver-line" style="padding:0 10px 10px;font-size:0.85rem;color:var(--muted)">👤 מחזיק הרכב: <b id="if-driver-name" style="color:var(--text,#1e293b)">—</b></div>
     </div>
@@ -8353,9 +8353,9 @@ async function muniPdfBlob(r) {
   } finally { document.body.removeChild(holder); }
 }
 async function muniSendMail(r) {
-  const to = MAIL_SETTINGS.recipient || INSPECTION_EMAIL;
+  const to = MAIL_SETTINGS.recipient || (TENANT === 'nofar' ? INSPECTION_EMAIL : '');   // לא למייל של לקוח אחר
   const subject = 'בדיקת חברת הסעות — רכב ' + r.plate;
-  if (!MAIL_SETTINGS.gasUrl) return;
+  if (!MAIL_SETTINGS.gasUrl || !to) return;
   let files = [];
   try {
     const blob = await muniPdfBlob(r);
@@ -8373,6 +8373,10 @@ function openInspectionForm(prefillPlate, forceBus) {
   document.getElementById('forms-menu').style.display = 'none';
   document.getElementById('inspection-form').style.display = '';
   ['if-plate','if-model','if-km','if-notes'].forEach(id => document.getElementById(id).value = '');
+  // שם הבוחן נלקח מקצין הבטיחות של הלקוח הנוכחי. עד כה הוא היה כתוב
+  // בקוד כ"נדב מרציאנו", ולכן הופיע בכל ביקורת של כל לקוח.
+  document.getElementById('if-inspector').value =
+    ((window.OFFICER_INFO && OFFICER_INFO.name) || (TENANT === 'nofar' ? 'נדב מרציאנו' : ''));
   document.getElementById('if-driver-name').textContent = '—';
   initSignaturePad();
   // checklist — everything starts as תקין, tap to change
@@ -8618,7 +8622,10 @@ async function submitInspection() {
     // 3. email a copy — Web3Forms auto-send if configured, FormSubmit second, mail-app dialog as last resort
     const subject = `ביקורת בטיחות למספר רכב ${plate}`;
     const bodyText = buildInspectionText(rec);
-    const recipient = MAIL_SETTINGS.recipient || INSPECTION_EMAIL;
+    // כתובת הגיבוי היא המייל האישי של הבעלים. לקוח שלא הגדיר כתובת קבלה
+    // נפל עד כה אליה — וביקורות הבטיחות שלו, עם שמות נהגים ומספרי רכב,
+    // נשלחו לתיבה של לקוח אחר. הגיבוי חל עכשיו רק על חשבון הבעלים.
+    const recipient = MAIL_SETTINGS.recipient || (TENANT === 'nofar' ? INSPECTION_EMAIL : '');
     let mailOk = false;
     let mailWithPdf = false;
     if (MAIL_SETTINGS.gasUrl) {
@@ -8657,7 +8664,7 @@ async function submitInspection() {
         mailOk = resp.ok && (await resp.json()).success === true;
       } catch(e) {}
     }
-    if (!mailOk) {
+    if (!mailOk && recipient) {
       try {
         const resp = await fetch('https://formsubmit.co/ajax/' + recipient, {
           method: 'POST',
@@ -8673,7 +8680,7 @@ async function submitInspection() {
       ? `הביקורת נשמרה ונשלחה למייל עם PDF ותמונה מצורפים ✓`
       : mailOk
       ? `הביקורת נשמרה ונשלחה אוטומטית למייל (${recipient}) ✓ — אפשר גם לשתף כ-PDF:`
-      : 'הביקורת נשמרה ✓ אך המייל האוטומטי לא נשלח — שתף כ-PDF או פתח מייל:';
+      : (recipient ? 'הביקורת נשמרה ✓ אך המייל האוטומטי לא נשלח — שתף כ-PDF או פתח מייל:' : 'הביקורת נשמרה ✓ — לא הוגדרה כתובת לקבלת ביקורות (טפסים ← הגדרות). אפשר לשתף כ-PDF או לפתוח מייל:');
     document.getElementById('imm-mailto').style.display = mailOk ? 'none' : 'block';
     document.getElementById('imm-mailto').href = `mailto:${recipient}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(bodyText)}`;
     document.getElementById('insp-mail-modal').classList.add('open');
@@ -12306,7 +12313,10 @@ let _appBooted = false;
 let TENANT = '';
 let TENANT_RESOLVED = false;
 let ROLE = 'manager';
-let COMPANY_NAME = 'נופר אנרגיה';
+// ברירת המחדל ריקה ולא "נופר אנרגיה": לקוח שבחשבונו לא הוגדר שם חברה
+// ירש עד כה את שם נופר — בכותרת כל ביקורת בטיחות ובחתימת כל מייל.
+// חשבון הבעלים מקבל את השם במפורש בזיהוי הלקוח.
+let COMPANY_NAME = '';
 // Subscription gate — set from users/{uid}. A customer is blocked when active===false
 // or when validUntil (ISO date) has passed. Nofar (the owner) is always active.
 let SUB_ACTIVE = true;
@@ -12675,7 +12685,7 @@ async function resolveTenant(user) {
       const d = snap.data() || {};
       TENANT = d.tenantId || user.uid;
       if (d.role) ROLE = d.role;
-      if (d.companyName) COMPANY_NAME = d.companyName;
+      COMPANY_NAME = d.companyName || '';   // בלי שם — ריק, ולא שם של לקוח אחר
       SUB_ACTIVE = (d.active !== false);       // blocked only if explicitly set false
       SUB_VALID_UNTIL = d.validUntil || '';    // optional expiry date (ISO)
       // שדה systems נעדר = חשבון שנוצר לפני המנגנון הזה — נשאר פתוח כרגיל,
@@ -13720,7 +13730,7 @@ ${(VEHICLES || []).filter(v => !v.noVehicle && !String(v.driverName || '').trim(
 
 הוספת רכב חדש:
 [[ACTION:addVehicle:רישוי|יצרן|דגם|שנה|שם_נהג|חברה|תוקף_רישוי|תוקף_ביטוח|רישיון_נהג|ביקורת|קמ_נוכחי|קמ_לטיפול]]
-דוגמה: [[ACTION:addVehicle:12345678|טויוטה|קורולה|1.24|ישראל ישראלי|נופר אנרגי|31/12/2026|30/06/2026|||0|15000]]
+דוגמה: [[ACTION:addVehicle:12345678|טויוטה|קורולה|1.24|ישראל ישראלי||31/12/2026|30/06/2026|||0|15000]]
 (שדות לא ידועים — השאר ריק)
 
 אסור למחוק רכב שיש עליו נהג. הפעולה תסרב.
@@ -13777,7 +13787,7 @@ ${(VEHICLES || []).filter(v => !v.noVehicle && !String(v.driverName || '').trim(
 הוספת רכב עם מספר רישוי בלבד — מולא אוטומטית ממאגר ממשלתי (יצרן/דגם/שנה/קוד תוצר/קוד דגם/משקל כולל/תוקף רישוי):
 [[ACTION:addVehicle:מספר_רישוי]]
 דוגמה: [[ACTION:addVehicle:83945203]]
-(ניתן גם לספק פרטים נוספים: [[ACTION:addVehicle:83945203|Toyota|Corolla|2022|ישראל כהן|נופר אנרגי]])
+(ניתן גם לספק פרטים נוספים: [[ACTION:addVehicle:83945203|Toyota|Corolla|2022|ישראל כהן|]])
 
 סנכרון רכב קיים עם מאגר ממשלתי (מעדכן יצרן/דגם/שנה/קוד תוצר/קוד דגם/משקל כולל/תוקף רישוי):
 [[ACTION:syncVehicle:מספר_רישוי]]
@@ -13796,7 +13806,7 @@ ${(VEHICLES || []).filter(v => !v.noVehicle && !String(v.driverName || '').trim(
 
 הוספת עובד/ת לצי ללא רכב (כשעדיין אין לו/לה רכב — מתועד לצורך מעקב רישיון/עבר תעבורתי/טלפון):
 [[ACTION:addEmployee:שם_עובד|חברה|תוקף_רישיון_נהיגה|עבר_תעבורתי|טלפון]]
-דוגמה: [[ACTION:addEmployee:עדי צנטנר|נופר אנרגי|31/12/2028||054-1234567]]
+דוגמה: [[ACTION:addEmployee:עדי צנטנר||31/12/2028||054-1234567]]
 (רק השם חובה; שאר השדות אופציונליים — השאר ריק אם לא ידוע). כשמבקשים "להוסיף עובד/ת ללא רכב" — השתמש בפעולה הזו. אתה כן יכול להוסיף עובד ללא רכב.
 
 ═══ לשונית החזרות / רכבים חליפיים ═══
@@ -14071,6 +14081,9 @@ const POLICY = [
 
 function cbGetCompanyInfo(company) {
   const c = (company||'').trim().replace(/\s+/g,' ');
+  // אנשי הקשר למטה הם של נופר: נציגי הליסינג שלה וספק הצמיגים שלה. לקוח
+  // אחר קיבל אותם על כל רכב, כולל ברירת המחדל שמחזירה את שם נופר.
+  if (TENANT !== 'nofar') return { name: c || 'לא צוין', contact: '', tire: '' };
   if (c.includes('שלמה') || c.includes('סיקסט')) return {
     name: 'שלמה סיקסט', contact: '⭐ *6603',
     tire: 'החלפת צמיג: *6603 בלבד\nתקר: *6603 או גיא צמיגי געש 📱 053-7504921'
@@ -14130,12 +14143,7 @@ function findAnswerLocal(rawText) {
 🔢 מס׳ רכב: ${v.plate}
 🏢 חברת ליסינג: ${info.name}
 ${ins}${reg}${lic}${km}${insp}
-
-📞 לתקלה / טיפול:
-${info.contact}
-
-🔧 צמיגים:
-${info.tire}`;
+${info.contact ? '\n📞 לתקלה / טיפול:\n' + info.contact : ''}${info.tire ? '\n\n🔧 צמיגים:\n' + info.tire : ''}`;
     }).join('\n\n---\n\n');
   }
   // --- Policy keyword match ---
@@ -14570,7 +14578,7 @@ function agentExecAction(action, param) {
     const _km = parseInt(currentKm)||0;
     const _t = new Date();
     const _today = ('0'+_t.getDate()).slice(-2)+'/'+('0'+(_t.getMonth()+1)).slice(-2)+'/'+_t.getFullYear();
-    VEHICLES.push({ plate, make:make||'', model:model||'', year:year||'', driverName:driverName||'', company:company||'נופר אנרגי', registrationExpiry:registrationExpiry||'', insuranceExpiry:insuranceExpiry||'', licenseExpiry:licenseExpiry||'', inspection:inspection||_today, vehicleFrom:_today, currentKm:currentKm||'0', nextServiceKm:nextServiceKm||String(_km+15000) });
+    VEHICLES.push({ plate, make:make||'', model:model||'', year:year||'', driverName:driverName||'', company:company||(TENANT === 'nofar' ? 'נופר אנרגי' : ''), registrationExpiry:registrationExpiry||'', insuranceExpiry:insuranceExpiry||'', licenseExpiry:licenseExpiry||'', inspection:inspection||_today, vehicleFrom:_today, currentKm:currentKm||'0', nextServiceKm:nextServiceKm||String(_km+15000) });
     // רכב חדש נוצר עד כה עם השם בלבד, ולכן עובד ותיק שקיבל רכב חדש
     // הופיע בו בלי טלפון, מייל, תוקף רישיון, עבר תעבורתי, נהלים וישות —
     // וכל ההתראות עליו נעלמו. אם העובד כבר קיים בצי, פרטיו נמשכים
@@ -14888,7 +14896,7 @@ async function replaceVehicleAction(param) {
     nv.licenseExpiry = old.licenseExpiry || nv.licenseExpiry || '';
     nv.trafficRecord = old.trafficRecord || '';
     nv.procedures = ''; // procedures are signed per vehicle — must be re-signed on the new one
-    nv.company = old.company || nv.company || 'נופר אנרגי';
+    nv.company = old.company || nv.company || (TENANT === 'nofar' ? 'נופר אנרגי' : '');
     nv.vehicleFrom = recDate;
     nv.inspection = recDate;
     nv.currentKm = nv.currentKm || '0';
@@ -15080,7 +15088,7 @@ async function addVehicleWithLookup(param) {
     degemCd: govDegem,
     weight: govWeight,
     driverName: driverName||'',
-    company: company||'נופר אנרגי',
+    company: company||(TENANT === 'nofar' ? 'נופר אנרגי' : ''),
     registrationExpiry: registrationExpiry||govReg||'',
     insuranceExpiry: insuranceExpiry||'',
     licenseExpiry: licenseExpiry||'',

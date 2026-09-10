@@ -54,7 +54,7 @@ body{font-family:'Heebo',sans-serif;background:#f0f4f8;color:#1e293b;padding:16p
     <div class="days" id="days"></div>
     <div class="err" id="err"></div>
     <button class="btn" id="send-btn" disabled onclick="submitBooking()">📅 קבע/י מועד</button>
-    <div class="contact">לתיאום או שינוי — קצין הרכב: 054-2840258</div>
+    <div class="contact" id="contact-main"></div>
   </div>
 </div>
 
@@ -62,7 +62,7 @@ body{font-family:'Heebo',sans-serif;background:#f0f4f8;color:#1e293b;padding:16p
   <div class="big">✅</div>
   <h2 style="margin:10px 0 6px">המועד נקבע — תודה!</h2>
   <div id="result-txt" style="font-size:0.95rem;color:#334155"></div>
-  <div class="contact">קצין הבטיחות יאשר את המועד. לשינוי — 054-2840258</div>
+  <div class="contact" id="contact-done">קצין הבטיחות יאשר את המועד.</div>
 </div>
 
 <script>
@@ -97,6 +97,10 @@ const fcol = () => db.collection('tenants').doc(TENANT).collection('data');
 const PLATE = (params.get('plate') || '').replace(/\D/g,'');
 const DAYS_HE = ['ראשון','שני','שלישי','רביעי','חמישי','שישי','שבת'];
 let VEH = null, MAIL = {}, chosen = null;
+// טלפון מחלקת הרכב של הלקוח הזה, מתוך העותק הציבורי. הדף הציג עד כה את
+// הטלפון של הבעלים לנהגים של כל הלקוחות, וגם הכניס אותו לזימון ביומן.
+// בלי טלפון מוגדר — אין שורת טלפון, ולא טלפון של לקוח אחר.
+let ORG_PHONE = '';
 
 // window start: the "sent" date from the link, else today. Two-week window.
 function windowStart() {
@@ -112,6 +116,7 @@ function windowStart() {
     try { const s = await fcol().doc('pubroster').get(); if (s.exists && Array.isArray((s.data()||{}).vehicles)) d = s.data(); } catch(e) {}
     if (!Array.isArray(d.vehicles)) { try { const s = await fcol().doc('main').get(); d = s.data() || {}; } catch(e) {} }
     MAIL = d.mailSettings || {};
+    ORG_PHONE = String((d.org && d.org.phone) || (TENANT === 'nofar' ? '054-2840258' : '')).trim();
     VEH = (d.vehicles || []).find(v => (v.plate||'').replace(/\D/g,'') === PLATE);
   } catch(e) {}
   document.getElementById('loading').style.display = 'none';
@@ -122,6 +127,10 @@ function windowStart() {
     : (PLATE ? `🚗 רכב <span dir="ltr">${PLATE}</span>` : '🚗 קביעת מועד לביקורת');
   document.getElementById('intro').innerHTML =
     'ביקורת בטיחות תקופתית לרכב מתקרבת. על מנת לשמור על תקינות הרכב ועמידה בדרישות החוק, נא לקבוע מועד נוח לביצוע הביקורת מול קצין הבטיחות.';
+  const _cm = document.getElementById('contact-main');
+  if (_cm) { _cm.textContent = ORG_PHONE ? 'לתיאום או שינוי — מחלקת הרכב: ' + ORG_PHONE : ''; _cm.style.display = ORG_PHONE ? '' : 'none'; }
+  const _cd = document.getElementById('contact-done');
+  if (_cd && ORG_PHONE) _cd.textContent = 'קצין הבטיחות יאשר את המועד. לשינוי — ' + ORG_PHONE;
   renderDays();
 })();
 
@@ -183,7 +192,7 @@ async function submitBooking() {
           'BEGIN:VEVENT',`UID:inspbook-${Date.now()}@rmazor`,`DTSTAMP:${stamp}`,
           `DTSTART;VALUE=DATE:${startYmd}`,`DTEND;VALUE=DATE:${endYmd}`,
           `SUMMARY:${title}`,
-          `DESCRIPTION:ביקורת בטיחות תקופתית שנקבעה ע"י הנהג/ת. רכב ${plate}. לתיאום: 054-2840258`,
+          `DESCRIPTION:ביקורת בטיחות תקופתית שנקבעה ע"י הנהג/ת. רכב ${plate}.${ORG_PHONE ? ' לתיאום: ' + ORG_PHONE : ''}`,
           'STATUS:CONFIRMED','BEGIN:VALARM','TRIGGER:-P1D','ACTION:DISPLAY','DESCRIPTION:תזכורת ביקורת בטיחות','END:VALARM',
           'END:VEVENT','END:VCALENDAR'
         ].join('\r\n');
