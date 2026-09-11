@@ -1724,7 +1724,21 @@ async function _fbTenantId() {
   if (_fbTenant) return _fbTenant;
   const u = await _fbUser();
   if (!u || u.isAnonymous) return null;
-  if (u.uid === NOFAR_OWNER_UID) { _fbTenant = 'nofar'; return _fbTenant; }
+  if (u.uid === NOFAR_OWNER_UID) {
+    // שמAI של הבעלים עובר למרחב נפרד (nadav) אחרי שהמחשב העתיק ואימת את
+    // התיקים. עד אז — המרחב הקודם, שממנו המחשב עדיין קורא.
+    try {
+      const m = await _fbApp.firestore().collection('tenants').doc('nadav').collection('data').doc('main').get();
+      _fbTenant = (m.exists && (m.data() || {}).migratedFromNofar) ? 'nadav' : 'nofar';
+      return _fbTenant;
+    } catch (e) {
+      // הכלל עוד לא פורסם: אין מרחב נפרד, ולכן המרחב הקודם בוודאות
+      if (e && e.code === 'permission-denied') { _fbTenant = 'nofar'; return _fbTenant; }
+      // תקלת רשת: לא מנחשים — ניחוש שגוי היה כותב את האומדן לנתיב שלא נקרא
+      console.log('owner shamai space', e);
+      return null;
+    }
+  }
   try {
     const snap = await _fbApp.firestore().collection('users').doc(u.uid).get();
     _fbTenant = (snap.exists && (snap.data() || {}).tenantId) || u.uid;

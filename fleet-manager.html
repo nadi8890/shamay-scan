@@ -1726,7 +1726,7 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
               </label>
             </div>
             <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;border-top:1px solid #334155;padding-top:10px">
-              <div class="modal-row"><label style="color:#cbd5e1">📨 שליחת תיקי שמAI אל — מזהה חשבון <button type="button" onclick="document.getElementById('adm-share-tenant').value=TENANT" style="margin-inline-start:6px;font-size:0.68rem;padding:1px 7px;border-radius:6px;border:1px solid #475569;background:#1e293b;color:#e2e8f0;cursor:pointer">החשבון שלי</button></label><input id="adm-share-tenant" type="text" style="direction:ltr;background:#1e293b;color:#e2e8f0;border-color:#334155" placeholder="ריק = בלי שליחה"></div>
+              <div class="modal-row"><label style="color:#cbd5e1">📨 שליחת תיקי שמAI אל — מזהה חשבון <button type="button" onclick="document.getElementById('adm-share-tenant').value=shamaiTenant()" style="margin-inline-start:6px;font-size:0.68rem;padding:1px 7px;border-radius:6px;border:1px solid #475569;background:#1e293b;color:#e2e8f0;cursor:pointer">החשבון שלי</button></label><input id="adm-share-tenant" type="text" style="direction:ltr;background:#1e293b;color:#e2e8f0;border-color:#334155" placeholder="ריק = בלי שליחה"></div>
               <div class="modal-row"><label style="color:#cbd5e1">שם שיוצג לשולח</label><input id="adm-share-name" type="text" style="background:#1e293b;color:#e2e8f0;border-color:#334155" placeholder="לדוגמה: נדב מרציאנו"></div>
             </div>
             <div style="display:flex;gap:18px;margin-bottom:12px;flex-wrap:wrap;border-top:1px solid #334155;padding-top:10px">
@@ -2603,7 +2603,7 @@ async function loadFromFirestore() {
       if (typeof d.officerSignature === 'string') { window.OFFICER_SIGNATURE = d.officerSignature; }
       if (Array.isArray(d.entities)) ENTITIES = d.entities;
       if (Array.isArray(d.leaseCompanies)) LEASE_COMPANIES = d.leaseCompanies;
-      if (d.appraiser && typeof d.appraiser === 'object') {
+      if (d.appraiser && typeof d.appraiser === 'object' && shamaiTenant() === TENANT) {   // אחרי ההפרדה — ממרחב שמAI בלבד
         OP_PROFILE = d.appraiser;
         // גרסה קודמת מילאה את "מקום עבודה" בשם חברת הצי, ולכן הוא הופיע
         // בכותרת של כל חוות דעת. משרד השמאות אינו החברה שמנוהלת במערכת.
@@ -12770,6 +12770,91 @@ function fcol() {
   const c = USE_TENANT ? _stampCol(TENANT_DATA()) : db.collection('fleet');
   return READ_ONLY ? _roCol(c) : c;
 }
+// ═══ מרחב הנתונים של שמAI ═══
+// אצל כל לקוח שמAI יושב באותו מרחב של החשבון (TENANT). אצל הבעלים לא:
+// החשבון שלו מחובר למרחב של לקוח הצי נופר, ותיקי השמאות שלו אינם שייכים
+// ללקוח הזה. לכן שמAI של הבעלים יושב במרחב נפרד משלו.
+// ההפרדה נכנסת לתוקף רק אחרי שהתיקים הועתקו ואומתו (shamaiInit). עד אז —
+// וגם כל עוד הכלל ב-Firebase לא פורסם — העבודה נמשכת מהמרחב הקודם.
+const OWNER_SHAMAI_TENANT = 'nadav';
+let SHAMAI_SPLIT = false;        // true = הבעלים עובד מהמרחב הנפרד
+let _shamaiMigrating = false;
+// צפייה של הבעלים בחשבון לקוח מחליפה את TENANT, ואז שמAI הוא של הלקוח
+function _isOwnerOnNofar() {
+  return !!(auth.currentUser && auth.currentUser.uid === NOFAR_OWNER_UID && TENANT === 'nofar');
+}
+function shamaiTenant() {
+  return (SHAMAI_SPLIT && _isOwnerOnNofar()) ? OWNER_SHAMAI_TENANT : TENANT;
+}
+function scol() {
+  fcol();   // אותו שומר: שום גישה לפני שזיהוי הלקוח הושלם
+  return db.collection('tenants').doc(shamaiTenant()).collection('data');
+}
+async function readShamaiDocs(type) {
+  if (shamaiTenant() === TENANT) return readDriverDocs(type);   // לקוח רגיל — בדיוק כמו קודם
+  const out = [];
+  (await scol().where('type', '==', type).get())
+    .forEach(d => out.push(Object.assign({ _docId: d.id, _ref: d.ref, _legacy: false }, d.data())));
+  return out;
+}
+// פרטי השמאי אחרי ההפרדה נטענים רק מהמרחב של שמAI. אצל לקוח רגיל הם
+// ממשיכים להגיע מהמאזין של main, כמו קודם.
+async function opLoadProfile() {
+  if (shamaiTenant() === TENANT) return;
+  try {
+    const s = await scol().doc('main').get();
+    const a = s.exists ? ((s.data() || {}).appraiser || null) : null;
+    if (a && typeof a === 'object') OP_PROFILE = a;
+  } catch (e) { console.log('opLoadProfile', e); }
+}
+async function shamaiInit() {
+  if (!_isOwnerOnNofar()) return;
+  const dest = db.collection('tenants').doc(OWNER_SHAMAI_TENANT).collection('data');
+  let destMain;
+  try { destMain = await dest.doc('main').get(); }
+  catch (e) { console.log('shamai space not available yet', e && e.code); return; }   // הכלל לא פורסם — ממשיכים כמו היום
+  if (destMain.exists && (destMain.data() || {}).migratedFromNofar) {
+    SHAMAI_SPLIT = true;
+    await opLoadProfile();
+    return;
+  }
+  _shamaiMigrating = true;
+  try {
+    const src = fcol();
+    const found = new Map();
+    (await src.where('type', '==', 'opinion').get()).docs.forEach(d => found.set(d.id, d.data() || {}));
+    // תיקים ישנים מלפני המבנה הרב־לקוחי
+    try { (await db.collection('fleet').where('type', '==', 'opinion').get()).docs.forEach(d => { if (!found.has(d.id)) found.set(d.id, d.data() || {}); }); } catch (e) {}
+    let photoDocs = 0;
+    for (const [id, r] of found) {
+      for (let k = 0; k < (r.photoChunks || 0); k++) {
+        const c = await src.doc('opph_' + id + '_' + k).get();
+        if (!c.exists) throw new Error('missing photo chunk ' + id + '_' + k);
+        await dest.doc('opph_' + id + '_' + k).set(c.data());
+        photoDocs++;
+      }
+      await dest.doc(id).set(r);   // אחרי התמונות — כמו בשמירה רגילה
+    }
+    const ho = await src.doc('ophandoff').get();
+    if (ho.exists) await dest.doc('ophandoff').set(ho.data());
+    const fm = await src.doc('main').get();
+    const appr = fm.exists ? ((fm.data() || {}).appraiser || null) : null;
+    // אימות לפני המעבר: כל תיק קיים במרחב החדש
+    const have = new Set((await dest.where('type', '==', 'opinion').get()).docs.map(x => x.id));
+    const missing = [...found.keys()].filter(id => !have.has(id));
+    if (missing.length) throw new Error(missing.length + ' cases missing after copy');
+    await dest.doc('main').set(Object.assign(appr ? { appraiser: appr } : {}, {
+      migratedFromNofar: true, migratedAt: new Date().toISOString(),
+      migratedCases: found.size, migratedPhotoDocs: photoDocs
+    }), { merge: true });
+    SHAMAI_SPLIT = true;
+    if (appr) OP_PROFILE = appr;
+    if (found.size) toast('🔍 תיקי שמAI הועברו למרחב הנפרד שלך — ' + found.size + ' תיקים ✓');
+  } catch (e) {
+    console.log('shamai migration failed — staying on the previous space', e);
+    toast('העברת תיקי שמAI למרחב הנפרד לא הושלמה. ממשיכים לעבוד כרגיל, וננסה שוב בכניסה הבאה', true);
+  } finally { _shamaiMigrating = false; }
+}
 // חותמת דייר על כל כתיבה. זו לא הגנה אלא ראיה: מסמך שנכתב אצל לקוח אחד
 // נושא את שמו, ולכן אם הוא מופיע אצל אחר — האזעקה למטה תתפוס אותו מיד
 // במקום שזה יתגלה חודש אחרי כן מול הלקוח.
@@ -13467,6 +13552,7 @@ function wipeSeedData() {
   if (typeof OP_PROFILE !== 'undefined') OP_PROFILE = {};
   if (typeof OP_EDU !== 'undefined') OP_EDU = [];
   if (typeof OP_NOTES !== 'undefined') OP_NOTES = [];
+  if (typeof SHAMAI_SPLIT !== 'undefined') SHAMAI_SPLIT = false;
   if (typeof OP_SHARE !== 'undefined') { OP_SHARE = null; OP_TRANSFERS = []; }
   { const _sb = document.getElementById('op-send-to'); if (_sb) _sb.style.display = 'none'; }
   window.CONTACTS = { list: [], emails: [], byPlate: {} };
@@ -13849,7 +13935,7 @@ async function _flushPendingOpHandoff() {
   try { pend = JSON.parse(localStorage.getItem('op_handoff_pending') || 'null'); } catch(e) {}
   if (!pend) return;
   try {
-    await fcol().doc('ophandoff').set(Object.assign({ type: 'ophandoff' }, pend));
+    await scol().doc('ophandoff').set(Object.assign({ type: 'ophandoff' }, pend));
     try { localStorage.removeItem('op_handoff_pending'); } catch(e) {}
     toast('☁️ האומדן שהמתין נשלח — פתח "חוות דעת" במחשב ואשר ייבוא');
   } catch(e) { console.log('flush handoff', e); }
@@ -13870,9 +13956,9 @@ async function _bootFromUser(user) {
     _bootStage = 'טוען נתונים';
     clearTimeout(window._loginWatchdog);
     bootApp();
-    _flushPendingOpHandoff();
     ingestDriverRequests();
-    _opTransfersNotify();
+    // שמAI של הבעלים: קודם ההפרדה (העתקה ואימות), ורק אחריה פעולות שכותבות אליו
+    shamaiInit().finally(() => { _flushPendingOpHandoff(); _opTransfersNotify(); });
     // דיווח שנשלח בזמן שהמערכת פתוחה ייקלט בלי שצריך לרענן
     setInterval(ingestDriverRequests, 120000);
   } finally { _authBootRunning = false; }
@@ -16596,7 +16682,7 @@ async function _opSaveParagraphs(list) {
   if (READ_ONLY) return _roBlock();
   const prof = Object.assign({}, OP_PROFILE, { paragraphs: list });
   try {
-    await fcol().doc('main').set({ appraiser: prof }, { merge: true });
+    await scol().doc('main').set({ appraiser: prof }, { merge: true });
     OP_PROFILE = prof;
     return true;
   } catch (err) { console.log('paragraphs', err); toast('השמירה נכשלה: ' + (err.code || err.message || 'שגיאה'), true); return false; }
@@ -16776,10 +16862,10 @@ async function opSaveProfileNow() {
     toast('מלא/י לפחות שם שמאי או מספר רישיון', true); return;
   }
   try {
-    await fcol().doc('main').set({ appraiser: prof }, { merge: true });
+    await scol().doc('main').set({ appraiser: prof }, { merge: true });
     // קריאה חוזרת מהשרת. כתיבה שנכשלת בשקט נראית בדיוק כמו הצלחה,
     // ובלי הבדיקה הזו ההודעה "נשמרו" הייתה משקרת — וזה מה שקרה.
-    const snap = await fcol().doc('main').get();
+    const snap = await scol().doc('main').get();
     const back = (snap.exists && (snap.data() || {}).appraiser) || {};
     if ((back.appraiser || '') !== prof.appraiser || (back.license || '') !== prof.license) {
       toast('השמירה לא נקלטה בשרת — נסה/י שוב', true);
@@ -16819,7 +16905,7 @@ function opSaveProfile() {
     education: OP_EDU.filter(Boolean), declaration: opVal('declaration') });
   if (JSON.stringify(prof) === JSON.stringify(OP_PROFILE)) return;
   OP_PROFILE = prof;
-  fcol().doc('main').set({ appraiser: prof }, { merge: true })
+  scol().doc('main').set({ appraiser: prof }, { merge: true })
     .catch(err => console.log('opSaveProfile', err));
 }
 
@@ -16926,6 +17012,7 @@ const OP_PHOTO_CHUNK = 700000;
 // הייתה שומרת תיק בלי תמונות ומוחקת את החבילות — ולכן היא נחסמת.
 let _opPhotosPending = null;
 function _opPhotosBusy() {
+  if (_shamaiMigrating) { toast('רגע — תיקי שמAI מועברים למרחב הנפרד…', true); return true; }
   if (_opPhotosPending && _opPhotosPending === OP_EDIT_ID) {
     toast('התמונות של התיק עדיין נטענות — רגע…', true);
     return true;
@@ -16947,11 +17034,11 @@ function _opPhotoChunks(photos) {
 async function _opSavePhotos(id, photos, prevChunks) {
   const chunks = _opPhotoChunks(photos);
   for (let k = 0; k < chunks.length; k++) {
-    await fcol().doc('opph_' + id + '_' + k).set({ type: 'opphotos', op: id, chunk: k, photos: chunks[k] });
+    await scol().doc('opph_' + id + '_' + k).set({ type: 'opphotos', op: id, chunk: k, photos: chunks[k] });
   }
   // חבילות שנשארו מעבר למספר הנוכחי — של תמונות שהוסרו
   for (let k = chunks.length; k < (prevChunks || 0); k++) {
-    try { await fcol().doc('opph_' + id + '_' + k).delete(); } catch (e) {}
+    try { await scol().doc('opph_' + id + '_' + k).delete(); } catch (e) {}
   }
   return chunks.length;
 }
@@ -16960,7 +17047,7 @@ async function _opLoadPhotos(r) {
   // תיק ישן: התמונות עדיין בתוך הרשומה. בשמירה הבאה הן עוברות לחבילות.
   if (!r.photoChunks) return (r.photos || []).map(p => ({ b64: p.b64, caption: p.caption || '' }));
   const id = r.id || r._docId;
-  const snaps = await Promise.all(Array.from({ length: r.photoChunks }, (_, k) => fcol().doc('opph_' + id + '_' + k).get()));
+  const snaps = await Promise.all(Array.from({ length: r.photoChunks }, (_, k) => scol().doc('opph_' + id + '_' + k).get()));
   const out = [];
   snaps.forEach(s => { if (s.exists) ((s.data() || {}).photos || []).forEach(p => out.push({ b64: p.b64, caption: p.caption || '' })); });
   return out;
@@ -16968,7 +17055,7 @@ async function _opLoadPhotos(r) {
 async function _opDeletePhotos(r) {
   const id = r && (r.id || r._docId);
   for (let k = 0; id && k < ((r && r.photoChunks) || 0); k++) {
-    try { await fcol().doc('opph_' + id + '_' + k).delete(); } catch (e) {}
+    try { await scol().doc('opph_' + id + '_' + k).delete(); } catch (e) {}
   }
 }
 // סדר התמונות הוא סדר העמודים ב-PDF
@@ -17022,9 +17109,9 @@ async function opSave() {
   try {
     // קודם התמונות ורק אז הרשומה — כך רשומה לעולם לא מפנה לחבילות שלא נשמרו
     let prevChunks = 0;
-    try { const prev = await fcol().doc(rec.id).get(); if (prev.exists) prevChunks = (prev.data() || {}).photoChunks || 0; } catch (e) {}
+    try { const prev = await scol().doc(rec.id).get(); if (prev.exists) prevChunks = (prev.data() || {}).photoChunks || 0; } catch (e) {}
     rec.photoChunks = await _opSavePhotos(rec.id, photos, prevChunks);
-    await fcol().doc(rec.id).set(rec);
+    await scol().doc(rec.id).set(rec);
     OP_EDIT_ID = rec.id;
     opSaveProfile();
     toast('חוות הדעת נשמרה ✓');
@@ -17133,7 +17220,7 @@ function renderCases() {
 }
 
 async function opLoadList() {
-  try { OP_LIST = (await readDriverDocs('opinion')).sort((a, b) => (b.created||0) - (a.created||0)); }
+  try { OP_LIST = (await readShamaiDocs('opinion')).sort((a, b) => (b.created||0) - (a.created||0)); }
   catch(e) { OP_LIST = []; }
   const c = document.getElementById('op-count'); if (c) c.textContent = OP_LIST.length;
   if (typeof renderCases === 'function') renderCases();   // גם המונה שעל הלשונית וגם הרשימה
@@ -17167,7 +17254,7 @@ async function opDeleteRow(i) {
                'הרשומה תרד גם מלשונית המעקב. המחיקה אינה הפיכה.')) return;
   try {
     if (r._ref) await r._ref.delete();
-    else if (r._docId) await fcol().doc(r._docId).delete();
+    else if (r._docId) await scol().doc(r._docId).delete();
     else { toast('לא ניתן למחוק את הרשומה הזו', true); return; }
     await _opDeletePhotos(r);
     toast('חוות הדעת נמחקה ✓');
@@ -17227,7 +17314,7 @@ function _opHandoff() {
 // הזרימה (ייבוא, ביטול) תישאר בדיוק כפי שהייתה.
 async function _opPullCloudHandoff() {
   try {
-    const snap = await fcol().doc('ophandoff').get();
+    const snap = await scol().doc('ophandoff').get();
     if (!snap.exists) return null;
     const cloud = snap.data() || {};
     const local = _opHandoff();
@@ -17239,7 +17326,7 @@ async function _opPullCloudHandoff() {
 }
 // מוחק את ההעברה מהענן אחרי ייבוא או ביטול, אחרת היא הייתה חוזרת ומוצעת
 async function _opClearCloudHandoff() {
-  try { await fcol().doc('ophandoff').delete(); } catch(e) {}
+  try { await scol().doc('ophandoff').delete(); } catch(e) {}
 }
 
 // ═══ שליחת תיק לחשבון אחר ═══
@@ -17258,7 +17345,7 @@ async function opShareInit() {
   try {
     const s = await db.collection('shareGrants').doc(u.uid).get();
     const g = s.exists ? (s.data() || {}) : null;
-    OP_SHARE = (g && g.toTenant && g.toTenant !== TENANT) ? { toTenant: String(g.toTenant), toName: String(g.toName || '') } : null;
+    OP_SHARE = (g && g.toTenant && g.toTenant !== shamaiTenant()) ? { toTenant: String(g.toTenant), toName: String(g.toName || '') } : null;
   } catch (e) { OP_SHARE = null; }
   btn.style.display = OP_SHARE ? '' : 'none';
   if (OP_SHARE) btn.textContent = '📨 שלח את התיק' + (OP_SHARE.toName ? ' ל' + OP_SHARE.toName : '');
@@ -17296,7 +17383,9 @@ async function opSendCase() {
   }
 }
 function _opTransfersQuery() {
-  return db.collection('transfers').where('toTenant', '==', TENANT).where('kind', '==', 'opinion');
+  // הבעלים מקבל גם תיקים שנשלחו לפני ההפרדה, למרחב הקודם
+  if (_isOwnerOnNofar()) return db.collection('transfers').where('toTenant', 'in', [OWNER_SHAMAI_TENANT, 'nofar']).where('kind', '==', 'opinion');
+  return db.collection('transfers').where('toTenant', '==', shamaiTenant()).where('kind', '==', 'opinion');
 }
 async function opCheckTransfers() {
   const box = document.getElementById('op-transfers');
@@ -17333,6 +17422,7 @@ async function _opDeleteTransfer(t) {
   await db.collection('transfers').doc(t._id).delete();
 }
 async function opImportTransfer(i) {
+  if (_shamaiMigrating) { toast('רגע — תיקי שמAI מועברים למרחב הנפרד…', true); return; }
   if (READ_ONLY) return _roBlock();
   const t = OP_TRANSFERS[i];
   if (!t || !t.op) return;
@@ -17352,7 +17442,7 @@ async function opImportTransfer(i) {
     if (!c || taken.has(c)) { rec.fromCase = c; rec.case = opNextCase(); }
     rec.photoCount = photos.length;
     rec.photoChunks = await _opSavePhotos(rec.id, photos, 0);
-    await fcol().doc(rec.id).set(rec);
+    await scol().doc(rec.id).set(rec);
     try { await _opDeleteTransfer(t); } catch (e) { console.log('transfer cleanup', e); }
     await opLoadList();
     document.getElementById('op-list').style.display = '';
