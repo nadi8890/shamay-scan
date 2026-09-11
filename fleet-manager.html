@@ -1079,6 +1079,11 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
   font-family:'Heebo',sans-serif;font-size:0.72rem;outline:none;background:transparent;color:var(--text)}
 .op-photo button{width:100%;border:none;border-top:1px solid var(--border);background:#fef2f2;
   color:#b91c1c;padding:4px;font-size:0.7rem;cursor:pointer;font-family:'Heebo',sans-serif}
+.op-photo .op-mv{display:flex;align-items:center;border-top:1px solid var(--border)}
+.op-photo .op-mv button{flex:1;width:auto;border:none;background:var(--card);color:var(--text);padding:3px 0;font-size:0.9rem;font-weight:800}
+.op-photo .op-mv button:disabled{opacity:.28;cursor:default}
+.op-photo .op-mv span{min-width:26px;text-align:center;font-size:0.72rem;font-weight:800;color:var(--muted)}
+.op-photo img{cursor:grab}
 .op-rows{margin-top:9px;display:flex;flex-direction:column;gap:6px}
 .op-line{display:grid;gap:5px;align-items:center}
 .op-line.adj{grid-template-columns:1fr 72px 92px 34px}
@@ -16702,7 +16707,7 @@ function opCalc() {
 
 /* ── מחזור חיים ── */
 function opNew() {
-  OP_EDIT_ID = null; OP_PHOTOS = []; OP_ADJ = []; OP_DMG = [];
+  OP_EDIT_ID = null; OP_PHOTOS = []; _opPhotosPending = null; OP_ADJ = []; OP_DMG = [];
   OP_FIELDS.forEach(k => { const e = opEl(k); if (e) e.value = ''; });
   const d = new Date(), iso = d.getFullYear() + '-' + ('0'+(d.getMonth()+1)).slice(-2) + '-' + ('0'+d.getDate()).slice(-2);
   if (opEl('date')) opEl('date').value = iso;
@@ -16849,7 +16854,7 @@ async function opAddPhotos(input) {
   opRenderPhotos();
 }
 
-// התמונות נשמרות בתוך הרשומה, ולכן מוקטנות — מסמך Firestore מוגבל ל-1MB
+// התמונות מוקטנות כדי שהתיק ייטען ויישלח מהר. הן נשמרות בחבילות נפרדות (_opSavePhotos)
 function _opShrink(file) {
   return new Promise(res => {
     const fr = new FileReader();
@@ -16887,12 +16892,89 @@ function opRenderPhotos() {
     cnt.textContent = OP_PHOTOS.length ? `· ${OP_PHOTOS.length} תמונות (${kb}KB)` : '';
   }
   if (!box) return;
+  const n = OP_PHOTOS.length;
   box.innerHTML = OP_PHOTOS.map((p, i) =>
-    '<div class="op-photo">' +
-      '<img src="data:image/jpeg;base64,' + p.b64 + '" alt="">' +
+    '<div class="op-photo" ondragover="event.preventDefault()" ondrop="event.preventDefault();opDropPhoto(' + i + ')">' +
+      '<img src="data:image/jpeg;base64,' + p.b64 + '" alt="" draggable="true" ondragstart="_opDragFrom=' + i + '" title="גרור כדי לשנות את הסדר">' +
+      '<div class="op-mv">' +
+        '<button type="button" title="הזז קודם" onclick="opMovePhoto(' + i + ',-1)"' + (i === 0 ? ' disabled' : '') + '>→</button>' +
+        '<span>' + (i + 1) + '</span>' +
+        '<button type="button" title="הזז אחר כך" onclick="opMovePhoto(' + i + ',1)"' + (i === n - 1 ? ' disabled' : '') + '>←</button>' +
+      '</div>' +
       '<input value="' + esc(p.caption) + '" placeholder="' + esc(opPhotoLabel(i)) + '" oninput="OP_PHOTOS[' + i + '].caption=this.value">' +
       '<button type="button" onclick="OP_PHOTOS.splice(' + i + ',1);opRenderPhotos()">הסר</button>' +
     '</div>').join('');
+}
+
+// ═══ תמונות התיק: מחוץ לרשומה ═══
+// מסמך Firestore מוגבל ל-1MB, והתמונות נשמרו בתוך רשומת התיק — ולכן אחרי
+// כ-8 תמונות השמירה נחסמה ("המסמך גדול מדי"). עכשיו הרשומה שומרת רק את
+// הפרטים, והתמונות נשמרות בחבילות נפרדות (opph_<מזהה התיק>_<n>), כל אחת
+// עד ~700KB. אין מגבלה מעשית על מספר התמונות.
+const OP_PHOTO_CHUNK = 700000;
+// תיק שנפתח ותמונותיו עדיין נטענות (או שהטעינה נכשלה). שמירה בזמן הזה
+// הייתה שומרת תיק בלי תמונות ומוחקת את החבילות — ולכן היא נחסמת.
+let _opPhotosPending = null;
+function _opPhotosBusy() {
+  if (_opPhotosPending && _opPhotosPending === OP_EDIT_ID) {
+    toast('התמונות של התיק עדיין נטענות — רגע…', true);
+    return true;
+  }
+  return false;
+}
+function _opPhotoN(r) { return (r && (r.photoCount || (r.photos || []).length)) || 0; }
+function _opPhotoChunks(photos) {
+  const chunks = []; let cur = [], size = 0;
+  (photos || []).forEach(p => {
+    const s = String(p.b64 || '').length + String(p.caption || '').length + 60;
+    if (cur.length && size + s > OP_PHOTO_CHUNK) { chunks.push(cur); cur = []; size = 0; }
+    cur.push({ b64: p.b64, caption: p.caption || '' });
+    size += s;
+  });
+  if (cur.length) chunks.push(cur);
+  return chunks;
+}
+async function _opSavePhotos(id, photos, prevChunks) {
+  const chunks = _opPhotoChunks(photos);
+  for (let k = 0; k < chunks.length; k++) {
+    await fcol().doc('opph_' + id + '_' + k).set({ type: 'opphotos', op: id, chunk: k, photos: chunks[k] });
+  }
+  // חבילות שנשארו מעבר למספר הנוכחי — של תמונות שהוסרו
+  for (let k = chunks.length; k < (prevChunks || 0); k++) {
+    try { await fcol().doc('opph_' + id + '_' + k).delete(); } catch (e) {}
+  }
+  return chunks.length;
+}
+async function _opLoadPhotos(r) {
+  if (!r) return [];
+  // תיק ישן: התמונות עדיין בתוך הרשומה. בשמירה הבאה הן עוברות לחבילות.
+  if (!r.photoChunks) return (r.photos || []).map(p => ({ b64: p.b64, caption: p.caption || '' }));
+  const id = r.id || r._docId;
+  const snaps = await Promise.all(Array.from({ length: r.photoChunks }, (_, k) => fcol().doc('opph_' + id + '_' + k).get()));
+  const out = [];
+  snaps.forEach(s => { if (s.exists) ((s.data() || {}).photos || []).forEach(p => out.push({ b64: p.b64, caption: p.caption || '' })); });
+  return out;
+}
+async function _opDeletePhotos(r) {
+  const id = r && (r.id || r._docId);
+  for (let k = 0; id && k < ((r && r.photoChunks) || 0); k++) {
+    try { await fcol().doc('opph_' + id + '_' + k).delete(); } catch (e) {}
+  }
+}
+// סדר התמונות הוא סדר העמודים ב-PDF
+function opMovePhoto(i, d) {
+  const j = i + d;
+  if (j < 0 || j >= OP_PHOTOS.length) return;
+  const t = OP_PHOTOS[i]; OP_PHOTOS[i] = OP_PHOTOS[j]; OP_PHOTOS[j] = t;
+  opRenderPhotos();
+}
+let _opDragFrom = -1;
+function opDropPhoto(to) {
+  const from = _opDragFrom; _opDragFrom = -1;
+  if (from < 0 || from === to || !OP_PHOTOS[from]) return;
+  const [p] = OP_PHOTOS.splice(from, 1);
+  OP_PHOTOS.splice(to, 0, p);
+  opRenderPhotos();
 }
 
 /* ── שמירה וטעינה ── */
@@ -16909,6 +16991,7 @@ function opCollect() {
 }
 
 async function opSave() {
+  if (_opPhotosBusy()) return;
   if (!opVal('plate') && !opVal('case')) { toast('הזן מספר רישוי או מספר תיק', true); return; }
   const rec = opCollect();
   // שני תיקים חדשים שנפתחו במקביל יכולים לקבל את אותו מספר. אם המספר
@@ -16922,8 +17005,15 @@ async function opSave() {
       toast('מספר התיק היה תפוס — עודכן ל-' + rec.case);
     }
   }
-  if (JSON.stringify(rec).length > 900000) { toast('המסמך גדול מדי — הסר כמה תמונות', true); return; }
+  const photos = rec.photos || [];
+  delete rec.photos;
+  rec.photoCount = photos.length;
+  if (JSON.stringify(rec).length > 900000) { toast('פרטי התיק ארוכים מדי לשמירה', true); return; }
   try {
+    // קודם התמונות ורק אז הרשומה — כך רשומה לעולם לא מפנה לחבילות שלא נשמרו
+    let prevChunks = 0;
+    try { const prev = await fcol().doc(rec.id).get(); if (prev.exists) prevChunks = (prev.data() || {}).photoChunks || 0; } catch (e) {}
+    rec.photoChunks = await _opSavePhotos(rec.id, photos, prevChunks);
     await fcol().doc(rec.id).set(rec);
     OP_EDIT_ID = rec.id;
     opSaveProfile();
@@ -17051,7 +17141,7 @@ async function opLoadList() {
           '<span style="font-weight:800">' + esc(r.case || '—') + '</span>' +
           '<span style="direction:ltr;font-size:0.82rem">' + esc(r.plate||'') + '</span>' +
           '<span style="flex:1;font-size:0.82rem;color:var(--muted)">' + esc([r.model, r.owner].filter(Boolean).join(' · ')) + '</span>' +
-          ((r.photos||[]).length ? '<span class="badge badge-gray">📷 ' + r.photos.length + '</span>' : '') +
+          (_opPhotoN(r) ? '<span class="badge badge-gray">📷 ' + _opPhotoN(r) + '</span>' : '') +
           '<button class="btn" style="padding:3px 9px;font-size:0.68rem;background:#fee2e2;color:#b91c1c" title="מחק חוות דעת" onclick="event.stopPropagation();opDeleteRow(' + i + ')">🗑️</button>' +
         '</div>').join('')
     : '<div style="color:var(--muted);padding:12px;font-size:0.88rem">אין חוות דעת שמורות.</div>';
@@ -17069,6 +17159,7 @@ async function opDeleteRow(i) {
     if (r._ref) await r._ref.delete();
     else if (r._docId) await fcol().doc(r._docId).delete();
     else { toast('לא ניתן למחוק את הרשומה הזו', true); return; }
+    await _opDeletePhotos(r);
     toast('חוות הדעת נמחקה ✓');
     opLoadList();
   } catch(e) {
@@ -17094,10 +17185,23 @@ function opOpen(i) {
   // רשומות ישנות שמרו את ההערות כטקסט אחד
   OP_NOTES = (r.noteLines && r.noteLines.length) ? r.noteLines.slice()
            : (r.notes ? String(r.notes).split('\n').filter(Boolean) : []);
-  OP_PHOTOS = (r.photos || []).map(p => ({ b64: p.b64, caption: p.caption || '' }));
+  OP_PHOTOS = [];
+  _opPhotosPending = OP_EDIT_ID;
   opRenderEdu(); opRenderNotes(); opRenderAdj(); opRenderDmg(); opRenderPhotos(); opCalc();
   document.getElementById('op-list').style.display = 'none';
   document.getElementById('op-form').style.display = '';
+  const _pc = document.getElementById('op-photo-count');
+  if (_pc && _opPhotoN(r)) _pc.textContent = '· טוען ' + _opPhotoN(r) + ' תמונות…';
+  const _openId = OP_EDIT_ID;
+  _opLoadPhotos(r).then(ph => {
+    if (OP_EDIT_ID !== _openId) return;   // בינתיים נפתח תיק אחר
+    OP_PHOTOS = ph;
+    _opPhotosPending = null;
+    opRenderPhotos();
+  }).catch(e => {
+    console.log('op photos load', e);
+    toast('טעינת התמונות נכשלה — רענן ופתח את התיק שוב', true);
+  });
 }
 
 /* ── קליטת אומדן מכלי האומדן ──
@@ -17502,6 +17606,7 @@ function _pdfDropBlankPages(pdf, canvas, usableWmm, usableHmm) {
 
 
 async function opPdf() {
+  if (_opPhotosBusy()) return;
   if (!opVal('plate') && !opVal('case')) { toast('הזן מספר רישוי או מספר תיק', true); return; }
   let box = document.getElementById('op-print');
   if (!box) {
@@ -17534,6 +17639,7 @@ async function opPdf() {
 }
 
 function opMail() {
+  if (_opPhotosBusy()) return;
   const c = opCalc();
   const subj = 'חוות דעת שמאי' + (opVal('case') ? ' — תיק ' + opVal('case') : '') + (opVal('plate') ? ' | רכב ' + opVal('plate') : '');
   const body = 'שלום,\n\nמצורפת חוות דעת שמאי' +
