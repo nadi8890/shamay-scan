@@ -1354,6 +1354,8 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
     </div>
   </div>
 
+  <div id="op-transfers" class="card" style="display:none;background:#ecfdf5;border-color:#a7f3d0"></div>
+
   <div id="op-list" class="card" style="display:none"></div>
 
   <div id="op-form">
@@ -1481,6 +1483,7 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
       <button class="btn btn-gray" onclick="opSave()">💾 שמור</button>
       <button class="btn btn-secondary" onclick="opPdf()" title="טקסט אמיתי — אפשר לחפש ולהעתיק. בחלון שנפתח בחר &quot;שמור כ-PDF&quot;">📄 צור PDF</button>
       <button class="btn btn-primary" onclick="opMail()">📤 שלח</button>
+      <button class="btn btn-secondary" id="op-send-to" style="display:none" onclick="opSendCase()">📨 שלח את התיק</button>
     </div>
   </div>
 </div>
@@ -1721,6 +1724,10 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
               <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
                 <input id="adm-garage" type="checkbox" style="width:16px;height:16px"><span>🔧 ניהול מוסך</span>
               </label>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:12px;border-top:1px solid #334155;padding-top:10px">
+              <div class="modal-row"><label style="color:#cbd5e1">📨 שליחת תיקי שמAI אל — מזהה חשבון <button type="button" onclick="document.getElementById('adm-share-tenant').value=TENANT" style="margin-inline-start:6px;font-size:0.68rem;padding:1px 7px;border-radius:6px;border:1px solid #475569;background:#1e293b;color:#e2e8f0;cursor:pointer">החשבון שלי</button></label><input id="adm-share-tenant" type="text" style="direction:ltr;background:#1e293b;color:#e2e8f0;border-color:#334155" placeholder="ריק = בלי שליחה"></div>
+              <div class="modal-row"><label style="color:#cbd5e1">שם שיוצג לשולח</label><input id="adm-share-name" type="text" style="background:#1e293b;color:#e2e8f0;border-color:#334155" placeholder="לדוגמה: נדב מרציאנו"></div>
             </div>
             <div style="display:flex;gap:18px;margin-bottom:12px;flex-wrap:wrap;border-top:1px solid #334155;padding-top:10px">
               <label style="display:flex;align-items:center;gap:6px;cursor:pointer" title="עמודת משקל כולל בטבלת הצי, בכרטיס הרכב ובייצוא — ממולאת מהסנכרון מול משרד התחבורה">
@@ -4302,7 +4309,7 @@ function showTab(name, btn) {
   if (name==='violations') { renderViolations(); buildViolColFilterRow(); }
   if (name==='invoices') { renderInvoices(); buildInvColFilterRow(); }
   if (name==='tasks') renderTasks();
-  if (name==='opinion') { if (!OP_PHOTOS.length && !document.getElementById('op-plate').value) opNew(); opLoadList(); opCheckHandoff(); }
+  if (name==='opinion') { if (!OP_PHOTOS.length && !document.getElementById('op-plate').value) opNew(); opLoadList(); opCheckHandoff(); opShareInit(); opCheckTransfers(); }
   if (name==='cases') { opLoadList().then(() => renderCases()).catch(() => renderCases()); }
   if (name==='returns') renderReturns();
   if (name==='forms') renderFormsTab();
@@ -13460,6 +13467,8 @@ function wipeSeedData() {
   if (typeof OP_PROFILE !== 'undefined') OP_PROFILE = {};
   if (typeof OP_EDU !== 'undefined') OP_EDU = [];
   if (typeof OP_NOTES !== 'undefined') OP_NOTES = [];
+  if (typeof OP_SHARE !== 'undefined') { OP_SHARE = null; OP_TRANSFERS = []; }
+  { const _sb = document.getElementById('op-send-to'); if (_sb) _sb.style.display = 'none'; }
   window.CONTACTS = { list: [], emails: [], byPlate: {} };
   // docsId חי בתוך DRIVERS שכבר מתאפס למעלה — אין צורך בטיפול נפרד
   window.OFFICER_INFO = null;
@@ -13863,6 +13872,7 @@ async function _bootFromUser(user) {
     bootApp();
     _flushPendingOpHandoff();
     ingestDriverRequests();
+    _opTransfersNotify();
     // דיווח שנשלח בזמן שהמערכת פתוחה ייקלט בלי שצריך לרענן
     setInterval(ingestDriverRequests, 120000);
   } finally { _authBootRunning = false; }
@@ -17232,6 +17242,146 @@ async function _opClearCloudHandoff() {
   try { await fcol().doc('ophandoff').delete(); } catch(e) {}
 }
 
+// ═══ שליחת תיק לחשבון אחר ═══
+// שמאי שעובד מול משרד אחר שולח אליו תיק שלם — בלי שום גישה לחשבון שלו,
+// ובלי שהמשרד המקבל נותן גישה לנתונים שלו. לאן מותר לשלוח נקבע רק בפאנל
+// הניהול, במסמך shareGrants/<uid> שרק הבעלים כותב אליו (ולא ברשומת
+// המשתמש, שהמשתמש יוצר בעצמו בהרשמה). התיק נשמר בתיבת transfers: השולח
+// יוצר בלבד, והחשבון המקבל קורא ומוחק. התמונות עוברות בחבילות נפרדות
+// (<מזהה>_p<n>), מאותה סיבה שהן נשמרות כך בתיק.
+let OP_SHARE = null;       // { toTenant, toName } — רק למי שהבעלים הרשה
+let OP_TRANSFERS = [];
+async function opShareInit() {
+  const btn = document.getElementById('op-send-to');
+  const u = auth.currentUser;
+  if (!btn || !u) return;
+  try {
+    const s = await db.collection('shareGrants').doc(u.uid).get();
+    const g = s.exists ? (s.data() || {}) : null;
+    OP_SHARE = (g && g.toTenant && g.toTenant !== TENANT) ? { toTenant: String(g.toTenant), toName: String(g.toName || '') } : null;
+  } catch (e) { OP_SHARE = null; }
+  btn.style.display = OP_SHARE ? '' : 'none';
+  if (OP_SHARE) btn.textContent = '📨 שלח את התיק' + (OP_SHARE.toName ? ' ל' + OP_SHARE.toName : '');
+}
+async function opSendCase() {
+  if (READ_ONLY) return _roBlock();
+  if (!OP_SHARE) { toast('לחשבון הזה לא הוגדר לאן לשלוח תיקים', true); return; }
+  if (_opPhotosBusy()) return;
+  if (!opVal('plate') && !opVal('case')) { toast('הזן מספר רישוי או מספר תיק', true); return; }
+  const rec = opCollect();
+  const photos = rec.photos || [];
+  delete rec.photos;
+  rec.photoCount = photos.length;
+  const who = OP_SHARE.toName || 'החשבון המקבל';
+  if (!confirm('לשלוח את התיק ' + (rec.case || rec.plate || '') + ' ל' + who + '?' + String.fromCharCode(10, 10) +
+               'יישלח עותק מלא של התיק' + (photos.length ? ', כולל ' + photos.length + ' תמונות' : '') + '.' + (OP_EDIT_ID ? ' התיק נשאר גם אצלך.' : ' שים לב: התיק עוד לא שמור אצלך — כדאי ללחוץ גם 💾 שמור.'))) return;
+  const u = auth.currentUser;
+  const trId = 'tr_' + Date.now() + '_' + String(u.uid).slice(0, 6);
+  const base = { toTenant: OP_SHARE.toTenant, fromUid: u.uid };
+  toast('שולח…');
+  try {
+    const chunks = _opPhotoChunks(photos);
+    for (let k = 0; k < chunks.length; k++) {
+      await db.collection('transfers').doc(trId + '_p' + k).set(Object.assign({ kind: 'opinion-photos', tr: trId, chunk: k, photos: chunks[k] }, base));
+    }
+    await db.collection('transfers').doc(trId).set(Object.assign({
+      kind: 'opinion', created: Date.now(), photoChunks: chunks.length,
+      fromName: String((OP_PROFILE && OP_PROFILE.appraiser) || COMPANY_NAME || u.email || ''),
+      fromEmail: u.email || '', op: rec
+    }, base));
+    toast('📨 התיק נשלח ל' + who + ' ✓');
+  } catch (e) {
+    console.log('opSendCase', e);
+    toast(e && e.code === 'permission-denied' ? 'השליחה נחסמה — כלל השליחה עדיין לא פורסם ב-Firebase' : 'השליחה נכשלה: ' + (e.code || e.message), true);
+  }
+}
+function _opTransfersQuery() {
+  return db.collection('transfers').where('toTenant', '==', TENANT).where('kind', '==', 'opinion');
+}
+async function opCheckTransfers() {
+  const box = document.getElementById('op-transfers');
+  if (!box || !auth.currentUser || !TENANT) return;
+  try {
+    const snap = await _opTransfersQuery().get();
+    OP_TRANSFERS = snap.docs.map(d => Object.assign({ _id: d.id }, d.data())).filter(t => t.op)
+      .sort((a, b) => (b.created || 0) - (a.created || 0));
+  } catch (e) { OP_TRANSFERS = []; }
+  if (!OP_TRANSFERS.length) { box.style.display = 'none'; box.innerHTML = ''; return; }
+  box.style.display = '';
+  box.innerHTML = '<div style="font-weight:800;font-size:0.92rem;color:#065f46;margin-bottom:4px">📨 תיקים שהתקבלו (' + OP_TRANSFERS.length + ')</div>' +
+    OP_TRANSFERS.map((t, i) => {
+      const o = t.op || {};
+      return '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:8px 0;border-top:1px solid #a7f3d0">' +
+        '<div style="flex:1;min-width:180px;font-size:0.84rem"><b>' + esc(t.fromName || t.fromEmail || '—') + '</b> · ' +
+          esc([o.case && 'תיק ' + o.case, o.plate, o.model].filter(Boolean).join(' · ')) +
+          (o.photoCount ? ' · 📷 ' + o.photoCount : '') +
+          '<div style="color:var(--muted);font-size:0.74rem">' + esc(new Date(t.created || 0).toLocaleString('he-IL')) + '</div></div>' +
+        '<button class="btn btn-primary" onclick="opImportTransfer(' + i + ')">ייבא לתיקים</button>' +
+        '<button class="btn btn-gray" onclick="opDismissTransfer(' + i + ')">מחק</button></div>';
+    }).join('');
+}
+async function _opTransferPhotos(t) {
+  const snaps = await Promise.all(Array.from({ length: t.photoChunks || 0 }, (_, k) => db.collection('transfers').doc(t._id + '_p' + k).get()));
+  const out = [];
+  snaps.forEach(s => { if (s.exists) ((s.data() || {}).photos || []).forEach(p => out.push({ b64: p.b64, caption: p.caption || '' })); });
+  return out;
+}
+async function _opDeleteTransfer(t) {
+  for (let k = 0; k < (t.photoChunks || 0); k++) {
+    try { await db.collection('transfers').doc(t._id + '_p' + k).delete(); } catch (e) {}
+  }
+  await db.collection('transfers').doc(t._id).delete();
+}
+async function opImportTransfer(i) {
+  if (READ_ONLY) return _roBlock();
+  const t = OP_TRANSFERS[i];
+  if (!t || !t.op) return;
+  toast('קולט את התיק…');
+  try {
+    await opLoadList();   // מספרי התיקים הקיימים, כדי לא לקלוט מספר תפוס
+    const photos = await _opTransferPhotos(t);
+    const rec = Object.assign({}, t.op);
+    delete rec.photos;
+    rec.type = 'opinion';
+    rec.id = 'op_' + Date.now();
+    rec.created = Date.now();
+    rec.receivedFrom = t.fromName || t.fromEmail || '';
+    rec.receivedAt = new Date().toISOString();
+    const taken = new Set((OP_LIST || []).map(r => String((r && r.case) || '').trim()));
+    const c = String(rec.case || '').trim();
+    if (!c || taken.has(c)) { rec.fromCase = c; rec.case = opNextCase(); }
+    rec.photoCount = photos.length;
+    rec.photoChunks = await _opSavePhotos(rec.id, photos, 0);
+    await fcol().doc(rec.id).set(rec);
+    try { await _opDeleteTransfer(t); } catch (e) { console.log('transfer cleanup', e); }
+    await opLoadList();
+    document.getElementById('op-list').style.display = '';
+    document.getElementById('op-form').style.display = 'none';
+    toast('📨 התיק נקלט — תיק ' + rec.case + (rec.fromCase ? ' (אצל השולח: ' + rec.fromCase + ')' : '') + ' ✓');
+    opCheckTransfers();
+  } catch (e) {
+    console.log('opImportTransfer', e);
+    toast('הקליטה נכשלה: ' + (e.code || e.message), true);
+  }
+}
+async function opDismissTransfer(i) {
+  const t = OP_TRANSFERS[i];
+  if (!t) return;
+  if (!confirm('למחוק את התיק שהתקבל מ' + (t.fromName || 'השולח') + ' בלי לייבא אותו?' + String.fromCharCode(10, 10) + 'אצל השולח התיק נשאר.')) return;
+  try { await _opDeleteTransfer(t); toast('התיק שהתקבל נמחק'); }
+  catch (e) { toast('המחיקה נכשלה: ' + (e.code || e.message), true); }
+  opCheckTransfers();
+}
+// הודעה בכניסה למערכת, כדי שתיק שנשלח לא יחכה עד שמישהו יפתח את הלשונית
+async function _opTransfersNotify() {
+  try {
+    if (!auth.currentUser || !TENANT || !(SYS_ENABLED && SYS_ENABLED.shamai)) return;
+    const snap = await _opTransfersQuery().get();
+    const n = snap.size;
+    if (n) toast('📨 ' + (n === 1 ? 'התקבל תיק שמAI חדש' : 'התקבלו ' + n + ' תיקי שמAI') + ' — בלשונית חוות דעת');
+  } catch (e) { /* הכלל עדיין לא פורסם, או שאין תיקים */ }
+}
+
 function opCheckHandoff() {
   const box = document.getElementById('op-handoff');
   if (!box) return;
@@ -17699,6 +17849,7 @@ async function adminLoadClient() {
   if (!uid) { st.textContent = 'הזן UID לטעינה'; st.style.color = '#fca5a5'; return; }
   st.textContent = 'טוען…'; st.style.color = '#94a3b8';
   try {
+    document.getElementById('adm-share-tenant').value = ''; document.getElementById('adm-share-name').value = '';
     const snap = await db.collection('users').doc(uid).get();
     if (!snap.exists) { st.textContent = 'אין עדיין משתמש עם ה-UID הזה — אפשר למלא ולשמור כדי ליצור אותו.'; st.style.color = '#fbbf24'; return; }
     const d = snap.data() || {};
@@ -17708,6 +17859,7 @@ async function adminLoadClient() {
     const sys = d.systems || {};
     document.getElementById('adm-fleet').checked = !!sys.fleet;
     document.getElementById('adm-shamai').checked = !!sys.shamai;
+    try { const _g = await db.collection('shareGrants').doc(uid).get(); const _gd = _g.exists ? (_g.data() || {}) : {}; document.getElementById('adm-share-tenant').value = _gd.toTenant || ''; document.getElementById('adm-share-name').value = _gd.toName || ''; } catch (e) { console.log('shareGrants load', e); }
     document.getElementById('adm-garage').checked = !!sys.garage;
     document.getElementById('adm-weight').checked = (d.features || {}).weight !== false;
     const _af = d.features || {};
@@ -17913,6 +18065,15 @@ async function adminSaveClient() {
   try {
     await db.collection('users').doc(uid).set(data, { merge: true });
     _admLoadedUid = uid;
+    // הרשאת שליחת תיקים — במסמך נפרד שרק הבעלים כותב אליו
+    const _shT = (document.getElementById('adm-share-tenant').value || '').trim();
+    try {
+      if (_shT) await db.collection('shareGrants').doc(uid).set({ toTenant: _shT, toName: (document.getElementById('adm-share-name').value || '').trim(), updated: Date.now() });
+      else await db.collection('shareGrants').doc(uid).delete();
+    } catch (e) {
+      console.log('shareGrants save', e);
+      if (_shT) { st.textContent = '✓ הלקוח נשמר, אבל הרשאת שליחת התיקים לא — צריך לפרסם את כלל השליחה ב-Firebase'; st.style.color = '#fbbf24'; return; }
+    }
     st.textContent = '✓ נשמר — הלקוח יראה את השינוי בכניסה/רענון הבאה שלו'; st.style.color = '#86efac';
   } catch(e) { st.textContent = _admPermErr(e); st.style.color = '#fca5a5'; console.log('adminSaveClient', e); }
 }
