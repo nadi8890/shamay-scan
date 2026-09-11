@@ -1074,7 +1074,7 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
 .op-total b{font-family:'Heebo',sans-serif;font-size:1.05rem;color:var(--blue)}
 .op-photos{display:grid;grid-template-columns:repeat(auto-fill,minmax(128px,1fr));gap:9px;margin-top:11px}
 .op-photo{border:1px solid var(--border);border-radius:9px;overflow:hidden;background:var(--card)}
-.op-photo img{width:100%;height:96px;object-fit:cover;display:block}
+.op-photo img{width:100%;height:96px;object-fit:contain;background:#f1f5f9;display:block}
 .op-photo input{width:100%;border:none;border-top:1px solid var(--border);padding:5px 7px;
   font-family:'Heebo',sans-serif;font-size:0.72rem;outline:none;background:transparent;color:var(--text)}
 .op-photo button{width:100%;border:none;border-top:1px solid var(--border);background:#fef2f2;
@@ -1084,6 +1084,8 @@ tr.row-warn td:first-child{border-right:4px solid #eab308}
 .op-photo .op-mv button:disabled{opacity:.28;cursor:default}
 .op-photo .op-mv span{min-width:26px;text-align:center;font-size:0.72rem;font-weight:800;color:var(--muted)}
 .op-photo img{cursor:grab}
+.op-photo .op-doc{display:flex;align-items:center;gap:5px;padding:3px 7px;border-top:1px solid var(--border);font-size:0.7rem;color:var(--muted);cursor:pointer}
+.op-photo .op-doc input{width:auto;margin:0;border:none;padding:0}
 .op-rows{margin-top:9px;display:flex;flex-direction:column;gap:6px}
 .op-line{display:grid;gap:5px;align-items:center}
 .op-line.adj{grid-template-columns:1fr 72px 92px 34px}
@@ -1419,6 +1421,7 @@ select:focus-visible,textarea:focus-visible,[tabindex]:focus-visible{
       <div class="op-grid">
         <div class="modal-row"><label>ערך רכב בסיסי (₪)</label><input id="op-basevalue" type="number" oninput="opCalc()"></div>
         <div class="modal-row"><label>מקור המחירון</label><input id="op-pricelist" type="text" placeholder="לוי יצחק"></div>
+        <div class="modal-row" style="grid-column:1/-1;display:flex;align-items:center;gap:8px;flex-wrap:wrap"><button type="button" class="btn btn-secondary" onclick="opLeviLookup()">🔎 בדיקה במחירון לוי יצחק</button><span style="font-size:0.72rem;color:var(--muted)">פותח את האתר ומעתיק את פרטי הרכב — מדביקים בחיפוש, ורושמים כאן את הערך</span></div>
         <div class="modal-row" style="grid-column:1/-1"><label>בסיס לחישוב אחוז הנזק (₪) <span style="font-weight:400;color:#94a3b8;font-size:0.68rem">ריק = הערך המשוערך</span></label><input id="op-ratiobase" type="number" placeholder="ריק = ערך משוערך" oninput="opCalc()"></div>
       </div>
       <div id="op-adj-rows" class="op-rows"></div>
@@ -16944,7 +16947,7 @@ async function opAddPhotos(input) {
   const files = Array.from(input.files || []); input.value = '';
   for (const f of files) {
     if (!f.type.startsWith('image/')) continue;
-    try { const b64 = await _opShrink(f); if (b64) OP_PHOTOS.push({ b64, caption: '' }); }
+    try { const s = await _opShrink(f); if (s && s.b64) OP_PHOTOS.push({ b64: s.b64, caption: '', doc: s.doc }); }
     catch(e) { console.log('opinion photo', f.name, e); }
   }
   opRenderPhotos();
@@ -16957,18 +16960,20 @@ function _opShrink(file) {
     fr.onload = () => {
       const img = new Image();
       img.onload = () => {
-        const max = 1000, r = Math.min(1, max / Math.max(img.width, img.height));
+        // מסמך (צילום לאורך — רישיון, חשבונית) נשמר ברזולוציה גבוהה יותר, כדי שהטקסט יהיה קריא
+        const doc = img.height > img.width * 1.15;
+        const max = doc ? 1600 : 1000, r = Math.min(1, max / Math.max(img.width, img.height));
         const w = Math.round(img.width * r), h = Math.round(img.height * r);
         const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
         const cx = cv.getContext('2d');
         cx.fillStyle = '#fff'; cx.fillRect(0, 0, w, h);
         cx.drawImage(img, 0, 0, w, h);
-        try { res(cv.toDataURL('image/jpeg', 0.58).split(',')[1]); } catch(e) { res(''); }
+        try { res({ b64: cv.toDataURL('image/jpeg', doc ? 0.72 : 0.58).split(',')[1], doc }); } catch(e) { res(null); }
       };
-      img.onerror = () => res('');
+      img.onerror = () => res(null);
       img.src = fr.result;
     };
-    fr.onerror = () => res('');
+    fr.onerror = () => res(null);
     fr.readAsDataURL(file);
   });
 }
@@ -16991,12 +16996,13 @@ function opRenderPhotos() {
   const n = OP_PHOTOS.length;
   box.innerHTML = OP_PHOTOS.map((p, i) =>
     '<div class="op-photo" ondragover="event.preventDefault()" ondrop="event.preventDefault();opDropPhoto(' + i + ')">' +
-      '<img src="data:image/jpeg;base64,' + p.b64 + '" alt="" draggable="true" ondragstart="_opDragFrom=' + i + '" title="גרור כדי לשנות את הסדר">' +
+      '<img src="data:image/jpeg;base64,' + p.b64 + '" alt="" draggable="true" ondragstart="_opDragFrom=' + i + '" title="גרור כדי לשנות את הסדר" onload="_opPhotoSeen(this,' + i + ')">' +
       '<div class="op-mv">' +
         '<button type="button" title="הזז קודם" onclick="opMovePhoto(' + i + ',-1)"' + (i === 0 ? ' disabled' : '') + '>→</button>' +
         '<span>' + (i + 1) + '</span>' +
         '<button type="button" title="הזז אחר כך" onclick="opMovePhoto(' + i + ',1)"' + (i === n - 1 ? ' disabled' : '') + '>←</button>' +
       '</div>' +
+      '<label class="op-doc"><input type="checkbox" id="op-ph-doc-' + i + '"' + (p.doc ? ' checked' : '') + ' onchange="opPhotoDoc(' + i + ',this.checked)"><span>📄 מסמך — עמוד מלא</span></label>' +
       '<input value="' + esc(p.caption) + '" placeholder="' + esc(opPhotoLabel(i)) + '" oninput="OP_PHOTOS[' + i + '].caption=this.value">' +
       '<button type="button" onclick="OP_PHOTOS.splice(' + i + ',1);opRenderPhotos()">הסר</button>' +
     '</div>').join('');
@@ -17025,7 +17031,7 @@ function _opPhotoChunks(photos) {
   (photos || []).forEach(p => {
     const s = String(p.b64 || '').length + String(p.caption || '').length + 60;
     if (cur.length && size + s > OP_PHOTO_CHUNK) { chunks.push(cur); cur = []; size = 0; }
-    cur.push({ b64: p.b64, caption: p.caption || '' });
+    cur.push(_opPh(p));
     size += s;
   });
   if (cur.length) chunks.push(cur);
@@ -17045,11 +17051,11 @@ async function _opSavePhotos(id, photos, prevChunks) {
 async function _opLoadPhotos(r) {
   if (!r) return [];
   // תיק ישן: התמונות עדיין בתוך הרשומה. בשמירה הבאה הן עוברות לחבילות.
-  if (!r.photoChunks) return (r.photos || []).map(p => ({ b64: p.b64, caption: p.caption || '' }));
+  if (!r.photoChunks) return (r.photos || []).map(_opPh);
   const id = r.id || r._docId;
   const snaps = await Promise.all(Array.from({ length: r.photoChunks }, (_, k) => scol().doc('opph_' + id + '_' + k).get()));
   const out = [];
-  snaps.forEach(s => { if (s.exists) ((s.data() || {}).photos || []).forEach(p => out.push({ b64: p.b64, caption: p.caption || '' })); });
+  snaps.forEach(s => { if (s.exists) ((s.data() || {}).photos || []).forEach(p => out.push(_opPh(p))); });
   return out;
 }
 async function _opDeletePhotos(r) {
@@ -17074,6 +17080,50 @@ function opDropPhoto(to) {
   opRenderPhotos();
 }
 
+// תמונה בתיק: {b64, caption, doc}. doc = מסמך (רישיון, חשבונית, צילום לאורך)
+// שמוצג ב-PDF בעמוד מלא ולא בתא קטן. שדה שלא נקבע נשאר חסר — Firestore
+// דוחה ערך undefined.
+function _opPh(p) {
+  const o = { b64: p.b64, caption: p.caption || '' };
+  if (typeof p.doc === 'boolean') o.doc = p.doc;
+  return o;
+}
+function opPhotoDoc(i, on) { if (OP_PHOTOS[i]) OP_PHOTOS[i].doc = !!on; }
+// תמונה ישנה בלי סימון: מזהים מסמך לפי כיוון התמונה, פעם אחת, כשהיא נטענת
+function _opPhotoSeen(img, i) {
+  const p = OP_PHOTOS[i];
+  if (!p || typeof p.doc === 'boolean' || !img.naturalWidth) return;
+  p.doc = img.naturalHeight > img.naturalWidth * 1.15;
+  const cb = document.getElementById('op-ph-doc-' + i);
+  if (cb) cb.checked = p.doc;
+}
+// מחירון לוי יצחק הוא שירות בתשלום ואין לו סנכרון. הכפתור פותח את האתר
+// (במנוי של השמאי) ומעתיק את פרטי הרכב להדבקה בחיפוש.
+function opLeviLookup() {
+  const w = window.open('https://levi-itzhak.co.il/', '_blank');
+  const year = ((opVal('regdate') || '').match(/(19|20)\d{2}/) || [''])[0];
+  const lines = [
+    opVal('model') && 'דגם: ' + opVal('model'),
+    year && 'שנת רישום: ' + year,
+    opVal('modelcode') && 'קוד דגם: ' + opVal('modelcode'),
+    opVal('km') && 'ק״מ: ' + opVal('km'),
+    opVal('plate') && 'מספר רישוי: ' + opVal('plate')
+  ].filter(Boolean);
+  // מהדורת המחירון שלפיה נקבע הערך — נתון שחוות דעת צריכה לציין
+  const pl = opEl('pricelist');
+  if (pl && (!pl.value.trim() || pl.value.trim() === 'לוי יצחק')) {
+    pl.value = 'לוי יצחק, ' + new Date().toLocaleDateString('he-IL', { month: 'long', year: 'numeric' });
+  }
+  if (!w) toast('הדפדפן חסם את פתיחת האתר — יש לאשר חלונות קופצים', true);
+  const bv = opEl('basevalue');
+  if (!lines.length) { toast('מלא/י קודם את פרטי הרכב — דגם ותאריך רישום', true); if (bv) bv.focus(); return; }
+  const txt = lines.join(' | ');
+  const done = () => toast('📋 פרטי הרכב הועתקו — הדבק/י בחיפוש באתר, ורשום/י כאן את הערך');
+  if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(txt).then(done).catch(() => _fallbackCopy(txt, done));
+  else _fallbackCopy(txt, done);
+  if (bv) bv.focus();
+}
+
 /* ── שמירה וטעינה ── */
 function opCollect() {
   const rec = { type: 'opinion', id: OP_EDIT_ID || ('op_' + Date.now()), created: Date.now() };
@@ -17082,7 +17132,7 @@ function opCollect() {
   rec.dmg = OP_DMG.slice();
   rec.edu = OP_EDU.filter(Boolean);
   rec.noteLines = OP_NOTES.filter(Boolean);
-  rec.photos = OP_PHOTOS.map(p => ({ b64: p.b64, caption: p.caption }));
+  rec.photos = OP_PHOTOS.map(_opPh);
   rec.calc = opCalc();
   return rec;
 }
@@ -17412,7 +17462,7 @@ async function opCheckTransfers() {
 async function _opTransferPhotos(t) {
   const snaps = await Promise.all(Array.from({ length: t.photoChunks || 0 }, (_, k) => db.collection('transfers').doc(t._id + '_p' + k).get()));
   const out = [];
-  snaps.forEach(s => { if (s.exists) ((s.data() || {}).photos || []).forEach(p => out.push({ b64: p.b64, caption: p.caption || '' })); });
+  snaps.forEach(s => { if (s.exists) ((s.data() || {}).photos || []).forEach(p => out.push(_opPh(p))); });
   return out;
 }
 async function _opDeleteTransfer(t) {
@@ -17530,7 +17580,7 @@ async function opImportHandoff() {
   // מאבד אותן, ותמונה שכבר נקלטה אינה נכפלת בייבוא חוזר.
   (h.photos || []).forEach(ph => {
     if (ph && ph.b64 && !OP_PHOTOS.some(x => x.b64 === ph.b64))
-      OP_PHOTOS.push({ b64: ph.b64, caption: ph.caption || '' });
+      OP_PHOTOS.push(_opPh(ph));
   });
   if ((h.photos || []).length) opRenderPhotos();
   if (h.paint) set('paint', h.paint);
@@ -17747,18 +17797,33 @@ function opHtml() {
   // ומצטרפות בסוף, אחרי ההצהרה ודרישת שכר הטרחה. שש תמונות בעמוד.
   const photoPages = [];
   const ph = r.photos || [];
-  for (let i = 0; i < ph.length; i += 6) {
-    const chunk = ph.slice(i, i + 6);
-    let grid = '<table style="width:100%;border-collapse:collapse"><tr>';
-    chunk.forEach((x, j) => {
-      grid += '<td style="width:33.3%;padding:4px;vertical-align:top">' +
-        '<img src="data:image/jpeg;base64,' + x.b64 + '" style="width:100%;height:150px;object-fit:cover;border:1px solid #cbd5e1;border-radius:3px">' +
-        '<div style="font-size:10px;color:#475569;text-align:center;padding-top:2px">' + esc(x.caption || opPhotoLabel(i + j)) + '</div></td>';
-      if (j % 3 === 2) grid += '</tr><tr>';
-    });
-    grid += '</tr></table>';
-    photoPages.push(_opHead(r, i === 0 ? 'תמונות' : 'תמונות — המשך') + grid);
-  }
+  // מסמך (רישיון, חשבונית) מקבל עמוד מלא, ושאר התמונות שש בעמוד — לפי הסדר
+  // שנקבע בתיק. התמונה מוצגת שלמה (contain); cover חתך מסמכים ושוליים.
+  let grid = [];
+  const pgTitle = () => photoPages.length ? 'תמונות — המשך' : 'תמונות';
+  const flush = () => {
+    for (let s = 0; s < grid.length; s += 6) {
+      let t = '<table style="width:100%;border-collapse:collapse"><tr>';
+      grid.slice(s, s + 6).forEach((g, j) => {
+        t += '<td style="width:33.3%;padding:4px;vertical-align:top">' +
+          '<img src="data:image/jpeg;base64,' + g.x.b64 + '" style="width:100%;height:150px;object-fit:contain;background:#fff;border:1px solid #cbd5e1;border-radius:3px">' +
+          '<div style="font-size:10px;color:#475569;text-align:center;padding-top:2px">' + esc(g.x.caption || opPhotoLabel(g.i)) + '</div></td>';
+        if (j % 3 === 2) t += '</tr><tr>';
+      });
+      t += '</tr></table>';
+      photoPages.push(_opHead(r, pgTitle()) + t);
+    }
+    grid = [];
+  };
+  ph.forEach((x, i) => {
+    if (x && x.doc) {
+      flush();
+      photoPages.push(_opHead(r, pgTitle()) +
+        '<div style="text-align:center"><img src="data:image/jpeg;base64,' + x.b64 + '" style="max-width:100%;max-height:225mm;object-fit:contain;border:1px solid #cbd5e1;border-radius:3px"></div>' +
+        '<div style="font-size:11px;color:#475569;text-align:center;padding-top:4px">' + esc(x.caption || opPhotoLabel(i)) + '</div>');
+    } else grid.push({ x, i });
+  });
+  flush();
 
   // שבירה לפני כל קטע (חוץ מהראשון) במקום גובה עמוד קשיח. כפיית
   // page-break-after על div בגובה משתנה, יחד עם החיתוך של html2pdf
